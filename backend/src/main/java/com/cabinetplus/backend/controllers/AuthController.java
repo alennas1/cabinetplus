@@ -1,7 +1,9 @@
 package com.cabinetplus.backend.controllers;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -12,9 +14,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.RegisterRequest;
+import com.cabinetplus.backend.dto.UserDto;
+import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/auth")
@@ -42,7 +49,6 @@ public class AuthController {
             Authentication auth = authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(username, password));
 
-            // Extract username & role directly from Authentication
             String role = auth.getAuthorities().iterator().next().getAuthority();
             String token = jwtUtil.generateToken(auth.getName(), role);
 
@@ -52,11 +58,32 @@ public class AuthController {
             throw new RuntimeException("Invalid username/password");
         }
     }
+@PostMapping("/register")
+public ResponseEntity<UserDto> register(@Valid @RequestBody RegisterRequest request) {
+    User user = new User();
+    user.setUsername(request.username());
+    user.setPasswordHash(passwordEncoder.encode(request.password()));
+    user.setFirstname(request.firstname());
+    user.setLastname(request.lastname());
+    user.setEmail(request.email());
+    user.setPhoneNumber(request.phoneNumber());
+    user.setRole(UserRole.valueOf(request.role()));
+    user.setCreatedAt(LocalDateTime.now());
 
-    @PostMapping("/register")
-    public User register(@RequestBody User user) {
-        user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
-        user.setCreatedAt(java.time.LocalDateTime.now());
-        return userRepo.save(user);
-    }
+    User saved = userRepo.save(user);
+
+    UserDto dto = new UserDto(
+        saved.getId(),
+        saved.getUsername(),
+        saved.getFirstname(),
+        saved.getLastname(),
+        saved.getEmail(),
+        saved.getPhoneNumber(),
+        saved.getRole().name()
+    );
+
+    return ResponseEntity.ok(dto);
+}
+
+
 }

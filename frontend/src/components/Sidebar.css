@@ -1,0 +1,129 @@
+/* Sidebar container */
+.sidebar {
+  width: 250px;
+  height: 100vh;
+  background-color: white; /* White background */
+  border-right: 1px solid #eaeaea; /* Light gray border for separation */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center; /* Center everything horizontally */
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+/* Logo Section */
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center; /* Center logo and text horizontally */
+  margin-bottom: 30px;
+}
+
+.sidebar-logo img {
+  width: 60px; /* Logo size */
+  height: 60px;
+  margin-right: 10px; /* Space between logo and text */
+}
+
+.sidebar-logo .logo-text {
+  font-size: 35px;
+  font-weight: bold;
+  color: black; /* Black text for logo */
+  letter-spacing: 1px;
+}
+
+/* Small line below logo and text */
+.sidebar-logo::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 1px;
+  background-color: #3498db; /* Blue accent line */
+  margin-top: 10px;
+}
+
+/* Links Section */
+.sidebar-links {
+  list-style-type: none;
+  padding: 0;
+  width: 100%; /* Make the link section take up the full width */
+  display: flex;
+  flex-direction: column; /* Arrange items vertically */
+  align-items: center; /* Center the links horizontally */
+  margin-top: 30px; /* Optional: space between logo and links */
+}
+
+/* Add padding to each list item to create space */
+.sidebar-links li {
+  margin: 15px 0; /* Add space between the links */
+  width: 100%; /* Ensure the links take full width */
+  display: flex;
+  justify-content: center; /* Center the items horizontally */
+}
+
+/* Styling for the links */
+.sidebar-links li a {
+  display: flex;
+  align-items: center;
+  color: #333; /* Dark gray for text */
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 10px 20px; /* Add horizontal padding */
+  border-radius: 5px;
+  width: 100%; /* Make the link take up full width */
+  justify-content: flex-start; /* Align content to the left */
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Icon color and spacing */
+.sidebar-links li a svg {
+  margin-right: 12px;
+  color: #3498db; /* Blue icons */
+}
+
+/* Hover effect */
+.sidebar-links li a:hover {
+  background-color: #3498db;
+  color: white;
+}
+
+/* Footer Section */
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  text-align: center;
+}
+
+.sidebar-footer a {
+  font-size: 14px;
+  color: #3498db;
+  text-decoration: none;
+}
+
+.sidebar-footer a:hover {
+  text-decoration: underline;
+}
+/* Sidebar CSS */
+.logout-btn {
+  display: flex;
+  align-items: center;
+  background-color: transparent;
+  color: #333;
+  font-size: 16px;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+  width: 100%;
+}
+
+.logout-btn:hover {
+  background-color: #3498db;
+  color: white;
+}
+
+.logout-btn svg {
+  margin-right: 12px;
+}

@@ -2,32 +2,34 @@ import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "../store/authSlice";
 import { login } from "../services/authService";
-import { Link, useNavigate } from "react-router-dom"; // 👈 import useNavigate
+import { Link, useNavigate } from "react-router-dom";
 import "./Login.css";
 
 const LoginPage = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState(""); // Add error state
   const dispatch = useDispatch();
-  const navigate = useNavigate(); // 👈 create navigate
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(""); // Reset the error message before attempting login
     try {
       const data = await login(username, password);
       dispatch(loginSuccess(data.token));
 
-      // 👇 Redirect to dashboard after login
+      // Redirect to dashboard after login
       navigate("/dashboard");
     } catch {
-      alert("Identifiants invalides");
+      setError("Identifiants invalides"); // Set error message
     }
   };
 
   return (
     <div className="auth-container">
       <form onSubmit={handleSubmit} className="auth-card">
-        {/* 🔹 Logo */}
+        {/* Logo */}
         <div className="auth-logo">
           <img src="/logo.png" alt="CabinetPlus" />
         </div>
@@ -50,6 +52,9 @@ const LoginPage = () => {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+
+          {/* Display error message in red */}
+          {error && <p className="error-message">{error}</p>}
 
           <button type="submit">Se connecter</button>
         </div>

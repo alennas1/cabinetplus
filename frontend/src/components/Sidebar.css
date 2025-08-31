@@ -1,129 +1,237 @@
-/* Sidebar container */
-.sidebar {
-  width: 250px;
-  height: 100vh;
-  background-color: white; /* White background */
-  border-right: 1px solid #eaeaea; /* Light gray border for separation */
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center; /* Center everything horizontally */
-  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
-  padding: 20px;
+/* Reset */
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
 }
 
-/* Logo Section */
+/* Sidebar container */
+.sidebar {
+  width: 70px; /* collapsed default */
+  height: 100vh;
+  background: #ffffff;
+  border-right: 1px solid #eaeaea;
+  display: flex;
+  flex-direction: column;
+  font-family: "Montserrat", sans-serif;
+  overflow: hidden;
+  transition: width 0.35s ease;
+}
+
+/* Expand on hover */
+.sidebar:hover {
+  width: 260px;
+}
+
+/* --- Cabinet+ Logo (Branding) --- */
 .sidebar-logo {
   display: flex;
   align-items: center;
-  justify-content: center; /* Center logo and text horizontally */
-  margin-bottom: 30px;
+  padding: 20px;
+  border-bottom: 1px solid #eaeaea; /* separator line */
+  color: #3498db;
 }
 
 .sidebar-logo img {
-  width: 60px; /* Logo size */
-  height: 60px;
-  margin-right: 10px; /* Space between logo and text */
-}
-
-.sidebar-logo .logo-text {
-  font-size: 35px;
-  font-weight: bold;
-  color: black; /* Black text for logo */
-  letter-spacing: 1px;
-}
-
-/* Small line below logo and text */
-.sidebar-logo::after {
-  content: '';
+  width: 34px;   /* bigger than nav icons */
+  height: 34px;
+  flex-shrink: 0;
+  margin-right: 0;
   display: block;
-  width: 100%;
-  height: 1px;
-  background-color: #3498db; /* Blue accent line */
-  margin-top: 10px;
+  transition: margin 0.35s ease;
 }
 
-/* Links Section */
+.logo-text {
+  font-size: 20px;   /* bigger than links */
+  font-weight: 600;
+  color: #3498db;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.sidebar:hover .logo-text {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.sidebar:hover .sidebar-logo img {
+  margin-right: 14px;
+}
+
+/* --- Links Section --- */
 .sidebar-links {
-  list-style-type: none;
-  padding: 0;
-  width: 100%; /* Make the link section take up the full width */
-  display: flex;
-  flex-direction: column; /* Arrange items vertically */
-  align-items: center; /* Center the links horizontally */
-  margin-top: 30px; /* Optional: space between logo and links */
+  list-style: none;
+  padding: 10px 0;
+  margin: 0;
 }
 
-/* Add padding to each list item to create space */
 .sidebar-links li {
-  margin: 15px 0; /* Add space between the links */
-  width: 100%; /* Ensure the links take full width */
-  display: flex;
-  justify-content: center; /* Center the items horizontally */
+  margin: 4px 0;
 }
 
-/* Styling for the links */
 .sidebar-links li a {
   display: flex;
   align-items: center;
-  color: #333; /* Dark gray for text */
+  padding: 14px 20px;
+  color: #444;
   text-decoration: none;
   font-size: 16px;
   font-weight: 500;
-  padding: 10px 20px; /* Add horizontal padding */
-  border-radius: 5px;
-  width: 100%; /* Make the link take up full width */
-  justify-content: flex-start; /* Align content to the left */
-  transition: background-color 0.3s, color 0.3s;
+  position: relative;
+  transition: background 0.25s ease, padding 0.35s ease;
 }
 
-/* Icon color and spacing */
 .sidebar-links li a svg {
-  margin-right: 12px;
-  color: #3498db; /* Blue icons */
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: 0;
+  color: #666;
+  transition: margin 0.35s ease;
 }
 
-/* Hover effect */
-.sidebar-links li a:hover {
-  background-color: #3498db;
-  color: white;
+.link-text {
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-/* Footer Section */
-.sidebar-footer {
+/* Show text only on hover */
+.sidebar:hover .link-text {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.sidebar:hover .sidebar-links li a svg {
+  margin-right: 14px;
+}
+
+/* Left border hover effect */
+.sidebar-links li a::before,
+.logout-btn::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+  border-radius: 0 4px 4px 0;
+}
+
+.sidebar-links li a::before {
+  background: #3498db;
+}
+
+.logout-btn::before {
+  background: #e74c3c;
+}
+
+.sidebar-links li a:hover::before,
+.logout-btn:hover::before {
+  transform: scaleY(1);
+}
+
+.sidebar-links li a:hover,
+.logout-btn:hover {
+  background: #f9f9f9;
+  color: #444;
+}
+
+/* --- Logout button --- */
+.sidebar-logout {
   margin-top: auto;
-  padding-top: 20px;
-  text-align: center;
+  padding: 6px 0;
 }
 
-.sidebar-footer a {
-  font-size: 14px;
-  color: #3498db;
-  text-decoration: none;
-}
-
-.sidebar-footer a:hover {
-  text-decoration: underline;
-}
-/* Sidebar CSS */
 .logout-btn {
   display: flex;
   align-items: center;
-  background-color: transparent;
-  color: #333;
-  font-size: 16px;
-  border: none;
-  padding: 10px 20px;
-  cursor: pointer;
-  transition: background-color 0.3s, color 0.3s;
   width: 100%;
-}
-
-.logout-btn:hover {
-  background-color: #3498db;
-  color: white;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  font-weight: 500;
+  color: #444;
+  padding: 14px 20px;
+  cursor: pointer;
+  position: relative;
+  text-align: left;
+  transition: background 0.25s ease, padding 0.35s ease;
 }
 
 .logout-btn svg {
-  margin-right: 12px;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: 0;
+  color: #666;
+  transition: margin 0.35s ease;
+}
+
+.sidebar:hover .logout-btn svg {
+  margin-right: 14px;
+}
+
+.logout-btn span {
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.sidebar:hover .logout-btn span {
+  opacity: 1;
+  transform: translateX(0);
+}
+/* --- Brand (Cabinet+ item) --- */
+.sidebar-links li.brand a {
+  cursor: default;           /* not clickable-looking */
+  pointer-events: none;      /* disables hover and click */
+  color: #3498db;            /* keeps its main color */
+  font-weight: 700;
+}
+
+.sidebar-links li.brand a:hover {
+  background: transparent;   /* cancel hover background */
+}
+
+.sidebar-links li.brand a::before {
+  display: none;             /* remove the blue border effect */
+}
+
+.sidebar-links li.brand a svg {
+  color: #3498db;            /* brand icon same as text */
+}
+.sidebar-links li.brand a svg {
+  width: 28px;   /* bigger than normal icons (20px) */
+  height: 28px;
+  color: #3498db;
+}
+.sidebar-links li.brand .brand-text {
+  font-size: 22px;   /* bigger than normal 16px */
+  font-weight: 500;
+  color: #3498db;
+}
+.sidebar-links li.brand a {
+  padding: 18px 20px;   /* a bit more padding than other items */
+}
+.sidebar-links li.brand {
+  border-bottom: 1px solid #eaeaea;  /* thin gray separator */
+  margin-bottom: 8px;                /* spacing after the line */
+  padding-bottom: 8px;               /* space before the line */
+}
+/* Make the brand icon bigger but aligned with smaller ones */
+.sidebar-links li.brand a svg {
+  width: 28px;
+  height: 28px;
+  color: #3498db;
+
+  /* Align vertically with smaller icons */
+  margin-left: -4px;   /* tweak until visually centered */
 }

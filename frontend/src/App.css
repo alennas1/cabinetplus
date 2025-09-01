@@ -8,3 +8,11 @@
   padding: 20px;
   width: calc(100% - 250px); /* Ensure content takes the remaining width */
 }
+.footer {
+  text-align: center;
+  font-size: 13px;
+  color: #888;
+  padding: 12px 0;
+  border-top: 1px solid #eee;
+  background: #fff;
+}

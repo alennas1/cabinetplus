@@ -16,7 +16,7 @@ const Sidebar = () => {
 
   return (
     <div className="sidebar">
-      {/* All Items including Cabinet+ */}
+      {/* Tous les éléments y compris Cabinet+ */}
       <ul className="sidebar-links">
         <li className="brand">
           <Link to="/dashboard">
@@ -26,7 +26,7 @@ const Sidebar = () => {
         </li>
         <li>
           <Link to="/dashboard">
-            <Home size={20} /> <span className="link-text">Dashboard</span>
+            <Home size={20} /> <span className="link-text">Tableau de bord</span>
           </Link>
         </li>
         <li>
@@ -36,20 +36,20 @@ const Sidebar = () => {
         </li>
         <li>
           <Link to="/appointments">
-            <Calendar size={20} /> <span className="link-text">Appointments</span>
+            <Calendar size={20} /> <span className="link-text">Rendez-vous</span>
           </Link>
         </li>
         <li>
           <Link to="/settings">
-            <Settings size={20} /> <span className="link-text">Settings</span>
+            <Settings size={20} /> <span className="link-text">Paramètres</span>
           </Link>
         </li>
       </ul>
 
-      {/* Logout */}
+      {/* Déconnexion */}
       <div className="sidebar-logout">
         <button onClick={handleLogout} className="logout-btn">
-          <LogOut size={20} /> <span className="link-text">Logout</span>
+          <LogOut size={20} /> <span className="link-text">Se déconnecter</span>
         </button>
       </div>
     </div>

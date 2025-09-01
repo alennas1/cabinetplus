@@ -1,22 +1,14 @@
 /* Layout container */
 .layout-container {
   display: flex;
-  height: 100vh;
-  background-color: #f4f8fb;  /* Light background similar to the login page */
+  min-height: 100vh;   /* full screen height */
+  width: 100%;
 }
-
-/* Sidebar styles - ensures the sidebar stays fixed on the left */
-.sidebar-logo {
-  display: flex;
-  align-items: center;
-  padding: 16px 28px;
-  border-bottom: 1px solid #f0f4f8;
-}
-
 
 /* Content area */
 .content {
-  flex-grow: 1;
-  padding: 2rem;
-  overflow-y: auto;  /* Allows scrolling if content overflows */
+  flex: 1;             /* take up all space next to sidebar */
+  overflow-y: auto;    /* scroll if content is long */
+  
+  /* ❌ remove padding/margins — let each page control its own spacing */
 }

@@ -1,14 +1,14 @@
 import React from "react";
-import Sidebar from "./Sidebar";  // Import Sidebar component
-import { Outlet } from "react-router-dom";  // Renders the child components like Dashboard
-import './Layout.css';  // Ensure to link this CSS file
+import Sidebar from "./Sidebar";
+import { Outlet } from "react-router-dom";
+import "./Layout.css";
 
 const Layout = () => {
   return (
     <div className="layout-container">
-      <Sidebar />  {/* Sidebar stays on the left */}
+      <Sidebar className="sidebar" />  {/* fixed sidebar */}
       <div className="content">
-        <Outlet />  {/* Child components like Dashboard, Patients, etc. will be rendered here */}
+        <Outlet />
       </div>
     </div>
   );

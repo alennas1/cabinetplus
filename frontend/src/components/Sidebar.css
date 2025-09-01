@@ -7,9 +7,12 @@ html, body {
   height: 100%;
 }
 
-/* Sidebar container */
 .sidebar {
-  width: 70px; /* collapsed default */
+  position: fixed;   /* keep it stuck to the viewport */
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 70px;       /* collapsed default */
   height: 100vh;
   background: #ffffff;
   border-right: 1px solid #eaeaea;
@@ -18,11 +21,25 @@ html, body {
   font-family: "Montserrat", sans-serif;
   overflow: hidden;
   transition: width 0.35s ease;
+  z-index: 100;      /* stay above content */
 }
 
-/* Expand on hover */
+/* When hovered, sidebar expands */
 .sidebar:hover {
   width: 260px;
+}
+
+/* Content area should move right to make space */
+.content {
+  margin-left: 70px;       /* match collapsed width */
+  transition: margin-left 0.35s ease;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* When sidebar expands on hover, push content */
+.sidebar:hover ~ .content {
+  margin-left: 260px;
 }
 
 /* --- Cabinet+ Logo (Branding) --- */
@@ -65,7 +82,7 @@ html, body {
 /* --- Links Section --- */
 .sidebar-links {
   list-style: none;
-  padding: 10px 0;
+  padding: 0px 0;
   margin: 0;
 }
 
@@ -190,32 +207,29 @@ html, body {
   transform: translateX(0);
 }
 /* --- Brand (Cabinet+ item) --- */
+/* --- Brand (Cabinet+ item) --- */
 .sidebar-links li.brand a {
-  cursor: default;           /* not clickable-looking */
-  pointer-events: none;      /* disables hover and click */
-  color: #3498db;            /* keeps its main color */
+  cursor: default;           
+  pointer-events: none;      
+  color: #3498db;            
   font-weight: 700;
+  padding: 14px 20px;   /* smaller padding (same as normal links) */
 }
 
-.sidebar-links li.brand a:hover {
-  background: transparent;   /* cancel hover background */
-}
-
-.sidebar-links li.brand a::before {
-  display: none;             /* remove the blue border effect */
+.sidebar-links li.brand {
+  border-bottom: 1px solid #eaeaea;
 }
 
 .sidebar-links li.brand a svg {
-  color: #3498db;            /* brand icon same as text */
-}
-.sidebar-links li.brand a svg {
-  width: 28px;   /* bigger than normal icons (20px) */
+  width: 28px;  /* keep logo same size */
   height: 28px;
   color: #3498db;
+  margin-left: -2px;  /* slight tweak for alignment */
 }
+
 .sidebar-links li.brand .brand-text {
-  font-size: 22px;   /* bigger than normal 16px */
-  font-weight: 500;
+  font-size: 20px;   /* still bigger than others, but a bit smaller */
+  font-weight: 600;
   color: #3498db;
 }
 .sidebar-links li.brand a {
@@ -223,8 +237,7 @@ html, body {
 }
 .sidebar-links li.brand {
   border-bottom: 1px solid #eaeaea;  /* thin gray separator */
-  margin-bottom: 8px;                /* spacing after the line */
-  padding-bottom: 8px;               /* space before the line */
+              /* space before the line */
 }
 /* Make the brand icon bigger but aligned with smaller ones */
 .sidebar-links li.brand a svg {

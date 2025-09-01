@@ -1,0 +1,645 @@
+/* Reset */
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+
+.patients-container {
+  flex: 1;
+  width: 100%;
+  padding: 20px;
+  font-family: "Montserrat", sans-serif;
+  background: #f9fbfd;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* Page topbar */
+.page-topbar {
+  height: 70px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  background: #f9fbfd;
+  margin: -20px 20px 20px -20px; /* stretch full width */
+  margin-bottom: 10px;
+
+}
+
+.page-topbar h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #333; /* simple, not blue */
+  margin: 0;
+}
+
+/* Sub-header */
+.patients-header p {
+  font-size: 15px;
+  color: #555;
+  margin-bottom: 20px;
+}
+
+/* Controls bar */
+.patients-controls {
+  display: flex;
+  justify-content: space-between; /* push left/right */
+  align-items: center;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Left side (search + filter) */
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 250px;
+}
+
+/* Right side (button) */
+.controls-right {
+  display: flex;
+  justify-content: flex-end;
+}
+/* Search */
+.search-group {
+  position: relative;
+  flex: 1;
+  max-width: 300px;
+}
+.search-group input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  font-size: 14px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-group input:focus {
+  border-color: #3498db;
+}
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #aaa;
+  font-size: 14px;
+}
+
+
+
+/* Minimal primary button */
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #3498db;
+  color: #fff;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.btn-primary:hover {
+  background: #2980b9;
+}
+
+/* Table */
+.patients-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.patients-table th,
+.patients-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+  font-size: 14px;
+}
+
+.patients-table th {
+  background: #f4f6f8;
+  font-weight: 600;
+  color: #333;
+}
+
+.patients-table tr:hover td {
+  background: #f9fcff;
+}
+
+/* Action buttons */
+.btn-edit,
+.btn-delete {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 5px;
+}
+
+.btn-edit {
+  background: #f1c40f;
+  color: #fff;
+}
+.btn-edit:hover {
+  background: #d4ac0d;
+}
+
+.btn-delete {
+  background: #e74c3c;
+  color: #fff;
+}
+.btn-delete:hover {
+  background: #c0392b;
+}
+
+/* Overlay that blurs background */
+/* Overlay covers the whole screen and blurs background */
+
+/* Overlay (blur + darken background) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);   /* subtle blur */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* The actual popup */
+.modal-content {
+  background: #fff;
+  padding: 24px;
+  border-radius: 12px;
+  width: 400px;
+  max-width: 95%;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  animation: popup-fade 0.25s ease;
+}
+
+/* Simple fade/scale animation */
+@keyframes popup-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+
+
+.modal {
+  background: #fff;
+  padding: 25px;
+  border-radius: 10px;
+  width: 400px;
+  max-width: 95%;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+}
+
+
+
+.modal-form input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* Primary action (Ajouter / Mettre à jour) */
+.btn-primary2 {
+  background: #3498db;   /* dark neutral */
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary2:hover {
+  background: #2980b9;   /* slightly darker */
+}
+
+/* Secondary action (Annuler) */
+.btn-cancel {
+  background: #f4f4f4;
+  color: #333;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #eaeaea;
+}
+/* Radio buttons for sex choice */
+/* Consistent field spacing + label */
+.modal-form .form-field {
+  margin-bottom: 12px;
+}
+.modal-form .field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 6px;
+}
+
+/* Radio group layout */
+.radio-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;      /* vertical alignment fix */
+}
+
+/* Each option looks like a neat chip */
+.radio-option {
+  display: inline-flex;
+  align-items: center;      /* vertical alignment fix */
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.radio-option:hover {
+  border-color: #bbb;
+}
+
+/* The actual radio input */
+.radio-option input[type="radio"] {
+  margin: 0;                /* remove default UA margins */
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;   /* alignment fix across browsers */
+  transform: translateY(-1px); /* tiny nudge to align baseline nicely */
+  accent-color: #3498db;    /* theme color */
+}
+
+/* Text beside the radio */
+.radio-option span {
+  font-size: 14px;
+  color: #333;
+}
+
+/* Subtle emphasis when selected (text only to keep wide support) */
+.radio-option input[type="radio"]:checked + span {
+  color: #3498db;
+  font-weight: 600;
+}
+
+/* Keyboard focus visibility */
+.radio-option input[type="radio"]:focus-visible {
+  outline: 2px solid rgba(52, 152, 219, 0.35);
+  outline-offset: 2px;
+}
+.filter-wrapper {
+  position: relative; /* makes dropdown relative to button */
+  display: inline-block;
+}
+
+.filter-panel {
+  position: absolute;
+  top: 42px;   /* below button */
+  right: 0;    /* align to right of button */
+  left: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  z-index: 200;
+  min-width: 280px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.filter-panel h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: #222;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 6px;
+}
+
+.filter-group {
+  margin-bottom: 16px;
+}
+
+.filter-group strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #444;
+}
+
+.filter-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.filter-group input[type="number"],
+.filter-group input[type="date"] {
+  width: 48%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+.filter-group input:focus {
+  border-color: #3498db;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.filter-btn {
+  background: #3498db;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+.filter-btn:hover {
+  background: #2980b9;
+}
+
+.filter-cancel {
+  background: #e5e7eb;
+  color: #333;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.filter-cancel:hover {
+  background: #d1d5db;
+}
+.modal-content h2 {
+  margin-bottom: 15px;
+  color: #3498db;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+/* Small round filter button */
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.filter-toggle:hover {
+  background: #f4f4f4;
+}
+.filter-wrapper {
+  position: relative;
+}
+
+.filter-panel {
+  position: absolute;
+  top: 45px;   /* directly below button */
+  right: 0;    /* aligns panel with button's right edge */
+  left: auto;  /* override the old left:20px */
+}
+
+
+
+
+
+
+
+.actions-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;   /* soft slate border */
+  background: #f8fafc;           /* off-white background */
+  color: #475569;                /* medium slate icon */
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.action-btn:hover {
+  background: #e2e8f0;           /* light slate hover */
+  border-color: #94a3b8;         /* stronger border */
+  color: #1e293b;                /* darker icon */
+}
+/* Reuse same base button style */
+.action-btn.view {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.action-btn.view:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+/* Modern pill dropdown */
+.styled-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  padding: 10px 40px 10px 16px;
+  border-radius: 999px;
+  border: 1.5px solid #e2e8f0;
+  background-color: #fff;
+  font-size: 14px;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  /* Custom arrow */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='gray' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+.styled-select:hover {
+  border-color: #94a3b8;
+  background-color: #f9fafb;
+}
+
+.styled-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+.modern-dropdown {
+  position: relative;
+  display: inline-block;
+  min-width: 180px;
+}
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dropdown-trigger:hover {
+  border-color: #bbb;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.dropdown-trigger.open {
+  border-color: #3498db;
+}
+
+.chevron {
+  transition: transform 0.25s;
+}
+.chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  list-style: none;
+  padding: 6px 0;
+  margin: 0;
+  z-index: 100;
+}
+
+.dropdown-menu li {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.dropdown-menu li:hover {
+  background: #f3f4f6;
+}
+
+.dropdown-menu li:active {
+  font-weight: 600;
+  color: #3498db;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 20px;
+}
+
+.pagination button {
+  border: 1px solid #ddd;
+  background: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination button.active {
+  background: #3498db;
+  color: #fff;
+  border-color: #3498db;
+}
+
+
+
+
+
+

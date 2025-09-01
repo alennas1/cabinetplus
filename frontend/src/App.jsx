@@ -10,6 +10,8 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import Unauthorized from "./pages/Unauthorized";
 import Patient from "./pages/Patient"; // adjust path if needed
+import Medications from "./pages/Medications";
+import TreatmentCatalog from "./pages/Treatments";
 
 import "./index.css";
 
@@ -33,6 +35,8 @@ function App() {
               <Route path="/patients/:id" element={<Patient />} /> {/* detail page */}
               <Route path="/appointments" element={<Appointments />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/medications" element={<Medications />} />
+              <Route path="/settings/treatments" element={<TreatmentCatalog />} />
             </Route>
           </Route>
 

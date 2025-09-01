@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
   import { ChevronDown } from "react-feather"; // ⬅️ at the top with imports
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
+import PageHeader from "../components/PageHeader";
 import {
   getPatients,
   createPatient,
@@ -203,11 +203,12 @@ const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastP
 const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 
   return (
-    <div className="patients-container">
-      {/* Topbar */}
-      <div className="page-topbar">
-        <h1>Patients</h1>
-      </div>
+  <div className="patients-container">
+  <PageHeader 
+  title="Patients" 
+  subtitle="Liste des patients enregistrés" 
+  align="left" 
+/>
 
       {/* Controls */}
       <div className="patients-controls">

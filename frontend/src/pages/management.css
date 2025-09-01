@@ -1,0 +1,167 @@
+/* Container */
+.management-container {
+  padding: 30px;
+  background: #f9fbfd;
+  min-height: 100vh;
+  font-family: "Montserrat", sans-serif;
+}
+
+/* Titles */
+.management-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 6px;
+}
+
+.management-subtitle {
+  font-size: 15px;
+  color: #718096;
+  margin-bottom: 24px;
+}
+
+/* Table */
+.management-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.management-table th,
+.management-table td {
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 14px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.management-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.management-table tr:hover td {
+  background: #f9fafb;
+}
+
+/* Buttons */
+.btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  margin-right: 6px;
+  transition: background 0.2s;
+}
+
+.btn.edit {
+  background: #3182ce;
+  color: #fff;
+}
+
+.btn.edit:hover {
+  background: #2b6cb0;
+}
+
+.btn.delete {
+  background: #e53e3e;
+  color: #fff;
+}
+
+.btn.delete:hover {
+  background: #c53030;
+}
+
+.btn.save {
+  background: #38a169;
+  color: #fff;
+}
+
+.btn.save:hover {
+  background: #2f855a;
+}
+
+.btn.cancel {
+  background: #a0aec0;
+  color: #fff;
+}
+
+.btn.cancel:hover {
+  background: #718096;
+}
+
+/* Floating add button */
+.floating-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #3182ce;
+  color: #fff;
+  font-size: 28px;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+  transition: background 0.2s, transform 0.2s;
+}
+
+.floating-btn:hover {
+  background: #2b6cb0;
+  transform: scale(1.05);
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  width: 400px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.modal input,
+.modal select,
+.modal textarea {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.modal textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

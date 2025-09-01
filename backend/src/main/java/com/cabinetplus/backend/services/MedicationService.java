@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.services;
 
 import com.cabinetplus.backend.models.Medication;
+import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.MedicationRepository;
 import org.springframework.stereotype.Service;
 
@@ -20,19 +21,33 @@ public class MedicationService {
         return medicationRepository.save(medication);
     }
 
-    public List<Medication> findAll() {
-        return medicationRepository.findAll();
+    public List<Medication> findAllByUser(User user) {
+        return medicationRepository.findByCreatedBy(user);
     }
 
-    public Optional<Medication> findById(Long id) {
-        return medicationRepository.findById(id);
+    public Optional<Medication> findByIdAndUser(Long id, User user) {
+        return medicationRepository.findByIdAndCreatedBy(id, user);
     }
 
-    public Optional<Medication> findByName(String name) {
-        return medicationRepository.findByName(name);
+    public Optional<Medication> findByNameAndUser(String name, User user) {
+        return medicationRepository.findByNameAndCreatedBy(name, user);
     }
 
-    public void delete(Long id) {
-        medicationRepository.deleteById(id);
+    public Optional<Medication> update(Long id, Medication updated, User user) {
+        return medicationRepository.findByIdAndCreatedBy(id, user)
+                .map(existing -> {
+                    updated.setId(id);
+                    updated.setCreatedBy(user);
+                    return medicationRepository.save(updated);
+                });
+    }
+
+    public boolean deleteByUser(Long id, User user) {
+        return medicationRepository.findByIdAndCreatedBy(id, user)
+                .map(medication -> {
+                    medicationRepository.delete(medication);
+                    return true;
+                })
+                .orElse(false);
     }
 }

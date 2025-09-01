@@ -12,23 +12,25 @@
 }
 
 /* Page topbar */
-.page-topbar {
-  height: 70px;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  background: #f9fbfd;
-  margin: -20px 20px 20px -20px; /* stretch full width */
-  margin-bottom: 10px;
-
+.page-header {
+  padding: 24px;
+  font-family: "Montserrat", sans-serif;
 }
 
-.page-topbar h1 {
-  font-size: 22px;
+.page-title {
+  font-size: 24px;
   font-weight: 600;
-  color: #333; /* simple, not blue */
-  margin: 0;
+  margin-bottom: 6px;
+  color: #1f2937; /* dark gray */
 }
+
+.page-subtitle {
+  font-size: 14px;
+  color: #6b7280; /* lighter gray */
+  margin-bottom: 20px;
+}
+
+
 
 /* Sub-header */
 .patients-header p {
@@ -643,3 +645,7 @@
 
 
 
+.view-field {
+  margin-bottom: 10px;
+  font-size: 14px;
+}

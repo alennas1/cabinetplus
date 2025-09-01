@@ -1,10 +1,14 @@
 package com.cabinetplus.backend.repositories;
 
-import com.cabinetplus.backend.models.TreatmentCatalog;
-import org.springframework.data.jpa.repository.JpaRepository;
-
+import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.cabinetplus.backend.models.TreatmentCatalog;
+import com.cabinetplus.backend.models.User;
+
 public interface TreatmentCatalogRepository extends JpaRepository<TreatmentCatalog, Long> {
-    Optional<TreatmentCatalog> findByCode(String code);
+    List<TreatmentCatalog> findByCreatedBy(User user);
+    Optional<TreatmentCatalog> findByIdAndCreatedBy(Long id, User user);
 }

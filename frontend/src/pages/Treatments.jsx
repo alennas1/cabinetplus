@@ -116,10 +116,10 @@ const Treatments = () => {
     try {
       await deleteTreatment(confirmDelete, token);
       setTreatments(treatments.filter((t) => t.id !== confirmDelete));
-      toast.success("Traitement supprimé ✅");
+      toast.success("Traitement supprimé ");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression ❌");
+      toast.error("Erreur lors de la suppression");
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

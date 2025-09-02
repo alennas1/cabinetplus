@@ -108,10 +108,10 @@ const Medications = () => {
     try {
       await deleteMedication(confirmDelete, token);
       setMedications(medications.filter((m) => m.id !== confirmDelete));
-      toast.success("Médicament supprimé ✅");
+      toast.success("Médicament supprimé");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression ❌");
+      toast.error("Erreur lors de la suppression");
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);
@@ -217,12 +217,29 @@ const Medications = () => {
               <span className="field-label">Nom</span>
               <input type="text" name="name" value={form.name} onChange={handleChange} required />
 
-              <span className="field-label">Forme</span>
-              <input type="text" name="dosageForm" value={form.dosageForm} onChange={handleChange} required />
+<span className="field-label">Forme</span>
+<div className="select-wrapper">
+  <select
+    name="dosageForm"
+    value={form.dosageForm}
+    onChange={handleChange}
+    required
+  >
+    <option value="TABLET">TABLET</option>
+    <option value="CAPSULE">CAPSULE</option>
+    <option value="SYRUP">SYRUP</option>
+    <option value="INJECTION">INJECTION</option>
+  </select>
+</div>
 
               <span className="field-label">Dosage</span>
-              <input type="text" name="strength" value={form.strength} onChange={handleChange} />
-
+<input
+  type="text"
+  name="strength"
+  value={form.strength}
+  onChange={handleChange}
+  required  // ✅ Make it mandatory
+/>
               <span className="field-label">Description</span>
               <input type="text" name="description" value={form.description} onChange={handleChange} />
 

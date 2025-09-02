@@ -649,3 +649,48 @@
   margin-bottom: 10px;
   font-size: 14px;
 }
+/* Label styling */
+.modal-form .field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+}
+
+/* Select styling */
+.modal-form select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none; /* removes default arrow in some browsers */
+}
+
+/* Focus state */
+.modal-form select:focus {
+  outline: none;
+  border-color: #4f46e5; /* subtle blue */
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+/* Optional: custom arrow using a wrapper */
+.select-wrapper {
+  position: relative;
+}
+
+.select-wrapper::after {
+  content: "▼";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 10px;
+  color: #888;
+}

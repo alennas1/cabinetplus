@@ -1,246 +1,392 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash, Check } from "react-feather";
+import { Plus, Trash2, Check } from "react-feather";
+import {
+  getAppointments,
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
+} from "../services/appointmentService";
+import { createPatient, getPatients } from "../services/patientService";
+import PageHeader from "../components/PageHeader";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import "./Appointments.css";
 
-// --- Utils ---
-const formatTime = (date) =>
-  new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-const generateSlots = () => {
-  const slots = [];
-  const start = new Date();
-  start.setHours(8, 0, 0, 0);
-
-  for (let i = 0; i < 22; i++) {
-    const slotStart = new Date(start.getTime() + i * 30 * 60000);
-    const slotEnd = new Date(slotStart.getTime() + 30 * 60000);
-    slots.push({ start: slotStart, end: slotEnd });
-  }
-  return slots;
-};
-
 export default function Appointments() {
-  const [appointments, setAppointments] = useState([]);
-  const [patients, setPatients] = useState([]);
+  const token = localStorage.getItem("token");
 
-  const [showPatientSelect, setShowPatientSelect] = useState(false);
-  const [showPatientForm, setShowPatientForm] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [appointments, setAppointments] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [isNewPatient, setIsNewPatient] = useState(false);
 
   const [formData, setFormData] = useState({
-    firstname: "",
-    lastname: "",
-    age: "",
-    sex: "",
-    phone: "",
+    id: null,
+    patientId: null,
+    patientName: "",
+    hour: "",
+    minute: "",
+    status: "SCHEDULED",
   });
 
-  const slots = generateSlots();
+  const [newPatient, setNewPatient] = useState({
+    firstname: "",
+    lastname: "",
+    phone: "",
+    age: "",
+    sex: "Homme",
+  });
 
-  // --- Fetch appointments and patients from backend ---
+  const [isEditing, setIsEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const [selectedDate, setSelectedDate] = useState("today");
+  const [customDate, setCustomDate] = useState("");
+  const [openedFromSlot, setOpenedFromSlot] = useState(false);
+
+  const [patients, setPatients] = useState([]);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+
+  // Fetch patients
   useEffect(() => {
-    fetch("/api/appointments")
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        const parsed = data.map(a => ({
-          ...a,
-          dateTimeStart: new Date(a.dateTimeStart),
-          dateTimeEnd: new Date(a.dateTimeEnd),
-          patientName: `${a.patient.firstname} ${a.patient.lastname}`,
-          status: a.status.toUpperCase(), // ensure enum consistency
-        }));
-        setAppointments(parsed);
-      })
-      .catch(err => console.error("Erreur fetch appointments:", err));
+    const fetchPatients = async () => {
+      try {
+        const data = await getPatients(token);
+        setPatients(data);
+      } catch (err) {
+        console.error("Error fetching patients:", err);
+        toast.error("Erreur lors du chargement des patients ❌");
+      }
+    };
+    fetchPatients();
+  }, [token]);
 
-    fetch("/api/patients")
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
-      .then(data => setPatients(data.map(p => `${p.firstname} ${p.lastname}`)))
-      .catch(err => console.error("Erreur fetch patients:", err));
-  }, []);
+  const handlePatientSearch = (query) => {
+    setPatientSearch(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const results = patients.filter(
+      (p) =>
+        p.firstname.toLowerCase().includes(query.toLowerCase()) ||
+        p.lastname.toLowerCase().includes(query.toLowerCase()) ||
+        (p.phone && p.phone.includes(query))
+    );
+    setSearchResults(results.slice(0, 3));
+  };
 
-  // --- Find next free slot ---
-  const getNextAvailableSlot = () => {
-    for (let slot of slots) {
-      if (!appointments.find(a => a.dateTimeStart.getTime() === slot.start.getTime())) {
-        return slot;
+  // Fetch appointments
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        const data = await getAppointments(token);
+        setAppointments(data);
+      } catch (err) {
+        console.error("Error fetching appointments:", err);
+        toast.error("Erreur lors du chargement ❌");
+      }
+    };
+    fetchAppointments();
+  }, [token]);
+
+  const getSlotAppointments = () => {
+    const slots = [];
+    const today = new Date();
+    if (selectedDate === "tomorrow") today.setDate(today.getDate() + 1);
+    if (selectedDate === "custom" && customDate) {
+      today.setTime(new Date(customDate).getTime());
+    }
+    for (let hour = 8; hour < 18; hour++) {
+      for (let minute of [0, 30]) {
+        const slotStart = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate(),
+          hour,
+          minute,
+          0
+        );
+        const slotEnd = new Date(slotStart.getTime() + 30 * 60000);
+        const appt = appointments.find((a) => {
+          const apptDate = new Date(a.dateTimeStart);
+          return (
+            apptDate.getFullYear() === slotStart.getFullYear() &&
+            apptDate.getMonth() === slotStart.getMonth() &&
+            apptDate.getDate() === slotStart.getDate() &&
+            apptDate.getHours() === slotStart.getHours() &&
+            apptDate.getMinutes() === slotStart.getMinutes()
+          );
+        });
+        slots.push({ start: slotStart, end: slotEnd, appointment: appt });
       }
     }
-    return null;
+    return slots;
   };
 
-  // --- Slot click → open modal patient select ---
-  const handleAddPatientToSlot = (slot) => {
-    setSelectedSlot(slot);
-    setShowPatientSelect(true);
-  };
-
-  // --- Select existing patient and create appointment ---
-  const handleSelectPatient = (name) => {
-    const patient = patients.find(p => `${p.firstname} ${p.lastname}` === name);
-    if (!patient) return;
-
-    const newAppt = {
-      patient: { firstname: patient.split(" ")[0], lastname: patient.split(" ")[1] },
-      dateTimeStart: selectedSlot.start.toISOString(),
-      dateTimeEnd: selectedSlot.end.toISOString(),
+  const handleSlotClick = (slot) => {
+    if (slot.appointment) return;
+    setFormData({
+      id: null,
+      patientId: null,
+      patientName: "",
+      hour: slot.start.getHours().toString().padStart(2, "0"),
+      minute: slot.start.getMinutes().toString().padStart(2, "0"),
       status: "SCHEDULED",
-    };
-
-    fetch("/api/appointments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newAppt),
-    })
-      .then(res => res.json())
-      .then(saved => {
-        saved.dateTimeStart = new Date(saved.dateTimeStart);
-        saved.dateTimeEnd = new Date(saved.dateTimeEnd);
-        saved.patientName = `${saved.patient.firstname} ${saved.patient.lastname}`;
-        setAppointments(prev => [...prev, saved]);
-        setShowPatientSelect(false);
-      })
-      .catch(err => console.error("Erreur ajout appointment:", err));
+    });
+    setIsEditing(false);
+    setOpenedFromSlot(true);
+    setShowModal(true);
   };
 
-  // --- Add new patient + appointment ---
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const nextSlot = getNextAvailableSlot();
-    if (!nextSlot) return alert("Plus de créneaux disponibles aujourd’hui !");
+    try {
+      let patientId = formData.patientId;
 
-    const newAppt = {
-      patient: {
-        firstname: formData.firstname,
-        lastname: formData.lastname,
-        age: formData.age,
-        sex: formData.sex,
-        phone: formData.phone,
-      },
-      dateTimeStart: nextSlot.start.toISOString(),
-      dateTimeEnd: nextSlot.end.toISOString(),
-      status: "SCHEDULED",
-    };
+      // If it's a new patient → create first
+      if (isNewPatient) {
+        const newP = await createPatient(newPatient, token);
+        patientId = newP.id;
+      }
 
-    fetch("/api/appointments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newAppt),
-    })
-      .then(res => res.json())
-      .then(saved => {
-        saved.dateTimeStart = new Date(saved.dateTimeStart);
-        saved.dateTimeEnd = new Date(saved.dateTimeEnd);
-        saved.patientName = `${saved.patient.firstname} ${saved.patient.lastname}`;
-        setAppointments(prev => [...prev, saved]);
-        setPatients(prev => [...prev, saved.patientName]);
-        setShowPatientForm(false);
-        setFormData({ firstname: "", lastname: "", age: "", sex: "", phone: "" });
-      })
-      .catch(err => console.error("Erreur ajout patient:", err));
+      let baseDate = new Date();
+      if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
+      if (selectedDate === "custom" && customDate) baseDate = new Date(customDate);
+
+      const start = new Date(
+        baseDate.getFullYear(),
+        baseDate.getMonth(),
+        baseDate.getDate(),
+        Number(formData.hour),
+        Number(formData.minute),
+        0
+      );
+      const end = new Date(start.getTime() + 30 * 60000);
+
+      const startStr = start.toISOString().slice(0, 19);
+      const endStr = end.toISOString().slice(0, 19);
+
+      const payload = {
+        dateTimeStart: startStr,
+        dateTimeEnd: endStr,
+        status: formData.status,
+        patientId,
+      };
+
+      await createAppointment(payload, token);
+      const updated = await getAppointments(token);
+      setAppointments(updated);
+
+      toast.success("Rendez-vous ajouté ✅");
+      closeModal();
+    } catch (err) {
+      console.error("Error saving appointment:", err);
+      toast.error("Erreur lors de l'enregistrement ❌");
+    }
   };
 
-  // --- Delete appointment ---
-  const handleDelete = (id) => {
-    fetch(`/api/appointments/${id}`, { method: "DELETE" })
-      .then(() => setAppointments(prev => prev.filter(a => a.id !== id)))
-      .catch(err => console.error("Erreur suppression appointment:", err));
+  const handleDeleteClick = (id) => {
+    setConfirmDelete(id);
+    setShowConfirm(true);
+  };
+
+  const confirmDeleteAppointment = async () => {
+    try {
+      await deleteAppointment(confirmDelete, token);
+      setAppointments((prev) => prev.filter((a) => a.id !== confirmDelete));
+      toast.success("Rendez-vous supprimé ✅");
+    } catch (err) {
+      console.error("Error deleting appointment:", err);
+      toast.error("Erreur lors de la suppression ❌");
+    } finally {
+      setShowConfirm(false);
+      setConfirmDelete(null);
+    }
+  };
+
+  const handleMarkCompleted = async (appt) => {
+    try {
+      const payload = { ...appt, status: "COMPLETED" };
+      const updated = await updateAppointment(appt.id, payload, token);
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === updated.id ? updated : a))
+      );
+      toast.success("Rendez-vous complété ✅");
+    } catch (err) {
+      console.error("Error marking complete:", err);
+      toast.error("Erreur lors du changement d'état ❌");
+    }
+  };
+
+  const formatTime = (dt) => {
+    const date = new Date(dt);
+    return `${String(date.getHours()).padStart(2, "0")}:${String(
+      date.getMinutes()
+    ).padStart(2, "0")}`;
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setFormData({
+      id: null,
+      patientId: null,
+      patientName: "",
+      hour: "",
+      minute: "",
+      status: "SCHEDULED",
+    });
+    setIsNewPatient(false);
+    setNewPatient({ firstname: "", lastname: "", phone: "", age: "", sex: "Homme" });
+    setIsEditing(false);
+    setOpenedFromSlot(false);
+  };
+
+  const slots = getSlotAppointments();
+
+  const getPatientName = (appt) => {
+    if (!appt) return "";
+    if (appt.patient && appt.patient.firstname && appt.patient.lastname) {
+      return `${appt.patient.firstname} ${appt.patient.lastname}`;
+    }
+    const patient = patients.find((p) => p.id === appt.patientId);
+    return patient ? `${patient.firstname} ${patient.lastname}` : "Inconnu";
   };
 
   return (
-    <div className="appointments-container">
-      {/* Header */}
-      <div className="page-header">
-        <h1 className="page-title">📅 Rendez-vous</h1>
-        <p className="page-subtitle">Gérez vos rendez-vous et assignez-les rapidement aux patients</p>
-      </div>
+    <div className="appointments-page">
+      <div className="appointments-container">
+        <PageHeader title="Rendez-vous" subtitle="Liste des rendez-vous" align="left" />
 
-      {/* Timeline */}
-      <div className="timeline">
-        {slots.map((slot, idx) => {
-          const appt = appointments.find(a => a.dateTimeStart.getTime() === slot.start.getTime());
-          return (
-            <div key={idx} className="slot">
-              <div className="slot-time">{formatTime(slot.start)}</div>
-              {appt ? (
-                <div className={`slot-card ${appt.status.toLowerCase()}`}>
-                  <div className="slot-info">
-                    <strong>{appt.patientName}</strong>
-                    <span className={`status-chip ${appt.status.toLowerCase()}`}>{appt.status}</span>
-                  </div>
-                  <div className="slot-actions">
-                    <button onClick={() => handleDelete(appt.id)}><Trash size={14} /></button>
-                    <button><Check size={14} /></button>
-                  </div>
-                </div>
-              ) : (
-                <div className="empty-slot" onClick={() => handleAddPatientToSlot(slot)}>
-                  + Ajouter ici
-                </div>
+        {/* Controls */}
+        <div className="appointments-controls">
+          <div className="date-selector">
+            <button className={selectedDate === "today" ? "active" : ""} onClick={() => setSelectedDate("today")}>Today</button>
+            <button className={selectedDate === "tomorrow" ? "active" : ""} onClick={() => setSelectedDate("tomorrow")}>Tomorrow</button>
+            <input type="date" value={customDate} onChange={(e) => {setCustomDate(e.target.value); setSelectedDate("custom");}} />
+          </div>
+
+          <button className="btn-primary" onClick={() => {setOpenedFromSlot(false); setShowModal(true);}}>
+            <Plus size={16} /> Add Appointment
+          </button>
+        </div>
+
+        {/* Slots */}
+        <div className="appointments-slots">
+          {slots.map((slot, idx) => (
+            <div
+              key={idx}
+              className={`slot ${slot.appointment ? "booked" : "empty"} ${slot.appointment ? slot.appointment.status : ""}`}
+              onClick={() => handleSlotClick(slot)}
+            >
+              <div className="slot-time">{formatTime(slot.start)} - {formatTime(slot.end)}</div>
+              <div className="slot-patient">{slot.appointment ? getPatientName(slot.appointment) : "Disponible"}</div>
+
+              {slot.appointment && (
+                <>
+                  <span className={`status-chip ${slot.appointment.status}`}>
+                    {slot.appointment.status}
+                  </span>
+                  {slot.appointment.status === "SCHEDULED" && (
+                    <button className="action-btn complete" onClick={(e) => {e.stopPropagation(); handleMarkCompleted(slot.appointment);}}>
+                      <Check size={16} />
+                    </button>
+                  )}
+                  <button className="action-btn delete" onClick={(e) => {e.stopPropagation(); handleDeleteClick(slot.appointment.id);}}>
+                    <Trash2 size={16} />
+                  </button>
+                </>
               )}
             </div>
-          );
-        })}
-      </div>
-
-      {/* Modal: Select patient */}
-      {showPatientSelect && (
-        <div className="modal-overlay" onClick={() => setShowPatientSelect(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>Sélectionner un patient</h3>
-            <div className="patient-list">
-              {patients.map(p => (
-                <button key={p} className="patient-btn" onClick={() => handleSelectPatient(p)}>
-                  {p}
-                </button>
-              ))}
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn-cancel" onClick={() => setShowPatientSelect(false)}>Annuler</button>
-            </div>
-          </div>
+          ))}
         </div>
-      )}
 
-      {/* Modal: Add patient */}
-      {showPatientForm && (
-        <div className="modal-overlay" onClick={() => setShowPatientForm(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Ajouter Patient</h2>
-            <form onSubmit={handleSubmit} className="modal-form">
-              <span className="field-label">Prénom</span>
-              <input type="text" value={formData.firstname} onChange={e => setFormData({ ...formData, firstname: e.target.value })} required />
-              <span className="field-label">Nom</span>
-              <input type="text" value={formData.lastname} onChange={e => setFormData({ ...formData, lastname: e.target.value })} required />
-              <span className="field-label">Âge</span>
-              <input type="number" value={formData.age} onChange={e => setFormData({ ...formData, age: e.target.value })} />
-              <div className="form-field">
-                <span className="field-label">Sexe</span>
-                <div className="radio-group">
-                  <label>
-                    <input type="radio" value="Homme" checked={formData.sex === "Homme"} onChange={e => setFormData({ ...formData, sex: e.target.value })} required /> Homme
-                  </label>
-                  <label>
-                    <input type="radio" value="Femme" checked={formData.sex === "Femme"} onChange={e => setFormData({ ...formData, sex: e.target.value })} required /> Femme
-                  </label>
+        {/* Add Appointment Modal */}
+        {showModal && (
+          <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h2>Ajouter Rendez-vous</h2>
+
+              <form onSubmit={handleSubmit} className="modal-form">
+                {/* Toggle new patient */}
+<label className={`chip-toggle ${isNewPatient ? "active" : ""}`}>
+  <input
+    type="checkbox"
+    checked={isNewPatient}
+    onChange={(e) => setIsNewPatient(e.target.checked)}
+  />
+  Nouveau patient ?
+</label>
+
+
+                {/* If new patient */}
+                {isNewPatient ? (
+                  <>
+                    <input type="text" placeholder="Firstname" value={newPatient.firstname} onChange={(e) => setNewPatient({...newPatient, firstname: e.target.value})} required />
+                    <input type="text" placeholder="Lastname" value={newPatient.lastname} onChange={(e) => setNewPatient({...newPatient, lastname: e.target.value})} required />
+                    <input type="text" placeholder="Phone" value={newPatient.phone} onChange={(e) => setNewPatient({...newPatient, phone: e.target.value})} required />
+                    <input type="number" placeholder="Age" value={newPatient.age} onChange={(e) => setNewPatient({...newPatient, age: e.target.value})} required />
+                    <select value={newPatient.sex} onChange={(e) => setNewPatient({...newPatient, sex: e.target.value})}>
+                      <option value="Homme">Homme</option>
+                      <option value="Femme">Femme</option>
+                    </select>
+                  </>
+                ) : (
+                  // Existing patient search
+                  <div className="form-field" style={{ position: "relative" }}>
+                    <input type="text" placeholder="Search patient..." value={patientSearch} onChange={(e) => handlePatientSearch(e.target.value)} autoComplete="off" required />
+                    {searchResults.length > 0 && (
+                      <ul className="patient-search-dropdown">
+                        {searchResults.map((p) => (
+                          <li
+                            key={p.id}
+                            onClick={() => {
+                              setFormData({...formData, patientId: p.id, patientName: `${p.firstname} ${p.lastname}`});
+                              setPatientSearch(`${p.firstname} ${p.lastname}`);
+                              setSearchResults([]);
+                            }}
+                          >
+                            {p.firstname} {p.lastname} • {p.phone}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {!openedFromSlot && (
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input type="number" placeholder="Hour" min="8" max="18" value={formData.hour || ""} onChange={(e) => setFormData({ ...formData, hour: e.target.value })} required />
+                    <input type="number" placeholder="Minute" min="0" max="59" step="30" value={formData.minute || ""} onChange={(e) => setFormData({ ...formData, minute: e.target.value })} required />
+                  </div>
+                )}
+
+                <div className="modal-actions">
+                  <button type="submit" className="btn-primary2">Ajouter</button>
+                  <button type="button" className="btn-cancel" onClick={closeModal}>Annuler</button>
                 </div>
-              </div>
-              <span className="field-label">Téléphone</span>
-              <input type="text" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
-              <div className="modal-actions">
-                <button type="submit" className="btn-confirm">Ajouter</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowPatientForm(false)}>Annuler</button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Confirm delete */}
+        {showConfirm && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h2>Supprimer le rendez-vous ?</h2>
+              <p>Êtes-vous sûr de vouloir supprimer ce rendez-vous ?</p>
+              <div className="modal-actions">
+                <button onClick={() => setShowConfirm(false)} className="btn-cancel">Annuler</button>
+                <button onClick={confirmDeleteAppointment} className="btn-delete">Supprimer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} theme="light" />
+      </div>
     </div>
   );
 }

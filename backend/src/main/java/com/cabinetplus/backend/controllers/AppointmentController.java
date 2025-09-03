@@ -13,10 +13,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.AppointmentRequest;
+import com.cabinetplus.backend.dto.AppointmentResponse;
+import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AppointmentService;
+import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.UserService;
 
 @RestController
@@ -25,10 +29,12 @@ public class AppointmentController {
 
     private final AppointmentService appointmentService;
     private final UserService userService; // ✅ inject userService
+    private final PatientService patientService; // 💡 inject patientService
 
-    public AppointmentController(AppointmentService appointmentService, UserService userService) {
+    public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService) {
         this.appointmentService = appointmentService;
         this.userService = userService;
+        this.patientService = patientService;
     }
 
     // ✅ Return appointments only for the logged-in practitioner
@@ -46,14 +52,40 @@ public class AppointmentController {
         return appointmentService.findById(id);
     }
 
-    @PostMapping
-    public Appointment createAppointment(@RequestBody Appointment appointment, Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        appointment.setPractitioner(currentUser);
-        return appointmentService.save(appointment);
-    }
+  @PostMapping
+public AppointmentResponse createAppointment(@RequestBody AppointmentRequest request, Principal principal) {
+    String username = principal.getName();
+    User currentUser = userService.findByUsername(username)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+    // Build entity
+    Appointment appointment = new Appointment();
+    appointment.setDateTimeStart(request.dateTimeStart());
+    appointment.setDateTimeEnd(request.dateTimeEnd());
+    appointment.setStatus(request.status());
+
+   PatientDto patientDto = patientService.findById(request.patientId())
+        .orElseThrow(() -> new RuntimeException("Patient not found")); Patient patientEntity = new Patient();
+    patientEntity.setId(patientDto.id());
+    appointment.setPatient(patientEntity);
+
+    appointment.setPractitioner(currentUser);
+
+    Appointment saved = appointmentService.save(appointment);
+
+    return new AppointmentResponse(
+            saved.getId(),
+            saved.getDateTimeStart(),
+            saved.getDateTimeEnd(),
+            saved.getStatus(),   // status is already AppointmentStatus
+            patientDto,
+            currentUser.getId(),
+            currentUser.getFirstname(),
+            currentUser.getLastname()
+    );
+}
+
+
 
     @PutMapping("/{id}")
     public Appointment updateAppointment(@PathVariable Long id, @RequestBody Appointment appointment) {

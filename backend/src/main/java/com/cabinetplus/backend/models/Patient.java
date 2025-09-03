@@ -30,8 +30,6 @@ public class Patient {
     private String sex;      // ✅ New field
 
     private String phone;
-    private String email;
-    private String address;
 
     @ManyToOne
     @JoinColumn(name = "created_by")

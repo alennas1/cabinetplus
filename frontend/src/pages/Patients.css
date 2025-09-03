@@ -30,7 +30,91 @@
   margin-bottom: 20px;
 }
 
+/* Hero section */
+.patient-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
 
+.hero-id {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.avatar-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.flex-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.chip.success {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.hero-buttons {
+  display: flex;
+}
+
+.chip.info {
+  background: #e0f2fe;  /* light blue */
+  color: #0369a1;       /* darker blue */
+}
 
 /* Sub-header */
 .patients-header p {

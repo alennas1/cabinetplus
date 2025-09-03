@@ -1,0 +1,121 @@
+/* ---------- Patient Detail additions ---------- */
+
+/* Header hero layout */
+.patient-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+}
+
+.hero-id {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.avatar-badge {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #e5f2ff;
+  color: #2563eb;
+  display: grid; place-items: center;
+  font-weight: 700;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+.chip.info { color: #1f2937; }
+.chip.success { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.chip.warn { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.chip.neutral { color: #475569; }
+
+.hero-buttons { display: flex; gap: 8px; }
+
+/* Sub nav */
+.subnav {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 18px;
+}
+.subnav-tab {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.subnav-tab.active {
+  border-color: #3498db;
+  color: #2563eb;
+  background: #f0f7ff;
+}
+
+/* Content area and billing grid */
+.content-area { display: block; }
+.billing-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 20px;
+}
+
+/* Status pills */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+.status-badge.draft { color: #6b7280; }
+.status-badge.sent { color: #1e40af; background: #eff6ff; border-color: #bfdbfe; }
+.status-badge.paid { color: #065f46; background: #ecfdf5; border-color: #a7f3d0; }
+.status-badge.scheduled { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+.status-badge.completed { color: #065f46; background: #ecfdf5; border-color: #a7f3d0; }
+.status-badge.cancelled { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
+
+/* Overview timeline */
+.timeline {
+  list-style: none; padding: 0; margin: 0;
+}
+.timeline-item {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  margin-bottom: 10px;
+}
+.tl-icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  background: #f3f4f6; color: #374151;
+}
+.tl-content .tl-title { font-weight: 600; font-size: 14px; color: #111827; }
+.tl-content .tl-meta { font-size: 13px; color: #6b7280; }
+.timeline-item.treatment .tl-icon { background:#ecfeff; color:#0891b2; }
+.timeline-item.prescription .tl-icon { background:#f5f3ff; color:#6d28d9; }
+.timeline-item.invoice .tl-icon { background:#eff6ff; color:#1d4ed8; }
+.timeline-item.payment .tl-icon { background:#ecfdf5; color:#047857; }
+.timeline-item.appointment .tl-icon { background:#fff7ed; color:#c2410c; }
+
+/* Utilities */
+.muted { color: #6b7280; }

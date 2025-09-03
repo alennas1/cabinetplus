@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.models.Patient;
+import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.PatientRepository;
 
 @Service
@@ -35,8 +36,6 @@ public class PatientService {
         existing.setAge(updatedPatient.getAge());
         existing.setSex(updatedPatient.getSex());   // ✅ added
         existing.setPhone(updatedPatient.getPhone());
-        existing.setEmail(updatedPatient.getEmail());
-        existing.setAddress(updatedPatient.getAddress());
 
         Patient saved = patientRepository.save(existing);
         return toDto(saved);
@@ -68,4 +67,15 @@ public class PatientService {
                 patient.getCreatedAt()
         );
     }
+
+      public List<PatientDto> findByCreatedBy(User user) {
+        List<Patient> patients = patientRepository.findByCreatedBy(user);
+        return patients.stream().map(this::toDto).toList(); // convert to DTO
+    }
+
+    public PatientDto findByIdAndUser(Long id, User user) {
+    Patient patient = patientRepository.findByIdAndCreatedBy(id, user)
+            .orElseThrow(() -> new RuntimeException("Patient not found"));
+    return toDto(patient);  // use your existing mapping method
+}
 }

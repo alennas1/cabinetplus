@@ -17,7 +17,9 @@ import { useNavigate } from "react-router-dom";
 export default function Appointments() {
   const token = localStorage.getItem("token");
 const navigate = useNavigate();
-
+const handleSexChange = (e) => {
+  setNewPatient({ ...newPatient, sex: e.target.value });
+};
   const [appointments, setAppointments] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [isNewPatient, setIsNewPatient] = useState(false);
@@ -376,10 +378,34 @@ const confirmCompleteAppointment = async () => {
                     <input type="text" placeholder="Nom" value={newPatient.lastname} onChange={(e) => setNewPatient({...newPatient, lastname: e.target.value})} required />
                     <input type="text" placeholder="Téléphone" value={newPatient.phone} onChange={(e) => setNewPatient({...newPatient, phone: e.target.value})} required />
                     <input type="number" placeholder="Âge" value={newPatient.age} onChange={(e) => setNewPatient({...newPatient, age: e.target.value})} required />
-                    <select value={newPatient.sex} onChange={(e) => setNewPatient({...newPatient, sex: e.target.value})}>
-                      <option value="Homme">Homme</option>
-                      <option value="Femme">Femme</option>
-                    </select>
+                    <div className="form-field">
+  <span className="field-label">Sexe</span>
+  <div className="radio-group">
+    <label className="radio-option">
+      <input
+        type="radio"
+        name="sex"
+        value="Homme"
+        checked={newPatient.sex === "Homme"}
+        onChange={handleSexChange}
+        required
+      />
+      <span>Homme</span>
+    </label>
+    <label className="radio-option">
+      <input
+        type="radio"
+        name="sex"
+        value="Femme"
+        checked={newPatient.sex === "Femme"}
+        onChange={handleSexChange}
+        required
+      />
+      <span>Femme</span>
+    </label>
+  </div>
+</div>
+
                   </>
                 ) : (
                   <div className="form-field" style={{ position: "relative" }}>

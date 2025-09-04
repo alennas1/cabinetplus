@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Edit2, Check, X } from "react-feather";
+import { Edit2, Check, X, User, Mail, Phone } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -11,7 +11,14 @@ const fieldLabels = {
   firstname: "Prénom",
   lastname: "Nom",
   email: "Email",
-  phoneNumber: "Téléphone"
+  phoneNumber: "Téléphone",
+};
+
+const fieldIcons = {
+  firstname: <User size={16} />,
+  lastname: <User size={16} />,
+  email: <Mail size={16} />,
+  phoneNumber: <Phone size={16} />,
 };
 
 const Profile = () => {
@@ -39,24 +46,21 @@ const Profile = () => {
     fetchProfile();
   }, [token]);
 
- const handleEdit = (field) => {
-  setEditingField(field);
-  const value = profile[field] || "";
-  // format only phoneNumber for input display
-  setTempValue(field === "phoneNumber" ? formatPhoneNumber(value) : value);
-};
+  const handleEdit = (field) => {
+    setEditingField(field);
+    const value = profile[field] || "";
+    setTempValue(field === "phoneNumber" ? formatPhoneNumber(value) : value);
+  };
 
-// while typing, remove non-digits and format
-const handleInputChange = (field, value) => {
-  if (field === "phoneNumber") {
-    const digits = value.replace(/\D/g, "");
-    const formatted = digits.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
-    setTempValue(formatted);
-  } else {
-    setTempValue(value);
-  }
-};
-
+  const handleInputChange = (field, value) => {
+    if (field === "phoneNumber") {
+      const digits = value.replace(/\D/g, "");
+      const formatted = digits.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
+      setTempValue(formatted);
+    } else {
+      setTempValue(value);
+    }
+  };
 
   const handleCancel = () => {
     setEditingField(null);
@@ -64,43 +68,55 @@ const handleInputChange = (field, value) => {
   };
 
   const handleSave = async (field) => {
-  try {
-    let valueToSave = tempValue;
-    if (field === "phoneNumber") {
-      valueToSave = tempValue.replace(/\s/g, ""); // save raw digits
+    try {
+      let valueToSave = tempValue;
+      if (field === "phoneNumber") {
+        valueToSave = tempValue.replace(/\s/g, "");
+      }
+      const updatedProfile = { ...profile, [field]: valueToSave };
+      await updateUserProfile(updatedProfile, token);
+      setProfile(updatedProfile);
+      setEditingField(null);
+      toast.success(`${fieldLabels[field]} mis à jour avec succès`);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Erreur lors de la mise à jour de ${fieldLabels[field]}`);
     }
-    const updatedProfile = { ...profile, [field]: valueToSave };
-    await updateUserProfile(updatedProfile, token);
-    setProfile(updatedProfile);
-    setEditingField(null);
-    toast.success(`${fieldLabels[field]} mis à jour avec succès`);
-  } catch (err) {
-    console.error(err);
-    toast.error(`Erreur lors de la mise à jour de ${fieldLabels[field]}`);
-  }
-};
-
+  };
 
   const renderField = (field) => (
     <div className="profile-field" key={field}>
-      <span className="field-label">{fieldLabels[field]}:</span>
+      <div className="field-label">
+        {fieldIcons[field]}
+        <span>{fieldLabels[field]}:</span>
+      </div>
+
       {editingField === field ? (
         <>
-         <input
-  type="text"
-  value={tempValue}
-  onChange={(e) => handleInputChange(field, e.target.value)}
-/>
-
-          <Check size={18} className="icon action" onClick={() => handleSave(field)} />
-          <X size={18} className="icon action" onClick={handleCancel} />
+          <input
+            type="text"
+            value={tempValue}
+            onChange={(e) => handleInputChange(field, e.target.value)}
+          />
+          <Check
+            size={18}
+            className="icon action confirm"
+            onClick={() => handleSave(field)}
+          />
+          <X size={18} className="icon action cancel" onClick={handleCancel} />
         </>
       ) : (
         <>
           <span className="field-value">
-            {field === "phoneNumber" ? formatPhoneNumber(profile[field]) : profile[field] || "—"}
+            {field === "phoneNumber"
+              ? formatPhoneNumber(profile[field])
+              : profile[field] || "—"}
           </span>
-          <Edit2 size={18} className="icon action" onClick={() => handleEdit(field)} />
+          <Edit2
+            size={18}
+            className="icon action edit"
+            onClick={() => handleEdit(field)}
+          />
         </>
       )}
     </div>
@@ -108,7 +124,10 @@ const handleInputChange = (field, value) => {
 
   return (
     <div className="profile-container">
-      <PageHeader title="Profil" subtitle="Gérer vos informations personnelles" />
+      <PageHeader
+        title="Profil"
+        subtitle="Gérer vos informations personnelles"
+      />
       <div className="profile-content">
         {Object.keys(fieldLabels).map(renderField)}
       </div>

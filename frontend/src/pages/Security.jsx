@@ -32,7 +32,10 @@ const Security = () => {
       setConfirmPassword("");
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || "Erreur lors de la mise à jour du mot de passe");
+      toast.error(
+        err.response?.data?.message ||
+          "Erreur lors de la mise à jour du mot de passe"
+      );
     }
   };
 

@@ -1,17 +1,30 @@
-/* General */
+/* =========================
+   General
+========================= */
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
 .appointments-page {
   font-family: "Montserrat", sans-serif;
   padding: 20px;
   background: #f9fbfd;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .appointments-container {
-  max-width: 1000px;
-  margin: auto;
+  flex: 1; /* fill remaining space */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-/* Controls */
+/* =========================
+   Controls
+========================= */
 .appointments-controls {
   display: flex;
   gap: 12px;
@@ -38,7 +51,9 @@
   border: 1px solid #ccc;
 }
 
-/* Buttons */
+/* =========================
+   Buttons
+========================= */
 .btn-primary {
   display: flex;
   align-items: center;
@@ -82,32 +97,9 @@
   cursor: pointer;
 }
 
-/* Table */
-.appointments-table-wrapper {
-  max-height: 500px;
-  overflow-y: auto;
-  background: #fff;
-  border-radius: 12px;
-}
-
-.appointments-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.appointments-table th,
-.appointments-table td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid #eee;
-}
-
-.appointments-table th {
-  background: #f5f5f5;
-  font-weight: 600;
-}
-
-/* Action buttons */
+/* =========================
+   Action buttons
+========================= */
 .action-btn.view {
   border-color: #60a5fa;
   background: #eff6ff;
@@ -156,7 +148,9 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
-/* Status chips */
+/* =========================
+   Status chips
+========================= */
 .status-chip {
   padding: 4px 10px;
   border-radius: 12px;
@@ -176,13 +170,9 @@
   color: #c62828;
 }
 
-.empty-text {
-  text-align: center;
-  color: #888;
-  padding: 20px 0;
-}
-
-/* Modal */
+/* =========================
+   Modal
+========================= */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -197,8 +187,10 @@
   background: #fff;
   padding: 24px;
   border-radius: 14px;
-  width: 400px;
+  width: 500px;
   max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
 
@@ -219,83 +211,94 @@
   margin-top: 12px;
 }
 
-/* Slots */
+/* =========================
+   Slots
+========================= */
 .appointments-slots {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
-}
-.appointments-slots .slot {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.appointments-slots .slot .action-btn.delete {
-  margin-left: auto;
+  gap: 16px; /* spacing between slots */
+  flex: 1; /* fill vertical space */
+  overflow-y: auto; /* scroll if too many slots */
+  padding-right: 4px;
 }
 
 .slot {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  padding: 10px 12px;
+  gap: 16px;
+  padding: 16px 18px;
   border-radius: 8px;
-  cursor: grab;
   border: 1px solid #ccc;
-  background: #f9f9f9;
-  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
-}
-.slot:active {
-  cursor: grabbing;
-  transform: scale(1.02);
-}
-
-.slot.empty:hover {
-  background: #e0f7fa;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.slot.booked {
-  background: #fff3e0;
-  border-color: #ffcc80;
-}
-
-/* Slot colors based on status */
-.slot.SCHEDULED {
-  background: #fff8e1;
-  border-color: #ffca28;
-}
-.slot.COMPLETED {
-  background: #e8f5e9;
-  border-color: #66bb6a;
-}
-.slot.CANCELLED {
-  background: #ffebee;
-  border-color: #ef5350;
+  cursor: pointer; /* clickable */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .slot-time {
+  flex-shrink: 0; /* prevent shrinking */
+  width: 100px;   /* fixed width for hours */
   font-weight: 500;
-  width: 120px;
 }
 
 .slot-patient {
   flex: 1;
-  margin-left: 12px;
+  min-width: 0; /* allow truncation */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-/* Drag & drop visual states */
-.slot.drag-over {
-  background: #dbeafe; /* light blue highlight */
-  border-color: #3b82f6;
+
+.slot:hover {
+  background: #f3f4f6; /* optional: highlight on hover */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
-.slot.dragging {
-  opacity: 0.6;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+/* Slot times */
+.slot-time {
+  width: 200px; /* fixed width for hours */
+  font-weight: 500;
 }
 
-/* Patient search dropdown */
+/* Status colors for entire slot */
+.slot.SCHEDULED {
+  background: #fff8e1; /* light yellow */
+  border-color: #ffca28;
+}
+.slot.COMPLETED {
+  background: #d4edda; /* light green */
+  border-color: #66bb6a;
+}
+.slot.CANCELLED {
+  background: #ffcdd2; /* light red */
+  border-color: #ef5350;
+}
+
+/* Appointment row inside slot */
+.appointment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  gap: 8px;
+}
+
+.slot-patient {
+  flex: 1;
+  text-align: left;
+  margin-left: 8px; /* extra spacing from time */
+}
+
+/* Status chip and buttons right-aligned */
+.status-chip,
+.action-btn {
+  margin-left: 8px;
+}
+
+/* =========================
+   Patient search dropdown
+========================= */
 .patient-search-dropdown {
   background: #fff;
   border: 1px solid #ddd;
@@ -316,33 +319,34 @@
 .patient-search-dropdown li:hover {
   background: #f3f4f6;
 }
+
+/* =========================
+   Toggle chip
+========================= */
 .chip-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 6px 14px;
-  margin-top: 12px;     /* add spacing above */
-  margin-bottom: 12px;  /* add spacing below */
+  margin-top: 12px;
+  margin-bottom: 12px;
   border-radius: 20px;
-  border: 1px solid #d1d5db; /* gray-300 */
+  border: 1px solid #d1d5db;
   background: #f9fafb;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #374151; /* gray-700 */
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
 .chip-toggle input {
   display: none;
 }
-
 .chip-toggle:hover {
   background: #f3f4f6;
   border-color: #9ca3af;
 }
-
 .chip-toggle.active {
   background: #e6f4ff;
   border-color: #3498db;

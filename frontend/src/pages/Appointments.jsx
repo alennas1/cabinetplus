@@ -47,6 +47,30 @@ export default function Appointments() {
   const [patients, setPatients] = useState([]);
   const [patientSearch, setPatientSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
+const [completeAppt, setCompleteAppt] = useState(null);
+const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+
+const handleMarkCompleted = (appt) => {
+  setCompleteAppt(appt);
+  setShowCompleteConfirm(true);
+};
+const confirmCompleteAppointment = async () => {
+  if (!completeAppt) return;
+  try {
+    const payload = { ...completeAppt, status: "COMPLETED" };
+    const updated = await updateAppointment(completeAppt.id, payload, token);
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === updated.id ? updated : a))
+    );
+    toast.success("Rendez-vous complété ✅");
+  } catch (err) {
+    console.error("Error marking complete:", err);
+    toast.error("Erreur lors du changement d'état ❌");
+  } finally {
+    setShowCompleteConfirm(false);
+    setCompleteAppt(null);
+  }
+};
 
   // Fetch patients
   useEffect(() => {
@@ -109,24 +133,21 @@ export default function Appointments() {
           0
         );
         const slotEnd = new Date(slotStart.getTime() + 30 * 60000);
-        const appt = appointments.find((a) => {
-          const apptDate = new Date(a.dateTimeStart);
-          return (
-            apptDate.getFullYear() === slotStart.getFullYear() &&
-            apptDate.getMonth() === slotStart.getMonth() &&
-            apptDate.getDate() === slotStart.getDate() &&
-            apptDate.getHours() === slotStart.getHours() &&
-            apptDate.getMinutes() === slotStart.getMinutes()
-          );
+
+        // find all appointments in this slot
+        const apptsInSlot = appointments.filter((a) => {
+          const apptDate = new Date(a.dateTimeStart + "Z"); // treat as UTC
+          return Math.abs(apptDate.getTime() - slotStart.getTime()) < 1000; // 1s tolerance
         });
-        slots.push({ start: slotStart, end: slotEnd, appointment: appt });
+
+        slots.push({ start: slotStart, end: slotEnd, appointments: apptsInSlot });
       }
     }
     return slots;
   };
 
   const handleSlotClick = (slot) => {
-    if (slot.appointment) return;
+    if (slot.appointments.length > 0) return;
     setFormData({
       id: null,
       patientId: null,
@@ -206,19 +227,7 @@ export default function Appointments() {
     }
   };
 
-  const handleMarkCompleted = async (appt) => {
-    try {
-      const payload = { ...appt, status: "COMPLETED" };
-      const updated = await updateAppointment(appt.id, payload, token);
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === updated.id ? updated : a))
-      );
-      toast.success("Rendez-vous complété ✅");
-    } catch (err) {
-      console.error("Error marking complete:", err);
-      toast.error("Erreur lors du changement d'état ❌");
-    }
-  };
+
 
   const formatTime = (dt) => {
     const date = new Date(dt);
@@ -228,20 +237,21 @@ export default function Appointments() {
   };
 
   const closeModal = () => {
-    setShowModal(false);
-    setFormData({
-      id: null,
-      patientId: null,
-      patientName: "",
-      hour: "",
-      minute: "",
-      status: "SCHEDULED",
-    });
-    setIsNewPatient(false);
-    setNewPatient({ firstname: "", lastname: "", phone: "", age: "", sex: "Homme" });
-    setIsEditing(false);
-    setOpenedFromSlot(false);
-  };
+  setShowModal(false);
+  setFormData({
+    id: null,
+    patientId: null,
+    patientName: "",
+    hour: "",
+    minute: "",
+    status: "SCHEDULED",
+  });
+  setIsNewPatient(false);
+  setNewPatient({ firstname: "", lastname: "", phone: "", age: "", sex: "Homme" });
+  setPatientSearch(""); // <-- reset search input
+  setIsEditing(false);
+  setOpenedFromSlot(false);
+};
 
   const slots = getSlotAppointments();
 
@@ -275,30 +285,52 @@ export default function Appointments() {
         {/* Slots */}
         <div className="appointments-slots">
           {slots.map((slot, idx) => (
-            <div
-              key={idx}
-              className={`slot ${slot.appointment ? "booked" : "empty"} ${slot.appointment ? slot.appointment.status : ""}`}
-              onClick={() => handleSlotClick(slot)}
-            >
-              <div className="slot-time">{formatTime(slot.start)} - {formatTime(slot.end)}</div>
-              <div className="slot-patient">{slot.appointment ? getPatientName(slot.appointment) : "Disponible"}</div>
+          <div
+  key={idx}
+  className={`slot ${slot.appointments.length ? "SCHEDULED" : "empty"} ${
+    slot.appointments.some(a => a.status === "COMPLETED") ? "COMPLETED" : ""
+  }`}
+  onClick={() => handleSlotClick(slot)}
+>
+  <div className="slot-time">{formatTime(slot.start)} - {formatTime(slot.end)}</div>
+  {slot.appointments.length ? (
+  slot.appointments.map((appt) => (
+    <div key={appt.id} className="appointment-row">
+      <div className="slot-patient">{getPatientName(appt)}</div>
+      <span className={`status-chip ${appt.status}`}>{appt.status}</span>
 
-              {slot.appointment && (
-                <>
-                  <span className={`status-chip ${slot.appointment.status}`}>
-                    {slot.appointment.status}
-                  </span>
-                  {slot.appointment.status === "SCHEDULED" && (
-                    <button className="action-btn complete" onClick={(e) => {e.stopPropagation(); handleMarkCompleted(slot.appointment);}}>
-                      <Check size={16} />
-                    </button>
-                  )}
-                  <button className="action-btn delete" onClick={(e) => {e.stopPropagation(); handleDeleteClick(slot.appointment.id);}}>
-                    <Trash2 size={16} />
-                  </button>
-                </>
-              )}
-            </div>
+      {/* Complete button only if not completed */}
+      {appt.status === "SCHEDULED" && (
+        <button
+          className="action-btn complete"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleMarkCompleted(appt);
+          }}
+        >
+          <Check size={16} />
+        </button>
+      )}
+
+      {/* Delete button only if not completed */}
+      {appt.status !== "COMPLETED" && (
+        <button
+          className="action-btn delete"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteClick(appt.id);
+          }}
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
+    </div>
+  ))
+) : (
+  <div className="slot-patient">Disponible</div>
+)}
+</div>
+
           ))}
         </div>
 
@@ -307,20 +339,16 @@ export default function Appointments() {
           <div className="modal-overlay" onClick={closeModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h2>Ajouter Rendez-vous</h2>
-
               <form onSubmit={handleSubmit} className="modal-form">
-                {/* Toggle new patient */}
-<label className={`chip-toggle ${isNewPatient ? "active" : ""}`}>
-  <input
-    type="checkbox"
-    checked={isNewPatient}
-    onChange={(e) => setIsNewPatient(e.target.checked)}
-  />
-  Nouveau patient ?
-</label>
+                <label className={`chip-toggle ${isNewPatient ? "active" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={isNewPatient}
+                    onChange={(e) => setIsNewPatient(e.target.checked)}
+                  />
+                  Nouveau patient ?
+                </label>
 
-
-                {/* If new patient */}
                 {isNewPatient ? (
                   <>
                     <input type="text" placeholder="Firstname" value={newPatient.firstname} onChange={(e) => setNewPatient({...newPatient, firstname: e.target.value})} required />
@@ -333,7 +361,6 @@ export default function Appointments() {
                     </select>
                   </>
                 ) : (
-                  // Existing patient search
                   <div className="form-field" style={{ position: "relative" }}>
                     <input type="text" placeholder="Search patient..." value={patientSearch} onChange={(e) => handlePatientSearch(e.target.value)} autoComplete="off" required />
                     {searchResults.length > 0 && (
@@ -384,6 +411,20 @@ export default function Appointments() {
             </div>
           </div>
         )}
+        {/* Confirm complete */}
+{showCompleteConfirm && completeAppt && (
+  <div className="modal-overlay">
+    <div className="modal-content">
+      <h2>Marquer comme COMPLET ?</h2>
+      <p>Êtes-vous sûr de vouloir marquer le rendez-vous de {getPatientName(completeAppt)} comme COMPLET ?</p>
+      <div className="modal-actions">
+        <button onClick={() => setShowCompleteConfirm(false)} className="btn-cancel">Annuler</button>
+        <button onClick={confirmCompleteAppointment} className="btn-primary2">Confirmer</button>
+      </div>
+    </div>
+  </div>
+)}
+
 
         <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} theme="light" />
       </div>

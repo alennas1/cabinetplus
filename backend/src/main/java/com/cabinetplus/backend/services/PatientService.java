@@ -34,7 +34,7 @@ public class PatientService {
         existing.setFirstname(updatedPatient.getFirstname());
         existing.setLastname(updatedPatient.getLastname());
         existing.setAge(updatedPatient.getAge());
-        existing.setSex(updatedPatient.getSex());   // ✅ added
+        existing.setSex(updatedPatient.getSex());   //  added
         existing.setPhone(updatedPatient.getPhone());
 
         Patient saved = patientRepository.save(existing);
@@ -62,7 +62,7 @@ public class PatientService {
                 patient.getFirstname(),
                 patient.getLastname(),
                 patient.getAge(),
-                patient.getSex(),    // ✅ added
+                patient.getSex(),    //  added
                 patient.getPhone(),
                 patient.getCreatedAt()
         );

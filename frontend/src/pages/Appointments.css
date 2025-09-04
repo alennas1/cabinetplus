@@ -33,6 +33,11 @@ html, body {
   margin-bottom: 16px;
 }
 
+.date-selector {
+  display: flex;
+  gap: 8px;
+}
+
 .appointments-controls button {
   padding: 6px 12px;
   border: none;
@@ -50,6 +55,12 @@ html, body {
   border-radius: 8px;
   border: 1px solid #ccc;
 }
+
+/* NEW: push the add button to the right */
+.appointments-controls button.btn-primary {
+  margin-left: auto;
+}
+
 
 /* =========================
    Buttons
@@ -279,15 +290,15 @@ html, body {
 .appointment-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex: 1;
-  gap: 8px;
+  gap: 8px; /* spacing between items */
+  width: 100%;
 }
 
 .slot-patient {
   flex: 1;
-  text-align: left;
-  margin-left: 8px; /* extra spacing from time */
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* Status chip and buttons right-aligned */

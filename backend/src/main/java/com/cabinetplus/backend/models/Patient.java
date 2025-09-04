@@ -27,7 +27,7 @@ public class Patient {
     private String firstname;
     private String lastname;
     private Integer age;
-    private String sex;      // ✅ New field
+    private String sex;      //  New field
 
     private String phone;
 

@@ -248,3 +248,40 @@ html, body {
   /* Align vertically with smaller icons */
   margin-left: -4px;   /* tweak until visually centered */
 }
+.sidebar-divider {
+  height: 1px;
+  background: #eaeaea;
+  margin: 12px 0;
+}
+.sidebar-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  padding: 12px 20px 4px 20px;
+  letter-spacing: 0.5px;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none; /* prevent accidental hover */
+}
+
+/* Show titles only when sidebar is expanded */
+.sidebar:hover .sidebar-group-title {
+  opacity: 1;
+  transform: translateX(0);
+}
+/* General group titles */
+.sidebar-group-title.general {
+  color: #3498db;  /* blue */
+}
+
+/* Administration group titles */
+.sidebar-group-title.admin {
+  color: #2c3e50;     /* subtle dark gray */
+}
+
+/* Optional: left border accent on hover for admin links */
+.sidebar-links li.admin-link a::before {
+  background: #2c3e50; 
+}

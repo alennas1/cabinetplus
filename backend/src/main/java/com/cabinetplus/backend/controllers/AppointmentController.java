@@ -28,7 +28,7 @@ import com.cabinetplus.backend.services.UserService;
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
-    private final UserService userService; // ✅ inject userService
+    private final UserService userService; //  inject userService
     private final PatientService patientService; // 💡 inject patientService
 
     public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService) {
@@ -37,7 +37,7 @@ public class AppointmentController {
         this.patientService = patientService;
     }
 
-    // ✅ Return appointments only for the logged-in practitioner
+    //  Return appointments only for the logged-in practitioner
     @GetMapping
     public List<Appointment> getAllAppointments(Principal principal) {
         String username = principal.getName();

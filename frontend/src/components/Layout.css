@@ -10,5 +10,5 @@
   flex: 1;             /* take up all space next to sidebar */
   overflow-y: auto;    /* scroll if content is long */
   
-  /* ❌ remove padding/margins — let each page control its own spacing */
+  /*  remove padding/margins — let each page control its own spacing */
 }

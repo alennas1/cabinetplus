@@ -238,7 +238,7 @@ const Medications = () => {
   name="strength"
   value={form.strength}
   onChange={handleChange}
-  required  // ✅ Make it mandatory
+  required  //  Make it mandatory
 />
               <span className="field-label">Description</span>
               <input type="text" name="description" value={form.description} onChange={handleChange} />

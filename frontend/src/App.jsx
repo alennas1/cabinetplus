@@ -14,8 +14,8 @@ import Medications from "./pages/Medications";
 import TreatmentCatalog from "./pages/Treatments";
 import Preference from "./pages/Preference";
 import Profile from "./pages/Profile";
-import Notification from "./pages/Notification";
 import Security from "./pages/Security";
+import Finance from "./pages/Finance";
 
 import "./index.css";
 
@@ -43,8 +43,8 @@ function App() {
               <Route path="/settings/treatments" element={<TreatmentCatalog />} />
               <Route path="/settings/preferences" element={<Preference />} />
               <Route path="/settings/profile" element={<Profile />} />
-              <Route path="/settings/notifications" element={<Notification />} />
               <Route path="/settings/security" element={<Security />} />
+              <Route path="/finance" element={<Finance />} />
             </Route>
           </Route>
 

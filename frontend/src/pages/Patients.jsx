@@ -184,10 +184,10 @@ const confirmDeletePatient = async () => {
   try {
     await deletePatient(confirmDelete, token);
     setPatients(patients.filter((p) => p.id !== confirmDelete));
-    toast.success("Patient supprimé ✅");
+    toast.success("Patient supprimé ");
   } catch (err) {
     console.error("Error deleting patient:", err);
-    toast.error("Erreur lors de la suppression ❌");
+    toast.error("Erreur lors de la suppression ");
   } finally {
     setShowConfirm(false);
     setConfirmDelete(null);

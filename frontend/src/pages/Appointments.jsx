@@ -11,9 +11,12 @@ import PageHeader from "../components/PageHeader";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./Appointments.css";
+import { Eye } from "react-feather";
+import { useNavigate } from "react-router-dom";
 
 export default function Appointments() {
   const token = localStorage.getItem("token");
+const navigate = useNavigate();
 
   const [appointments, setAppointments] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -62,10 +65,10 @@ const confirmCompleteAppointment = async () => {
     setAppointments((prev) =>
       prev.map((a) => (a.id === updated.id ? updated : a))
     );
-    toast.success("Rendez-vous complété ✅");
+    toast.success("Rendez-vous complété ");
   } catch (err) {
     console.error("Error marking complete:", err);
-    toast.error("Erreur lors du changement d'état ❌");
+    toast.error("Erreur lors du changement d'état ");
   } finally {
     setShowCompleteConfirm(false);
     setCompleteAppt(null);
@@ -80,7 +83,7 @@ const confirmCompleteAppointment = async () => {
         setPatients(data);
       } catch (err) {
         console.error("Error fetching patients:", err);
-        toast.error("Erreur lors du chargement des patients ❌");
+        toast.error("Erreur lors du chargement des patients ");
       }
     };
     fetchPatients();
@@ -109,11 +112,16 @@ const confirmCompleteAppointment = async () => {
         setAppointments(data);
       } catch (err) {
         console.error("Error fetching appointments:", err);
-        toast.error("Erreur lors du chargement ❌");
+        toast.error("Erreur lors du chargement ");
       }
     };
     fetchAppointments();
   }, [token]);
+  const statusLabels = {
+  SCHEDULED: "Planifié",
+  COMPLETED: "Complet",
+  CANCELED: "Annulé", // if you ever add canceled status
+};
 
   const getSlotAppointments = () => {
     const slots = [];
@@ -200,11 +208,11 @@ const confirmCompleteAppointment = async () => {
       const updated = await getAppointments(token);
       setAppointments(updated);
 
-      toast.success("Rendez-vous ajouté ✅");
+      toast.success("Rendez-vous ajouté ");
       closeModal();
     } catch (err) {
       console.error("Error saving appointment:", err);
-      toast.error("Erreur lors de l'enregistrement ❌");
+      toast.error("Erreur lors de l'enregistrement ");
     }
   };
 
@@ -217,10 +225,10 @@ const confirmCompleteAppointment = async () => {
     try {
       await deleteAppointment(confirmDelete, token);
       setAppointments((prev) => prev.filter((a) => a.id !== confirmDelete));
-      toast.success("Rendez-vous supprimé ✅");
+      toast.success("Rendez-vous supprimé ");
     } catch (err) {
       console.error("Error deleting appointment:", err);
-      toast.error("Erreur lors de la suppression ❌");
+      toast.error("Erreur lors de la suppression ");
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);
@@ -272,13 +280,13 @@ const confirmCompleteAppointment = async () => {
         {/* Controls */}
         <div className="appointments-controls">
           <div className="date-selector">
-            <button className={selectedDate === "today" ? "active" : ""} onClick={() => setSelectedDate("today")}>Today</button>
-            <button className={selectedDate === "tomorrow" ? "active" : ""} onClick={() => setSelectedDate("tomorrow")}>Tomorrow</button>
+            <button className={selectedDate === "today" ? "active" : ""} onClick={() => setSelectedDate("today")}>Aujourd'hui</button>
+            <button className={selectedDate === "tomorrow" ? "active" : ""} onClick={() => setSelectedDate("tomorrow")}>Demain</button>
             <input type="date" value={customDate} onChange={(e) => {setCustomDate(e.target.value); setSelectedDate("custom");}} />
           </div>
 
           <button className="btn-primary" onClick={() => {setOpenedFromSlot(false); setShowModal(true);}}>
-            <Plus size={16} /> Add Appointment
+            <Plus size={16} /> Ajouter un rendez-vous
           </button>
         </div>
 
@@ -297,9 +305,23 @@ const confirmCompleteAppointment = async () => {
   slot.appointments.map((appt) => (
     <div key={appt.id} className="appointment-row">
       <div className="slot-patient">{getPatientName(appt)}</div>
-      <span className={`status-chip ${appt.status}`}>{appt.status}</span>
-
-      {/* Complete button only if not completed */}
+<span className={`status-chip ${appt.status}`}>
+  {statusLabels[appt.status] || appt.status}
+</span>
+     
+{appt.patient.id && (
+  <button
+    className="action-btn view"
+    onClick={(e) => {
+      e.stopPropagation(); // prevents opening the slot modal
+      navigate(`/patients/${appt.patient.id}`);
+    }}
+    title="Voir le patient"
+  >
+    <Eye size={16} />
+  </button>
+)}
+ {/* Complete button only if not completed */}
       {appt.status === "SCHEDULED" && (
         <button
           className="action-btn complete"
@@ -311,7 +333,6 @@ const confirmCompleteAppointment = async () => {
           <Check size={16} />
         </button>
       )}
-
       {/* Delete button only if not completed */}
       {appt.status !== "COMPLETED" && (
         <button
@@ -351,10 +372,10 @@ const confirmCompleteAppointment = async () => {
 
                 {isNewPatient ? (
                   <>
-                    <input type="text" placeholder="Firstname" value={newPatient.firstname} onChange={(e) => setNewPatient({...newPatient, firstname: e.target.value})} required />
-                    <input type="text" placeholder="Lastname" value={newPatient.lastname} onChange={(e) => setNewPatient({...newPatient, lastname: e.target.value})} required />
-                    <input type="text" placeholder="Phone" value={newPatient.phone} onChange={(e) => setNewPatient({...newPatient, phone: e.target.value})} required />
-                    <input type="number" placeholder="Age" value={newPatient.age} onChange={(e) => setNewPatient({...newPatient, age: e.target.value})} required />
+                    <input type="text" placeholder="Prénom" value={newPatient.firstname} onChange={(e) => setNewPatient({...newPatient, firstname: e.target.value})} required />
+                    <input type="text" placeholder="Nom" value={newPatient.lastname} onChange={(e) => setNewPatient({...newPatient, lastname: e.target.value})} required />
+                    <input type="text" placeholder="Téléphone" value={newPatient.phone} onChange={(e) => setNewPatient({...newPatient, phone: e.target.value})} required />
+                    <input type="number" placeholder="Âge" value={newPatient.age} onChange={(e) => setNewPatient({...newPatient, age: e.target.value})} required />
                     <select value={newPatient.sex} onChange={(e) => setNewPatient({...newPatient, sex: e.target.value})}>
                       <option value="Homme">Homme</option>
                       <option value="Femme">Femme</option>
@@ -384,8 +405,8 @@ const confirmCompleteAppointment = async () => {
 
                 {!openedFromSlot && (
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <input type="number" placeholder="Hour" min="8" max="18" value={formData.hour || ""} onChange={(e) => setFormData({ ...formData, hour: e.target.value })} required />
-                    <input type="number" placeholder="Minute" min="0" max="59" step="30" value={formData.minute || ""} onChange={(e) => setFormData({ ...formData, minute: e.target.value })} required />
+                    <input type="number" placeholder="Heures" min="8" max="18" value={formData.hour || ""} onChange={(e) => setFormData({ ...formData, hour: e.target.value })} required />
+                    <input type="number" placeholder="Minutes" min="0" max="59" step="30" value={formData.minute || ""} onChange={(e) => setFormData({ ...formData, minute: e.target.value })} required />
                   </div>
                 )}
 
@@ -426,7 +447,6 @@ const confirmCompleteAppointment = async () => {
 )}
 
 
-        <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} theme="light" />
       </div>
     </div>
   );

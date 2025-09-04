@@ -7,7 +7,7 @@ public record PatientDto(
     String firstname,
     String lastname,
     Integer age,
-    String sex,            // ✅ Added
+    String sex,            //  Added
     String phone,
     LocalDateTime createdAt
 ) {}

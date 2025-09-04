@@ -50,7 +50,7 @@ public List<PatientDto> getAllPatients(Principal principal) {
         return patientService.findById(id);
     }
 
-    // ✅ Create Patient (backend fills createdBy + createdAt)
+    //  Create Patient (backend fills createdBy + createdAt)
     @PostMapping
     public PatientDto createPatient(@RequestBody Patient patient, Principal principal) {
         String username = principal.getName(); // comes from JWT
@@ -63,7 +63,7 @@ public List<PatientDto> getAllPatients(Principal principal) {
         return patientService.saveAndConvert(patient);
     }
 
-    // ✅ Update patient (only patient data, keep createdBy/createdAt untouched)
+    //  Update patient (only patient data, keep createdBy/createdAt untouched)
     @PutMapping("/{id}")
     public PatientDto updatePatient(@PathVariable Long id, @RequestBody Patient patient) {
         return patientService.update(id, patient);

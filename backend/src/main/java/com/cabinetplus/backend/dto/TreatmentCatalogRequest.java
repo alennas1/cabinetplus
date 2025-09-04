@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
-// ✅ Used for creating/updating treatment catalog
+//  Used for creating/updating treatment catalog
 @Data
 public class TreatmentCatalogRequest {
 

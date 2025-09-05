@@ -8,21 +8,30 @@ import "./Login.css";
 const LoginPage = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(""); // Add error state
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); // Reset the error message before attempting login
-    try {
-      const data = await login(username, password);
-      dispatch(loginSuccess(data.token));
+    setError("");
+    setLoading(true);
 
-      // Redirect to dashboard after login
+    try {
+      // Call backend login
+      const data = await login(username, password);
+
+      // Save access token in Redux/localStorage
+      dispatch(loginSuccess(data.accessToken));
+
+      // Navigate after login
       navigate("/dashboard");
-    } catch {
-      setError("Identifiants invalides"); // Set error message
+    } catch (err) {
+      console.error("Login failed:", err);
+      setError("Identifiants invalides");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -43,6 +52,7 @@ const LoginPage = () => {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
+            disabled={loading}
           />
 
           <input
@@ -51,17 +61,19 @@ const LoginPage = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            disabled={loading}
           />
 
-          {/* Display error message in red */}
+          {/* Display error */}
           {error && <p className="error-message">{error}</p>}
 
-          <button type="submit">Se connecter</button>
+          <button type="submit" disabled={loading}>
+            {loading ? "Connexion..." : "Se connecter"}
+          </button>
         </div>
 
         <p className="auth-footer">
-          Pas encore de compte ?{" "}
-          <Link to="/register">S'inscrire</Link>
+          Pas encore de compte ? <Link to="/register">S'inscrire</Link>
         </p>
       </form>
     </div>

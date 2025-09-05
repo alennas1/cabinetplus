@@ -9,6 +9,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,6 +22,8 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 @RestController
@@ -41,23 +44,38 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Map<String, String> login(@RequestBody Map<String, String> body) {
-        try {
-            String username = body.get("username");
-            String password = body.get("password");
+public Map<String, String> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
+    try {
+        String username = body.get("username");
+        String password = body.get("password");
 
-            Authentication auth = authManager.authenticate(
+        Authentication auth = authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(username, password));
 
-            String role = auth.getAuthorities().iterator().next().getAuthority();
-            String token = jwtUtil.generateToken(auth.getName(), role);
+        String role = auth.getAuthorities().iterator().next().getAuthority();
 
-            return Map.of("token", token);
+        // Generate tokens
+        String accessToken = jwtUtil.generateAccessToken(auth.getName(), role);
+        String refreshToken = jwtUtil.generateRefreshToken(auth.getName());
 
-        } catch (AuthenticationException e) {
-            throw new RuntimeException("Invalid username/password");
-        }
+        // Option A: Return both in response body
+        // return Map.of("accessToken", accessToken, "refreshToken", refreshToken);
+
+        // Option B (recommended for web): Send refresh token as HttpOnly cookie
+        Cookie cookie = new Cookie("refresh_token", refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true); // works only on HTTPS
+        cookie.setPath("/auth/refresh");
+        cookie.setMaxAge(7 * 24 * 60 * 60);
+        response.addCookie(cookie);
+
+        return Map.of("accessToken", accessToken);
+
+    } catch (AuthenticationException e) {
+        throw new RuntimeException("Invalid username/password");
     }
+}
+
 @PostMapping("/register")
 public ResponseEntity<UserDto> register(@Valid @RequestBody RegisterRequest request) {
     User user = new User();
@@ -85,5 +103,20 @@ public ResponseEntity<UserDto> register(@Valid @RequestBody RegisterRequest requ
     return ResponseEntity.ok(dto);
 }
 
+@PostMapping("/refresh")
+public Map<String, String> refresh(@CookieValue("refresh_token") String refreshToken) {
+    if (jwtUtil.validateToken(refreshToken)) {
+        String username = jwtUtil.extractUsername(refreshToken);
+
+        // (Optional) load role from DB if you want always fresh roles
+        User user = userRepo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String newAccessToken = jwtUtil.generateAccessToken(username, user.getRole().name());
+
+        return Map.of("accessToken", newAccessToken);
+    }
+    throw new RuntimeException("Invalid refresh token");
+}
 
 }

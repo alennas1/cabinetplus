@@ -1,529 +1,558 @@
-import React, { useMemo, useState } from "react";
+// src/pages/Patient.jsx
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+import { getPatientById, updatePatient } from "../services/patientService";
 import {
-  Plus, Receipt, Search, Pill, Activity, CreditCard, Calendar,
-  Eye, Edit2, Trash2, Phone, Mail, MapPin
-} from "lucide-react";
-import "./Patient.css"; // append the CSS additions below to your existing CSS
+  getTreatmentsByPatient,
+  createTreatment,
+  updateTreatment,
+  deleteTreatment
+} from "../services/treatmentService";
+import {
+  getPaymentsByPatient,
+  createPayment,
+  deletePayment
+} from "../services/paymentService";
+import {
+  getAppointmentsByPatient,
+  createAppointment,
+  updateAppointment,
+  deleteAppointment
+} from "../services/appointmentService";
 
-const initialPatient = {
-  id: 101,
-  firstname: "John",
-  lastname: "Doe",
-  age: 35,
-  sex: "Male",
-  phone: "+213 555 12 34 56",
-  email: "john.doe@example.com",
-  address: "12 Rue Didouche Mourad, Algiers",
-};
+import { getTreatments as getTreatmentCatalog } from "../services/treatmentCatalogueService";
 
-const formatDate = (d) =>
-  typeof d === "string" ? d : new Date(d).toLocaleDateString();
+import "./Patient.css";
 
-const currency = (v) => new Intl.NumberFormat("fr-DZ", { style: "currency", currency: "DZD" }).format(Number(v || 0));
+const Patient = () => {
+  const { id } = useParams();
+  const token = useSelector(state => state.auth.token);
+  const navigate = useNavigate();
 
-export default function Patient() {
-  const [patient] = useState(initialPatient);
+  const [patient, setPatient] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // DATA (mock)
-  const [treatments, setTreatments] = useState([
-    { id: 1, name: "Dental Cleaning", date: "2025-08-20", price: 4500, notes: "Routine" },
-    { id: 2, name: "Filling – Molar", date: "2025-08-28", price: 9000, notes: "Composite" },
-  ]);
-  const [prescriptions, setPrescriptions] = useState([
-    { id: 11, date: "2025-08-28", notes: "Ibuprofen 200mg, after meals" },
-  ]);
-  const [invoices, setInvoices] = useState([
-    { id: 21, invoiceNumber: "INV-2025-001", date: "2025-08-28", status: "SENT", totalAmount: 13500 },
-  ]);
-  const [payments, setPayments] = useState([
-    { id: 31, amount: 5000, date: "2025-08-29", method: "CASH" },
-  ]);
-  const [appointments, setAppointments] = useState([
-    { id: 41, dateTimeStart: "2025-09-05T10:00", dateTimeEnd: "2025-09-05T10:30", status: "SCHEDULED" },
-  ]);
+  const [treatments, setTreatments] = useState([]);
+  const [treatmentCatalog, setTreatmentCatalog] = useState([]);
+  const [showTreatmentModal, setShowTreatmentModal] = useState(false);
+  const [treatmentForm, setTreatmentForm] = useState({
+    id: null,
+    treatmentCatalogId: null,
+    price: "",
+    notes: "",
+  });
+  const [isEditingTreatment, setIsEditingTreatment] = useState(false);
 
-  // SUMMARY
-  const totalBilled = useMemo(
-    () => invoices.reduce((s, i) => s + Number(i.totalAmount || 0), 0), [invoices]
-  );
-  const totalPaid = useMemo(
-    () => payments.reduce((s, p) => s + Number(p.amount || 0), 0), [payments]
-  );
-  // const outstanding = Math.max(0, totalBilled - totalPaid);
+  const [payments, setPayments] = useState([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    id: null,
+    amount: "",
+    method: "CASH",
+  });
+  const [isEditingPayment, setIsEditingPayment] = useState(false);
 
-  // NAV
-  const [tab, setTab] = useState("overview");
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    firstname: "",
+    lastname: "",
+    age: "",
+    sex: "",
+    phone: "",
+  });
 
-  // SEARCH per tab
-  const [query, setQuery] = useState("");
+  const [appointments, setAppointments] = useState([]);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [appointmentForm, setAppointmentForm] = useState({
+    id: null,
+    date: "",
+    time: "",
+    notes: "",
+  });
+  const [isEditingAppointment, setIsEditingAppointment] = useState(false);
 
-  // MODAL
-  const [modal, setModal] = useState({ open: false, type: null, editId: null, payload: {} });
+  // Helpers
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
-  const openAdd = (type) => setModal({ open: true, type, editId: null, payload: {} });
-  const openEdit = (type, item) => setModal({ open: true, type, editId: item.id, payload: { ...item } });
-  const closeModal = () => setModal({ open: false, type: null, editId: null, payload: {} });
+  const formatPhone = (phone) => {
+    if (!phone) return "";
+    return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
+  };
 
-  // SAVE handlers
-  const upsert = (type, data) => {
-    const withId = modal.editId ? { ...data, id: modal.editId } : { ...data, id: Date.now() };
-    const op = (list, setList, key = "id") => {
-      if (modal.editId) {
-        setList(list.map((x) => (x[key] === modal.editId ? withId : x)));
-      } else {
-        setList([withId, ...list]);
+  const isoToDateTime = (iso) => {
+    const d = new Date(iso);
+    const date = d.toISOString().split("T")[0];
+    const time = d.toTimeString().slice(0, 5);
+    return { date, time };
+  };
+
+  // Fetch patient + treatments + payments + appointments
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const patientData = await getPatientById(id, token);
+        setPatient(patientData);
+        setFormData({
+          firstname: patientData.firstname || "",
+          lastname: patientData.lastname || "",
+          age: patientData.age || "",
+          sex: patientData.sex || "",
+          phone: patientData.phone || "",
+        });
+
+        const treatmentsData = await getTreatmentsByPatient(id, token);
+        setTreatments(treatmentsData);
+
+        const catalog = await getTreatmentCatalog(token);
+        setTreatmentCatalog(catalog);
+
+        const paymentsData = await getPaymentsByPatient(id, token);
+        setPayments(paymentsData);
+
+        const appointmentsData = await getAppointmentsByPatient(id, token);
+        setAppointments(appointmentsData);
+
+      } catch (err) {
+        console.error(err);
+        toast.error("Erreur lors du chargement des données");
+      } finally {
+        setLoading(false);
       }
     };
-    switch (type) {
-      case "treatment": op(treatments, setTreatments); break;
-      case "prescription": op(prescriptions, setPrescriptions); break;
-      case "invoice": op(invoices, setInvoices); break;
-      case "payment": op(payments, setPayments); break;
-      case "appointment": op(appointments, setAppointments); break;
-      default: break;
-    }
-    closeModal();
-  };
 
-  const remove = (type, id) => {
-    const del = (list, setList, key = "id") => setList(list.filter((x) => x[key] !== id));
-    switch (type) {
-      case "treatment": del(treatments, setTreatments); break;
-      case "prescription": del(prescriptions, setPrescriptions); break;
-      case "invoice": del(invoices, setInvoices); break;
-      case "payment": del(payments, setPayments); break;
-      case "appointment": del(appointments, setAppointments); break;
-      default: break;
+    fetchData();
+  }, [id, token]);
+
+  // Patient
+  const handlePatientChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleUpdatePatient = async (e) => {
+    e.preventDefault();
+    try {
+      const updated = await updatePatient(id, formData, token);
+      setPatient(updated);
+      toast.success("Patient mis à jour !");
+      setShowForm(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la mise à jour du patient");
     }
   };
 
-  // FILTERS
-  const filterRows = (rows, keys) => {
-    if (!query.trim()) return rows;
-    const q = query.toLowerCase();
-    return rows.filter((r) =>
-      keys.some((k) => String(r[k] ?? "").toLowerCase().includes(q))
-    );
+  // Treatments
+  const handleTreatmentChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "treatmentCatalogId") {
+      const numericValue = Number(value);
+      const selected = treatmentCatalog.find(t => t.id === numericValue);
+      setTreatmentForm({ ...treatmentForm, treatmentCatalogId: numericValue, price: selected?.defaultPrice || "" });
+    } else {
+      setTreatmentForm({ ...treatmentForm, [name]: value });
+    }
   };
 
-  // TIMELINE (Overview)
-  const timeline = useMemo(() => {
-    const items = [
-      ...treatments.map(t => ({ type: "treatment", date: t.date, icon: <Activity size={16}/>, title: t.name, meta: currency(t.price) })),
-      ...prescriptions.map(p => ({ type: "prescription", date: p.date, icon: <Pill size={16}/>, title: "Prescription", meta: p.notes })),
-      ...payments.map(p => ({ type: "payment", date: p.date, icon: <CreditCard size={16}/>, title: "Payment", meta: `${p.method} • ${currency(p.amount)}` })),
-      ...appointments.map(a => ({ type: "appointment", date: a.dateTimeStart?.slice(0,10), icon: <Calendar size={16}/>, title: "Appointment", meta: `${a.status} • ${a.dateTimeStart?.slice(11,16)}–${a.dateTimeEnd?.slice(11,16)}` })),
-    ];
-    return items.sort((a,b) => (a.date > b.date ? -1 : 1));
-  }, [treatments, prescriptions, invoices, payments, appointments]);
+  const handleCreateOrUpdateTreatment = async (e) => {
+    e.preventDefault();
+    try {
+      if (isEditingTreatment) {
+        const updated = await updateTreatment(treatmentForm.id, {
+          ...treatmentForm,
+          patient: { id },
+          treatmentCatalog: { id: treatmentForm.treatmentCatalogId }
+        }, token);
 
-return (
-  <div className="patients-container">
-    {/* HEADER */}
-    <div className="page-header patient-hero">
-      <div className="hero-id">
-       
-        <div>
-          <div className="page-title">
-            {patient.firstname} {patient.lastname}
-          </div>
-          <div className="page-subtitle">
-            {patient.age} ans • {patient.sex}
-          </div>
-          <div className="page-subtitle flex-info">
-            <Phone size={14}/> {patient.phone}
-          </div>
-          <div className="page-subtitle flex-info">
-            <Mail size={14}/> {patient.email}
-          </div>
-          <div className="page-subtitle flex-info">
-            <MapPin size={14}/> {patient.address}
-          </div>
-        </div>
-      </div>
-      <div className="hero-actions">
-      <div className="chips">
-  <span className="chip info">
-    <Receipt size={14}/> Facture: {currency(totalBilled)}
-  </span>
-  <span className="chip success">
-    <CreditCard size={14}/> Payé: {currency(totalPaid)}
-  </span>
-</div>
-        <div className="hero-buttons">
-          <button className="btn-primary" onClick={() => openAdd("payment")}>
-            <Plus size={16}/> Ajouter paiement
-          </button>
-        </div>
-      </div>
-    </div>
+        const catalogObj = treatmentCatalog.find(tc => tc.id === updated.treatmentCatalog.id);
+        updated.treatmentCatalog = catalogObj;
 
-    {/* SUB NAV */}
-    <div className="subnav">
-      {["overview","treatments","prescriptions","billing","appointments"].map(key => (
-        <button
-          key={key}
-          className={`subnav-tab ${tab === key ? "active" : ""}`}
-          onClick={() => { setTab(key); setQuery(""); }}
-        >
-          {key === "overview" && "Overview"}
-          {key === "treatments" && "Treatments"}
-          {key === "prescriptions" && "Prescriptions"}
-          {key === "billing" && "Billing"}
-          {key === "appointments" && "Appointments"}
-        </button>
-      ))}
-    </div>
+        setTreatments(treatments.map(t => t.id === updated.id ? updated : t));
+        toast.success("Traitement mis à jour !");
+      } else {
+        const newTreatment = await createTreatment({
+          ...treatmentForm,
+          patient: { id },
+          treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
+          date: new Date().toISOString(),
+        }, token);
 
-      {/* CONTENT */}
-      <div className="content-area">
-        {tab === "overview" && (
-          <div className="overview">
-            {timeline.length === 0 ? (
-              <p className="empty">No activity yet.</p>
-            ) : (
-              <ul className="timeline">
-                {timeline.map((it, idx) => (
-                  <li key={idx} className={`timeline-item ${it.type}`}>
-                    <div className="tl-icon">{it.icon}</div>
-                    <div className="tl-content">
-                      <div className="tl-title">{it.title}</div>
-                      <div className="tl-meta">{formatDate(it.date)} • {it.meta}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        const catalogObj = treatmentCatalog.find(tc => tc.id === newTreatment.treatmentCatalog.id);
+        newTreatment.treatmentCatalog = catalogObj;
 
-        {tab === "treatments" && (
-          <SectionTable
-            title="Treatments"
-            columns={["NAME","DATE","PRICE","NOTES","ACTIONS"]}
-            rows={filterRows(treatments, ["name","notes","date"])}
-            renderRow={(t) => (
-              <tr key={t.id}>
-                <td>{t.name}</td>
-                <td>{formatDate(t.date)}</td>
-                <td>{currency(t.price)}</td>
-                <td className="muted">{t.notes || "-"}</td>
-                <td className="actions-cell">
-                  <button className="action-btn view"><Eye size={16}/></button>
-                  <button className="action-btn" onClick={() => openEdit("treatment", t)}><Edit2 size={16}/></button>
-                  <button className="action-btn" onClick={() => remove("treatment", t.id)}><Trash2 size={16}/></button>
-                </td>
-              </tr>
-            )}
-            onAdd={() => openAdd("treatment")}
-            query={query} setQuery={setQuery}
-          />
-        )}
+        setTreatments([...treatments, newTreatment]);
+        toast.success("Traitement ajouté !");
+      }
 
-        {tab === "prescriptions" && (
-          <SectionTable
-            title="Prescriptions"
-            columns={["DATE","NOTES","ACTIONS"]}
-            rows={filterRows(prescriptions, ["notes","date"])}
-            renderRow={(p) => (
-              <tr key={p.id}>
-                <td>{formatDate(p.date)}</td>
-                <td>{p.notes}</td>
-                <td className="actions-cell">
-                  <button className="action-btn view"><Eye size={16}/></button>
-                  <button className="action-btn" onClick={() => openEdit("prescription", p)}><Edit2 size={16}/></button>
-                  <button className="action-btn" onClick={() => remove("prescription", p.id)}><Trash2 size={16}/></button>
-                </td>
-              </tr>
-            )}
-            onAdd={() => openAdd("prescription")}
-            query={query} setQuery={setQuery}
-          />
-        )}
+      setShowTreatmentModal(false);
+      setTreatmentForm({ id: null, treatmentCatalogId: null, price: "", notes: "", date: "" });
+      setIsEditingTreatment(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de l'enregistrement du traitement");
+    }
+  };
 
-        {tab === "billing" && (
-          <div >
-        
-            <SectionTable
-            className="billing-grid"
-              title="Payments"
-              columns={["DATE","METHOD","AMOUNT","ACTIONS"]}
-              rows={filterRows(payments, ["method","date","amount"])}
-              renderRow={(p) => (
-                <tr key={p.id}>
-                  <td>{formatDate(p.date)}</td>
-                  <td>{p.method}</td>
-                  <td>{currency(p.amount)}</td>
-                  <td className="actions-cell">
-                    <button className="action-btn view"><Eye size={16}/></button>
-                    <button className="action-btn" onClick={() => openEdit("payment", p)}><Edit2 size={16}/></button>
-                    <button className="action-btn" onClick={() => remove("payment", p.id)}><Trash2 size={16}/></button>
-                  </td>
-                </tr>
-              )}
-              onAdd={() => openAdd("payment")}
-              query={query} setQuery={setQuery}
-            />
-          </div>
-        )}
+  const handleEditTreatment = (t) => {
+    setTreatmentForm({
+      id: t.id,
+      treatmentCatalogId: t.treatmentCatalog.id,
+      price: t.price,
+      notes: t.notes || "",
+      date: new Date().toISOString(),
+    });
+    setIsEditingTreatment(true);
+    setShowTreatmentModal(true);
+  };
 
-        {tab === "appointments" && (
-          <SectionTable
-            title="Appointments"
-            columns={["DATE","START","END","STATUS","ACTIONS"]}
-            rows={filterRows(appointments, ["dateTimeStart","dateTimeEnd","status"])}
-            renderRow={(a) => (
-              <tr key={a.id}>
-                <td>{formatDate(a.dateTimeStart?.slice(0,10))}</td>
-                <td>{a.dateTimeStart?.slice(11,16)}</td>
-                <td>{a.dateTimeEnd?.slice(11,16)}</td>
-                <td><span className={`status-badge ${a.status?.toLowerCase()}`}>{a.status}</span></td>
-                <td className="actions-cell">
-                  <button className="action-btn view"><Eye size={16}/></button>
-                  <button className="action-btn" onClick={() => openEdit("appointment", a)}><Edit2 size={16}/></button>
-                  <button className="action-btn" onClick={() => remove("appointment", a.id)}><Trash2 size={16}/></button>
-                </td>
-              </tr>
-            )}
-            onAdd={() => openAdd("appointment")}
-            query={query} setQuery={setQuery}
-          />
-        )}
-      </div>
+  const handleDeleteTreatment = async (t) => {
+    if (!window.confirm("Voulez-vous supprimer ce traitement ?")) return;
+    try {
+      await deleteTreatment(t.id, token);
+      setTreatments(treatments.filter(tr => tr.id !== t.id));
+      toast.success("Traitement supprimé !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la suppression du traitement");
+    }
+  };
 
-      {/* MODAL */}
-      {modal.open && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={(e)=>e.stopPropagation()}>
-            <h2>
-              {modal.editId ? "Update " : "Add "}
-              {labelFor(modal.type)}
-            </h2>
-            <ModalForm
-              type={modal.type}
-              defaults={modal.payload}
-              onCancel={closeModal}
-              onSave={(data) => upsert(modal.type, data)}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+  const handleAddTreatment = () => {
+    setTreatmentForm({ id: null, treatmentCatalogId: null, price: "", notes: "" });
+    setIsEditingTreatment(false);
+    setShowTreatmentModal(true);
+  };
 
-function labelFor(type) {
-  switch (type) {
-    case "treatment": return "Treatment";
-    case "prescription": return "Prescription";
-    case "invoice": return "Invoice";
-    case "payment": return "Payment";
-    case "appointment": return "Appointment";
-    default: return "";
-  }
-}
+  // Payments
+  const handlePaymentChange = (e) => {
+    const { name, value } = e.target;
+    setPaymentForm({ ...paymentForm, [name]: value });
+  };
 
-/** Reusable section with patients-controls + table layout **/
-function SectionTable({ title, rows, columns, renderRow, onAdd, query, setQuery }) {
+  const handleCreatePayment = async (e) => {
+    e.preventDefault();
+    try {
+      const newPayment = await createPayment({
+        patientId: id,
+        amount: Number(paymentForm.amount),
+        method: paymentForm.method,
+        date: new Date().toISOString(),
+      }, token);
+
+      setPayments([...payments, newPayment]);
+      toast.success("Paiement ajouté !");
+      setShowPaymentModal(false);
+      setPaymentForm({ amount: "", method: "CASH" });
+    } catch (err) {
+      console.error(err.response?.data || err);
+      toast.error("Erreur lors de l'ajout du paiement");
+    }
+  };
+
+  const handleDeletePayment = async (p) => {
+    if (!window.confirm("Voulez-vous supprimer ce paiement ?")) return;
+    try {
+      await deletePayment(p.id, token);
+      setPayments(payments.filter(pay => pay.id !== p.id));
+      toast.success("Paiement supprimé !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la suppression du paiement");
+    }
+  };
+
+  // Appointments
+  const handleAppointmentChange = (e) => {
+    const { name, value } = e.target;
+    setAppointmentForm({ ...appointmentForm, [name]: value });
+  };
+
+  const handleEditAppointment = (a) => {
+    const { date, time } = isoToDateTime(a.dateTimeStart);
+    setAppointmentForm({
+      id: a.id,
+      date,
+      time,
+      notes: a.notes || ""
+    });
+    setIsEditingAppointment(true);
+    setShowAppointmentModal(true);
+  };
+
+  const handleCreateOrUpdateAppointment = async (e) => {
+    e.preventDefault();
+    try {
+      const startDateTime = new Date(`${appointmentForm.date}T${appointmentForm.time}`);
+      const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // default 30 min
+
+      const payload = {
+        dateTimeStart: startDateTime.toISOString(),
+        dateTimeEnd: endDateTime.toISOString(),
+        status: "SCHEDULED",
+        patientId: id,
+        notes: appointmentForm.notes
+      };
+
+      let savedAppointment;
+      if (isEditingAppointment) {
+        savedAppointment = await updateAppointment(appointmentForm.id, payload, token);
+        setAppointments(appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a));
+        toast.success("Rendez-vous mis à jour !");
+      } else {
+        savedAppointment = await createAppointment(payload, token);
+        setAppointments([...appointments, savedAppointment]);
+        toast.success("Rendez-vous ajouté !");
+      }
+
+      setShowAppointmentModal(false);
+      setAppointmentForm({ id: null, date: "", time: "", notes: "" });
+      setIsEditingAppointment(false);
+    } catch (err) {
+      console.error(err.response?.data || err);
+      toast.error("Erreur lors de l'enregistrement du rendez-vous");
+    }
+  };
+
+  const handleDeleteAppointment = async (a) => {
+    if (!window.confirm("Voulez-vous supprimer ce rendez-vous ?")) return;
+    try {
+      await deleteAppointment(a.id, token);
+      setAppointments(appointments.filter(ap => ap.id !== a.id));
+      toast.success("Rendez-vous supprimé !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la suppression du rendez-vous");
+    }
+  };
+
+  if (loading) return <p className="loading">Chargement...</p>;
+  if (!patient) return <p className="loading">Patient introuvable</p>;
+
   return (
-    <div style={{ marginBottom: 28 }}>
-      <div className="patients-controls">
-        <div className="controls-left">
-          <div className="search-group">
-            <span className="search-icon"><Search size={14}/></span>
-            <input
-              type="text"
-              placeholder={`Search ${title.toLowerCase()}...`}
-              value={query}
-              onChange={(e)=>setQuery(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="controls-right">
-          <button className="btn-primary" onClick={onAdd}>
-            <Plus size={16}/> Add {title}
-          </button>
-        </div>
+    <div className="patient-container">
+      <button className="back-btn" onClick={() => navigate("/patients")}>← Retour</button>
+      <h1>{patient.firstname} {patient.lastname}</h1>
+
+      <div className="patient-info">
+        <div><strong>Âge:</strong> {patient.age ?? "N/A"} ans</div>
+        <div><strong>Sexe:</strong> {patient.sex || "—"}</div>
+        <div><strong>Téléphone:</strong> {formatPhone(patient.phone)}</div>
+        <div><strong>Créé le:</strong> {formatDate(patient.createdAt)}</div>
       </div>
 
-      <table className="patients-table">
+
+      {/* Treatments */}
+      <h2>Traitements</h2>
+      <button className="btn-primary" onClick={handleAddTreatment}>Ajouter un traitement</button>
+      <table className="treatment-table">
         <thead>
-          <tr>{columns.map((c) => <th key={c}>{c}</th>)}</tr>
+          <tr>
+            <th>Nom</th>
+            <th>Date</th>
+            <th>Prix</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? (
-            <tr><td colSpan={columns.length} style={{ textAlign: "center", color: "#9ca3af" }}>No {title.toLowerCase()}.</td></tr>
-          ) : rows.map(renderRow)}
+          {treatments.map(t => (
+            <tr key={t.id}>
+              <td>{t.treatmentCatalog?.name}</td>
+              <td>{formatDate(t.date)}</td>
+              <td>{t.price} DA</td>
+              <td>{t.notes || "—"}</td>
+              <td>
+                <button onClick={() => handleEditTreatment(t)}>Modifier</button>
+                <button onClick={() => handleDeleteTreatment(t)}>Supprimer</button>
+              </td>
+            </tr>
+          ))}
+          {treatments.length === 0 && <tr><td colSpan="5" style={{ textAlign: "center" }}>Aucun traitement</td></tr>}
         </tbody>
       </table>
+
+      {/* Payments */}
+      <h2>Paiements</h2>
+      <button
+        className="btn-primary"
+        onClick={() => {
+          setPaymentForm({ id: null, amount: "", method: "CASH" });
+          setIsEditingPayment(false);
+          setShowPaymentModal(true);
+        }}
+      >
+        Ajouter un paiement
+      </button>
+      <table className="treatment-table">
+        <thead>
+          <tr>
+            <th>Montant</th>
+            <th>Méthode</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {payments.map((p) => (
+            <tr key={p.id}>
+              <td>{p.amount} DA</td>
+              <td>{p.method}</td>
+              <td>{formatDate(p.date)}</td>
+              <td>
+                <button onClick={() => handleDeletePayment(p)}>Supprimer</button>
+              </td>
+            </tr>
+          ))}
+          {payments.length === 0 && (
+            <tr>
+              <td colSpan="4" style={{ textAlign: "center" }}>
+                Aucun paiement
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Appointments */}
+      <h2>Rendez-vous</h2>
+      <button className="btn-primary" onClick={() => {
+        setAppointmentForm({ id: null, date: "", time: "", notes: "" });
+        setIsEditingAppointment(false);
+        setShowAppointmentModal(true);
+      }}>Ajouter un rendez-vous</button>
+
+      <table className="treatment-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Heure</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {appointments.map(a => (
+            <tr key={a.id}>
+              <td>{formatDate(a.dateTimeStart)}</td>
+              <td>{a.dateTimeStart ? new Date(a.dateTimeStart).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ""}</td>
+              <td>{a.notes || "—"}</td>
+              <td>
+                <button onClick={() => handleEditAppointment(a)}>Modifier</button>
+                <button onClick={() => handleDeleteAppointment(a)}>Supprimer</button>
+              </td>
+            </tr>
+          ))}
+          {appointments.length === 0 && <tr><td colSpan="4" style={{textAlign:"center"}}>Aucun rendez-vous</td></tr>}
+        </tbody>
+      </table>
+
+      {/* Modals */}
+      {showAppointmentModal && (
+        <div className="modal-overlay" onClick={() => setShowAppointmentModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h2>{isEditingAppointment ? "Modifier rendez-vous" : "Ajouter rendez-vous"}</h2>
+            <form className="modal-form" onSubmit={handleCreateOrUpdateAppointment}>
+              <label>Date</label>
+              <input type="date" name="date" value={appointmentForm.date} onChange={handleAppointmentChange} required />
+              <label>Heure</label>
+              <input type="time" name="time" value={appointmentForm.time} onChange={handleAppointmentChange} required />
+              <label>Notes</label>
+              <textarea name="notes" value={appointmentForm.notes} onChange={handleAppointmentChange} />
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2">Enregistrer</button>
+                <button type="button" className="btn-cancel" onClick={() => setShowAppointmentModal(false)}>Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showPaymentModal && (
+        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h2>{isEditingPayment ? "Modifier paiement" : "Ajouter paiement"}</h2>
+            <form className="modal-form" onSubmit={handleCreatePayment}>
+              <label>Montant</label>
+              <input type="number" name="amount" value={paymentForm.amount} onChange={handlePaymentChange} required />
+              <label>Méthode</label>
+              <select name="method" value={paymentForm.method} onChange={handlePaymentChange} required>
+                <option value="CASH">Espèces</option>
+                <option value="CARD">Carte</option>
+                <option value="BANK_TRANSFER">Virement</option>
+                <option value="CHECK">Chèque</option>
+                <option value="OTHER">Autre</option>
+              </select>
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2">Enregistrer</button>
+                <button type="button" className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showTreatmentModal && (
+        <div className="modal-overlay" onClick={() => setShowTreatmentModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h2>{isEditingTreatment ? "Modifier traitement" : "Ajouter traitement"}</h2>
+            <form className="modal-form" onSubmit={handleCreateOrUpdateTreatment}>
+              <label>Traitement</label>
+              <select name="treatmentCatalogId" value={treatmentForm.treatmentCatalogId ?? ""} onChange={handleTreatmentChange} required>
+                <option value="">-- Sélectionner --</option>
+                {treatmentCatalog.map(tc => (
+                  <option key={tc.id} value={tc.id}>{tc.name} ({tc.defaultPrice} DA)</option>
+                ))}
+              </select>
+              <label>Prix</label>
+              <input type="number" name="price" value={treatmentForm.price} onChange={handleTreatmentChange} required />
+              <label>Notes</label>
+              <textarea name="notes" value={treatmentForm.notes} onChange={handleTreatmentChange} />
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2">Enregistrer</button>
+                <button type="button" className="btn-cancel" onClick={() => setShowTreatmentModal(false)}>Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+<button className="btn-primary" onClick={() => setShowForm(true)}>Modifier le patient</button>
+
+{showForm && (
+  <form className="patient-form" onSubmit={handleUpdatePatient}>
+    <label>Prénom</label>
+    <input name="firstname" value={formData.firstname} onChange={handlePatientChange} required />
+    <label>Nom</label>
+    <input name="lastname" value={formData.lastname} onChange={handlePatientChange} required />
+    <label>Âge</label>
+    <input name="age" type="number" value={formData.age} onChange={handlePatientChange} required />
+    <label>Sexe</label>
+    <select name="sex" value={formData.sex} onChange={handlePatientChange}>
+      <option value="Homme">Homme</option>
+      <option value="Femme">Femme</option>
+    </select>
+    <label>Téléphone</label>
+    <input name="phone" value={formData.phone} onChange={handlePatientChange} required />
+    <div style={{ marginTop: "10px" }}>
+      <button type="submit" className="btn-primary2">Enregistrer</button>
+      <button type="button" className="btn-cancel" onClick={() => setShowForm(false)}>Annuler</button>
+    </div>
+  </form>
+)}
+
+      <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
-}
+};
 
-/** Modal forms per type (using your .modal-form, .field-label, .styled-select) **/
-function ModalForm({ type, defaults = {}, onCancel, onSave }) {
-  const [form, setForm] = useState(() => ({
-    // Treatment
-    name: defaults.name || "",
-    date: defaults.date || new Date().toISOString().slice(0,10),
-    price: defaults.price ?? "",
-    notes: defaults.notes || "",
-    // Prescription
-    // date already
-    // notes already
-    // Invoice
-    invoiceNumber: defaults.invoiceNumber || "",
-    status: defaults.status || "DRAFT",
-    totalAmount: defaults.totalAmount ?? "",
-    // Payment
-    amount: defaults.amount ?? "",
-    method: defaults.method || "CASH",
-    // Appointment
-    dateTimeStart: defaults.dateTimeStart || new Date().toISOString().slice(0,16),
-    dateTimeEnd: defaults.dateTimeEnd || new Date(Date.now()+30*60000).toISOString().slice(0,16),
-    aStatus: defaults.status || "SCHEDULED",
-  }));
-
-  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const save = (e) => {
-    e.preventDefault();
-    switch (type) {
-      case "treatment":
-        return onSave({ name: form.name, date: form.date, price: Number(form.price||0), notes: form.notes });
-      case "prescription":
-        return onSave({ date: form.date, notes: form.notes });
-      case "invoice":
-        return onSave({ invoiceNumber: form.invoiceNumber || autoNumber(), date: form.date, status: form.status, totalAmount: Number(form.totalAmount||0) });
-      case "payment":
-        return onSave({ amount: Number(form.amount||0), date: form.date, method: form.method });
-      case "appointment":
-        return onSave({ dateTimeStart: form.dateTimeStart, dateTimeEnd: form.dateTimeEnd, status: form.aStatus });
-      default:
-        return;
-    }
-  };
-
-  return (
-    <form className="modal-form" onSubmit={save}>
-      {type === "treatment" && (
-        <>
-          <div className="form-field">
-            <label className="field-label">Name</label>
-            <input name="name" value={form.name} onChange={onChange} required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Date</label>
-            <input type="date" name="date" value={form.date} onChange={onChange} required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Price (DZD)</label>
-            <input type="number" name="price" value={form.price} onChange={onChange} min="0" step="100" />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Notes</label>
-            <input name="notes" value={form.notes} onChange={onChange} />
-          </div>
-        </>
-      )}
-
-      {type === "prescription" && (
-        <>
-          <div className="form-field">
-            <label className="field-label">Date</label>
-            <input type="date" name="date" value={form.date} onChange={onChange} required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Notes</label>
-            <input name="notes" value={form.notes} onChange={onChange} required />
-          </div>
-        </>
-      )}
-
-      {type === "invoice" && (
-        <>
-          <div className="form-field">
-            <label className="field-label">Invoice Number</label>
-            <input name="invoiceNumber" value={form.invoiceNumber} onChange={onChange} placeholder="INV-2025-002" />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Date</label>
-            <input type="date" name="date" value={form.date} onChange={onChange} required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Status</label>
-            <div className="select-wrapper">
-              <select className="styled-select" name="status" value={form.status} onChange={onChange}>
-                <option value="DRAFT">DRAFT</option>
-                <option value="SENT">SENT</option>
-                <option value="PAID">PAID</option>
-              </select>
-            </div>
-          </div>
-          <div className="form-field">
-            <label className="field-label">Total Amount (DZD)</label>
-            <input type="number" name="totalAmount" value={form.totalAmount} onChange={onChange} min="0" step="100" />
-          </div>
-        </>
-      )}
-
-      {type === "payment" && (
-        <>
-          <div className="form-field">
-            <label className="field-label">Amount (DZD)</label>
-            <input type="number" name="amount" value={form.amount} onChange={onChange} min="0" step="100" required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Date</label>
-            <input type="date" name="date" value={form.date} onChange={onChange} required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Method</label>
-            <div className="select-wrapper">
-              <select className="styled-select" name="method" value={form.method} onChange={onChange}>
-                <option value="CASH">CASH</option>
-                <option value="CARD">CARD</option>
-                <option value="BANK_TRANSFER">BANK_TRANSFER</option>
-                <option value="CHECK">CHECK</option>
-                <option value="OTHER">OTHER</option>
-              </select>
-            </div>
-          </div>
-        </>
-      )}
-
-      {type === "appointment" && (
-        <>
-          <div className="form-field">
-            <label className="field-label">Start</label>
-            <input type="datetime-local" name="dateTimeStart" value={form.dateTimeStart} onChange={onChange} required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">End</label>
-            <input type="datetime-local" name="dateTimeEnd" value={form.dateTimeEnd} onChange={onChange} required />
-          </div>
-          <div className="form-field">
-            <label className="field-label">Status</label>
-            <div className="select-wrapper">
-              <select className="styled-select" name="aStatus" value={form.aStatus} onChange={onChange}>
-                <option value="SCHEDULED">SCHEDULED</option>
-                <option value="COMPLETED">COMPLETED</option>
-                <option value="CANCELLED">CANCELLED</option>
-              </select>
-            </div>
-          </div>
-        </>
-      )}
-
-      <div className="modal-actions">
-        <button type="button" className="btn-cancel" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn-primary2">Save</button>
-      </div>
-    </form>
-  );
-}
-
-function autoNumber() {
-  const n = Math.floor(1000 + Math.random()*9000);
-  return `INV-${new Date().getFullYear()}-${n}`;
-}
+export default Patient;

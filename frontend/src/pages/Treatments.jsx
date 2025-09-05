@@ -10,7 +10,7 @@ import {
   createTreatment,
   updateTreatment,
   deleteTreatment,
-} from "../services/treatmentService";
+} from "../services/treatmentCatalogueService";
 import "./Patients.css";
 
 const Treatments = () => {

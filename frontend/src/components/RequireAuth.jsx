@@ -1,15 +1,16 @@
-// components/RequireAuth.jsx
 import { useSelector } from "react-redux";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 const RequireAuth = () => {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // redirect to login but keep track of the requested page
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <Outlet />;
+  return <Outlet />; // allow access
 };
 
 export default RequireAuth;

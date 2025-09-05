@@ -20,8 +20,6 @@ import Finance from "./pages/Finance";
 import "./index.css";
 
 function App() {
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
-
   return (
     <Router>
       <div className="app-container">
@@ -49,14 +47,9 @@ function App() {
           </Route>
 
           {/* Redirect rules */}
-          <Route
-            path="/"
-            element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} />}
-          />
+          <Route path="/" element={<Navigate to="/dashboard" />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
-
-        
       </div>
     </Router>
   );

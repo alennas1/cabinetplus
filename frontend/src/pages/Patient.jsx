@@ -105,7 +105,7 @@ const [treatmentForm, setTreatmentForm] = useState({
 
   const [appointments, setAppointments] = useState([]);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-  const [appointmentForm, setAppointmentForm] = useState({ id: null, date: "", time: "", notes: "" });
+const [appointmentForm, setAppointmentForm] = useState({ id: null, date: "", hour: "", minute: "", notes: "" });
   const [isEditingAppointment, setIsEditingAppointment] = useState(false);
 
 // --- PATIENT MODAL STATE ---
@@ -511,43 +511,66 @@ const handleDeletePayment = (p) => {
     setAppointmentForm({ ...appointmentForm, [name]: value });
   };
 
-  const handleEditAppointment = (a) => {
-    const { date, time } = isoToDateTime(a.dateTimeStart);
-    setAppointmentForm({ id: a.id, date, time, notes: a.notes || "" });
-    setIsEditingAppointment(true);
-    setShowAppointmentModal(true);
-  };
+ const handleEditAppointment = (a) => {
+  const d = new Date(a.dateTimeStart);
+  const hour = d.getHours();
+  const minute = d.getMinutes();
 
-  const handleCreateOrUpdateAppointment = async (e) => {
-    e.preventDefault();
-    try {
-      const startDateTime = new Date(`${appointmentForm.date}T${appointmentForm.time}`);
-      const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // 30min default
-      const payload = {
-        dateTimeStart: startDateTime.toISOString(),
-        dateTimeEnd: endDateTime.toISOString(),
-        status: "SCHEDULED",
-        patientId: id,
-        notes: appointmentForm.notes
-      };
-      let savedAppointment;
-      if (isEditingAppointment) {
-        savedAppointment = await updateAppointment(appointmentForm.id, payload, token);
-        setAppointments(appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a));
-        toast.success("Rendez-vous mis à jour !");
-      } else {
-        savedAppointment = await createAppointment(payload, token);
-setAppointments([savedAppointment, ...appointments]);
-        toast.success("Rendez-vous ajouté !");
-      }
-      setShowAppointmentModal(false);
-      setAppointmentForm({ id: null, date: "", time: "", notes: "" });
-      setIsEditingAppointment(false);
-    } catch (err) {
-      console.error(err.response?.data || err);
-      toast.error("Erreur lors de l'enregistrement du rendez-vous");
+  setAppointmentForm({
+    id: a.id,
+    date: d.toISOString().split("T")[0], // yyyy-mm-dd
+    hour,
+    minute,
+    notes: a.notes || ""
+  });
+
+  setIsEditingAppointment(true);
+  setShowAppointmentModal(true);
+};
+
+
+
+ const handleCreateOrUpdateAppointment = async (e) => {
+  e.preventDefault();
+  try {
+    if (!appointmentForm.date || appointmentForm.hour === undefined || appointmentForm.minute === undefined) {
+      toast.error("Veuillez sélectionner la date et l'heure");
+      return;
     }
-  };
+
+    const hour = String(appointmentForm.hour).padStart(2, "0");
+    const minute = String(appointmentForm.minute).padStart(2, "0");
+    const startDateTime = new Date(`${appointmentForm.date}T${hour}:${minute}`);
+    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // 30 min default
+
+    const payload = {
+      dateTimeStart: startDateTime.toISOString(),
+      dateTimeEnd: endDateTime.toISOString(),
+      status: "SCHEDULED",
+      patientId: id,
+      notes: appointmentForm.notes
+    };
+
+    let savedAppointment;
+    if (isEditingAppointment) {
+      savedAppointment = await updateAppointment(appointmentForm.id, payload, token);
+      setAppointments(appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a));
+      toast.success("Rendez-vous mis à jour !");
+    } else {
+      savedAppointment = await createAppointment(payload, token);
+      setAppointments([savedAppointment, ...appointments]);
+      toast.success("Rendez-vous ajouté !");
+    }
+
+    setShowAppointmentModal(false);
+    setAppointmentForm({ id: null, date: "", hour: "", minute: "", notes: "" });
+    setIsEditingAppointment(false);
+  } catch (err) {
+    console.error(err);
+    toast.error("Erreur lors de l'enregistrement du rendez-vous");
+  }
+};
+
 
 const handleDeleteAppointment = (a) => {
   setConfirmMessage("Voulez-vous supprimer ce rendez-vous ?");
@@ -595,7 +618,7 @@ const handleDeleteAppointment = (a) => {
 
     <div className="patient-actions">
      <button
-  className="btn-primary edit-patient-btn"
+     className="btn-primary-app"
   onClick={() => {
     setFormData({
       firstname: patient.firstname || "",
@@ -1078,26 +1101,64 @@ Modifier le patient
         </div>
       )}
 
-      {/* Appointment Modal */}
-      {showAppointmentModal && (
-        <div className="modal-overlay" onClick={() => setShowAppointmentModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>{isEditingAppointment ? "Modifier rendez-vous" : "Ajouter rendez-vous"}</h2>
-            <form className="modal-form" onSubmit={handleCreateOrUpdateAppointment}>
-              <label>Date</label>
-              <input type="date" name="date" value={appointmentForm.date} onChange={handleAppointmentChange} required />
-              <label>Heure</label>
-              <input type="time" name="time" value={appointmentForm.time} onChange={handleAppointmentChange} required />
-              <label>Notes</label>
-              <textarea name="notes" value={appointmentForm.notes} onChange={handleAppointmentChange} />
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary2">Enregistrer</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowAppointmentModal(false)}>Annuler</button>
-              </div>
-            </form>
-          </div>
+    {/* Appointment Modal */}
+{showAppointmentModal && (
+  <div className="modal-overlay" onClick={() => setShowAppointmentModal(false)}>
+    <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <h2>{isEditingAppointment ? "Modifier rendez-vous" : "Ajouter rendez-vous"}</h2>
+      <form className="modal-form" onSubmit={handleCreateOrUpdateAppointment}>
+        <label>Date</label>
+        <input 
+          type="date" 
+          name="date" 
+          value={appointmentForm.date} 
+          onChange={handleAppointmentChange} 
+          required 
+        />
+
+        <label>Heure</label>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input
+            type="number"
+            placeholder="Heures"
+            min="8"
+            max="18"
+            value={appointmentForm.hour || ""}
+            onChange={(e) =>
+              setAppointmentForm({ ...appointmentForm, hour: e.target.value })
+            }
+            required
+          />
+          <input
+            type="number"
+            placeholder="Minutes"
+            min="0"
+            max="59"
+            step="30"
+            value={appointmentForm.minute || ""}
+            onChange={(e) =>
+              setAppointmentForm({ ...appointmentForm, minute: e.target.value })
+            }
+            required
+          />
         </div>
-      )}
+
+        <label>Notes</label>
+        <textarea
+          name="notes"
+          value={appointmentForm.notes}
+          onChange={handleAppointmentChange}
+        />
+
+        <div className="modal-actions">
+          <button type="submit" className="btn-primary2">Enregistrer</button>
+          <button type="button" className="btn-cancel" onClick={() => setShowAppointmentModal(false)}>Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
 {showConfirm && (
   <div
     className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]"

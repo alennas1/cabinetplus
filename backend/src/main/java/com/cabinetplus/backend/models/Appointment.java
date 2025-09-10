@@ -30,6 +30,8 @@ public class Appointment {
 
     private LocalDateTime dateTimeStart;
     private LocalDateTime dateTimeEnd;
+    private String notes;
+
 
     @Enumerated(EnumType.STRING)
     private AppointmentStatus status;

@@ -10,5 +10,6 @@ public record AppointmentRequest(
         @NotNull LocalDateTime dateTimeStart,
         @NotNull LocalDateTime dateTimeEnd,
         @NotNull AppointmentStatus status,
+        String notes,
         @NotNull Long patientId
 ) {}

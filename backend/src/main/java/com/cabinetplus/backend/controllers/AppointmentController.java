@@ -78,6 +78,7 @@ public AppointmentResponse createAppointment(@RequestBody AppointmentRequest req
             saved.getDateTimeStart(),
             saved.getDateTimeEnd(),
             saved.getStatus(),   // status is already AppointmentStatus
+            saved.getNotes(),
             patientDto,
             currentUser.getId(),
             currentUser.getFirstname(),

@@ -9,6 +9,7 @@ public record AppointmentResponse(
         LocalDateTime dateTimeStart,
         LocalDateTime dateTimeEnd,
         AppointmentStatus status,
+        String notes,
         PatientDto patient,
         Long practitionerId,
         String practitionerFirstname,

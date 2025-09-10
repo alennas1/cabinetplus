@@ -43,6 +43,13 @@ html, body {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  
+}
+.appointments-controls button.btn-primary {
+  margin-left: auto;
+  padding: 8px 16px; /* increase top/bottom padding */
+  line-height: 1.5;  /* optional for better vertical alignment */
+  flex-shrink: 0;
 }
 
 .appointments-controls button.active {
@@ -65,21 +72,7 @@ html, body {
 /* =========================
    Buttons
 ========================= */
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background-color: #3498db;
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-}
 
-.btn-primary:hover {
-  background-color: #2176c1;
-}
 
 .btn-primary2 {
   background-color: #3498db;

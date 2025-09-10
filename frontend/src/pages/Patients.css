@@ -582,17 +582,7 @@
   color: #1e293b;                /* darker icon */
 }
 /* Reuse same base button style */
-.action-btn.view {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-  color: #475569;
-}
 
-.action-btn.view:hover {
-  background: #e2e8f0;
-  border-color: #94a3b8;
-  color: #1e293b;
-}
 /* Modern pill dropdown */
 .styled-select {
   appearance: none;
@@ -791,48 +781,4 @@
   color: #475569;            /* medium slate icon */
   cursor: pointer;
   transition: all 0.25s ease;
-}
-
-/* View button: subtle blue */
-.action-btn.view {
-  border-color: #60a5fa;     /* light blue border */
-  background: #eff6ff;       /* very light blue background */
-  color: #2563eb;            /* blue icon */
-}
-
-.action-btn.view:hover {
-  background: #dbeafe;
-  border-color: #3b82f6;
-  color: #1e40af;
-}
-
-/* Edit button: soft yellow/gold */
-.action-btn.edit {
-  border-color: #facc15;     /* yellow border */
-  background: #fef9c3;       /* very light yellow */
-  color: #ca8a04;            /* golden icon */
-}
-
-.action-btn.edit:hover {
-  background: #fef08a;
-  border-color: #f59e0b;
-  color: #78350f;
-}
-
-/* Delete button: subtle red */
-.action-btn.delete {
-  border-color: #f87171;     /* red border */
-  background: #fee2e2;       /* very light red background */
-  color: #dc2626;            /* red icon */
-}
-
-.action-btn.delete:hover {
-  background: #fecaca;
-  border-color: #b91c1c;
-  color: #7f1d1d;
-}
-
-/* Optional: slight shadow on hover to emphasize */
-.action-btn:hover {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }

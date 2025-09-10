@@ -318,3 +318,32 @@
     flex-wrap: wrap;
   }
 }
+.view-prescription-modal {
+  max-width: 900px;      /* wider modal */
+  width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;      /* scroll if content is tall */
+  padding: 20px;
+}
+
+.view-prescription-modal h2 {
+  margin-bottom: 15px;
+}
+
+.view-prescription-modal .medications-table-container {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.view-prescription-modal table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.view-prescription-modal th,
+.view-prescription-modal td {
+  padding: 8px;
+  text-align: left;
+  border: 1px solid #ddd;
+}

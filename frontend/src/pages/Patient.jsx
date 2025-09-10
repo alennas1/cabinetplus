@@ -16,9 +16,27 @@ import {
   getAppointmentsByPatient, createAppointment, updateAppointment, deleteAppointment 
 } from "../services/appointmentService";
 import { getTreatments as getTreatmentCatalog } from "../services/treatmentCatalogueService";
+import { 
+  getPrescriptionsByPatient, 
+  createPrescription, 
+  updatePrescription, 
+  deletePrescription
+} from "../services/prescriptionService";
+import {
+  getPrescriptionMedications,
+  createPrescriptionMedication,
+  updatePrescriptionMedication,
+  deletePrescriptionMedication
+} from "../services/prescriptionMedicationService";
+
+import { 
+  deleteMedication,
+  getMedications 
+} from "../services/medicationService";
+
 
 import "./Patient.css";
-import { Edit2, Trash2, Plus, Calendar,Activity, CreditCard ,Check} from "react-feather";
+import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText } from "react-feather";
 
 const Patient = () => {
   const { id } = useParams();
@@ -52,6 +70,22 @@ const handleCompleteAppointment = async (a) => {
   }
 };
 
+
+
+const [prescriptions, setPrescriptions] = useState([]);
+const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+const [prescriptionForm, setPrescriptionForm] = useState({
+  id: null,
+  notes: "",
+  medications: [], // array of { medicationId, dosage, frequency, duration, instructions }
+});
+const [isEditingPrescription, setIsEditingPrescription] = useState(false);
+
+// MEDICATIONS
+const [medications, setMedications] = useState([]);
+
+
+
   const [treatments, setTreatments] = useState([]);
   const [treatmentCatalog, setTreatmentCatalog] = useState([]);
   const [showTreatmentModal, setShowTreatmentModal] = useState(false);
@@ -78,6 +112,8 @@ const [treatmentForm, setTreatmentForm] = useState({
 const [showConfirm, setShowConfirm] = useState(false);
 const [confirmMessage, setConfirmMessage] = useState("");
 const [onConfirmAction, setOnConfirmAction] = useState(() => () => {});
+const [viewPrescription, setViewPrescription] = useState(null); // stores prescription to view
+const [showViewPrescriptionModal, setShowViewPrescriptionModal] = useState(false);
 
 const [showModal, setShowModal] = useState(false); // controls the new patient modal
 const [isEditing, setIsEditing] = useState(false); // editing mode
@@ -156,6 +192,12 @@ const handleSubmit = async (e) => {
 
         const appointmentsData = await getAppointmentsByPatient(id, token);
         setAppointments(appointmentsData);
+
+        const prescriptionsData = await getPrescriptionsByPatient(id, token);
+setPrescriptions(prescriptionsData);
+
+const medicationsData = await getMedications(token);
+setMedications(medicationsData);
       } catch (err) {
         console.error(err);
         toast.error("Erreur lors du chargement des données");
@@ -172,6 +214,134 @@ const handleSubmit = async (e) => {
   const totalReste = totalFacture - totalPaiement;
 
   // ---------- PATIENT HANDLERS ----------
+  const handlePrescriptionMedicationChange = (index, field, value) => {
+  const updatedMedications = [...prescriptionForm.medications];
+  updatedMedications[index][field] = value;
+  console.log("Updated medications:", updatedMedications);
+
+  setPrescriptionForm({ ...prescriptionForm, medications: updatedMedications });
+};
+
+const addMedicationToPrescription = () => {
+  setPrescriptionForm({
+    ...prescriptionForm,
+    medications: [
+      ...prescriptionForm.medications,
+      { medicationId: "", dosage: "", frequency: "", duration: "", instructions: "" }
+    ]
+  });
+};
+
+const removeMedicationFromPrescription = (index) => {
+  const updatedMedications = [...prescriptionForm.medications];
+  updatedMedications.splice(index, 1);
+  setPrescriptionForm({ ...prescriptionForm, medications: updatedMedications });
+};
+
+const handleCreateOrUpdatePrescription = async (e) => {
+  e.preventDefault();
+  try {
+    let savedPrescription;
+
+    // Build payload for both create & update
+    const payload = {
+      notes: prescriptionForm.notes,
+      patientId: Number(id),
+      medications: prescriptionForm.medications
+        .filter(m => m.medicationId) // remove empty entries
+        .map(m => ({
+          medicationId: Number(m.medicationId),
+          dosage: m.dosage,
+          frequency: m.frequency,
+          duration: m.duration,
+          instructions: m.instructions
+        }))
+    };
+
+    if (isEditingPrescription) {
+      // Update prescription
+      savedPrescription = await updatePrescription(prescriptionForm.id, payload, token);
+
+      // Sync medications
+      for (const med of payload.medications) {
+        if (med.id) {
+          // update existing medication
+          await updatePrescriptionMedication(med.id, { ...med, prescriptionId: prescriptionForm.id }, token);
+        } else {
+          // create new medication
+          await createPrescriptionMedication({ ...med, prescriptionId: prescriptionForm.id }, token);
+        }
+      }
+
+      toast.success("Ordonnance mise à jour !");
+    } else {
+      // Create prescription
+      savedPrescription = await createPrescription(payload, token);
+
+      // Create medications
+      for (const med of payload.medications) {
+        await createPrescriptionMedication({ ...med, prescriptionId: savedPrescription.id }, token);
+      }
+
+      toast.success("Ordonnance ajoutée !");
+    }
+
+    // Refresh prescriptions list
+    const updatedPrescriptions = await getPrescriptionsByPatient(id, token);
+    setPrescriptions(updatedPrescriptions);
+
+    // Reset form & close modal
+    setShowPrescriptionModal(false);
+    setPrescriptionForm({ id: null, notes: "", medications: [] });
+    setIsEditingPrescription(false);
+  } catch (err) {
+    console.error(err);
+    toast.error("Erreur lors de l'enregistrement de l'Ordonnance");
+  }
+};
+
+
+
+
+
+const handleDeletePrescription = (p) => {
+  setConfirmMessage("Voulez-vous supprimer cette Ordonnance ?");
+  setOnConfirmAction(() => async () => {
+    try {
+      await deletePrescription(p.id, token);
+      setPrescriptions(prescriptions.filter(pr => pr.id !== p.id));
+      toast.success("Ordonnance supprimée !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la suppression de l'Ordonnance");
+    }
+  });
+  setShowConfirm(true);
+};
+// Delete all medications of a prescription
+const deletePrescriptionWithMedications = async (prescription) => {
+  try {
+    const meds = (await getPrescriptionMedications(prescription.id, token)) || [];
+    for (const pm of meds) {
+      await deletePrescriptionMedication(pm.id, token);
+    }
+
+    await deletePrescription(prescription.id, token);
+    setPrescriptions(prescriptions.filter(p => p.id !== prescription.id));
+    toast.success("Ordonnance supprimée !");
+  } catch (err) {
+    console.error(err);
+    toast.error("Erreur lors de la suppression de l'Ordonnance'");
+  }
+};
+
+
+
+  const handlePrescriptionChange = (e) => {
+  const { name, value } = e.target;
+  setPrescriptionForm({ ...prescriptionForm, [name]: value });
+};
+
   const handlePatientChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleUpdatePatient = async (e) => {
@@ -466,12 +636,19 @@ Modifier le patient
       >
        <Calendar size={16} /> Rendez-vous
       </button>
+      <button
+  className={activeTab === "prescriptions" ? "tab-btn active" : "tab-btn"}
+  onClick={() => setActiveTab("prescriptions")}
+>
+  <FileText  size={16} /> Ordonnances
+</button>
+
 </div>
 
 
     {activeTab === "treatments" && (
   <>
-  <div class="button-container">
+  <div className="button-container">
     <button className="btn-primary-app" onClick={handleAddTreatment}><Plus size={16} />Ajouter</button></div>
     <table className="treatment-table">
       <thead>
@@ -523,7 +700,7 @@ Modifier le patient
 
 {activeTab === "payments" && (
   <>
-  <div class="button-container">
+  <div className="button-container">
     <button className="btn-primary-app" onClick={() => { setPaymentForm({ id: null, amount: "", method: "CASH" }); setIsEditingPayment(false); setShowPaymentModal(true); }}><Plus size={16} />Ajouter</button>
     </div>
     <table className="treatment-table">
@@ -641,6 +818,103 @@ Modifier le patient
   </>
 )}
 
+{activeTab === "prescriptions" && (
+  <>
+    <div className="button-container">
+      <button className="btn-primary-app" onClick={() => { 
+        setPrescriptionForm({ id: null, notes: "", medications: [] });
+        setIsEditingPrescription(false);
+        setShowPrescriptionModal(true);
+      }}>
+        <Plus size={16} /> Ajouter
+      </button>
+    </div>
+
+    <table className="treatment-table">
+      <thead>
+        <tr>
+          <th>Notes</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {prescriptions.map(p => (
+          <tr key={p.id}>
+            <td>{p.notes || "—"}</td>
+            <td>{formatDate(p.date)}</td>
+            <td className="actions-cell">
+               <button className="action-btn view" onClick={async () => {
+    try {
+      const meds = await getPrescriptionMedications(p.id, token);
+      const formattedMedications = meds.map(pm => ({
+        medicationId: pm.medication?.id || "",
+        name: pm.medication?.name || "",
+        dosage: pm.dosage || "",
+        frequency: pm.frequency,
+        duration: pm.duration,
+        instructions: pm.instructions,
+      }));
+
+      setViewPrescription({
+        ...p,
+        medications: formattedMedications
+      });
+      setShowViewPrescriptionModal(true);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors du chargement de l'ordonnance");
+    }
+  }}>
+  <Eye size={16} />
+  </button>
+              <button className="action-btn edit" onClick={async () => {
+  try {
+    // Fetch medications for this prescription
+    const meds = await getPrescriptionMedications(p.id, token);
+
+    // Map them into your form format
+    const formattedMedications = meds.map(pm => ({
+      id: pm.id, // optional, useful for updates
+      medicationId: pm.medication?.id || "",
+      dosage: pm.dosage || "",
+      frequency: pm.frequency || "",
+      duration: pm.duration || "",
+      instructions: pm.instructions || "",
+    }));
+
+    setPrescriptionForm({
+      id: p.id,
+      notes: p.notes || "",
+      medications: formattedMedications
+    });
+    setIsEditingPrescription(true);
+    setShowPrescriptionModal(true);
+  } catch (err) {
+    console.error(err);
+    toast.error("Erreur lors du chargement des médicaments de la prescription");
+  }
+}}>
+  <Edit2 size={16} />
+</button>
+
+
+<button
+  className="action-btn delete"
+  onClick={() => deletePrescriptionWithMedications(p)}
+  title="Supprimer"
+>
+  <Trash2 size={16} />
+</button>            </td>
+          </tr>
+        ))}
+        {prescriptions.length === 0 && (
+          <tr><td colSpan="3" style={{ textAlign: "center" }}>Aucune Ordonnance</td></tr>
+        )}
+      </tbody>
+    </table>
+  </>
+)}
 
 
 {showModal && (
@@ -853,6 +1127,133 @@ Modifier le patient
     </div>
   </div>
 )}
+{showPrescriptionModal && (
+  <div className="modal-overlay" onClick={() => setShowPrescriptionModal(false)}>
+    <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <h2>{isEditingPrescription ? "Modifier prescription" : "Ajouter prescription"}</h2>
+      <form className="modal-form" onSubmit={handleCreateOrUpdatePrescription}>
+     <label>Notes</label>
+<textarea
+  name="notes"
+  rows={3}
+  value={prescriptionForm.notes}
+  onChange={handlePrescriptionChange}
+  placeholder="Ajouter des notes générales..."
+/>
+        <h4>Médications</h4>
+        {prescriptionForm.medications.map((med, index) => (
+          <div key={index} className="medication-row">
+           <select
+  value={med.medicationId}
+  onChange={e => handlePrescriptionMedicationChange(index, "medicationId", Number(e.target.value))}
+  required
+>
+  <option value="">-- Sélectionner --</option>
+  {medications.map(m => {
+    console.log("Medication option:", m); // <-- logs each medication
+    return (
+      <option key={m.id} value={m.id}>
+  {m.name}{m.dosageForm ? ` (${m.dosageForm}` : ''}{m.strength ? `, ${m.strength})` : m.dosageForm ? ')' : ''}
+      </option>
+    );
+  })}
+</select>
+
+<input
+  type="number"
+  min={0.1}
+  step={0.1}
+  value={med.dosage || ""}
+  onChange={(e) =>
+    handlePrescriptionMedicationChange(index, "dosage", Number(e.target.value))
+  }
+  placeholder="Dosage"
+/>
+<select
+  value={med.dosage || "mg"}
+  onChange={(e) => handlePrescriptionMedicationChange(index, "dosage", e.target.value)}
+>
+  <option value="mg">mg</option>
+  <option value="ml">ml</option>
+  <option value="tablet">tablet</option>
+  <option value="capsule">capsule</option>
+</select><select
+  value={med.frequency}
+  onChange={(e) => handlePrescriptionMedicationChange(index, "frequency", e.target.value)}
+>
+  <option value="">-- Choisir fréquence --</option>
+  <option value="1 fois/jour">1 fois/jour</option>
+  <option value="2 fois/jour">2 fois/jour</option>
+  <option value="3 fois/jour">3 fois/jour</option>
+  <option value="au besoin">Au besoin</option>
+</select>
+
+<div>
+  <label>Durée (jours) :</label>
+  <input
+    type="number"
+    min={1}
+    value={med.duration || ""}
+    onChange={(e) =>
+      handlePrescriptionMedicationChange(index, "duration", Number(e.target.value))
+    }
+    placeholder="Nombre de jours"
+  />
+</div>       
+    <input type="text" placeholder="Instructions" value={med.instructions} onChange={e => handlePrescriptionMedicationChange(index, "instructions", e.target.value)} required />
+            <button type="button" onClick={() => removeMedicationFromPrescription(index)}>Supprimer</button>
+          </div>
+        ))}
+        <button type="button" onClick={addMedicationToPrescription}>Ajouter une médication</button>
+
+        <div className="modal-actions">
+          <button type="submit" className="btn-primary2">Enregistrer</button>
+          <button type="button" className="btn-cancel" onClick={() => setShowPrescriptionModal(false)}>Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+{showViewPrescriptionModal && viewPrescription && (
+  <div className="modal-overlay" onClick={() => setShowViewPrescriptionModal(false)}>
+    <div className="modal-content view-prescription-modal" onClick={e => e.stopPropagation()}>
+      <h2>Détails de l'ordonnance</h2>
+
+      <p><strong>Notes :</strong> {viewPrescription.notes || "—"}</p>
+
+      <h4>Médications</h4>
+      <div className="medications-table-container">
+        <table className="treatment-table">
+          <thead>
+            <tr>
+              <th>Médicament</th>
+              <th>Dosage</th>
+              <th>Fréquence</th>
+              <th>Durée (jours)</th>
+              <th>Instructions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {viewPrescription.medications.map((med, index) => (
+              <tr key={index}>
+                <td>{med.name}</td>
+                <td>{med.dosage}</td>
+                <td>{med.frequency}</td>
+                <td>{med.duration}</td>
+                <td>{med.instructions}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="modal-actions">
+        <button className="btn-cancel" onClick={() => setShowViewPrescriptionModal(false)}>Fermer</button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>

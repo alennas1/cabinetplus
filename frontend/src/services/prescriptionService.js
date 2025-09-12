@@ -1,44 +1,39 @@
+// src/services/prescriptionService.js
 import axios from "axios";
 
+// Base URL for your backend
 const API_URL = "http://localhost:8080/api/prescriptions";
 
-export const getPrescriptions = async (token) => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+// Helper to get the token (e.g., from localStorage)
+const getAuthHeader = () => {
+  const token = localStorage.getItem("token"); // store JWT in localStorage
+  return { Authorization: `Bearer ${token}` };
 };
 
-export const getPrescriptionById = async (id, token) => {
-  const response = await axios.get(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+export const createPrescription = async (prescriptionData) => {
+  try {
+    const response = await axios.post(API_URL, prescriptionData, {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+    });
+    return response.data; // this will be PrescriptionResponseDTO
+  } catch (error) {
+    console.error("Error creating prescription:", error.response || error);
+    throw error;
+  }
 };
 
-export const createPrescription = async (prescriptionData, token) => {
-  const response = await axios.post(API_URL, prescriptionData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
-};
-
-export const updatePrescription = async (id, prescriptionData, token) => {
-  const response = await axios.put(`${API_URL}/${id}`, prescriptionData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
-};
-
-export const deletePrescription = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-};
-
-export const getPrescriptionsByPatient = async (patientId, token) => {
-  const response = await axios.get(`${API_URL}/patient/${patientId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+// Optional: get all prescriptions
+export const getPrescriptions = async () => {
+  try {
+    const response = await axios.get(API_URL, {
+      headers: getAuthHeader(),
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching prescriptions:", error.response || error);
+    throw error;
+  }
 };

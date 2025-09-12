@@ -1,154 +1,89 @@
 package com.cabinetplus.backend.services;
 
+import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
+import com.cabinetplus.backend.dto.PrescriptionResponseDTO;
+import com.cabinetplus.backend.dto.PrescriptionMedicationDTO;
+import com.cabinetplus.backend.models.*;
+import com.cabinetplus.backend.repositories.*;
+
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.cabinetplus.backend.dto.PrescriptionDTO;
-import com.cabinetplus.backend.dto.PrescriptionMedicationDTO;
-import com.cabinetplus.backend.models.Medication;
-import com.cabinetplus.backend.models.Patient;
-import com.cabinetplus.backend.models.Prescription;
-import com.cabinetplus.backend.models.PrescriptionMedication;
-import com.cabinetplus.backend.models.User;
-import com.cabinetplus.backend.repositories.MedicationRepository;
-import com.cabinetplus.backend.repositories.PatientRepository;
-import com.cabinetplus.backend.repositories.PrescriptionMedicationRepository;
-import com.cabinetplus.backend.repositories.PrescriptionRepository;
-import com.cabinetplus.backend.repositories.UserRepository;
+import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class PrescriptionService {
 
     private final PrescriptionRepository prescriptionRepository;
-    private final PrescriptionMedicationRepository pmRepo;
-    private final PatientRepository patientRepo;
-    private final UserRepository userRepo;
-    private final MedicationRepository medicationRepo;
+    private final PatientRepository patientRepository;
+    private final MedicationRepository medicationRepository;
 
-    public PrescriptionService(
-            PrescriptionRepository prescriptionRepository,
-            PrescriptionMedicationRepository pmRepo,
-            PatientRepository patientRepo,
-            UserRepository userRepo,
-            MedicationRepository medicationRepo
-    ) {
-        this.prescriptionRepository = prescriptionRepository;
-        this.pmRepo = pmRepo;
-        this.patientRepo = patientRepo;
-        this.userRepo = userRepo;
-        this.medicationRepo = medicationRepo;
-    }
+    @Transactional
+    public Prescription createPrescription(PrescriptionRequestDTO dto, User practitioner) {
+        // 1. Find patient
+       Patient patient = patientRepository.findById(Long.valueOf(dto.getPatientId()))
+        .orElseThrow(() -> new RuntimeException("Patient not found"));
 
-    public Prescription save(Prescription prescription) {
+        // 2. Create prescription
+        Prescription prescription = new Prescription();
+        prescription.setDate(LocalDateTime.now());
+        prescription.setNotes(dto.getNotes());
+        prescription.setPatient(patient);
+        prescription.setPractitioner(practitioner);
+
+        // 3. Map medications
+        List<PrescriptionMedication> prescriptionMedications = dto.getMedications().stream()
+                .map(medDto -> mapToPrescriptionMedication(medDto, prescription))
+                .collect(Collectors.toList());
+
+        prescription.setMedications(prescriptionMedications);
+
+        // 4. Save everything
         return prescriptionRepository.save(prescription);
     }
 
-    @Transactional
-    public Prescription createPrescription(PrescriptionDTO dto) {
-        // ✅ Fetch patient and practitioner
-        Patient patient = patientRepo.findById(dto.patientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
-        User practitioner = userRepo.findById(dto.practitionerId())
-                .orElseThrow(() -> new RuntimeException("Practitioner not found"));
-
-        // ✅ Create prescription
-        Prescription prescription = new Prescription();
-        prescription.setPatient(patient);
-        prescription.setPractitioner(practitioner);
-        prescription.setDate(LocalDateTime.now());
-        prescription.setNotes(dto.notes());
-        prescription = prescriptionRepository.save(prescription);
-
-        // ✅ Add medications
-        for (PrescriptionMedicationDTO medDto : dto.medications()) {
-            Medication medication = medicationRepo.findById(medDto.medicationId())
-                    .orElseThrow(() -> new RuntimeException("Medication not found"));
-
-            PrescriptionMedication pm = new PrescriptionMedication();
-            pm.setPrescription(prescription);
-            pm.setMedication(medication);
-            pm.setDosage(medDto.dosage());
-            pm.setFrequency(medDto.frequency());
-            pm.setDuration(medDto.duration());
-            pm.setInstructions(medDto.instructions());
-
-            pmRepo.save(pm);
-        }
-
-        return prescription;
-    }
-
-    public List<Prescription> findByPatientAndPractitioner(Patient patient, User practitioner) {
-    return prescriptionRepository.findByPatientAndPractitioner(patient, practitioner);
-}
-
-@Transactional
-public Prescription updatePrescription(Long id, PrescriptionDTO dto) {
-    // Fetch existing prescription
-    Prescription prescription = prescriptionRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Prescription not found"));
-
-    // Update patient/practitioner if needed
-    if (!prescription.getPatient().getId().equals(dto.patientId())) {
-        Patient patient = patientRepo.findById(dto.patientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
-        prescription.setPatient(patient);
-    }
-
-    if (!prescription.getPractitioner().getId().equals(dto.practitionerId())) {
-        User practitioner = userRepo.findById(dto.practitionerId())
-                .orElseThrow(() -> new RuntimeException("Practitioner not found"));
-        prescription.setPractitioner(practitioner);
-    }
-
-    prescription.setNotes(dto.notes());
-
-    // Save the updated prescription
-    prescription = prescriptionRepository.save(prescription);
-
-    // ✅ Update medications: delete old ones and add new ones
-    List<PrescriptionMedication> existingMeds = pmRepo.findByPrescription(prescription);
-    pmRepo.deleteAll(existingMeds);
-
-    for (PrescriptionMedicationDTO medDto : dto.medications()) {
-        Medication medication = medicationRepo.findById(medDto.medicationId())
+    private PrescriptionMedication mapToPrescriptionMedication(PrescriptionMedicationDTO medDto, Prescription prescription) {
+        Medication medication = medicationRepository.findById(medDto.getMedicationId())
                 .orElseThrow(() -> new RuntimeException("Medication not found"));
 
         PrescriptionMedication pm = new PrescriptionMedication();
         pm.setPrescription(prescription);
         pm.setMedication(medication);
-        pm.setDosage(medDto.dosage());
-        pm.setFrequency(medDto.frequency());
-        pm.setDuration(medDto.duration());
-        pm.setInstructions(medDto.instructions());
+        pm.setName(medication.getName());  // redundant but useful snapshot
+        pm.setAmount(String.valueOf(medDto.getAmount()));
+        pm.setUnit(medDto.getUnit());
+        pm.setFrequency(medDto.getFrequency());
+        pm.setDuration(medDto.getDuration());
+        pm.setInstructions(medDto.getInstructions());
 
-        pmRepo.save(pm);
+        return pm;
     }
-
-    return prescription;
+    public PrescriptionResponseDTO mapToResponseDTO(Prescription prescription) {
+    PrescriptionResponseDTO dto = new PrescriptionResponseDTO();
+    dto.setId(prescription.getId());
+    dto.setDate(prescription.getDate());
+    dto.setNotes(prescription.getNotes());
+    dto.setPatientName(prescription.getPatient().getFirstname() + " " + prescription.getPatient().getLastname());
+    dto.setPatientAge(prescription.getPatient().getAge());
+    dto.setPractitionerName(prescription.getPractitioner().getFirstname() + " " + prescription.getPractitioner().getLastname());
+    dto.setMedications(
+        prescription.getMedications().stream()
+            .map(pm -> {
+                PrescriptionMedicationDTO pmDto = new PrescriptionMedicationDTO();
+                pmDto.setMedicationId(pm.getMedication().getId());
+                pmDto.setAmount(Double.parseDouble(pm.getAmount()));
+                pmDto.setUnit(pm.getUnit());
+                pmDto.setFrequency(pm.getFrequency());
+                pmDto.setDuration(pm.getDuration());
+                pmDto.setInstructions(pm.getInstructions());
+                return pmDto;
+            }).collect(Collectors.toList())
+    );
+    return dto;
 }
 
-    public List<Prescription> findAll() {
-        return prescriptionRepository.findAll();
-    }
-
-    public Optional<Prescription> findById(Long id) {
-        return prescriptionRepository.findById(id);
-    }
-
-    public List<Prescription> findByPatient(Patient patient) {
-        return prescriptionRepository.findByPatient(patient);
-    }
-
-    public List<Prescription> findByPractitioner(User practitioner) {
-        return prescriptionRepository.findByPractitioner(practitioner);
-    }
-
-    public void delete(Long id) {
-        prescriptionRepository.deleteById(id);
-    }
 }

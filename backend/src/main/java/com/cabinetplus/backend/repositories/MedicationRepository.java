@@ -12,4 +12,6 @@ public interface MedicationRepository extends JpaRepository<Medication, Long> {
     List<Medication> findByCreatedBy(User user);
     Optional<Medication> findByIdAndCreatedBy(Long id, User user);
     Optional<Medication> findByNameAndCreatedBy(String name, User user);
+    Optional<Medication> findByNameAndStrength(String name, String strength);
+
 }

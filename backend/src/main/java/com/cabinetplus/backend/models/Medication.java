@@ -44,7 +44,7 @@ public class Medication {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
-    private User createdBy;   // 👈 ensures each medication belongs to a dentist
+    private User createdBy;
 
     public enum DosageForm {
         TABLET,

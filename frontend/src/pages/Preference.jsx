@@ -1,13 +1,24 @@
-// Preference.jsx
 import React from "react";
-import PageHeader from "../components/PageHeader";
+import { useSelector } from "react-redux";
+import { jwtDecode } from "jwt-decode";
+import "./Dashboard.css"; // import the CSS
 
 const Preference = () => {
+  const token = useSelector((state) => state.auth.token);
+
+  let username = "";
+  if (token) {
+    const decoded = jwtDecode(token);
+    username = decoded.sub; // 👈 username is stored in "sub"
+  }
+
   return (
-    <div className="settings-container">
-      <PageHeader title="Préférences" subtitle="Paramètres et préférences du compte" />
-      <div className="settings-content">
-        <p>Préférences générales à ajouter ici...</p>
+    <div className="dashboard-container">
+      <div className="dashboard-card">
+        <h1 className="dashboard-title">Preference 🦷</h1>
+        <p className="dashboard-welcome">
+          Bienvenue, <strong>{username}</strong> !
+        </p>
       </div>
     </div>
   );

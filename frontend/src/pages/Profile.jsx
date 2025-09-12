@@ -12,6 +12,8 @@ const fieldLabels = {
   lastname: "Nom",
   email: "Email",
   phoneNumber: "Téléphone",
+    profession: "Profession",
+
 };
 
 const fieldIcons = {
@@ -19,11 +21,13 @@ const fieldIcons = {
   lastname: <User size={16} />,
   email: <Mail size={16} />,
   phoneNumber: <Phone size={16} />,
+    profession: <User size={16} />, // you can pick another icon if you prefer
+
 };
 
 const Profile = () => {
   const token = useSelector((state) => state.auth.token);
-  const [profile, setProfile] = useState({});
+  const [profile, setProfile] = useState({ profession: "Dentiste" }); // default profession
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
 
@@ -33,19 +37,18 @@ const Profile = () => {
     return digits.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
   };
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const data = await getUserProfile(token);
-        setProfile(data);
-      } catch (err) {
-        console.error(err);
-        toast.error("Erreur lors du chargement du profil");
-      }
-    };
-    fetchProfile();
-  }, [token]);
-
+ useEffect(() => {
+  const fetchProfile = async () => {
+    try {
+      const data = await getUserProfile(token);
+      setProfile({ ...data, profession: "Dentiste" }); // ✅ merge with profession
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors du chargement du profil");
+    }
+  };
+  fetchProfile();
+}, [token]);
   const handleEdit = (field) => {
     setEditingField(field);
     const value = profile[field] || "";
@@ -85,42 +88,46 @@ const Profile = () => {
   };
 
   const renderField = (field) => (
-    <div className="profile-field" key={field}>
-      <div className="field-label">
-        {fieldIcons[field]}
-        <span>{fieldLabels[field]}:</span>
-      </div>
-
-      {editingField === field ? (
-        <>
-          <input
-            type="text"
-            value={tempValue}
-            onChange={(e) => handleInputChange(field, e.target.value)}
-          />
-          <Check
-            size={18}
-            className="icon action confirm"
-            onClick={() => handleSave(field)}
-          />
-          <X size={18} className="icon action cancel" onClick={handleCancel} />
-        </>
-      ) : (
-        <>
-          <span className="field-value">
-            {field === "phoneNumber"
-              ? formatPhoneNumber(profile[field])
-              : profile[field] || "—"}
-          </span>
-          <Edit2
-            size={18}
-            className="icon action edit"
-            onClick={() => handleEdit(field)}
-          />
-        </>
-      )}
+  <div className="profile-field" key={field}>
+    <div className="field-label">
+      {fieldIcons[field]}
+      <span>{fieldLabels[field]}:</span>
     </div>
-  );
+
+    {field === "profession" ? (
+      // Profession is fixed, no edit button
+      <span className="field-value">{profile.profession}</span>
+    ) : editingField === field ? (
+      <>
+        <input
+          type="text"
+          value={tempValue}
+          onChange={(e) => handleInputChange(field, e.target.value)}
+        />
+        <Check
+          size={18}
+          className="icon action confirm"
+          onClick={() => handleSave(field)}
+        />
+        <X size={18} className="icon action cancel" onClick={handleCancel} />
+      </>
+    ) : (
+      <>
+        <span className="field-value">
+          {field === "phoneNumber"
+            ? formatPhoneNumber(profile[field])
+            : profile[field] || "—"}
+        </span>
+        <Edit2
+          size={18}
+          className="icon action edit"
+          onClick={() => handleEdit(field)}
+        />
+      </>
+    )}
+  </div>
+);
+
 
   return (
     <div className="profile-container">

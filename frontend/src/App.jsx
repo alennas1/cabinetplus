@@ -16,6 +16,7 @@ import Preference from "./pages/Preference";
 import Profile from "./pages/Profile";
 import Security from "./pages/Security";
 import Finance from "./pages/Finance";
+import Ordonnance from "./pages/Ordonnance";
 
 import "./index.css";
 
@@ -43,6 +44,7 @@ function App() {
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />
               <Route path="/finance" element={<Finance />} />
+              <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} /> {/* detail page */}
             </Route>
           </Route>
 

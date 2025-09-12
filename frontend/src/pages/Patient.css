@@ -6,6 +6,34 @@
   color: #1f2937;
   min-height: 100vh;
 }
+.patient-actions {
+  display: flex;
+  gap: 10px;   /* space between buttons */
+  margin-top: 10px;
+}
+
+.patient-actions .btn-primary-app {
+  display: flex;
+  align-items: center;
+  gap: 6px;   /* space between icon and text */
+}
+.btn-secondary-app {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f4f4f4;
+  color: #333;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-secondary-app:hover {
+  background-color: #e5e5e5;
+}
 
 /* Loading state */
 .loading {
@@ -317,33 +345,4 @@
   .tab-buttons {
     flex-wrap: wrap;
   }
-}
-.view-prescription-modal {
-  max-width: 900px;      /* wider modal */
-  width: 95%;
-  max-height: 90vh;
-  overflow-y: auto;      /* scroll if content is tall */
-  padding: 20px;
-}
-
-.view-prescription-modal h2 {
-  margin-bottom: 15px;
-}
-
-.view-prescription-modal .medications-table-container {
-  max-height: 400px;
-  overflow-y: auto;
-  margin-bottom: 20px;
-}
-
-.view-prescription-modal table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.view-prescription-modal th,
-.view-prescription-modal td {
-  padding: 8px;
-  text-align: left;
-  border: 1px solid #ddd;
 }

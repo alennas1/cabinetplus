@@ -17,6 +17,8 @@ import {
 } from "../services/appointmentService";
 import { getTreatments as getTreatmentCatalog } from "../services/treatmentCatalogueService";
 
+import { getPrescriptionsByPatient,deletePrescription } from "../services/prescriptionService"; // make sure you have this
+
 
 import "./Patient.css";
 import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText } from "react-feather";
@@ -54,7 +56,19 @@ const handleCompleteAppointment = async (a) => {
 };
 
 
-
+const [ordonnances, setOrdonnances] = useState([]);
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const ordos = await getPrescriptionsByPatient(id, token);
+      setOrdonnances(ordos);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors du chargement des ordonnances");
+    }
+  };
+  fetchData();
+}, [id, token]);
 
 
   const [treatments, setTreatments] = useState([]);
@@ -396,6 +410,18 @@ const handleDeletePayment = (p) => {
   }
 };
 
+const handleDeletePrescription = async (o) => {
+  if (window.confirm("Voulez-vous supprimer cette ordonnance ?")) {
+    try {
+      await deletePrescription(o.id); // uses the correct backend URL
+      setOrdonnances(ordonnances.filter(p => p.id !== o.id));
+      toast.success("Ordonnance supprimée !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la suppression");
+    }
+  }
+};
 
 const handleDeleteAppointment = (a) => {
   setConfirmMessage("Voulez-vous supprimer ce rendez-vous ?");
@@ -493,7 +519,12 @@ const handleDeleteAppointment = (a) => {
       >
        <Calendar size={16} /> Rendez-vous
       </button>
-
+<button
+  className={activeTab === "prescriptions" ? "tab-btn active" : "tab-btn"}
+  onClick={() => setActiveTab("prescriptions")}
+>
+  <FileText size={16} /> Ordonnances
+</button>
 </div>
 
 
@@ -919,6 +950,47 @@ const handleDeleteAppointment = (a) => {
   </div>
 )}
 
+{activeTab === "prescriptions" && (
+  <table className="treatment-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+     {ordonnances.map(o => (
+  <tr key={o.id}>
+    <td>{o.rxId}</td>
+    <td>{formatDate(o.date)}</td>
+   <td className="actions-cell">
+  <button
+  className="action-btn view"
+  onClick={() => navigate(`/patients/${id}/ordonnance/${o.id}`)}
+  title="Voir"
+>
+  <Eye size={16} />
+</button>
+
+  <button
+    className="action-btn delete"
+    onClick={() => handleDeletePrescription(o)}
+    title="Supprimer"
+  >
+    <Trash2 size={16} />
+  </button>
+</td>
+  </tr>
+))}
+      {ordonnances.length === 0 && (
+        <tr>
+          <td colSpan="3" style={{ textAlign: "center" }}>Aucune ordonnance</td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+)}
 
 
 

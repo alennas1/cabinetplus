@@ -44,8 +44,9 @@ function App() {
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />
               <Route path="/finance" element={<Finance />} />
-              <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} /> {/* detail page */}
-            </Route>
+<Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
+        <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
+                   </Route>
           </Route>
 
           {/* Redirect rules */}

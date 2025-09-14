@@ -16,6 +16,9 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Column;
+
 
 @Entity
 @Table(name = "prescriptions")
@@ -27,6 +30,9 @@ public class Prescription {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "rx_id", unique = true, nullable = false)
+    private String rxId;
 
     private LocalDateTime date;
     private String notes;
@@ -41,5 +47,15 @@ public class Prescription {
 
    @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
 private List<PrescriptionMedication> medications = new ArrayList<>();
+
+
+@PrePersist
+private void generateRxId() {
+    if (this.rxId == null || this.rxId.isEmpty()) {
+        // Format: RX-<year>-<random 5 digits>
+        int randomDigits = (int)(Math.random() * 90000) + 10000; // 10000-99999
+        this.rxId = "RX-" + java.time.Year.now().getValue() + "-" + randomDigits;
+    }
+}
 
 }

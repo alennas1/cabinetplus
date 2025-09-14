@@ -1,7 +1,7 @@
 // src/pages/Ordonnance.jsx
 import React, { useState, useEffect } from "react";
 import { Edit2, Trash2, Printer, ArrowLeft } from "react-feather";
-import { createPrescription } from "../services/prescriptionService";
+import { createPrescription, getPrescriptionById, updatePrescription  } from "../services/prescriptionService";
 import { getMedications } from "../services/medicationService";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -12,10 +12,39 @@ import { ToastContainer } from "react-toastify";
 
 export default function Ordonnance() {
    const navigate = useNavigate();
-  const { id } = useParams();          // <-- id comes from the URL
-  const patientId = Number(id);        // convert to number if needed
+  const { id, ordonnanceId } = useParams(); // patient ID and optional prescription ID
+  const patientId = Number(id);
+  const [notes, setNotes] = useState("Bien suivre la posologie et revenir en cas d'effets indésirables.");
+
+  const isEditMode = ordonnanceId && ordonnanceId !== "create"; // true if editing
+  console.log("Edit mode:", isEditMode, "Prescription ID:", ordonnanceId);
+  
+useEffect(() => {
+  if (isEditMode) {
+    const token = localStorage.getItem("token");
+    getPrescriptionById(ordonnanceId, token)
+      .then((data) => {
+        setRxId(data.rxId); // <-- fetch from backend
+        const normalizedMeds = data.medications.map((m) => ({
+          prescriptionMedicationId: m.prescriptionMedicationId || m.id || Date.now(),
+          medicationId: m.medicationId || m.medication_id,
+          name: m.name,
+          amount: m.amount,
+          unit: m.unit || "mg",
+          frequency: m.frequency,
+          duration: m.duration,
+          instruction: m.instruction || m.instructions || "",
+          strength: m.strength || "mg",
+        }));
+        setMedications(normalizedMeds);
+        setNotes(data.notes);
+      })
+      .catch((err) => console.error("Error fetching prescription:", err));
+  }
+}, [isEditMode, ordonnanceId]);
 
   const [patient, setPatient] = useState(null);
+const [rxId, setRxId] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -32,17 +61,19 @@ useEffect(() => {
 
 const [medForm, setMedForm] = useState({
   name: "",
+  medicationId: "",
   strength: "mg",
+  unit: "mg", // add this
   amount: "",
   frequency: "",
   duration: "",
-  instructions: "" //  use 'instructions' to match backend
-});  const [medications, setMedications] = useState([]);
+  instruction: ""
+});
+
+  const [medications, setMedications] = useState([]);
   const [medOptions, setMedOptions] = useState([]);
-  const [notes, setNotes] = useState("Bien suivre la posologie et revenir en cas d'effets indésirables.");
   const [editingId, setEditingId] = useState(null);
 
-  const [rxId] = useState(() => `RX-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`);
 const [showSuggestions, setShowSuggestions] = useState(false);
 const [filteredMeds, setFilteredMeds] = useState([]);
 
@@ -55,20 +86,24 @@ const [filteredMeds, setFilteredMeds] = useState([]);
     const med = medOptions.find((m) => m.id === Number(medForm.medicationId));
     if (!med) return toast.error("Médicament invalide");
 
-    const medEntry = {
-      id: editingId || Date.now(),
-      medicationId: med.id,
-      name: med.name,
-      strength: med.strength,
-      ...medForm,
-    };
-
-    if (editingId) {
-      setMedications((s) => s.map((m) => (m.id === editingId ? medEntry : m)));
-      setEditingId(null);
-    } else {
-      setMedications((s) => [medEntry, ...s]);
-    }
+ const medEntry = {
+  prescriptionMedicationId: editingId || Date.now() + Math.random(),
+  medicationId: med.id,
+  name: med.name,
+  amount: medForm.amount,
+  unit: medForm.unit,
+  frequency: medForm.frequency,
+  duration: medForm.duration,
+  instruction: medForm.instruction,
+};
+if (editingId) {
+  setMedications((s) =>
+    s.map((m) => (m.prescriptionMedicationId === editingId ? medEntry : m))
+  );
+  setEditingId(null);
+} else {
+  setMedications((s) => [medEntry, ...s]);
+}
 
 setMedForm({
   name: "",
@@ -82,22 +117,28 @@ setMedForm({
 });
   }
 
-  function handleRemove(id) {
-    setMedications((s) => s.filter((m) => m.id !== id));
-    if (id === editingId) setEditingId(null);
-  }
+function handleEdit(med) {
+  setMedForm({
+    name: med.name,
+    medicationId: med.medicationId,
+    amount: med.amount,
+    unit: med.unit || "mg",
+    frequency: med.frequency,
+    duration: med.duration,
+    instruction: med.instruction || "",
+    strength: med.strength || "mg",
+  });
+  setEditingId(med.prescriptionMedicationId);
+}
 
-  function handleEdit(med) {
-    setMedForm({
-      medicationId: med.medicationId,
-      amount: med.amount,
-      unit: med.unit,
-      frequency: med.frequency,
-      duration: med.duration,
-      instruction: med.instruction,
-    });
-    setEditingId(med.id);
-  }
+function handleRemove(id) {
+  setMedications((s) =>
+    s.filter((m) => m.prescriptionMedicationId !== id)
+  );
+  if (id === editingId) setEditingId(null);
+}
+
+
 // Confirmation modal handler
   const handleConfirmRetour = () => {
     setShowConfirm(false);
@@ -107,14 +148,13 @@ setMedForm({
 
 async function handleSave() {
   const payload = {
-    rxId,
     date: new Date().toISOString(),
-    patientId: patient.id,
+    patientId,
     notes,
     medications: medications.map((m) => ({
       medicationId: m.medicationId,
       amount: Number(m.amount),
-      unit: m.strength,
+      unit: m.unit,
       frequency: m.frequency,
       duration: m.duration,
       instructions: m.instruction,
@@ -122,16 +162,19 @@ async function handleSave() {
   };
 
   try {
-    console.log("Payload to send:", payload);
-    await createPrescription(payload);
-    toast.success("Ordonnance enregistrée !");
+    if (isEditMode) {
+      await updatePrescription(ordonnanceId, payload); // new service for PUT
+      toast.success("Ordonnance mise à jour !");
+    } else {
+      await createPrescription(payload);
+      toast.success("Ordonnance créée !");
+    }
 
-    // Wait a short time to let the toast show before navigating
     setTimeout(() => {
-      navigate(`/patients/${patient.id}`);
-    }, 1000); // 1 second delay (optional)
+      navigate(`/patients/${patientId}`);
+    }, 1000);
   } catch (error) {
-    console.error("Error creating prescription:", error.response?.data || error);
+    console.error("Error saving prescription:", error.response?.data || error);
     toast.error("Erreur lors de l'enregistrement.");
   }
 }
@@ -153,10 +196,16 @@ async function handleSave() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">Ordonnance / Prescription</h1>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-600">Date: <span className="font-medium">{new Date().toLocaleDateString()}</span></p>
-            <p className="text-sm text-gray-600">Réf: <span className="font-medium">{rxId}</span></p>
-          </div>
+         <div className="text-right">
+  {isEditMode && rxId && (
+    <p className="text-sm text-gray-600">
+      Ref: <span className="font-medium">{rxId}</span>
+    </p>
+  )}
+  <p className="text-sm text-gray-600">
+    Date: <span className="font-medium">{new Date().toLocaleDateString()}</span>
+  </p>
+</div>
         </header>
 
         <section className="grid grid-cols-12 gap-4 items-center mb-6">
@@ -183,11 +232,17 @@ async function handleSave() {
             </button>
 <button
   onClick={handleSave}
-  className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-  disabled={medications.length === 0} // ✅ disable unless at least one medication added
+  className="px-4 py-2 rounded-lg text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+  style={{
+    backgroundColor: "#3498db",
+  }}
+  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#2980b9")}
+  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#3498db")}
+  disabled={medications.length === 0} // disable unless at least one medication added
 >
   Enregistrer
-</button>          </div>
+</button>
+        </div>
         </section>
 
         <div className="grid grid-cols-12 gap-6">
@@ -317,7 +372,17 @@ async function handleSave() {
                 </div>
 
                 <div className="flex justify-between mt-3">
-                  <button type="button" onClick={() => { setMedForm({ medicationId: "", amount: "", unit: "mg", frequency: "", duration: "", instruction: "" }); setEditingId(null); }} className="px-3 py-2 text-sm border rounded-lg">Annuler</button>
+                  <button type="button" onClick={() => { setMedForm({
+  name: "",
+  medicationId: "",
+  amount: "",
+  unit: "mg",
+  frequency: "",
+  duration: "",
+  instruction: "",
+  strength: "mg",
+});
+setEditingId(null); }} className="px-3 py-2 text-sm border rounded-lg">Annuler</button>
 <button
   type="submit"
   className={`px-4 py-2 text-white rounded-lg text-sm ${
@@ -336,19 +401,25 @@ async function handleSave() {
           <div className="col-span-7">
             <h2 className="text-md font-semibold text-gray-700 mb-3">Médicaments prescrits</h2>
             <ul className="space-y-3">
-              {medications.map((m) => (
-                <li key={m.id} className="flex items-start justify-between bg-white p-3 rounded-lg shadow-sm">
-                  <div>
-                    <div className="font-medium text-gray-800">{m.name}</div>
-                    <div className="text-sm text-gray-500">{m.amount}{m.unit} • {m.frequency} • {m.duration}</div>
-                    {m.instruction && <div className="text-xs text-gray-400 mt-1">⚑ {m.instruction}</div>}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleEdit(m)} className="p-2 rounded hover:bg-gray-100" title="Modifier"><Edit2 size={16} className="text-gray-600" /></button>
-                    <button onClick={() => handleRemove(m.id)} className="p-2 rounded hover:bg-red-100" title="Supprimer"><Trash2 size={16} className="text-red-600" /></button>
-                  </div>
-                </li>
-              ))}
+           {medications.map((m) => (
+  <li key={m.prescriptionMedicationId} className="flex items-start justify-between bg-white p-3 rounded-lg shadow-sm">
+    <div>
+      <div className="font-medium text-gray-800">{m.name}</div>
+      <div className="text-sm text-gray-500">
+        {m.amount} {m.unit} • {m.frequency} • {m.duration}
+      </div>
+      {m.instruction && <div className="text-xs text-gray-400 mt-1">⚑ {m.instruction}</div>}
+    </div>
+    <div className="flex gap-2">
+      <button onClick={() => handleEdit(m)} className="p-2 rounded hover:bg-gray-100" title="Modifier">
+        <Edit2 size={16} className="text-gray-600" />
+      </button>
+      <button onClick={() => handleRemove(m.prescriptionMedicationId)} className="p-2 rounded hover:bg-red-100" title="Supprimer">
+        <Trash2 size={16} className="text-red-600" />
+      </button>
+    </div>
+  </li>
+))}
             </ul>
 
             <div className="mt-6">

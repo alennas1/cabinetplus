@@ -10,6 +10,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -19,16 +20,14 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      // Call backend login
-      const data = await login(username, password);
+      const { accessToken } = await login(username, password);
 
       // Save access token in Redux/localStorage
-      dispatch(loginSuccess(data.accessToken));
+      dispatch(loginSuccess(accessToken));
 
       // Navigate after login
       navigate("/dashboard");
     } catch (err) {
-      console.error("Login failed:", err);
       setError("Identifiants invalides");
     } finally {
       setLoading(false);
@@ -38,7 +37,6 @@ const LoginPage = () => {
   return (
     <div className="auth-container">
       <form onSubmit={handleSubmit} className="auth-card">
-        {/* Logo */}
         <div className="auth-logo">
           <img src="/logo.png" alt="CabinetPlus" />
         </div>
@@ -54,7 +52,6 @@ const LoginPage = () => {
             required
             disabled={loading}
           />
-
           <input
             type="password"
             placeholder="Mot de passe"
@@ -64,7 +61,6 @@ const LoginPage = () => {
             disabled={loading}
           />
 
-          {/* Display error */}
           {error && <p className="error-message">{error}</p>}
 
           <button type="submit" disabled={loading}>

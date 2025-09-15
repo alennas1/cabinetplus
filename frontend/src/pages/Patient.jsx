@@ -410,17 +410,19 @@ const handleDeletePayment = (p) => {
   }
 };
 
-const handleDeletePrescription = async (o) => {
-  if (window.confirm("Voulez-vous supprimer cette ordonnance ?")) {
+const handleDeletePrescription = (o) => {
+  setConfirmMessage("Voulez-vous supprimer cette ordonnance ?");
+  setOnConfirmAction(() => async () => {
     try {
       await deletePrescription(o.id); // uses the correct backend URL
       setOrdonnances(ordonnances.filter(p => p.id !== o.id));
       toast.success("Ordonnance supprimée !");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression");
+      toast.error("Erreur lors de la suppression de l'ordonnance");
     }
-  }
+  });
+  setShowConfirm(true);
 };
 
 const handleDeleteAppointment = (a) => {
@@ -817,15 +819,16 @@ const handleDeleteAppointment = (a) => {
               <textarea name="notes" value={treatmentForm.notes} onChange={handleTreatmentChange} />
 <div className="paid-toggle-container">
   <span className="paid-label">Marqué comme </span>
-  <button
-    type="button"
-    className={`paid-toggle-btn ${treatmentForm.paid ? "paid" : ""}`}
-    onClick={() =>
-      setTreatmentForm({ ...treatmentForm, paid: !treatmentForm.paid })
+  <label className={`chip-toggle ${treatmentForm.paid ? "active" : ""}`}>
+  <input
+    type="checkbox"
+    checked={!!treatmentForm.paid} // makes sure it's always true/false
+    onChange={(e) =>
+      setTreatmentForm({ ...treatmentForm, paid: e.target.checked })
     }
-  >
-    Payé
-  </button>
+  />
+  Payé
+</label>
 </div>
 
               <div className="modal-actions">
@@ -949,6 +952,16 @@ const handleDeleteAppointment = (a) => {
     </div>
   </div>
 )}
+{activeTab === "prescriptions" && (
+    <div className="button-container">
+    <button
+      className="btn-primary-app"
+      onClick={() => navigate(`/patients/${id}/ordonnance/create`)}
+    >
+      <Plus size={16} /> Ajouter
+    </button>
+  </div>
+)}
 
 {activeTab === "prescriptions" && (
   <table className="treatment-table">
@@ -960,32 +973,34 @@ const handleDeleteAppointment = (a) => {
       </tr>
     </thead>
     <tbody>
-     {ordonnances.map(o => (
-  <tr key={o.id}>
-    <td>{o.rxId}</td>
-    <td>{formatDate(o.date)}</td>
-   <td className="actions-cell">
-  <button
-  className="action-btn view"
-  onClick={() => navigate(`/patients/${id}/ordonnance/${o.id}`)}
-  title="Voir"
->
-  <Eye size={16} />
-</button>
+      {ordonnances.map((o) => (
+        <tr key={o.id}>
+          <td>{o.rxId}</td>
+          <td>{formatDate(o.date)}</td>
+          <td className="actions-cell">
+            <button
+              className="action-btn view"
+              onClick={() => navigate(`/patients/${id}/ordonnance/${o.id}`)}
+              title="Voir"
+            >
+              <Eye size={16} />
+            </button>
 
-  <button
-    className="action-btn delete"
-    onClick={() => handleDeletePrescription(o)}
-    title="Supprimer"
-  >
-    <Trash2 size={16} />
-  </button>
-</td>
-  </tr>
-))}
+            <button
+              className="action-btn delete"
+              onClick={() => handleDeletePrescription(o)}
+              title="Supprimer"
+            >
+              <Trash2 size={16} />
+            </button>
+          </td>
+        </tr>
+      ))}
       {ordonnances.length === 0 && (
         <tr>
-          <td colSpan="3" style={{ textAlign: "center" }}>Aucune ordonnance</td>
+          <td colSpan="3" style={{ textAlign: "center" }}>
+            Aucune ordonnance
+          </td>
         </tr>
       )}
     </tbody>

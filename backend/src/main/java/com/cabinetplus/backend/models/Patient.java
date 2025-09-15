@@ -2,6 +2,9 @@ package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
 
+import com.cabinetplus.backend.security.EncryptionConverter;
+
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,11 +27,17 @@ public class Patient {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Convert(converter = EncryptionConverter.class)
     private String firstname;
-    private String lastname;
-    private Integer age;
-    private String sex;      //  New field
 
+    @Convert(converter = EncryptionConverter.class)
+    private String lastname;
+
+    private Integer age;
+
+    private String sex;  
+
+    @Convert(converter = EncryptionConverter.class)
     private String phone;
 
     @ManyToOne

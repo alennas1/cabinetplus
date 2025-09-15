@@ -31,11 +31,14 @@ const Profile = () => {
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
 
-  const formatPhoneNumber = (number) => {
-    if (!number) return "—";
-    const digits = number.replace(/\D/g, "");
-    return digits.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
-  };
+  
+  const formatPhoneNumber = (phone) => {
+  if (!phone) return "";
+  return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
+};
+
+
+
 
  useEffect(() => {
   const fetchProfile = async () => {
@@ -73,9 +76,16 @@ const Profile = () => {
   const handleSave = async (field) => {
     try {
       let valueToSave = tempValue;
+
       if (field === "phoneNumber") {
         valueToSave = tempValue.replace(/\s/g, "");
       }
+
+      if (valueToSave === profile[field]) {
+      setEditingField(null);
+      setTempValue("");
+      return; // no update, no toast
+    }
       const updatedProfile = { ...profile, [field]: valueToSave };
       await updateUserProfile(updatedProfile, token);
       setProfile(updatedProfile);

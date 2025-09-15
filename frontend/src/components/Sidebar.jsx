@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { Home, User, Calendar, Settings, LogOut, PlusSquare, Activity  } from "react-feather"; 
+import { Box, Home, User, Calendar, Settings, LogOut, PlusSquare, Activity  } from "react-feather"; 
 import { logout } from "../store/authSlice";
 import "./Sidebar.css";
 
@@ -50,6 +50,11 @@ const Sidebar = () => {
 <li className="admin-link">
   <Link to="/finance">
     <Activity size={20} /> <span className="link-text">Finances</span>
+  </Link>
+</li>
+<li className="admin-link">
+  <Link to="/inventory">
+    <Box  size={20} /> <span className="link-text">Inventaire</span>
   </Link>
 </li>
 <li className="admin-link">

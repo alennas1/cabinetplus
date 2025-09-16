@@ -17,6 +17,7 @@ import Preference from "./pages/Preference";
 import Profile from "./pages/Profile";
 import Security from "./pages/Security";
 import Finance from "./pages/Finance";
+import Expenses from "./pages/Expenses"
 import Ordonnance from "./pages/Ordonnance";
 import Inventory from "./pages/Inventory";
 import Items from "./pages/Items"
@@ -50,6 +51,7 @@ function App() {
               <Route path="/settings/security" element={<Security />} />
               <Route path="/finance" element={<Finance />} />
               <Route path="/inventory" element={<Inventory />} />
+              <Route path="/expenses" element={<Expenses />} />
               <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
               <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
             </Route>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Edit2, Trash2, Eye, Search, ChevronDown } from "react-feather";
+import { Plus, Edit2, Trash2, Eye, Search, Filter } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -13,6 +13,13 @@ import {
 } from "../services/medicationService";
 import "./Patients.css";
 
+const DOSAGE_FORMS = {
+  TABLET: "Comprimé",
+  CAPSULE: "Capsule",
+  SYRUP: "Sirop",
+  INJECTION: "Injection",
+};
+
 const Medications = () => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
@@ -21,6 +28,8 @@ const Medications = () => {
 
   const [search, setSearch] = useState("");
   const [filterBy, setFilterBy] = useState("name");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef();
 
   const [currentPage, setCurrentPage] = useState(1);
   const medicationsPerPage = 10;
@@ -52,11 +61,26 @@ const Medications = () => {
     fetchData();
   }, [token]);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // Filtered medications
   const filteredMedications = medications.filter((m) => {
-    if (search && !m[filterBy]?.toLowerCase().includes(search.toLowerCase()))
-      return false;
-    return true;
+    let value = "";
+    if (filterBy === "dosageForm") {
+      value = DOSAGE_FORMS[m.dosageForm] || "";
+    } else {
+      value = (m[filterBy] || "").toString();
+    }
+    return value.toLowerCase().includes(search.toLowerCase());
   });
 
   const handleChange = (e) =>
@@ -140,6 +164,29 @@ const Medications = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          <div className="modern-dropdown" ref={dropdownRef}>
+            <button
+              className={`dropdown-trigger ${dropdownOpen ? "open" : ""}`}
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+            >
+              <span>
+                {filterBy === "name"
+                  ? "Par Nom"
+                  : filterBy === "dosageForm"
+                  ? "Par Forme"
+                  : "Par Dosage"}
+              </span>
+              <Filter size={18} color="#444" />
+            </button>
+            {dropdownOpen && (
+              <ul className="dropdown-menu">
+                <li onClick={() => { setFilterBy("name"); setDropdownOpen(false); }}>Par Nom</li>
+                <li onClick={() => { setFilterBy("dosageForm"); setDropdownOpen(false); }}>Par Forme</li>
+                <li onClick={() => { setFilterBy("strength"); setDropdownOpen(false); }}>Par Dosage</li>
+              </ul>
+            )}
+          </div>
         </div>
 
         <div className="controls-right">
@@ -171,19 +218,23 @@ const Medications = () => {
           {currentMedications.map((m) => (
             <tr key={m.id}>
               <td>{m.name || "—"}</td>
-              <td>{m.dosageForm || "—"}</td>
+              <td>{DOSAGE_FORMS[m.dosageForm] || m.dosageForm || "—"}</td>
               <td>{m.strength || "—"}</td>
               <td>{m.description || "—"}</td>
               <td className="actions-cell">
-<button 
-  className="action-btn view" 
-  onClick={() => setViewMedication(m)} 
-  title="Voir"
->
-  <Eye size={16} />
-</button>
-                <button className="action-btn edit" onClick={() => handleEdit(m)} title="Modifier"><Edit2 size={16} /></button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(m.id)} title="Supprimer"><Trash2 size={16} /></button>
+                <button 
+                  className="action-btn view" 
+                  onClick={() => setViewMedication(m)} 
+                  title="Voir"
+                >
+                  <Eye size={16} />
+                </button>
+                <button className="action-btn edit" onClick={() => handleEdit(m)} title="Modifier">
+                  <Edit2 size={16} />
+                </button>
+                <button className="action-btn delete" onClick={() => handleDeleteClick(m.id)} title="Supprimer">
+                  <Trash2 size={16} />
+                </button>
               </td>
             </tr>
           ))}
@@ -217,29 +268,16 @@ const Medications = () => {
               <span className="field-label">Nom</span>
               <input type="text" name="name" value={form.name} onChange={handleChange} required />
 
-<span className="field-label">Forme</span>
-<div className="select-wrapper">
-  <select
-    name="dosageForm"
-    value={form.dosageForm}
-    onChange={handleChange}
-    required
-  >
-    <option value="TABLET">TABLET</option>
-    <option value="CAPSULE">CAPSULE</option>
-    <option value="SYRUP">SYRUP</option>
-    <option value="INJECTION">INJECTION</option>
-  </select>
-</div>
+              <span className="field-label">Forme</span>
+              <select name="dosageForm" value={form.dosageForm} onChange={handleChange} required>
+                {Object.entries(DOSAGE_FORMS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
 
               <span className="field-label">Dosage</span>
-<input
-  type="text"
-  name="strength"
-  value={form.strength}
-  onChange={handleChange}
-  required  //  Make it mandatory
-/>
+              <input type="text" name="strength" value={form.strength} onChange={handleChange} required />
+
               <span className="field-label">Description</span>
               <input type="text" name="description" value={form.description} onChange={handleChange} />
 
@@ -265,24 +303,20 @@ const Medications = () => {
           </div>
         </div>
       )}
-{viewMedication && (
-  <div className="modal-overlay" onClick={() => setViewMedication(null)}>
-    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-      <h2>Détails du médicament</h2>
-      <div className="view-field"><strong>Nom:</strong> {viewMedication.name || "—"}</div>
-      <div className="view-field"><strong>Forme:</strong> {viewMedication.dosageForm || "—"}</div>
-      <div className="view-field"><strong>Dosage:</strong> {viewMedication.strength || "—"}</div>
-      <div className="view-field"><strong>Description:</strong> {viewMedication.description || "—"}</div>
-      <button 
-        className="btn-cancel" 
-        onClick={() => setViewMedication(null)}
-        style={{ marginTop: "15px" }}
-      >
-        Fermer
-      </button>
-    </div>
-  </div>
-)}
+
+      {/* View medication */}
+      {viewMedication && (
+        <div className="modal-overlay" onClick={() => setViewMedication(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Détails du médicament</h2>
+            <div className="view-field"><strong>Nom:</strong> {viewMedication.name || "—"}</div>
+            <div className="view-field"><strong>Forme:</strong> {DOSAGE_FORMS[viewMedication.dosageForm] || viewMedication.dosageForm || "—"}</div>
+            <div className="view-field"><strong>Dosage:</strong> {viewMedication.strength || "—"}</div>
+            <div className="view-field"><strong>Description:</strong> {viewMedication.description || "—"}</div>
+            <button className="btn-cancel" onClick={() => setViewMedication(null)} style={{ marginTop: "15px" }}>Fermer</button>
+          </div>
+        </div>
+      )}
 
       <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick pauseOnHover draggable theme="light" />
     </div>

@@ -15,18 +15,19 @@ const Settings = () => {
         { title: "Sécurité", desc: "Changer mot de passe et paramètres de sécurité", icon: <Lock />, path: "/settings/security" },
       ],
     },
-    {
-      title: "Préférences",
-      options: [
-        { title: "Préférences", desc: "Personnaliser l'application selon vos besoins", icon: <Gear />, path: "/settings/preferences" },
-      ],
-    },
+    
     {
       title: "Catalogues",
       options: [
         { title: "Catalogue des médicaments", desc: "Gérer la liste des médicaments disponibles", icon: <Box />, path: "/settings/medications" },
         { title: "Catalogue des traitements", desc: "Ajouter, modifier ou supprimer les traitements proposés", icon: <FileText />, path: "/settings/treatments" },
         { title: "Catalogue des articles", desc: "Ajouter, modifier ou supprimer les articles disponibles", icon: <Package />, path: "/settings/items" },
+      ],
+    },
+    {
+      title: "Préférences",
+      options: [
+        { title: "Préférences", desc: "Personnaliser l'application selon vos besoins", icon: <Gear />, path: "/settings/preferences" },
       ],
     },
   ];

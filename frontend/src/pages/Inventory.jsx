@@ -22,6 +22,10 @@ const Inventory = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
+  // Delete confirmation modal
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
   const [formData, setFormData] = useState({
     itemDefaultId: "",
     quantity: 1,
@@ -146,16 +150,22 @@ const Inventory = () => {
   };
 
   const handleDeleteClick = (item) => {
-    if (!window.confirm("Voulez-vous vraiment supprimer cet article ?")) return;
-    deleteInventoryItem(item.id, token)
-      .then(() => {
-        setInventoryItems(prev => prev.filter(i => i.id !== item.id));
-        toast.success("Article supprimé avec succès");
-      })
-      .catch(err => {
-        console.error(err);
-        toast.error("Erreur lors de la suppression de l'article");
-      });
+    setConfirmDelete(item.id);
+    setShowConfirm(true);
+  };
+
+  const confirmDeleteItem = async () => {
+    try {
+      await deleteInventoryItem(confirmDelete, token);
+      setInventoryItems(prev => prev.filter(i => i.id !== confirmDelete));
+      toast.success("Article supprimé avec succès");
+    } catch (err) {
+      console.error(err.response?.data || err);
+      toast.error("Erreur lors de la suppression de l'article");
+    } finally {
+      setShowConfirm(false);
+      setConfirmDelete(null);
+    }
   };
 
   // Filtered & Paginated items
@@ -271,7 +281,7 @@ const Inventory = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Add/Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -307,6 +317,30 @@ const Inventory = () => {
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
+          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer l'article ?</h2>
+            <p className="text-gray-600 mb-6">Cette action est irréversible.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmDeleteItem}
+                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600"
+              >
+                Supprimer
+              </button>
+            </div>
           </div>
         </div>
       )}

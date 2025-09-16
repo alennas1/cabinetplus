@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Edit2, Trash2, Eye, Search, ChevronDown } from "react-feather";
+import { Plus, Edit2, Trash2, Eye, Search, Filter } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -55,12 +55,30 @@ const Treatments = () => {
     fetchData();
   }, [token]);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // Filtered treatments
   const filteredTreatments = treatments.filter((t) => {
-    if (search && !t[filterBy]?.toLowerCase().includes(search.toLowerCase()))
-      return false;
-    return true;
-  });
+  if (!search) return true;
+
+  if (filterBy === "name") {
+    return t.name?.toLowerCase().includes(search.toLowerCase());
+  } else if (filterBy === "defaultPrice") {
+    return t.defaultPrice?.toString().includes(search);
+  }
+
+  return true;
+});
+
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -116,7 +134,7 @@ const Treatments = () => {
     try {
       await deleteTreatment(confirmDelete, token);
       setTreatments(treatments.filter((t) => t.id !== confirmDelete));
-      toast.success("Traitement supprimé ");
+      toast.success("Traitement supprimé");
     } catch (err) {
       console.error(err);
       toast.error("Erreur lors de la suppression");
@@ -148,6 +166,25 @@ const Treatments = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+         <div className="modern-dropdown" ref={dropdownRef}>
+  <button
+    className={`dropdown-trigger ${dropdownOpen ? "open" : ""}`}
+    onClick={() => setDropdownOpen(!dropdownOpen)}
+  >
+    <span>
+      {filterBy === "name" ? "Par Nom" : "Par Prix"}
+    </span>
+    <Filter size={18} color="#444" />
+  </button>
+  {dropdownOpen && (
+    <ul className="dropdown-menu">
+      <li onClick={() => { setFilterBy("name"); setDropdownOpen(false); }}>Par Nom</li>
+      <li onClick={() => { setFilterBy("defaultPrice"); setDropdownOpen(false); }}>Par Prix</li>
+    </ul>
+  )}
+</div>
+
         </div>
 
         <div className="controls-right">
@@ -165,35 +202,35 @@ const Treatments = () => {
       </div>
 
       {/* Table */}
-     <table className="patients-table">
-  <thead>
-    <tr>
-      <th>Nom</th>
-      <th>Description</th>
-      <th>Prix</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {currentTreatments.map((t) => (
-      <tr key={t.id}>
-        <td>{t.name || "—"}</td>
-        <td>{t.description || "—"}</td>
-        <td>{t.defaultPrice ? `${t.defaultPrice} DA` : "—"}</td>
-        <td className="actions-cell">
-          <button className="action-btn view" onClick={() => setViewTreatment(t)} title="Voir"><Eye size={16} /></button>
-          <button className="action-btn edit" onClick={() => handleEdit(t)} title="Modifier"><Edit2 size={16} /></button>
-          <button className="action-btn delete" onClick={() => handleDeleteClick(t.id)} title="Supprimer"><Trash2 size={16} /></button>
-        </td>
-      </tr>
-    ))}
-    {filteredTreatments.length === 0 && (
-      <tr>
-        <td colSpan="4" style={{ textAlign: "center", color: "#888" }}>Aucun traitement trouvé</td>
-      </tr>
-    )}
-  </tbody>
-</table>
+      <table className="patients-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Description</th>
+            <th>Prix</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {currentTreatments.map((t) => (
+            <tr key={t.id}>
+              <td>{t.name || "—"}</td>
+              <td>{t.description || "—"}</td>
+              <td>{t.defaultPrice ? `${t.defaultPrice} DA` : "—"}</td>
+              <td className="actions-cell">
+                <button className="action-btn view" onClick={() => setViewTreatment(t)} title="Voir"><Eye size={16} /></button>
+                <button className="action-btn edit" onClick={() => handleEdit(t)} title="Modifier"><Edit2 size={16} /></button>
+                <button className="action-btn delete" onClick={() => handleDeleteClick(t.id)} title="Supprimer"><Trash2 size={16} /></button>
+              </td>
+            </tr>
+          ))}
+          {filteredTreatments.length === 0 && (
+            <tr>
+              <td colSpan="4" style={{ textAlign: "center", color: "#888" }}>Aucun traitement trouvé</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -213,22 +250,21 @@ const Treatments = () => {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>{isEditing ? "Modifier Traitement" : "Ajouter Traitement"}</h2>
-           <form className="modal-form" onSubmit={handleSubmit}>
-  <span className="field-label">Nom</span>
-  <input type="text" name="name" value={formData.name} onChange={handleChange} required />
+            <form className="modal-form" onSubmit={handleSubmit}>
+              <span className="field-label">Nom</span>
+              <input type="text" name="name" value={formData.name} onChange={handleChange} required />
 
-  <span className="field-label">Description</span>
-  <input type="text" name="description" value={formData.description} onChange={handleChange} />
+              <span className="field-label">Description</span>
+              <input type="text" name="description" value={formData.description} onChange={handleChange} />
 
-  <span className="field-label">Prix (DA)</span>
-  <input type="number" name="defaultPrice" value={formData.defaultPrice || ""} onChange={handleChange} min="0" step="0.01" required />
+              <span className="field-label">Prix (DA)</span>
+              <input type="number" name="defaultPrice" value={formData.defaultPrice || ""} onChange={handleChange} min="0" step="0.01" required />
 
-  <div className="modal-actions">
-    <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>
-    <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
-  </div>
-</form>
-
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>
+                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -246,18 +282,19 @@ const Treatments = () => {
           </div>
         </div>
       )}
-{viewTreatment && (
-  <div className="modal-overlay" onClick={() => setViewTreatment(null)}>
-    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-      <h2>Détails du traitement</h2>
-      <div className="view-field"><strong>Nom:</strong> {viewTreatment.name || "—"}</div>
-      <div className="view-field"><strong>Description:</strong> {viewTreatment.description || "—"}</div>
-      <div className="view-field"><strong>Prix:</strong> {viewTreatment.defaultPrice ? `${viewTreatment.defaultPrice} DA` : "—"}</div>
-      <button className="btn-cancel" style={{ marginTop: "15px" }} onClick={() => setViewTreatment(null)}>Fermer</button>
-    </div>
-  </div>
-)}
 
+      {/* View treatment */}
+      {viewTreatment && (
+        <div className="modal-overlay" onClick={() => setViewTreatment(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Détails du traitement</h2>
+            <div className="view-field"><strong>Nom:</strong> {viewTreatment.name || "—"}</div>
+            <div className="view-field"><strong>Description:</strong> {viewTreatment.description || "—"}</div>
+            <div className="view-field"><strong>Prix:</strong> {viewTreatment.defaultPrice ? `${viewTreatment.defaultPrice} DA` : "—"}</div>
+            <button className="btn-cancel" style={{ marginTop: "15px" }} onClick={() => setViewTreatment(null)}>Fermer</button>
+          </div>
+        </div>
+      )}
 
       <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick pauseOnHover draggable theme="light" />
     </div>

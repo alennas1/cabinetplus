@@ -285,3 +285,51 @@ html, body {
 .sidebar-links li.admin-link a::before {
   background: #2c3e50; 
 }
+
+.sidebar-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10px;
+}
+
+.sidebar-bottom .logout-btn,
+.sidebar-bottom a.logout-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  font-weight: 500;
+  color: #444;
+  padding: 14px 20px;
+  cursor: pointer;
+  position: relative;
+  text-align: left;
+  transition: background 0.25s ease, padding 0.35s ease;
+}
+
+.sidebar-bottom .logout-btn svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: 0;
+  color: #666;
+  transition: margin 0.35s ease;
+}
+
+.sidebar:hover .sidebar-bottom .logout-btn svg {
+  margin-right: 14px;
+}
+
+.sidebar-bottom .logout-btn span {
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.sidebar:hover .sidebar-bottom .logout-btn span {
+  opacity: 1;
+  transform: translateX(0);
+}

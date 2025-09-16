@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { Box, Home, User, Calendar, Settings, LogOut, PlusSquare, Activity  } from "react-feather"; 
+import { Box, Home, User, Calendar,CreditCard, Settings, LogOut, PlusSquare, Activity  } from "react-feather"; 
 import { logout } from "../store/authSlice";
 import "./Sidebar.css";
 
@@ -27,7 +27,7 @@ const Sidebar = () => {
   </li>
 
   {/* --- General Group --- */}
-  <li className="sidebar-group-title">Général</li>
+  <li className="sidebar-group-title admin">Général</li>
   <li>
     <Link to="/dashboard">
       <Home size={20} /> <span className="link-text">Tableau de bord</span>
@@ -55,6 +55,11 @@ const Sidebar = () => {
 <li className="admin-link">
   <Link to="/inventory">
     <Box  size={20} /> <span className="link-text">Inventaire</span>
+  </Link>
+</li>
+<li className="admin-link">
+  <Link to="/expenses">
+    <CreditCard size={20} /> <span className="link-text">Dépenses</span>
   </Link>
 </li>
 <li className="admin-link">

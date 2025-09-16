@@ -12,7 +12,6 @@ import {
   getPatients,
   createPatient,
   updatePatient,
-  deletePatient,
 } from "../services/patientService";
 import "./Patients.css";
 
@@ -22,8 +21,6 @@ const Patients = () => {
 
   const [patients, setPatients] = useState([]);
 
-  const [confirmDelete, setConfirmDelete] = useState(null); // stores patient id
-const [showConfirm, setShowConfirm] = useState(false);
 
   // Pagination
 const [currentPage, setCurrentPage] = useState(1);
@@ -175,24 +172,8 @@ const formatPhone = (phone) => {
     setIsEditing(true);
     setShowModal(true);
   };
-const handleDeleteClick = (id) => {
-  setConfirmDelete(id);
-  setShowConfirm(true);
-};
 
-const confirmDeletePatient = async () => {
-  try {
-    await deletePatient(confirmDelete, token);
-    setPatients(patients.filter((p) => p.id !== confirmDelete));
-    toast.success("Patient supprimé ");
-  } catch (err) {
-    console.error("Error deleting patient:", err);
-    toast.error("Erreur lors de la suppression ");
-  } finally {
-    setShowConfirm(false);
-    setConfirmDelete(null);
-  }
-};
+
 
  
 // Pagination logic
@@ -265,14 +246,7 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
           {/* Filter dropdown */}
           {/* Filter panel (advanced filters) */}
 <div className="filter-wrapper" ref={filterRef}>
-  <button
-    className="filter-toggle"
-    onClick={openFilter}
-    title="Filtres"
-  >
-    <Filter size={18} color="#444" />
-  </button>
-
+  
   {showFilter && (
     <div className="filter-panel">
       <h3>Filtres</h3>
@@ -338,32 +312,7 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
   )}
 </div>
 
-{/* Simple dropdown for sorting/search by field */}
-<div className="modern-dropdown" ref={dropdownRef}>
-  <button
-    className={`dropdown-trigger ${dropdownOpen ? "open" : ""}`}
-    onClick={() => setDropdownOpen(!dropdownOpen)}
-  >
-    <span>
-      {filterBy === "name"
-        ? "Par Nom"
-        : filterBy === "category"
-        ? "Par Catégorie"
-        : "Par Prix"}
-    </span>
-    <ChevronDown
-      size={18}
-      className={`chevron ${dropdownOpen ? "rotated" : ""}`}
-    />
-  </button>
-  {dropdownOpen && (
-    <ul className="dropdown-menu">
-      <li onClick={() => { setFilterBy("name"); setDropdownOpen(false); }}>Par Nom</li>
-      <li onClick={() => { setFilterBy("category"); setDropdownOpen(false); }}>Par Catégorie</li>
-      <li onClick={() => { setFilterBy("defaultPrice"); setDropdownOpen(false); }}>Par Prix</li>
-    </ul>
-  )}
-</div>
+
 
         </div>
 
@@ -428,13 +377,7 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
     <Edit2 size={16} />
   </button>
 
-  <button
-    className="action-btn delete"
-    onClick={() => handleDeleteClick(p.id)}
-    title="Supprimer"
-  >
-    <Trash2 size={16} />
-  </button>
+
 </td>
 
 
@@ -587,32 +530,7 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
   draggable 
   theme="light" 
 />
-{showConfirm && (
-<div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
-    <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Supprimer le patient ?
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Êtes-vous sûr de vouloir supprimer ce patient ? Cette action est irréversible.
-      </p>
-      <div className="flex justify-end gap-3">
-        <button
-          onClick={() => setShowConfirm(false)}
-          className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100"
-        >
-          Annuler
-        </button>
-        <button
-          onClick={confirmDeletePatient}
-          className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600"
-        >
-          Supprimer
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+
 
     </div>
     

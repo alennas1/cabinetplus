@@ -14,7 +14,6 @@ import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 @Entity
 @Table(name = "items")
 @Data
@@ -34,13 +33,25 @@ public class Item {
     @Column(nullable = false)
     private Integer quantity;
 
-    @NotNull(message = "Price is required")
+    @NotNull(message = "Unit price is required")
     @Column(nullable = false)
-    private Double price; // actual unit price for this stock entry
+    private Double unitPrice; // user enters this
 
-    private LocalDate expiryDate; // optional
+    @Column(nullable = false)
+    private Double price; // quantity * unitPrice, for display only
+
+    private LocalDate expiryDate;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
-    private User createdBy; // the dentist/clinic owner of this item
+    private User createdBy;
+
+    // helper method to calculate total price
+    public void calculatePrice() {
+        if (quantity != null && unitPrice != null) {
+            this.price = quantity * unitPrice;
+        } else {
+            this.price = 0.0;
+        }
+    }
 }

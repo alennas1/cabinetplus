@@ -19,6 +19,7 @@ import Security from "./pages/Security";
 import Finance from "./pages/Finance";
 import Ordonnance from "./pages/Ordonnance";
 import Inventory from "./pages/Inventory";
+import Items from "./pages/Items"
 import "./index.css";
 
 function App() {
@@ -43,6 +44,7 @@ function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/medications" element={<Medications />} />
               <Route path="/settings/treatments" element={<TreatmentCatalog />} />
+              <Route path="/settings/items" element={<Items />} />
               <Route path="/settings/preferences" element={<Preference />} />
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />

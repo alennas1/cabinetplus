@@ -1,21 +1,18 @@
 package com.cabinetplus.backend.dto;
 
+import java.time.LocalDate;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemDTO {
-
-    private Long id;
+public class CreateItemDTO {
     private Long itemDefaultId;
-    private String itemDefaultName; // convenient
     private Integer quantity;
-    private Double price;      // total price
-    private Double unitPrice;  // add this
+    private Double unitPrice;
+    private Double price;
     private LocalDate expiryDate;
 }

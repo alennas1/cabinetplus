@@ -263,120 +263,108 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 
 
           {/* Filter dropdown */}
-          <div className="filter-wrapper" ref={filterRef}>
-            <button
-              className="filter-toggle"
-              onClick={openFilter}
-              title="Filtres"
-            >
-              <Filter size={18} color="#444" />
-            </button>
+          {/* Filter panel (advanced filters) */}
+<div className="filter-wrapper" ref={filterRef}>
+  <button
+    className="filter-toggle"
+    onClick={openFilter}
+    title="Filtres"
+  >
+    <Filter size={18} color="#444" />
+  </button>
 
-            {showFilter && (
-              <div className="filter-panel">
-                <h3>Filtres</h3>
+  {showFilter && (
+    <div className="filter-panel">
+      <h3>Filtres</h3>
 
-                {/* Sex */}
-                <div className="filter-group">
-                  <strong>Sexe</strong>
-                  <label>
-                    <input
-                      type="radio"
-                      name="sex"
-                      value=""
-                      checked={tempSex === ""}
-                      onChange={(e) => setTempSex(e.target.value)}
-                    />
-                    Tous
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="sex"
-                      value="Homme"
-                      checked={tempSex === "Homme"}
-                      onChange={(e) => setTempSex(e.target.value)}
-                    />
-                    Homme
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="sex"
-                      value="Femme"
-                      checked={tempSex === "Femme"}
-                      onChange={(e) => setTempSex(e.target.value)}
-                    />
-                    Femme
-                  </label>
-                </div>
+      {/* Category */}
+      <div className="filter-group">
+        <strong>Catégorie</strong>
+        {Object.entries(ITEM_CATEGORIES).map(([key, label]) => (
+          <label key={key}>
+            <input
+              type="checkbox"
+              value={key}
+              checked={selectedCategories.includes(key)}
+              onChange={(e) => handleCategoryChange(e)}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
 
-                {/* Age */}
-                <div className="filter-group">
-                  <strong>Âge</strong>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <input
-                      type="number"
-                      placeholder="De"
-                      value={tempAgeRange.from}
-                      onChange={(e) =>
-                        setTempAgeRange({ ...tempAgeRange, from: e.target.value })
-                      }
-                    />
-                    <input
-                      type="number"
-                      placeholder="À"
-                      value={tempAgeRange.to}
-                      onChange={(e) =>
-                        setTempAgeRange({ ...tempAgeRange, to: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
+      {/* Price */}
+      <div className="filter-group">
+        <strong>Prix</strong>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <input
+            type="number"
+            placeholder="Min"
+            value={tempPriceRange.from}
+            onChange={(e) =>
+              setTempPriceRange({ ...tempPriceRange, from: e.target.value })
+            }
+          />
+          <input
+            type="number"
+            placeholder="Max"
+            value={tempPriceRange.to}
+            onChange={(e) =>
+              setTempPriceRange({ ...tempPriceRange, to: e.target.value })
+            }
+          />
+        </div>
+      </div>
 
-                {/* Date */}
-                <div className="filter-group">
-                  <strong>Date de création</strong>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <input
-                      type="date"
-                      value={tempDateRange.from}
-                      onChange={(e) =>
-                        setTempDateRange({ ...tempDateRange, from: e.target.value })
-                      }
-                    />
-                    <input
-                      type="date"
-                      value={tempDateRange.to}
-                      onChange={(e) =>
-                        setTempDateRange({ ...tempDateRange, to: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
+      <div className="filter-actions">
+        <button
+          className="filter-cancel"
+          onClick={() => setShowFilter(false)}
+        >
+          Annuler
+        </button>
+        <button
+          className="filter-btn"
+          onClick={() => {
+            setCategoryFilter(selectedCategories);
+            setPriceRange(tempPriceRange);
+            setShowFilter(false);
+          }}
+        >
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  )}
+</div>
 
-                <div className="filter-actions">
-                  <button
-                    className="filter-cancel"
-                    onClick={() => setShowFilter(false)}
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    className="filter-btn"
-                    onClick={() => {
-                      setSexFilter(tempSex);
-                      setAgeRange(tempAgeRange);
-                      setDateRange(tempDateRange);
-                      setShowFilter(false);
-                    }}
-                  >
-                    Enregistrer
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+{/* Simple dropdown for sorting/search by field */}
+<div className="modern-dropdown" ref={dropdownRef}>
+  <button
+    className={`dropdown-trigger ${dropdownOpen ? "open" : ""}`}
+    onClick={() => setDropdownOpen(!dropdownOpen)}
+  >
+    <span>
+      {filterBy === "name"
+        ? "Par Nom"
+        : filterBy === "category"
+        ? "Par Catégorie"
+        : "Par Prix"}
+    </span>
+    <ChevronDown
+      size={18}
+      className={`chevron ${dropdownOpen ? "rotated" : ""}`}
+    />
+  </button>
+  {dropdownOpen && (
+    <ul className="dropdown-menu">
+      <li onClick={() => { setFilterBy("name"); setDropdownOpen(false); }}>Par Nom</li>
+      <li onClick={() => { setFilterBy("category"); setDropdownOpen(false); }}>Par Catégorie</li>
+      <li onClick={() => { setFilterBy("defaultPrice"); setDropdownOpen(false); }}>Par Prix</li>
+    </ul>
+  )}
+</div>
+
         </div>
 
         {/* Right side: add button */}

@@ -13,21 +13,14 @@ import com.cabinetplus.backend.models.User;
 
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
+    // Existing methods
     List<Expense> findByCreatedBy(User user);
-
     Optional<Expense> findByIdAndCreatedBy(Long id, User user);
 
-    @Query("SELECT SUM(e.amount) FROM Expense e WHERE e.date BETWEEN :from AND :to")
-    Double sumExpensesBetween(LocalDate from, LocalDate to);
+    @Query("SELECT SUM(e.amount) FROM Expense e WHERE e.createdBy = :dentist AND e.date BETWEEN :start AND :end")
+    Optional<Double> sumAmountByDentist(@Param("dentist") User dentist,
+                                        @Param("start") LocalDate start,
+                                        @Param("end") LocalDate end);
 
-    @Query("SELECT e.category, SUM(e.amount) FROM Expense e WHERE e.date BETWEEN :from AND :to GROUP BY e.category")
-    List<Object[]> sumByCategory(LocalDate from, LocalDate to);
-
-
-    @Query("SELECT COALESCE(SUM(i.price), 0) " +
-       "FROM Item i " +
-       "WHERE EXTRACT(YEAR FROM i.createdAt) = :year AND EXTRACT(MONTH FROM i.createdAt) = :month")
-Double sumByMonth(@Param("year") int year, @Param("month") int month);
-
-
+    List<Expense> findByCreatedByAndDateBetween(User dentist, LocalDate start, LocalDate end);
 }

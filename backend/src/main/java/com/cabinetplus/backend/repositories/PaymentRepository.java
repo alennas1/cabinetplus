@@ -2,6 +2,8 @@ package com.cabinetplus.backend.repositories;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import com.cabinetplus.backend.models.User;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -11,22 +13,23 @@ import com.cabinetplus.backend.models.Payment;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
+    // Existing methods
     List<Payment> findByPatientIdOrderByDateDesc(Long patientId);
 
     @Query("select coalesce(sum(p.amount), 0) from Payment p where p.patient.id = :patientId")
     Double sumByPatientId(@Param("patientId") Long patientId);
 
+     @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.patient IN " +
+           "(SELECT t.patient FROM Treatment t WHERE t.practitioner = :dentist) " +
+           "AND p.date BETWEEN :start AND :end")
+    Optional<Double> sumAmountByDentist(@Param("dentist") User dentist,
+                                        @Param("start") LocalDateTime start,
+                                        @Param("end") LocalDateTime end);
 
-     @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.date BETWEEN :from AND :to")
-    Double sumPaymentsBetween(LocalDateTime from, LocalDateTime to);
-
-    @Query("SELECT p.method, SUM(p.amount) FROM Payment p WHERE p.date BETWEEN :from AND :to GROUP BY p.method")
-    List<Object[]> sumByMethod(LocalDateTime from, LocalDateTime to);
-
-
-    @Query("SELECT COALESCE(SUM(p.amount), 0) " +
-       "FROM Payment p " +
-       "WHERE EXTRACT(YEAR FROM p.date) = :year AND EXTRACT(MONTH FROM p.date) = :month")
-Double sumByMonth(@Param("year") int year, @Param("month") int month);
-
+    @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.patient.id = :patientId AND p.patient IN " +
+           "(SELECT t.patient FROM Treatment t WHERE t.id = :treatmentId)")
+    Optional<Double> sumByPatientAndTreatment(@Param("patientId") Long patientId,
+                                              @Param("treatmentId") Long treatmentId);
 }
+
+

@@ -1,16 +1,20 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.cabinetplus.backend.dto.CategoryBreakdownDTO;
-import com.cabinetplus.backend.dto.FinanceSummaryDTO;
-import com.cabinetplus.backend.dto.MonthlyCashflowDTO;
+import com.cabinetplus.backend.dto.FinanceOverviewDTO;
+import com.cabinetplus.backend.dto.IncomeDTO;
+import com.cabinetplus.backend.dto.ExpenseDTO;
+import com.cabinetplus.backend.dto.OutstandingPaymentDTO;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.FinanceService;
 import com.cabinetplus.backend.services.UserService;
@@ -18,42 +22,60 @@ import com.cabinetplus.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/finance")
+@RequestMapping("/api/finances")
 @RequiredArgsConstructor
 public class FinanceController {
 
     private final FinanceService financeService;
     private final UserService userService;
 
-    private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName())
+    @GetMapping("/over")
+    public ResponseEntity<FinanceOverviewDTO> getOverview(
+            Principal principal,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate) {
+
+        User dentist = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        FinanceOverviewDTO overview = financeService.getFinanceOverview(dentist, startDate, endDate);
+        return ResponseEntity.ok(overview);
     }
 
-    /**
-     * Monthly cashflow: revenues, expenses, net for each month of the year
-     */
-    @GetMapping("/cashflow/monthly")
-    public ResponseEntity<List<MonthlyCashflowDTO>> getMonthlyCashflow(Principal principal) {
-        User user = getCurrentUser(principal);
-        return ResponseEntity.ok(financeService.getMonthlyCashflow(user));
+    @GetMapping("/income")
+    public ResponseEntity<List<IncomeDTO>> getIncome(
+            Principal principal,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate) {
+
+        User dentist = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<IncomeDTO> income = financeService.getIncome(dentist, startDate, endDate);
+        return ResponseEntity.ok(income);
     }
 
-    /**
-     * Expense breakdown by category
-     */
-    @GetMapping("/expenses/breakdown")
-    public ResponseEntity<List<CategoryBreakdownDTO>> getExpenseBreakdown(Principal principal) {
-        User user = getCurrentUser(principal);
-        return ResponseEntity.ok(financeService.getExpenseBreakdown(user));
+    @GetMapping("/expenses")
+    public ResponseEntity<List<ExpenseDTO>> getExpenses(
+            Principal principal,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate) {
+
+        User dentist = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<ExpenseDTO> expenses = financeService.getExpenses(dentist, startDate, endDate);
+        return ResponseEntity.ok(expenses);
     }
 
-    /**
-     * Finance summary: totals for expenses, payments, stock value, treatment revenue
-     */
-    @GetMapping("/summary")
-    public ResponseEntity<FinanceSummaryDTO> getFinanceSummary(Principal principal) {
-        User user = getCurrentUser(principal);
-        return ResponseEntity.ok(financeService.getFinanceSummary(user));
+    @GetMapping("/outstanding")
+    public ResponseEntity<List<OutstandingPaymentDTO>> getOutstandingPayments(
+            Principal principal) {
+
+        User dentist = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<OutstandingPaymentDTO> outstanding = financeService.getOutstandingPayments(dentist);
+        return ResponseEntity.ok(outstanding);
     }
 }

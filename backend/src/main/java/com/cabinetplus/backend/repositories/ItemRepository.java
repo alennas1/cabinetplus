@@ -1,6 +1,6 @@
 package com.cabinetplus.backend.repositories;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,16 +15,14 @@ import com.cabinetplus.backend.models.User;
 @Repository
 public interface ItemRepository extends JpaRepository<Item, Long> {
 
+    // Existing methods
     List<Item> findByCreatedBy(User user);
-
     Optional<Item> findByIdAndCreatedBy(Long id, User user);
 
-    @Query("SELECT SUM(i.price) FROM Item i WHERE i.createdBy IS NOT NULL AND i.expiryDate BETWEEN :from AND :to")
-    Double sumInventoryBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+ @Query("SELECT SUM(i.price) FROM Item i WHERE i.createdBy = :dentist AND i.createdAt BETWEEN :start AND :end")
+    Optional<Double> sumPriceByDentist(@Param("dentist") User dentist,
+                                       @Param("start") LocalDateTime start,
+                                       @Param("end") LocalDateTime end);
 
-   @Query("SELECT COALESCE(SUM(e.amount), 0) " +
-       "FROM Expense e " +
-       "WHERE EXTRACT(YEAR FROM e.date) = :year AND EXTRACT(MONTH FROM e.date) = :month")
-Double sumByMonth(@Param("year") int year, @Param("month") int month);
-
+    List<Item> findByCreatedByAndCreatedAtBetween(User dentist, LocalDateTime start, LocalDateTime end);
 }

@@ -1,97 +1,139 @@
 package com.cabinetplus.backend.services;
 
-import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import org.springframework.stereotype.Service;
 
-import com.cabinetplus.backend.dto.CategoryBreakdownDTO;
-import com.cabinetplus.backend.dto.FinanceSummaryDTO;
-import com.cabinetplus.backend.dto.MonthlyCashflowDTO;
-import com.cabinetplus.backend.models.User;
-import com.cabinetplus.backend.repositories.ExpenseRepository;
-import com.cabinetplus.backend.repositories.ItemRepository;
-import com.cabinetplus.backend.repositories.PaymentRepository;
-import com.cabinetplus.backend.repositories.TreatmentRepository;
+import com.cabinetplus.backend.dto.*;
+import com.cabinetplus.backend.models.*;
+import com.cabinetplus.backend.repositories.*;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class FinanceService {
 
-    private final PaymentRepository paymentRepository;
-    private final ExpenseRepository expenseRepository;
-    private final ItemRepository itemRepository;
     private final TreatmentRepository treatmentRepository;
+    private final PaymentRepository paymentRepository;
+    private final ItemRepository itemRepository;
+    private final ExpenseRepository expenseRepository;
 
-    public FinanceService(PaymentRepository paymentRepository,
-                          ExpenseRepository expenseRepository,
-                          ItemRepository itemRepository,
-                          TreatmentRepository treatmentRepository) {
-        this.paymentRepository = paymentRepository;
-        this.expenseRepository = expenseRepository;
-        this.itemRepository = itemRepository;
-        this.treatmentRepository = treatmentRepository;
+    // ========== Overview ==========
+    public FinanceOverviewDTO getFinanceOverview(User dentist, LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : LocalDateTime.of(2000,1,1,0,0);
+        LocalDateTime end   = endDate != null ? endDate.atTime(23,59,59) : LocalDateTime.now();
+
+        // Income
+        double totalIncomeDue = treatmentRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
+        double totalIncomeReceived = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
+        double outstandingPayments = totalIncomeDue - totalIncomeReceived;
+
+        // Expenses
+        double totalItemExpenses = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
+        double totalOtherExpenses = expenseRepository.sumAmountByDentist(
+                dentist, 
+                startDate != null ? startDate : LocalDate.of(2000,1,1), 
+                endDate != null ? endDate : LocalDate.now()
+        ).orElse(0.0);
+        double totalExpenses = totalItemExpenses + totalOtherExpenses;
+
+        double netProfit = totalIncomeReceived - totalExpenses;
+
+        return new FinanceOverviewDTO(totalIncomeDue, totalIncomeReceived, totalExpenses, netProfit, outstandingPayments);
     }
 
-    // --- Monthly cashflow ---
-    public List<MonthlyCashflowDTO> getMonthlyCashflow(User user) {
-        int year = java.time.Year.now().getValue();
+    // ========== Income ==========
+    public List<IncomeDTO> getIncome(User dentist, LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : LocalDateTime.of(2000,1,1,0,0);
+        LocalDateTime end   = endDate != null ? endDate.atTime(23,59,59) : LocalDateTime.now();
 
-        return IntStream.rangeClosed(1, 12)
-                .mapToObj(month -> {
-                    Double revenue = paymentRepository.sumByMonth(year, month);
-                    if (revenue == null) revenue = 0.0;
+        List<Treatment> treatments = treatmentRepository.findByDentistAndDateBetween(dentist, start, end);
 
-                    Double expenses = 0.0;
-                    Double exp1 = expenseRepository.sumByMonth(year, month);
-                    Double exp2 = itemRepository.sumByMonth(year, month);
-                    if (exp1 != null) expenses += exp1;
-                    if (exp2 != null) expenses += exp2;
+        return treatments.stream().map(t -> {
+            double paid = paymentRepository.sumByPatientAndTreatment(t.getPatient().getId(), t.getId()).orElse(0.0);
+            double outstanding = t.getPrice() - paid;
 
-                    Double net = revenue - expenses;
-
-                    return new MonthlyCashflowDTO(year, month, revenue, expenses, net);
-                })
-                .collect(Collectors.toList());
+            return new IncomeDTO(
+                    t.getId(),
+                    t.getPatient().getFirstname() + " " + t.getPatient().getLastname(),
+                    t.getTreatmentCatalog().getName(),
+                    t.getDate(),
+                    t.getPrice(),
+                    paid,
+                    outstanding
+            );
+        }).collect(Collectors.toList());
     }
 
-    // --- Expense breakdown ---
-    public List<CategoryBreakdownDTO> getExpenseBreakdown(User user) {
-        return expenseRepository.sumByCategory(
-                        java.time.LocalDate.now().withDayOfMonth(1),
-                        java.time.LocalDate.now())
-                .stream()
-                .map(row -> new CategoryBreakdownDTO((String) row[0], (Double) row[1]))
-                .collect(Collectors.toList());
+    // ========== Expenses ==========
+    public List<ExpenseDTO> getExpenses(User dentist, LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : LocalDateTime.of(2000,1,1,0,0);
+        LocalDateTime end   = endDate != null ? endDate.atTime(23,59,59) : LocalDateTime.now();
+
+        List<ExpenseDTO> expenseDTOs = new ArrayList<>();
+
+        // Items
+        List<Item> items = itemRepository.findByCreatedByAndCreatedAtBetween(dentist, start, end);
+        items.forEach(item -> expenseDTOs.add(new ExpenseDTO(
+                item.getId(),
+                "Item",
+                item.getItemDefault().getName(),
+                item.getPrice(),
+                item.getCreatedAt(),
+                item.getCreatedBy().getFirstname() + " " + item.getCreatedBy().getLastname()
+        )));
+
+        // Expenses
+        List<Expense> expenses = expenseRepository.findByCreatedByAndDateBetween(
+                dentist,
+                startDate != null ? startDate : LocalDate.of(2000,1,1),
+                endDate != null ? endDate : LocalDate.now()
+        );
+
+        expenses.forEach(exp -> expenseDTOs.add(new ExpenseDTO(
+                exp.getId(),
+                "Expense",
+                exp.getTitle(),
+                exp.getAmount(),
+                exp.getDate() != null ? exp.getDate().atStartOfDay() : start,
+                exp.getCreatedBy().getFirstname() + " " + exp.getCreatedBy().getLastname()
+        )));
+
+        return expenseDTOs;
     }
 
-    // --- Finance summary ---
-    // --- Finance summary ---
-public FinanceSummaryDTO getFinanceSummary(User user) {
-    double totalGeneralExpenses = expenseRepository.sumExpensesBetween(
-            java.time.LocalDate.now().minusMonths(1),
-            java.time.LocalDate.now()
-    );
+    // ========== Outstanding Payments ==========
+    public List<OutstandingPaymentDTO> getOutstandingPayments(User dentist) {
+        List<Treatment> treatments = treatmentRepository.findByPractitioner(dentist);
 
-    double totalInventoryExpenses = itemRepository.sumInventoryBetween(
-            java.time.LocalDate.now().minusMonths(1),
-            java.time.LocalDate.now()
-    );
-    if (Double.isNaN(totalInventoryExpenses)) totalInventoryExpenses = 0.0;
+        Map<Long, OutstandingPaymentDTO> map = new HashMap<>();
+        for (Treatment t : treatments) {
+            double paid = paymentRepository.sumByPatientAndTreatment(t.getPatient().getId(), t.getId()).orElse(0.0);
+            double outstanding = t.getPrice() - paid;
 
-    double totalExpenses = totalGeneralExpenses + totalInventoryExpenses;
-
-    double totalPayments = paymentRepository.sumPaymentsBetween(
-            java.time.LocalDateTime.now().minusMonths(1),
-            java.time.LocalDateTime.now()
-    );
-
-    double treatmentRevenue = treatmentRepository.sumTreatmentsBetween(
-            java.time.LocalDateTime.now().minusMonths(1),
-            java.time.LocalDateTime.now()
-    );
-
-    return new FinanceSummaryDTO(totalExpenses, totalPayments, totalInventoryExpenses, treatmentRevenue);
-}
-
+            if (outstanding > 0) {
+                map.compute(t.getPatient().getId(), (k, v) -> {
+                    if (v == null) {
+                        return new OutstandingPaymentDTO(
+                                t.getPatient().getId(),
+                                t.getPatient().getFirstname() + " " + t.getPatient().getLastname(),
+                                t.getPrice(),
+                                paid,
+                                outstanding
+                        );
+                    } else {
+                        v.setTotalDue(v.getTotalDue() + t.getPrice());
+                        v.setTotalPaid(v.getTotalPaid() + paid);
+                        v.setOutstanding(v.getOutstanding() + outstanding);
+                        return v;
+                    }
+                });
+            }
+        }
+        return new ArrayList<>(map.values());
+    }
 }

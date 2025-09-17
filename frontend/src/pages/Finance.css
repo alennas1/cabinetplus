@@ -1,0 +1,161 @@
+.finance-container {
+  flex: 1;
+  width: 100%;
+  padding: 20px;
+  font-family: "Montserrat", sans-serif;
+  background: #f9fbfd;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.finance-squares {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.finance-square {
+  flex: 1 1 250px;
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid #ddd;
+  font-family: "Montserrat", sans-serif;
+  font-size: 1rem;          /* unified base font size */
+  line-height: 1.4;         /* ensures consistent vertical spacing */
+}
+
+.square-top {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.square-title {
+  font-size: 1rem;           /* unified */
+  font-weight: 400;
+  color: #000;
+  margin-bottom: 5px;
+}
+
+.square-value {
+  font-size: 1.8rem;         /* unified large number size */
+  font-weight: 700;
+  color: #111;
+  line-height: 1.2;          /* fixes compactness */
+}
+
+.currency-symbol {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #222;
+  vertical-align: baseline;
+  margin-left: 2px;
+}
+
+.square-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.change-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85rem;       /* unified */
+  font-weight: bold;
+}
+
+.change-pill.green {
+  background-color: #e7fbef;
+  color: #0bb265;
+}
+
+.change-pill.red {
+  background-color: #fdf1f2;
+  color: #f76f91;
+}
+
+.change-pill svg {
+  width: 12px;
+  height: 12px;
+}
+
+.vs-text {
+  font-size: 0.85rem;        /* unified */
+  color: #333;
+}
+
+/* --- Tab buttons --- */
+.tab-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.tab-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 12px;
+  background-color: #e5e7eb;
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background-color: #d1d5db;
+}
+
+.tab-btn.active {
+  background-color: #3498db;
+  color: #fff;
+}
+
+/* Tab content */
+.tab-content {
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #333;
+}
+
+.tab-btn.danger {
+  background-color: #f76f91;
+  color: #fff;
+}
+
+.tab-btn.danger:hover {
+  background-color: #f54776;
+}
+
+.tab-btn.danger.active {
+  background-color: #f54776;
+}
+
+/* Table for pending payments */
+.pending-payments-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pending-payments-table th,
+.pending-payments-table td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+}
+
+.pending-payments-table th {
+  font-weight: 600;
+}

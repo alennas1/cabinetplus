@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.dto;
 
 import com.cabinetplus.backend.enums.ItemCategory;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

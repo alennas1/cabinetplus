@@ -254,7 +254,6 @@ const handleCreateOrUpdateTreatment = async (e) => {
         method: "CASH",
         date: new Date().toISOString(),
       }, token);
-
       setPayments([newPayment, ...payments]);
       toast.success("Paiement automatique ajouté !");
     }
@@ -318,7 +317,7 @@ const handleDeleteTreatment = (t) => {
         method: paymentForm.method,
         date: new Date().toISOString(),
       }, token);
-
+console.log(newPayment)
 setPayments([newPayment, ...payments]);
       toast.success("Paiement ajouté !");
       setShowPaymentModal(false);

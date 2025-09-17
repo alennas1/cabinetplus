@@ -47,6 +47,7 @@ public class ItemService {
     item.setUnitPrice(dto.getUnitPrice()); // new field
     item.calculatePrice(); // automatically sets total price
     item.setExpiryDate(dto.getExpiryDate());
+    item.setCreatedAt(dto.getCreatedAt());
     item.setCreatedBy(dentist);
     return itemRepository.save(item);
 }
@@ -74,14 +75,16 @@ public class ItemService {
 
     public ItemDTO toDTO(Item item) {
     return new ItemDTO(
-        item.getId(),
-        item.getItemDefault().getId(),
-        item.getItemDefault().getName(),
-        item.getQuantity(),
-        item.getPrice(),                         // total price
-        item.getPrice() / item.getQuantity(),    // unit price
-        item.getExpiryDate()
-    );
+    item.getId(),
+    item.getItemDefault().getId(),
+    item.getItemDefault().getName(),
+    item.getQuantity(),
+    item.getPrice(),
+    item.getUnitPrice(),
+    item.getExpiryDate(),
+    item.getCreatedAt()  // add this
+);
+
 }
 
 

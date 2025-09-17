@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.enums.ItemCategory;
 
@@ -23,4 +24,6 @@ public class CreateItemWithDefaultDTO {
     private Double price;
     private Integer quantity;
     private LocalDate expiryDate;
+    private LocalDateTime createdAt; // use LocalDateTime here
+
 }

@@ -105,8 +105,10 @@ const Inventory = () => {
         quantity: Number(formData.quantity),
         unitPrice: Number(formData.unitPrice),
         expiryDate: formData.expiryDate || null,
-      };
+        createdAt: new Date().toISOString(),
 
+      };
+      console.log(payload)
       let newItem;
       const itemDefault = itemDefaults.find(d => d.id === Number(formData.itemDefaultId));
 

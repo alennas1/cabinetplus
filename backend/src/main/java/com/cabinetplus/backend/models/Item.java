@@ -1,6 +1,9 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+import org.springframework.data.annotation.CreatedDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,10 +45,17 @@ public class Item {
 
     private LocalDate expiryDate;
 
+
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdAt; // use LocalDateTime here
+    
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+
+    
     // helper method to calculate total price
     public void calculatePrice() {
         if (quantity != null && unitPrice != null) {

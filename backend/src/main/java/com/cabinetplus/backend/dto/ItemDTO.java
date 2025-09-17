@@ -1,10 +1,11 @@
 package com.cabinetplus.backend.dto;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
@@ -18,4 +19,5 @@ public class ItemDTO {
     private Double price;      // total price
     private Double unitPrice;  // add this
     private LocalDate expiryDate;
+    private LocalDateTime createdAt; // use LocalDateTime here
 }

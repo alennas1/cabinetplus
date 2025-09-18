@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ResponsiveLine } from "@nivo/line";
 import { ResponsivePie } from "@nivo/pie";
 import { ResponsiveBar } from "@nivo/bar";
 import PageHeader from "../components/PageHeader";
 import { Activity, CreditCard, AlertTriangle } from 'react-feather';
-
+import { getFinanceCards, getFinanceGraph } from "../services/financeService";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import "./Finance.css";
 
 const Finance = () => {
@@ -15,175 +17,117 @@ const [customRange, setCustomRange] = useState({
   start: "",
   end: ""
 });
-const expensesChartData = {
-  daily: [
-    {
-      id: "Dépenses",
-      data: [
-        { x: "Lundi", y: 600 },
-        { x: "Mardi", y: 720 },
-        { x: "Mercredi", y: 650 },
-        { x: "Jeudi", y: 800 },
-        { x: "Vendredi", y: 900 },
-        { x: "Samedi", y: 1100 },
-        { x: "Dimanche", y: 700 }
-      ]
-    },
-    {
-      id: "Inventaire",
-      data: [
-        { x: "Lundi", y: 200 },
-        { x: "Mardi", y: 250 },
-        { x: "Mercredi", y: 230 },
-        { x: "Jeudi", y: 300 },
-        { x: "Vendredi", y: 320 },
-        { x: "Samedi", y: 400 },
-        { x: "Dimanche", y: 280 }
-      ]
+  // --- API state & loaders (Étape 1) ---
+  const [cards, setCards] = useState(null);
+  const [graph, setGraph] = useState(null);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [loadingGraph, setLoadingGraph] = useState(false);
+
+  const fetchCards = async () => {
+    setLoadingCards(true);
+    try {
+      const startDate = selectedFilter === "custom" ? customRange.start : undefined;
+      const endDate = selectedFilter === "custom" ? customRange.end : undefined;
+      const data = await getFinanceCards(selectedFilter, startDate, endDate);
+      setCards(data);
+    } catch (error) {
+      console.error("fetchCards error:", error);
+      toast.error("Erreur : impossible de charger les indicateurs financiers.");
+    } finally {
+      setLoadingCards(false);
     }
-  ],
-  monthly: [
-    {
-      id: "Dépenses",
-      data: [
-        { x: "Jan", y: 16000 },
-        { x: "Fév", y: 14500 },
-        { x: "Mar", y: 17000 },
-        { x: "Avr", y: 16500 },
-        { x: "Mai", y: 18500 },
-        { x: "Juin", y: 19000 }
-      ]
-    },
-    {
-      id: "Inventaire",
-      data: [
-        { x: "Jan", y: 7000 },
-        { x: "Fév", y: 6800 },
-        { x: "Mar", y: 7500 },
-        { x: "Avr", y: 7200 },
-        { x: "Mai", y: 8100 },
-        { x: "Juin", y: 8500 }
-      ]
-    }
-  ],
-  yearly: [
-    {
-      id: "Dépenses",
-      data: [
-        { x: "2020", y: 150000 },
-        { x: "2021", y: 162000 },
-        { x: "2022", y: 175000 },
-        { x: "2023", y: 182000 }
-      ]
-    },
-    {
-      id: "Inventaire",
-      data: [
-        { x: "2020", y: 70000 },
-        { x: "2021", y: 74000 },
-        { x: "2022", y: 80000 },
-        { x: "2023", y: 85000 }
-      ]
-    }
-  ]
+  };
+const EXPENSE_CATEGORIES = {
+  SUPPLIES: "Fournitures",
+  RENT: "Loyer",
+  SALARY: "Salaires",
+  UTILITIES: "Services publics",
+  OTHER: "Autre",
+};
+  const fetchGraph = async (tf = timeframe) => {
+  setLoadingGraph(true);
+  try {
+    const data = await getFinanceGraph(tf);
+    console.log("✅ Graph API response:", data);
+    setGraph(data);
+  } catch (error) {
+    console.error("❌ fetchGraph error:", error);
+    toast.error("Erreur : impossible de charger les graphiques.");
+  } finally {
+    setLoadingGraph(false);
+  }
 };
 
+  // fetch graph when timeframe changes
+  useEffect(() => {
+    fetchGraph(timeframe);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeframe]);
 
-  // --- Revenue Data ---
- const financeData = [
-  { title: "Revenu dû", value: "14 200", change: "+6%", changeColor: "green" },
-  { title: "Revenu", value: "55 800", change: "+9%", changeColor: "green" },
-  { title: "Revenu net", value: "38 000", change: "-3%", changeColor: "red" },
-  { title: "En attente", value: "6 200", change: "+2%", changeColor: "green" },
-];
-
-const expensesSummary = [
-  { title: "Total dépenses", value: "27 500", change: "+4%", changeColor: "red" },
-  { title: "Dépense", value: "17 000", change: "+3%", changeColor: "red" },
-  { title: "Inventaire", value: "10 500", change: "+6%", changeColor: "red" },
-];
-
-
-const chartData = {
-  daily: [
-    {
-      id: "Revenu",
-      data: [
-        { x: "Lundi", y: 1450 },
-        { x: "Mardi", y: 1320 },
-        { x: "Mercredi", y: 1680 },
-        { x: "Jeudi", y: 1900 },
-        { x: "Vendredi", y: 2100 },
-        { x: "Samedi", y: 2400 },
-        { x: "Dimanche", y: 1700 }
-      ]
-    },
-    {
-      id: "Revenu net",
-      data: [
-        { x: "Lundi", y: 900 },
-        { x: "Mardi", y: 850 },
-        { x: "Mercredi", y: 1200 },
-        { x: "Jeudi", y: 1300 },
-        { x: "Vendredi", y: 1500 },
-        { x: "Samedi", y: 1600 },
-        { x: "Dimanche", y: 1100 }
-      ]
+  // fetch cards when filter or custom range changes
+  useEffect(() => {
+    if (selectedFilter !== "custom") {
+      fetchCards();
+    } else if (customRange.start && customRange.end) {
+      fetchCards();
     }
-  ],
-  monthly: [
-    {
-      id: "Revenu",
-      data: [
-        { x: "Jan", y: 52000 },
-        { x: "Fév", y: 48000 },
-        { x: "Mar", y: 60000 },
-        { x: "Avr", y: 58000 },
-        { x: "Mai", y: 64000 },
-        { x: "Juin", y: 72000 }
-      ]
-    },
-    {
-      id: "Revenu net",
-      data: [
-        { x: "Jan", y: 33000 },
-        { x: "Fév", y: 31000 },
-        { x: "Mar", y: 40000 },
-        { x: "Avr", y: 37000 },
-        { x: "Mai", y: 42000 },
-        { x: "Juin", y: 48000 }
-      ]
-    }
-  ],
-  yearly: [
-    {
-      id: "Revenu",
-      data: [
-        { x: "2020", y: 480000 },
-        { x: "2021", y: 530000 },
-        { x: "2022", y: 610000 },
-        { x: "2023", y: 670000 }
-      ]
-    },
-    {
-      id: "Revenu net",
-      data: [
-        { x: "2020", y: 300000 },
-        { x: "2021", y: 340000 },
-        { x: "2022", y: 400000 },
-        { x: "2023", y: 440000 }
-      ]
-    }
-  ]
+    // note : depend on start/end individually to avoid object identity issues
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFilter, customRange.start, customRange.end]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Transform API cards -> displayable data
+ const getCardData = () => {
+  if (!cards) return { revenue: [], expense: [] };
+  console.log("📊 Cards transformed:", cards);
+
+  const revenue = [
+    { title: "Revenu dû", value: cards.revenue.revenuedu || 0, change: "+0%", changeColor: "green" },
+    { title: "Revenu", value: cards.revenue.revenue || 0, change: "+0%", changeColor: "green" },
+    { title: "Revenu net", value: cards.revenue.revenuenet || 0, change: "+0%", changeColor: "green" },
+    { title: "En attente", value: cards.revenue.enattente || 0, change: "+0%", changeColor: "green" },
+  ];
+
+  const expense = [
+    { title: "Total dépenses", value: cards.expense.total || 0, change: "+0%", changeColor: "red" },
+    { title: "Dépense", value: cards.expense.depense || 0, change: "+0%", changeColor: "red" },
+    { title: "Inventaire", value: cards.expense.inventaire || 0, change: "+0%", changeColor: "red" },
+  ];
+
+  return { revenue, expense };
 };
 
-  const pieData = [
-  { id: "Extraction de dent", value: 15000, color: "#3498db" },
-  { id: "Plombage", value: 11000, color: "#0bb265" },
-  { id: "Détartrage", value: 8000, color: "#f1c40f" },
-  { id: "Canal radiculaire", value: 6000, color: "#e67e22" },
-  { id: "Couronnes", value: 4500, color: "#9b59b6" }
-];
+  const { revenue: revenueCards, expense: expenseCards } = getCardData();
+
+
+
+
+
 
   // --- Expenses Data ---
 
@@ -201,13 +145,14 @@ const getFilteredFinanceData = () => {
     );
   }
 
-  return financeData.map((item) => ({
+  return revenueCards.map((item) => ({
     ...item,
     value: (
-      (parseInt(item.value.replace(/\s/g, "")) * days) / 30
+      (Number(item.value) * days) / 30
     ).toFixed(0),
   }));
 };
+
 
 const filteredFinanceData = getFilteredFinanceData();
 
@@ -218,12 +163,53 @@ const filteredFinanceData = getFilteredFinanceData();
     { category: "Électricité", amount: 2000 },
   ];
 
-  const expensesPieData = expensesByCategory.map(item => ({
-    id: item.category,
-    value: item.amount,
-    color: "#" + Math.floor(Math.random() * 16777215).toString(16),
+
+    // Transform API graph -> displayable data
+const getGraphData = () => {
+  if (!graph) return { revenueLine: [], expenseLine: [], revenuePie: [], expensePie: [] };
+
+  console.log("📈 Raw graph data:", graph);
+
+  // Convert monthly amounts -> line chart format
+  const formatAmountsToLine = (amounts) =>
+    Object.entries(amounts || {}).map(([month, value]) => ({
+      x: month,
+      y: Number(value) || 0,
+    }));
+
+  // Convert type percentages -> pie chart format
+ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
+  Object.entries(types || {}).map(([key, val], idx) => ({
+    id: dictionary[key] || key, // use French label if available
+    value: parseFloat(val), // remove "%" and convert to number
+    color: idx % 2 === 0 ? defaultColor : "#e74c3c", // alternate colors
   }));
-  
+
+  const result = {
+    revenueLine: [
+      {
+        id: "Revenu",
+        data: formatAmountsToLine(graph.revenue.amounts),
+      },
+    ],
+    expenseLine: [
+      {
+        id: "Dépenses",
+        data: formatAmountsToLine(graph.expense.amounts),
+      },
+    ],
+    revenuePie: formatTypesToPie(graph.revenue.types, "#3498db"),
+  expensePie: formatTypesToPie(graph.expense.types, "#f39c12", EXPENSE_CATEGORIES),
+  };
+
+  console.log("📊 Transformed graph data:", result);
+  return result;
+};
+
+
+
+  const { revenueLine, expenseLine, revenuePie, expensePie } = getGraphData();
+
 
   // --- Pending Payments Data ---
   const pendingPayments = [
@@ -236,12 +222,12 @@ const filteredFinanceData = getFilteredFinanceData();
     depenses: (
       <>
         <div className="finance-squares">
-          {expensesSummary.map((item, idx) => (
+          {expenseCards.map((item, idx) => (
             <div key={idx} className="finance-square">
               <div className="square-top">
                 <span className="square-title">{item.title}</span>
                 <span className="square-value">
-                  {Number(item.value.replace(/\s/g, '')).toLocaleString()} 
+                  {Number(item.value).toLocaleString()} 
                   <span className="currency-symbol">DA</span>
                 </span>
               </div>
@@ -296,7 +282,7 @@ const filteredFinanceData = getFilteredFinanceData();
 
               <div style={{ height: 300 }}>
              <ResponsiveLine
-  data={expensesChartData[timeframe]}
+  data={expenseLine}
   margin={{ top: 20, right: 20, bottom: 30, left: 20 }}
   xScale={{ type: "point" }}
   yScale={{ type: "linear", min: "auto", max: "auto" }}
@@ -340,7 +326,7 @@ const filteredFinanceData = getFilteredFinanceData();
               <h4 className="pie-legend">Top 5 types de dépenses</h4>
               <div style={{ height: 300 }}>
                 <ResponsivePie
-                  data={expensesPieData}
+  data={expensePie}
                   margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
                   innerRadius={0.5}
                   padAngle={1}
@@ -460,12 +446,12 @@ const filteredFinanceData = getFilteredFinanceData();
       {activeTab === "general" && (
         <>
           <div className="finance-squares">
-            {financeData.map((item, index) => (
+            {revenueCards.map((item, index) => (
               <div key={index} className="finance-square">
                 <div className="square-top">
                   <span className="square-title">{item.title}</span>
                   <span className="square-value">
-                    {Number(item.value.replace(/\s/g, '')).toLocaleString()} 
+                    {Number(item.value).toLocaleString()} 
                     <span className="currency-symbol">DA</span>
                   </span>
                 </div>
@@ -531,7 +517,7 @@ const filteredFinanceData = getFilteredFinanceData();
 
               <div style={{ height: 300 }}>
                <ResponsiveLine
-                  data={chartData[timeframe]}
+  data={revenueLine}
                   margin={{ top: 20, right: 20, bottom: 30, left: 20 }}
                   xScale={{ type: "point" }}
                   yScale={{ type: "linear", min: "auto", max: "auto" }}
@@ -565,7 +551,7 @@ const filteredFinanceData = getFilteredFinanceData();
               <h4 className="pie-legend">Top 5 types de revenusss</h4>
               <div style={{ height: 300 }}>
                 <ResponsivePie
-                  data={pieData}
+  data={revenuePie}
                   margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
                   innerRadius={0.5}
                   padAngle={1}

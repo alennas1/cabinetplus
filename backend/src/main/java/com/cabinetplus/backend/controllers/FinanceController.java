@@ -2,19 +2,13 @@ package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.cabinetplus.backend.dto.FinanceOverviewDTO;
-import com.cabinetplus.backend.dto.IncomeDTO;
-import com.cabinetplus.backend.dto.ExpenseDTO;
-import com.cabinetplus.backend.dto.OutstandingPaymentDTO;
+import com.cabinetplus.backend.dto.FinanceGraphResponseDTO;
+import com.cabinetplus.backend.dto.FinanceCardsResponseDTO;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.FinanceService;
 import com.cabinetplus.backend.services.UserService;
@@ -22,60 +16,56 @@ import com.cabinetplus.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/finances")
+@RequestMapping("/api/finance")
 @RequiredArgsConstructor
 public class FinanceController {
 
     private final FinanceService financeService;
     private final UserService userService;
 
-    @GetMapping("/over")
-    public ResponseEntity<FinanceOverviewDTO> getOverview(
+    /**
+     * Graph data endpoint
+     * Example:
+     * GET /api/finance/graph?timeframe=daily
+     * GET /api/finance/graph?timeframe=monthly
+     * GET /api/finance/graph?timeframe=yearly
+     *
+     * - daily  → last 7 days
+     * - monthly → last 6 months
+     * - yearly  → last 6 years
+     */
+    @GetMapping("/graph")
+    public ResponseEntity<FinanceGraphResponseDTO> getFinanceGraph(
             Principal principal,
-            @RequestParam(required = false) LocalDate startDate,
-            @RequestParam(required = false) LocalDate endDate) {
-
+            @RequestParam String timeframe // daily | monthly | yearly
+    ) {
         User dentist = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        FinanceOverviewDTO overview = financeService.getFinanceOverview(dentist, startDate, endDate);
-        return ResponseEntity.ok(overview);
+        FinanceGraphResponseDTO graphData = financeService.getFinanceGraph(dentist, timeframe);
+        return ResponseEntity.ok(graphData);
     }
 
-    @GetMapping("/income")
-    public ResponseEntity<List<IncomeDTO>> getIncome(
+    /**
+     * Cards data endpoint
+     * Example:
+     * GET /api/finance/cards?timeframe=yesterday
+     * GET /api/finance/cards?timeframe=today
+     * GET /api/finance/cards?timeframe=custom&startDate=2025-01-01&endDate=2025-01-31
+     */
+    @GetMapping("/cards")
+    public ResponseEntity<FinanceCardsResponseDTO> getFinanceCards(
             Principal principal,
-            @RequestParam(required = false) LocalDate startDate,
-            @RequestParam(required = false) LocalDate endDate) {
-
+            @RequestParam String timeframe, // yesterday | today | custom
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+    ) {
         User dentist = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<IncomeDTO> income = financeService.getIncome(dentist, startDate, endDate);
-        return ResponseEntity.ok(income);
-    }
-
-    @GetMapping("/expenses")
-    public ResponseEntity<List<ExpenseDTO>> getExpenses(
-            Principal principal,
-            @RequestParam(required = false) LocalDate startDate,
-            @RequestParam(required = false) LocalDate endDate) {
-
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        List<ExpenseDTO> expenses = financeService.getExpenses(dentist, startDate, endDate);
-        return ResponseEntity.ok(expenses);
-    }
-
-    @GetMapping("/outstanding")
-    public ResponseEntity<List<OutstandingPaymentDTO>> getOutstandingPayments(
-            Principal principal) {
-
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        List<OutstandingPaymentDTO> outstanding = financeService.getOutstandingPayments(dentist);
-        return ResponseEntity.ok(outstanding);
+        FinanceCardsResponseDTO cardsData = financeService.getFinanceCards(dentist, timeframe, startDate, endDate);
+        return ResponseEntity.ok(cardsData);
     }
 }

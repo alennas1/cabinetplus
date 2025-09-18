@@ -1,46 +1,32 @@
+// src/services/financeService.js
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/finances"; // Adjust if your backend runs elsewhere
+const API_URL = "http://localhost:8080/api/finance"; // Adjust if your backend runs elsewhere
 
-export const getOverview = async (token, startDate, endDate) => {
-  const params = {};
-  if (startDate) params.startDate = startDate;
-  if (endDate) params.endDate = endDate;
+// Helper to get token (from localStorage or wherever you store it)
+const getToken = () => localStorage.getItem("token");
 
-  const res = await axios.get(`${API_URL}/over`, {
-    headers: { Authorization: `Bearer ${token}` },
-    params,
+export const getFinanceGraph = async (timeframe) => {
+  const response = await axios.get(`${API_URL}/graph`, {
+    params: { timeframe },
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
   });
-  return res.data;
+  return response.data;
 };
 
-export const getIncome = async (token, startDate, endDate) => {
-  const params = {};
-  if (startDate) params.startDate = startDate;
-  if (endDate) params.endDate = endDate;
-
-  const res = await axios.get(`${API_URL}/income`, {
-    headers: { Authorization: `Bearer ${token}` },
+export const getFinanceCards = async (timeframe, startDate, endDate) => {
+  const params = { timeframe };
+  if (timeframe === "custom") {
+    params.startDate = startDate;
+    params.endDate = endDate;
+  }
+  const response = await axios.get(`${API_URL}/cards`, {
     params,
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
   });
-  return res.data;
-};
-
-export const getExpenses = async (token, startDate, endDate) => {
-  const params = {};
-  if (startDate) params.startDate = startDate;
-  if (endDate) params.endDate = endDate;
-
-  const res = await axios.get(`${API_URL}/expenses`, {
-    headers: { Authorization: `Bearer ${token}` },
-    params,
-  });
-  return res.data;
-};
-
-export const getOutstanding = async (token) => {
-  const res = await axios.get(`${API_URL}/outstanding`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.data;
+  return response.data;
 };

@@ -159,3 +159,49 @@
 .pending-payments-table th {
   font-weight: 600;
 }
+.date-selector {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.date-selector button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #f3f4f6;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.date-selector button.active {
+  background: #3498db;
+  color: #fff;
+  border-color: #3498db;
+}
+
+.custom-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.custom-range input {
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+.graph-legend {
+  font-size: 12px;
+  color: #555;
+  font-family: "Montserrat", sans-serif;
+  line-height: 1.4;
+}
+.pie-legend {
+  font-size: 15px;
+  color: #555;
+  font-family: "Montserrat", sans-serif;
+  line-height: 1.4;
+}

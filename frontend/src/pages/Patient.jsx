@@ -3,8 +3,8 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
-import ToothGraph from "../components/ToothGraph";
 import "react-toastify/dist/ReactToastify.css";
+import ToothGraph from "./ToothGraph";
 
 import { getPatientById, updatePatient } from "../services/patientService";
 import { 
@@ -80,9 +80,11 @@ const [treatmentForm, setTreatmentForm] = useState({
   treatmentCatalogId: null, 
   price: "", 
   notes: "", 
+  teeth: [],   // <-- new field
   date: "",
-  paid: false, // <-- new
-});  const [isEditingTreatment, setIsEditingTreatment] = useState(false);
+  paid: false,
+});
+ const [isEditingTreatment, setIsEditingTreatment] = useState(false);
 
   const [payments, setPayments] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -219,28 +221,42 @@ const handleCreateOrUpdateTreatment = async (e) => {
     let savedTreatment;
 
     if (isEditingTreatment) {
-      savedTreatment = await updateTreatment(treatmentForm.id, {
+      const payload = {
         ...treatmentForm,
         patient: { id },
-        treatmentCatalog: { id: treatmentForm.treatmentCatalogId }
-      }, token);
+        treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
+      };
+      console.log("📤 Update Treatment Payload:", payload);
+
+      savedTreatment = await updateTreatment(treatmentForm.id, payload, token);
+      console.log("📥 Updated Treatment Response:", savedTreatment);
 
       // Attach full catalog object
-      const catalogObj = treatmentCatalog.find(tc => tc.id === savedTreatment.treatmentCatalog.id);
+      const catalogObj = treatmentCatalog.find(
+        (tc) => tc.id === savedTreatment.treatmentCatalog.id
+      );
       savedTreatment.treatmentCatalog = catalogObj;
 
-      setTreatments(treatments.map(t => t.id === savedTreatment.id ? savedTreatment : t));
+      setTreatments(
+        treatments.map((t) => (t.id === savedTreatment.id ? savedTreatment : t))
+      );
       toast.success("Traitement mis à jour !");
     } else {
-      savedTreatment = await createTreatment({
+      const payload = {
         ...treatmentForm,
         patient: { id },
         treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
         date: new Date().toISOString(),
-      }, token);
+      };
+      console.log("📤 Create Treatment Payload:", payload);
+
+      savedTreatment = await createTreatment(payload, token);
+      console.log("📥 Created Treatment Response:", savedTreatment);
 
       // Attach full catalog object
-      const catalogObj = treatmentCatalog.find(tc => tc.id === savedTreatment.treatmentCatalog.id);
+      const catalogObj = treatmentCatalog.find(
+        (tc) => tc.id === savedTreatment.treatmentCatalog.id
+      );
       savedTreatment.treatmentCatalog = catalogObj;
 
       setTreatments([savedTreatment, ...treatments]);
@@ -249,33 +265,49 @@ const handleCreateOrUpdateTreatment = async (e) => {
 
     // ✅ create payment if marked as paid
     if (treatmentForm.paid) {
-      const newPayment = await createPayment({
+      const paymentPayload = {
         patientId: id,
         amount: Number(treatmentForm.price),
         method: "CASH",
         date: new Date().toISOString(),
-      }, token);
+      };
+      console.log("📤 Auto-Payment Payload:", paymentPayload);
+
+      const newPayment = await createPayment(paymentPayload, token);
+      console.log("📥 Auto-Payment Response:", newPayment);
+
       setPayments([newPayment, ...payments]);
       toast.success("Paiement automatique ajouté !");
     }
 
     setShowTreatmentModal(false);
-    setTreatmentForm({ id: null, treatmentCatalogId: null, price: "", notes: "", date: "", paid: false });
+    setTreatmentForm({
+      id: null,
+      treatmentCatalogId: null,
+      price: "",
+      notes: "",
+      date: "",
+      paid: false,
+    });
     setIsEditingTreatment(false);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error in handleCreateOrUpdateTreatment:", err);
     toast.error("Erreur lors de l'enregistrement du traitement");
   }
 };
 
 
 
+
   const handleEditTreatment = (t) => {
+      console.log("Editing treatment teeth:", t.teeth); // <--- add this
+
     setTreatmentForm({
       id: t.id,
       treatmentCatalogId: t.treatmentCatalog?.id || null,
       price: t.price,
       notes: t.notes || "",
+      teeth: t.teeth || [],   // <-- important
       date: new Date().toISOString(),
     });
     setIsEditingTreatment(true);
@@ -298,8 +330,15 @@ const handleDeleteTreatment = (t) => {
 };
 
   const handleAddTreatment = () => {
-    setTreatmentForm({ id: null, treatmentCatalogId: null, price: "", notes: "" });
-    setIsEditingTreatment(false);
+setTreatmentForm({ 
+  id: null, 
+  treatmentCatalogId: null, 
+  price: "", 
+  notes: "", 
+  teeth: [],   // <-- important
+  date: "", 
+  paid: false 
+});    setIsEditingTreatment(false);
     setShowTreatmentModal(true);
   };
 
@@ -538,6 +577,7 @@ const handleDeleteAppointment = (a) => {
       <thead>
         <tr>
           <th>Nom</th>
+           <th>Dents</th>
           <th>Date</th>
           <th>Prix</th>
           <th>Notes</th>
@@ -548,6 +588,11 @@ const handleDeleteAppointment = (a) => {
         {treatments.map(t => (
           <tr key={t.id}>
             <td>{t.treatmentCatalog?.name}</td>
+            <td>
+          {t.teeth && t.teeth.length > 0
+            ? t.teeth.join(", ")   // ✅ display list like "11, 12, 13"
+            : "—"}
+        </td>
             <td>{formatDate(t.date)}</td>
             <td>{t.price} DA</td>
             <td>{t.notes || "—"}</td>
@@ -807,40 +852,80 @@ const handleDeleteAppointment = (a) => {
         <div className="modal-overlay" onClick={() => setShowTreatmentModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2>{isEditingTreatment ? "Modifier traitement" : "Ajouter traitement"}</h2>
-            <form className="modal-form" onSubmit={handleCreateOrUpdateTreatment}>
-              <label>Traitement</label>
-              <select name="treatmentCatalogId" value={treatmentForm.treatmentCatalogId ?? ""} onChange={handleTreatmentChange} required>
-                <option value="">-- Sélectionner --</option>
-                {treatmentCatalog.map(tc => (<option key={tc.id} value={tc.id}>{tc.name} ({tc.defaultPrice} DA)</option>))}
-              </select>
-              <label>Prix</label>
-              <input type="number" name="price" value={treatmentForm.price} onChange={handleTreatmentChange} required />
-              <label>Notes</label>
-              <label>Dents traitées</label>
-<ToothGraph
-  selectedTeeth={treatmentForm.teeth || []}
-  onChange={(teeth) => setTreatmentForm({ ...treatmentForm, teeth })}
-/>
-              <textarea name="notes" value={treatmentForm.notes} onChange={handleTreatmentChange} />
-<div className="paid-toggle-container">
-  <span className="paid-label">Marqué comme </span>
-  <label className={`chip-toggle ${treatmentForm.paid ? "active" : ""}`}>
-  <input
-    type="checkbox"
-    checked={!!treatmentForm.paid} // makes sure it's always true/false
-    onChange={(e) =>
-      setTreatmentForm({ ...treatmentForm, paid: e.target.checked })
-    }
-  />
-  Payé
-</label>
-</div>
+           <form className="modal-form" onSubmit={handleCreateOrUpdateTreatment}>
+  {/* LEFT SIDE */}
+  <div className="modal-form-left">
+      <label className="tooth-text">Sélectionner la/les dent(s)</label>
 
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary2">Enregistrer</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowTreatmentModal(false)}>Annuler</button>
-              </div>
-            </form>
+<ToothGraph
+  selectedTeeth={treatmentForm.teeth}
+  onChange={(newTeeth) =>
+    setTreatmentForm({ ...treatmentForm, teeth: newTeeth })
+  }
+/>
+   </div>
+
+  {/* RIGHT SIDE */}
+  <div className="modal-form-right">
+     <label>Traitement</label>
+    <select
+      name="treatmentCatalogId"
+      value={treatmentForm.treatmentCatalogId ?? ""}
+      onChange={handleTreatmentChange}
+      required
+    >
+      <option value="">-- Sélectionner --</option>
+      {treatmentCatalog.map(tc => (
+        <option key={tc.id} value={tc.id}>
+          {tc.name} ({tc.defaultPrice} DA)
+        </option>
+      ))}
+    </select>
+
+    <label>Prix</label>
+    <input
+      type="number"
+      name="price"
+      value={treatmentForm.price}
+      onChange={handleTreatmentChange}
+      required
+    />
+
+    <label>Notes</label>
+    <textarea
+      name="notes"
+      value={treatmentForm.notes}
+      onChange={handleTreatmentChange}
+    />
+
+    <div className="paid-toggle-container">
+      <span className="paid-label">Marqué comme </span>
+      <label className={`chip-toggle ${treatmentForm.paid ? "active" : ""}`}>
+        <input
+          type="checkbox"
+          checked={!!treatmentForm.paid}
+          onChange={(e) =>
+            setTreatmentForm({ ...treatmentForm, paid: e.target.checked })
+          }
+        />
+        Payé
+      </label>
+    </div>
+
+    <div className="modal-actions">
+      <button type="submit" className="btn-primary2">Enregistrer</button>
+      <button
+        type="button"
+        className="btn-cancel"
+        onClick={() => setShowTreatmentModal(false)}
+      >
+        Annuler
+      </button>
+    </div>
+  
+  </div>
+</form>
+
           </div>
         </div>
       )}

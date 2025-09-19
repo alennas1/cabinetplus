@@ -1,18 +1,32 @@
 package com.cabinetplus.backend.models;
 
-import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-
 
 @Entity
 @Table(name = "treatments")
-@Data @NoArgsConstructor @AllArgsConstructor
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Treatment {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne
@@ -30,4 +44,13 @@ public class Treatment {
     private LocalDateTime date;
     private Double price;
     private String notes;
+
+    // 👇 store selected teeth as integers
+    @ElementCollection
+    @CollectionTable(
+        name = "treatment_teeth",
+        joinColumns = @JoinColumn(name = "treatment_id")
+    )
+    @Column(name = "tooth_number")
+    private List<Integer> teeth = new ArrayList<>();
 }

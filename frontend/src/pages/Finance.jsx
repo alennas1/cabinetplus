@@ -299,17 +299,18 @@ const getGraphData = () => {
       const translated = translations[label] || label;
       return { x: translated, y: Number(value) || 0 };
     });
-
-  const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
-    Object.entries(types || {}).map(([key, val], idx) => {
-      let numeric = parseFloat(val.toString().replace("%","")) || 0; // remove % if present
+const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
+  Object.entries(types || {})
+    .map(([key, val], idx) => {
+      let numeric = parseFloat(val.toString().replace("%",""));
+      if (!numeric || numeric <= 0) return null;
       return {
         id: dictionary[key] || key,
         value: numeric,
         color: idx % 2 === 0 ? defaultColor : "#e74c3c",
       };
-    });
-
+    })
+    .filter(Boolean);
   // --- Expense line series with both "Dépenses" and "Inventaire"
   const expenseLineSeries = [
     { id: "Dépenses", data: formatAmountsToLine(graph.expense.amounts) },
@@ -334,12 +335,7 @@ const getGraphData = () => {
   const { revenueLine, expenseLine, revenuePie, expensePie } = getGraphData();
 
 
-  // --- Pending Payments Data ---
-  const pendingPayments = [
-  { client: "Patient A", amount: 5000, dueDate: "2025-09-20" },
-  { client: "Patient B", amount: 3000, dueDate: "2025-09-25" },
-  { client: "Patient C", amount: 4500, dueDate: "2025-10-01" },
-];
+
 
   const tabContents = {
     depenses: (
@@ -466,7 +462,7 @@ const getGraphData = () => {
 
             <div style={{ flex: 1, background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
               <h4 className="pie-legend">Top 5 types de dépenses</h4>
-              <div style={{ height: 300 }}>
+<div style={{ width: "100%", minWidth: "300px", height: 300 }}>
                <ResponsivePie
   data={expensePie}
   margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
@@ -487,29 +483,7 @@ const getGraphData = () => {
           </div>
       </>
     ),
-    paiements: (
-      <div style={{ background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
-        <h4>Factures impayées</h4>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "15px" }}>
-          <thead>
-            <tr>
-              <th style={{ borderBottom: "1px solid #ddd", padding: "10px", textAlign: "left" }}>Patient/Client</th>
-              <th style={{ borderBottom: "1px solid #ddd", padding: "10px", textAlign: "left" }}>Montant</th>
-              <th style={{ borderBottom: "1px solid #ddd", padding: "10px", textAlign: "left" }}>Date d’échéance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pendingPayments.map((item, idx) => (
-              <tr key={idx}>
-                <td style={{ padding: "10px" }}>{item.client}</td>
-                <td style={{ padding: "10px" }}>{Number(item.amount).toLocaleString()} DA</td>
-                <td style={{ padding: "10px" }}>{item.dueDate}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ),
+   
   };
 
   return (
@@ -521,20 +495,28 @@ const getGraphData = () => {
       />
 <div className="date-selector">
   {/* Yesterday */}
-  <button
-    className={selectedFilter === "yesterday" ? "active" : ""}
-    onClick={() => setSelectedFilter("yesterday")}
-  >
-    Hier
-  </button>
+ <button
+  className={selectedFilter === "yesterday" ? "active" : ""}
+  onClick={() => {
+    setSelectedFilter("yesterday");
+    setSelectedMonth(""); // reset month dropdown
+    setCustomRange({ start: "", end: "" }); // reset custom range
+  }}
+>
+  Hier
+</button>
 
-  {/* Today */}
-  <button
-    className={selectedFilter === "today" ? "active" : ""}
-    onClick={() => setSelectedFilter("today")}
-  >
-    Aujourd'hui
-  </button>
+<button
+  className={selectedFilter === "today" ? "active" : ""}
+  onClick={() => {
+    setSelectedFilter("today");
+    setSelectedMonth(""); // reset month dropdown
+    setCustomRange({ start: "", end: "" }); // reset custom range
+  }}
+>
+  Aujourd'hui
+</button>
+
 
   {/* Month Selector */}
   <div className="month-selector">
@@ -562,16 +544,17 @@ const getGraphData = () => {
   {monthDropdownOpen && (
     <ul className="dropdown-menu">
       {monthsList.map((m) => (
-        <li
-          key={m.value}
-          onClick={() => {
-            setSelectedMonth(m.value);
-            setSelectedFilter("custom");
-            setMonthDropdownOpen(false);
-          }}
-        >
-          {m.label}
-        </li>
+       <li
+  key={m.value}
+  onClick={() => {
+    setSelectedMonth(m.value);
+    setSelectedFilter("custom"); // the filter becomes "custom"
+    setMonthDropdownOpen(false);
+    setCustomRange({ start: "", end: "" }); // reset custom range
+  }}
+>
+  {m.label}
+</li>
       ))}
     </ul>
   )}
@@ -583,23 +566,24 @@ const getGraphData = () => {
   <div className="custom-range-container">
     <span className="custom-range-label">Plage personnalisée :</span>
     <div className="custom-range">
-      <input
-        type="date"
-        value={customRange.start}
-        onChange={(e) => {
-          setCustomRange({ ...customRange, start: e.target.value });
-          setSelectedFilter("custom");
-        }}
-      />
-      <span>à</span>
-      <input
-        type="date"
-        value={customRange.end}
-        onChange={(e) => {
-          setCustomRange({ ...customRange, end: e.target.value });
-          setSelectedFilter("custom");
-        }}
-      />
+     <input
+  type="date"
+  value={customRange.start}
+  onChange={(e) => {
+    setCustomRange({ ...customRange, start: e.target.value });
+    setSelectedFilter("custom");
+    setSelectedMonth(""); // reset month dropdown
+  }}
+/>
+<input
+  type="date"
+  value={customRange.end}
+  onChange={(e) => {
+    setCustomRange({ ...customRange, end: e.target.value });
+    setSelectedFilter("custom");
+    setSelectedMonth(""); // reset month dropdown
+  }}
+/>
     </div>
   </div>
 </div>
@@ -620,12 +604,7 @@ const getGraphData = () => {
           <CreditCard size={16} style={{ marginRight: "6px" }} /> Dépenses
         </button>
 
-        <button
-          className={`tab-btn ${activeTab === "paiements" ? "active" : ""} danger`}
-          onClick={() => setActiveTab("paiements")}
-        >
-          <AlertTriangle size={16} style={{ marginRight: "6px" }} /> Paiements en attente
-        </button>
+       
       </div>
 
       <div className="tab-content">
@@ -664,7 +643,7 @@ const getGraphData = () => {
   {item.change}
 </span>
 
-                  <span className="vs-text">vs le mois dernier</span>
+                  <span className="vs-text">vs période précédente</span>
                 </div>
               </div>
             ))}
@@ -755,7 +734,7 @@ const getGraphData = () => {
 
             <div style={{ flex: 1, background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
               <h4 className="pie-legend">Top 5 types de revenusss</h4>
-              <div style={{ height: 300 }}>
+<div style={{ width: "100%", minWidth: "300px", height: 300 }}>
                <ResponsivePie
   data={revenuePie}
   margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
@@ -770,6 +749,7 @@ const getGraphData = () => {
   sliceLabelsSkipAngle={10}
   sliceLabel={(d) => `${d.value} DA`}
   sliceLabelsTextColor="#000"
+  
 />
 
               </div>

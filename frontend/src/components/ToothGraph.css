@@ -1,0 +1,15 @@
+.tooth-graph {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+}
+
+path {
+  transition: all 0.2s;
+}
+
+path:hover {
+  fill: #e0e0e0;
+  cursor: pointer;
+}

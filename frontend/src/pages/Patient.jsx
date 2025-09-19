@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
+import ToothGraph from "../components/ToothGraph";
 import "react-toastify/dist/ReactToastify.css";
 
 import { getPatientById, updatePatient } from "../services/patientService";
@@ -815,6 +816,11 @@ const handleDeleteAppointment = (a) => {
               <label>Prix</label>
               <input type="number" name="price" value={treatmentForm.price} onChange={handleTreatmentChange} required />
               <label>Notes</label>
+              <label>Dents traitées</label>
+<ToothGraph
+  selectedTeeth={treatmentForm.teeth || []}
+  onChange={(teeth) => setTreatmentForm({ ...treatmentForm, teeth })}
+/>
               <textarea name="notes" value={treatmentForm.notes} onChange={handleTreatmentChange} />
 <div className="paid-toggle-container">
   <span className="paid-label">Marqué comme </span>

@@ -14,11 +14,12 @@ public class FinanceGraphResponseDTO {
     private SectionDTO revenue;
     private SectionDTO expense;
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class SectionDTO {
-        private Map<String, Double> amounts; // d1, d2, ... (amounts over timeframe)
-        private Map<String, String> types;   // category → percentage (e.g. consultations: "58%")
-    }
+@Data
+@AllArgsConstructor
+public static class SectionDTO {
+    private Map<String, Double> amounts;          // total expenses / revenue
+    private Map<String, Double> secondaryAmounts; // inventaire or net revenue
+    private Map<String, String> types;            // percentages by type/category
+}
+
 }

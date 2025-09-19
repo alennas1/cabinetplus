@@ -27,16 +27,28 @@ html, body {
 ========================= */
 .appointments-controls {
   display: flex;
+  flex-wrap: wrap;          /* keep elements responsive */
+  align-items: center;      /* vertical center all children */
+  justify-content: space-between; /* push button to the right */
   gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
   margin-bottom: 16px;
 }
 
 .date-selector {
   display: flex;
-  gap: 8px;
+  align-items: center; /* vertical alignment */
+  gap: 8px;            /* spacing between Today / Tomorrow / Datepicker */
 }
+
+.appointments-controls button.btn-primary {
+  display: flex;
+  align-items: center;  /* center icon + text vertically */
+  gap: 6px;
+  padding: 8px 16px;
+  height: 40px;         /* make height consistent with datepicker/buttons */
+}
+
+
 
 .appointments-controls button {
   padding: 6px 12px;
@@ -63,10 +75,6 @@ html, body {
   border: 1px solid #ccc;
 }
 
-/* NEW: push the add button to the right */
-.appointments-controls button.btn-primary {
-  margin-left: auto;
-}
 
 
 /* =========================
@@ -361,7 +369,7 @@ html, body {
 ========================= */
 .slot-duration-selector {
   display: flex;
-  align-items: center;
+  align-items: center; /* vertically center items */
   gap: 8px;
   font-size: 0.95rem;
   font-weight: 500;
@@ -370,6 +378,9 @@ html, body {
 
 .slot-duration-selector label {
   min-width: 120px;
+  display: flex;
+  align-items: center; /* vertically center text inside label */
+  height: 100%;        /* ensures full height matching select */
 }
 
 .slot-duration-select {
@@ -381,6 +392,7 @@ html, body {
   background-color: #fff;
   color: #111827;
   transition: all 0.2s ease;
+  height: 36px; /* set a fixed height */
 }
 
 .slot-duration-select:hover {

@@ -3,12 +3,12 @@ import axios from "axios";
 
 const API_URL = "http://localhost:8080";
 
-// Create axios instance
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true, // send cookies for refresh token
 });
 
-// Automatically attach JWT if present
+// Attach JWT access token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -17,10 +17,44 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Auth requests
+// Interceptor to refresh token on 401
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (
+      error.response?.status === 401 &&
+      localStorage.getItem("token") &&
+      !originalRequest._retry
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        const { data } = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        localStorage.setItem("token", data.accessToken);
+        originalRequest.headers["Authorization"] = `Bearer ${data.accessToken}`;
+        return api(originalRequest);
+      } catch (err) {
+        // Dispatch a global session expired event
+        window.dispatchEvent(new Event("sessionExpired"));
+        return Promise.reject(err);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// --- Auth Requests ---
 export const login = async (username, password) => {
   const response = await api.post("/auth/login", { username, password });
-  return response.data; // { token: "..." }
+  localStorage.setItem("token", response.data.accessToken);
+  return response.data;
 };
 
 export const register = async (userData) => {
@@ -28,8 +62,10 @@ export const register = async (userData) => {
   return response.data;
 };
 
-// Optional helper for secured endpoints
+// Helper for secured endpoints
 export const getSecured = async (url) => {
   const response = await api.get(url);
   return response.data;
 };
+
+export default api;

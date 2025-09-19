@@ -17,10 +17,12 @@ import Preference from "./pages/Preference";
 import Profile from "./pages/Profile";
 import Security from "./pages/Security";
 import Finance from "./pages/Finance";
-import Expenses from "./pages/Expenses"
+import Expenses from "./pages/Expenses";
 import Ordonnance from "./pages/Ordonnance";
 import Inventory from "./pages/Inventory";
-import Items from "./pages/Items"
+import Items from "./pages/Items";
+import SessionExpiredModal from "./components/SessionExpiredModal";
+
 import "./index.css";
 
 function App() {
@@ -28,14 +30,15 @@ function App() {
 
   return (
     <Router>
+      <SessionExpiredModal /> {/* global modal */}
       <div className="app-container">
         <Routes>
-          {/* Public routes */}
+          {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* Protected routes */}
+          {/* Protected Routes */}
           <Route element={<RequireAuth />}>
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
@@ -57,13 +60,11 @@ function App() {
             </Route>
           </Route>
 
-          {/* Conditional redirect for "/" */}
+          {/* Default Route */}
           <Route
             path="/"
             element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />}
           />
-
-          {/* Catch-all route */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useDispatch } from "react-redux";
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { loginSuccess } from "../store/authSlice";
 import { login } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
@@ -14,13 +14,21 @@ const LoginPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  // ✅ Auto-redirect if already authenticated
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const { accessToken } = await login(username, password);
+      const { accessToken } = await login(username.trim(), password.trim());
 
       // Save access token in Redux/localStorage
       dispatch(loginSuccess(accessToken));
@@ -28,7 +36,8 @@ const LoginPage = () => {
       // Navigate after login
       navigate("/dashboard");
     } catch (err) {
-      setError("Identifiants invalides");
+      const msg = err.response?.data?.message || "Identifiants invalides";
+      setError(msg);
     } finally {
       setLoading(false);
     }

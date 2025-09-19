@@ -177,6 +177,7 @@
 
 
 /* --- MODAL --- */
+/* --- MODAL --- */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -192,11 +193,17 @@
   background: #fff;
   padding: 24px;
   border-radius: 12px;
-  width: 800px;   /* wider than 400px */
+  width: 400px;   /* default width for all modals except treatment */
   max-width: 95%;
   box-shadow: 0 8px 20px rgba(0,0,0,0.15);
   animation: popup-fade 0.25s ease;
 }
+
+/* --- TREATMENT MODAL ONLY --- */
+.treatment-modal .modal-content {
+  width: 800px;   /* wide modal */
+}
+
 
 @keyframes popup-fade {
   from { opacity: 0; transform: scale(0.95); }
@@ -205,7 +212,29 @@
 
 .modal-form {
   display: flex;
+  flex-direction: column;
+  gap: 12px; /* space between label and input */
+}
+.treatment-modal-form {
+  display: flex;
   gap: 20px;
+}
+
+.treatment-modal-form-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.treatment-modal-form-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* Left side form fields */
@@ -243,6 +272,21 @@
 }
 
 .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+.treatment-modal-form input,
+.treatment-modal-form select,
+.treatment-modal-form textarea {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.treatment-modal-form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;

@@ -1,6 +1,8 @@
-import React, { useState } from "react";
-import { register } from "../services/authService";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { register, login } from "../services/authService";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { loginSuccess } from "../store/authSlice";
 import "./Register.css";
 
 const RegisterPage = () => {
@@ -14,40 +16,56 @@ const RegisterPage = () => {
     phoneNumber: "",
   });
 
-  const [errors, setErrors] = useState({}); // 🔹 holds field errors
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated) navigate("/dashboard");
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
-    setErrors({
-      ...errors,
-      [e.target.name]: "", // clear error when typing
-    });
+    setErrors({ ...errors, [e.target.name]: "" });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrors({}); // reset errors before submit
+    setErrors({});
+    setLoading(true);
 
     try {
+      // 1️⃣ Register user
       await register(formData);
-      alert("Inscription réussie ! Vous pouvez maintenant vous connecter.");
+
+      // 2️⃣ Auto-login after registration
+      const { accessToken } = await login(formData.username, formData.password);
+      dispatch(loginSuccess(accessToken));
+
+      // 3️⃣ Navigate to dashboard
+      navigate("/dashboard");
+
     } catch (error) {
       if (error.response && error.response.data) {
-        // 🔹 backend sends { field: "message" }
-        setErrors(error.response.data);
+        setErrors(error.response.data); // backend field errors
       } else {
         alert("Erreur inconnue lors de l'inscription");
       }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="auth-container">
       <form onSubmit={handleSubmit} className="auth-card">
-        {/* 🔹 Logo */}
         <div className="auth-logo">
           <img src="/logo.png" alt="CabinetPlus" />
         </div>
@@ -55,7 +73,6 @@ const RegisterPage = () => {
         <h2>Créer un compte</h2>
 
         <div className="auth-form">
-          {/* Username */}
           <input
             type="text"
             name="username"
@@ -63,10 +80,10 @@ const RegisterPage = () => {
             value={formData.username}
             onChange={handleChange}
             required
+            disabled={loading}
           />
           {errors.username && <p className="error-text">{errors.username}</p>}
 
-          {/* Password */}
           <input
             type="password"
             name="password"
@@ -74,10 +91,10 @@ const RegisterPage = () => {
             value={formData.password}
             onChange={handleChange}
             required
+            disabled={loading}
           />
           {errors.password && <p className="error-text">{errors.password}</p>}
 
-          {/* Firstname + Lastname */}
           <div className="form-row">
             <div className="form-group">
               <input
@@ -86,10 +103,9 @@ const RegisterPage = () => {
                 placeholder="Prénom"
                 value={formData.firstname}
                 onChange={handleChange}
+                disabled={loading}
               />
-              {errors.firstname && (
-                <p className="error-text">{errors.firstname}</p>
-              )}
+              {errors.firstname && <p className="error-text">{errors.firstname}</p>}
             </div>
 
             <div className="form-group">
@@ -99,43 +115,41 @@ const RegisterPage = () => {
                 placeholder="Nom"
                 value={formData.lastname}
                 onChange={handleChange}
+                disabled={loading}
               />
-              {errors.lastname && (
-                <p className="error-text">{errors.lastname}</p>
-              )}
+              {errors.lastname && <p className="error-text">{errors.lastname}</p>}
             </div>
           </div>
 
-          {/* Email */}
           <input
             type="email"
             name="email"
             placeholder="Email"
             value={formData.email}
             onChange={handleChange}
+            disabled={loading}
           />
           {errors.email && <p className="error-text">{errors.email}</p>}
 
-          {/* Phone */}
           <input
             type="tel"
             name="phoneNumber"
             placeholder="Numéro de téléphone"
             value={formData.phoneNumber}
             onChange={handleChange}
+            disabled={loading}
           />
-          {errors.phoneNumber && (
-            <p className="error-text">{errors.phoneNumber}</p>
-          )}
+          {errors.phoneNumber && <p className="error-text">{errors.phoneNumber}</p>}
 
-          {/* Role */}
-          <select name="role" value={formData.role} onChange={handleChange}>
+          <select name="role" value={formData.role} onChange={handleChange} disabled={loading}>
             <option value="SECRETARY">Secrétaire</option>
             <option value="DENTIST">Dentiste</option>
           </select>
           {errors.role && <p className="error-text">{errors.role}</p>}
 
-          <button type="submit">S'inscrire</button>
+          <button type="submit" disabled={loading}>
+            {loading ? "Inscription..." : "S'inscrire"}
+          </button>
         </div>
 
         <p className="auth-footer">

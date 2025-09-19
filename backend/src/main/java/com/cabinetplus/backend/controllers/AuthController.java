@@ -43,76 +43,83 @@ public class AuthController {
         this.passwordEncoder = passwordEncoder;
     }
 
+    // ---------------- LOGIN ----------------
     @PostMapping("/login")
-public Map<String, String> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
-    try {
-        String username = body.get("username");
-        String password = body.get("password");
+    public Map<String, String> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
+        try {
+            String username = body.get("username");
+            String password = body.get("password");
 
-        Authentication auth = authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(username, password));
+            Authentication auth = authManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(username, password));
 
-        String role = auth.getAuthorities().iterator().next().getAuthority();
+            String role = auth.getAuthorities().iterator().next().getAuthority();
 
-        // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(auth.getName(), role);
-        String refreshToken = jwtUtil.generateRefreshToken(auth.getName());
+            String accessToken = jwtUtil.generateAccessToken(auth.getName(), role);
+            String refreshToken = jwtUtil.generateRefreshToken(auth.getName());
 
-        // Option A: Return both in response body
-        // return Map.of("accessToken", accessToken, "refreshToken", refreshToken);
+            // Send refresh token as HttpOnly cookie
+            Cookie cookie = new Cookie("refresh_token", refreshToken);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(false); // false for local dev, true in production
+            cookie.setPath("/auth/refresh");
+            cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
+            response.addCookie(cookie);
 
-        // Option B (recommended for web): Send refresh token as HttpOnly cookie
-        Cookie cookie = new Cookie("refresh_token", refreshToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true); // works only on HTTPS
-        cookie.setPath("/auth/refresh");
-        cookie.setMaxAge(7 * 24 * 60 * 60);
-        response.addCookie(cookie);
+            return Map.of("accessToken", accessToken);
 
-        return Map.of("accessToken", accessToken);
-
-    } catch (AuthenticationException e) {
-        throw new RuntimeException("Invalid username/password");
+        } catch (AuthenticationException e) {
+            throw new RuntimeException("Invalid username/password");
+        }
     }
-}
 
-@PostMapping("/register")
-public ResponseEntity<UserDto> register(@Valid @RequestBody RegisterRequest request) {
-    User user = new User();
-    user.setUsername(request.username());
-    user.setPasswordHash(passwordEncoder.encode(request.password()));
-    user.setFirstname(request.firstname());
-    user.setLastname(request.lastname());
-    user.setEmail(request.email());
-    user.setPhoneNumber(request.phoneNumber());
-    user.setRole(UserRole.valueOf(request.role()));
-    user.setCreatedAt(LocalDateTime.now());
+    // ---------------- REGISTER ----------------
+    @PostMapping("/register")
+    public ResponseEntity<UserDto> register(@Valid @RequestBody RegisterRequest request) {
+        User user = new User();
+        user.setUsername(request.username());
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setFirstname(request.firstname());
+        user.setLastname(request.lastname());
+        user.setEmail(request.email());
+        user.setPhoneNumber(request.phoneNumber());
+        user.setRole(UserRole.valueOf(request.role()));
+        user.setCreatedAt(LocalDateTime.now());
 
-    User saved = userRepo.save(user);
+        User saved = userRepo.save(user);
 
-    UserDto dto = new UserDto(
-        saved.getId(),
-        saved.getUsername(),
-        saved.getFirstname(),
-        saved.getLastname(),
-        saved.getEmail(),
-        saved.getPhoneNumber(),
-        saved.getRole().name()
-    );
+        UserDto dto = new UserDto(
+                saved.getId(),
+                saved.getUsername(),
+                saved.getFirstname(),
+                saved.getLastname(),
+                saved.getEmail(),
+                saved.getPhoneNumber(),
+                saved.getRole().name()
+        );
 
-    return ResponseEntity.ok(dto);
-}
+        return ResponseEntity.ok(dto);
+    }
 
-@PostMapping("/refresh")
-public Map<String, String> refresh(@CookieValue("refresh_token") String refreshToken) {
+    // ---------------- REFRESH ----------------
+    @PostMapping("/refresh")
+public Map<String, String> refresh(@CookieValue("refresh_token") String refreshToken, HttpServletResponse response) {
     if (jwtUtil.validateToken(refreshToken)) {
         String username = jwtUtil.extractUsername(refreshToken);
 
-        // (Optional) load role from DB if you want always fresh roles
         User user = userRepo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        // Generate new access token
         String newAccessToken = jwtUtil.generateAccessToken(username, user.getRole().name());
+
+        // Extend refresh token expiry (sliding expiration)
+        Cookie cookie = new Cookie("refresh_token", refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // true in prod
+        cookie.setPath("/auth/refresh");
+        cookie.setMaxAge(7 * 24 * 60 * 60); // reset 7 days
+        response.addCookie(cookie);
 
         return Map.of("accessToken", newAccessToken);
     }

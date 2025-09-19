@@ -16,12 +16,11 @@ import io.jsonwebtoken.security.Keys;
 public class JwtUtil {
 
     private final Key key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+// Access token: 15 minutes
+private final long accessExpirationMs = 15 * 60 * 1000;
 
-    // Access token short expiry (15 min)
-    private final long accessExpirationMs = 15 * 60 * 1000;
-
-    // Refresh token longer expiry (7 days)
-    private final long refreshExpirationMs = 7 * 24 * 60 * 60 * 1000;
+// Refresh token: 7 days
+private final long refreshExpirationMs = 7 * 24 * 60 * 60 * 1000;
 
     public String generateAccessToken(String username, String role) {
         return Jwts.builder()
@@ -33,14 +32,19 @@ public class JwtUtil {
                 .compact();
     }
 
-    public String generateRefreshToken(String username) {
-        return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + refreshExpirationMs))
-                .signWith(key)
-                .compact();
-    }
+    public String generateRefreshToken(String username, long customExpirationMs) {
+    return Jwts.builder()
+            .setSubject(username)
+            .setIssuedAt(new Date())
+            .setExpiration(new Date(System.currentTimeMillis() + customExpirationMs))
+            .signWith(key)
+            .compact();
+}
+
+// default 7 days
+public String generateRefreshToken(String username) {
+    return generateRefreshToken(username, refreshExpirationMs);
+}
 
     public String extractUsername(String token) {
         return parseClaims(token).getBody().getSubject();

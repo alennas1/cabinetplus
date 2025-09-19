@@ -849,10 +849,10 @@ const handleDeleteAppointment = (a) => {
       {/* --- MODALS --- */}
       {/* Treatment Modal */}
       {showTreatmentModal && (
-        <div className="modal-overlay" onClick={() => setShowTreatmentModal(false)}>
+  <div className="modal-overlay treatment-modal" onClick={() => setShowTreatmentModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2>{isEditingTreatment ? "Modifier traitement" : "Ajouter traitement"}</h2>
-           <form className="modal-form" onSubmit={handleCreateOrUpdateTreatment}>
+<form className="treatment-modal-form" onSubmit={handleCreateOrUpdateTreatment}>
   {/* LEFT SIDE */}
   <div className="modal-form-left">
       <label className="tooth-text">Sélectionner la/les dent(s)</label>

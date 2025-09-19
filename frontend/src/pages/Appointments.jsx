@@ -319,31 +319,41 @@ const slots = React.useMemo(() => getSlotAppointments(), [appointments, selected
         <PageHeader title="Rendez-vous" subtitle="Liste des rendez-vous" align="left" />
 
         {/* Controls */}
-        <div className="appointments-controls">
-         <div className="date-selector">
-  <button
-    className={selectedDate === "today" ? "active" : ""}
-    onClick={() => { setSelectedDate("today"); setCustomDate(""); }}
-  >
-    Aujourd'hui
-  </button>
+       {/* Controls: Date Selector + Add Button */}
+<div className="appointments-controls">
+  <div className="date-selector">
+    <button
+      className={selectedDate === "today" ? "active" : ""}
+      onClick={() => { setSelectedDate("today"); setCustomDate(""); }}
+    >
+      Aujourd'hui
+    </button>
 
-  <button
-    className={selectedDate === "tomorrow" ? "active" : ""}
-    onClick={() => { setSelectedDate("tomorrow"); setCustomDate(""); }}
-  >
-    Demain
-  </button>
+    <button
+      className={selectedDate === "tomorrow" ? "active" : ""}
+      onClick={() => { setSelectedDate("tomorrow"); setCustomDate(""); }}
+    >
+      Demain
+    </button>
 
-  <input
-    type="date"
-    value={customDate}
-    onChange={(e) => { setCustomDate(e.target.value); setSelectedDate("custom"); }}
-  />
+    <input
+      type="date"
+      value={customDate}
+      onChange={(e) => { setCustomDate(e.target.value); setSelectedDate("custom"); }}
+    />
+  </div>
+
+  {/* Add button on the right */}
+  <button
+    className="btn-primary"
+    onClick={() => { setOpenedFromSlot(false); setShowModal(true); }}
+  >
+    <Plus size={16} /> Ajouter un rendez-vous
+  </button>
 </div>
 
-
-         <div className="slot-duration-selector">
+{/* Slot duration selector BELOW the date selector, ABOVE the slots */}
+<div className="slot-duration-selector" style={{ marginBottom: "16px" }}>
   <label>Durée du créneau :</label>
   <select
     value={slotDuration}
@@ -356,11 +366,6 @@ const slots = React.useMemo(() => getSlotAppointments(), [appointments, selected
   </select>
 </div>
 
-
-          <button className="btn-primary" onClick={() => { setOpenedFromSlot(false); setShowModal(true); }}>
-            <Plus size={16} /> Ajouter un rendez-vous
-          </button>
-        </div>
 
         {/* Slots */}
         <div className="appointments-slots">

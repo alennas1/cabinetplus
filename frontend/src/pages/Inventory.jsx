@@ -255,8 +255,8 @@ const Inventory = () => {
               <td>{i.price} DA</td>
               <td>{i.expiryDate || "—"}</td>
               <td className="actions-cell">
-                <button className="action-btn edit" onClick={() => handleEdit(i)}><Edit2 size={16} /></button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(i)}><Trash2 size={16} /></button>
+                <button className="action-btn edit" onClick={() => handleEdit(i)} title="Modifier"><Edit2 size={16} /></button>
+                <button className="action-btn delete" onClick={() => handleDeleteClick(i)} title="Supprimer"><Trash2 size={16} /></button>
               </td>
             </tr>
           ))}

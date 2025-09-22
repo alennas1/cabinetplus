@@ -782,3 +782,16 @@
   cursor: pointer;
   transition: all 0.25s ease;
 }
+.sex-icon {
+  font-size: 30px !important;  /* ensures it overrides table styles */
+  font-weight: bold !important;
+}
+
+.sex-icon.male {
+  color: #1E88E5 !important;
+}
+
+.sex-icon.female {
+  color: #E91E63 !important;
+}
+

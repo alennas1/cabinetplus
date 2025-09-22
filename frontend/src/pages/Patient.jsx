@@ -408,7 +408,7 @@ const handleDeletePayment = (p) => {
 
 
 
- const handleCreateOrUpdateAppointment = async (e) => {
+const handleCreateOrUpdateAppointment = async (e) => {
   e.preventDefault();
   try {
     if (!appointmentForm.date || appointmentForm.hour === undefined || appointmentForm.minute === undefined) {
@@ -418,36 +418,73 @@ const handleDeletePayment = (p) => {
 
     const hour = String(appointmentForm.hour).padStart(2, "0");
     const minute = String(appointmentForm.minute).padStart(2, "0");
-    const startDateTime = new Date(`${appointmentForm.date}T${hour}:${minute}`);
-    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // 30 min default
 
-    const payload = {
-      dateTimeStart: startDateTime.toISOString(),
-      dateTimeEnd: endDateTime.toISOString(),
-      status: "SCHEDULED",
-      patientId: id,
-      notes: appointmentForm.notes
-    };
+    const startDateTime = `${appointmentForm.date}T${hour}:${minute}`;
+    const startDateObj = new Date(startDateTime);
 
+    const durationMinutes = Number(appointmentForm.duration) || 30;
+    const endDateObj = new Date(startDateObj.getTime() + durationMinutes * 60000);
+
+    const endHour = String(endDateObj.getHours()).padStart(2, "0");
+    const endMinute = String(endDateObj.getMinutes()).padStart(2, "0");
+    const endDateTime = `${appointmentForm.date}T${endHour}:${endMinute}`;
+
+    let payload;
     let savedAppointment;
+
     if (isEditingAppointment) {
+      const existing = appointments.find(a => a.id === appointmentForm.id);
+      if (!existing) throw new Error("Rendez-vous introuvable pour la mise à jour");
+
+      payload = {
+        ...existing,
+        dateTimeStart: startDateTime,
+        dateTimeEnd: endDateTime,
+        notes: appointmentForm.notes,
+        status: "SCHEDULED",
+      };
+
       savedAppointment = await updateAppointment(appointmentForm.id, payload, token);
-      setAppointments(appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a));
-      toast.success("Rendez-vous mis à jour !");
+      setAppointments(
+        appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a)
+      );
+      toast.success("Rendez-vous mis à jour avec succès !");
     } else {
+      payload = {
+        dateTimeStart: startDateTime,
+        dateTimeEnd: endDateTime,
+        status: "SCHEDULED",
+        patientId: id,
+        notes: appointmentForm.notes
+      };
+
       savedAppointment = await createAppointment(payload, token);
       setAppointments([savedAppointment, ...appointments]);
-      toast.success("Rendez-vous ajouté !");
+      toast.success("Rendez-vous ajouté avec succès !");
     }
 
     setShowAppointmentModal(false);
-    setAppointmentForm({ id: null, date: "", hour: "", minute: "", notes: "" });
+    setAppointmentForm({ id: null, date: "", hour: "", minute: "", notes: "", duration: 30 });
     setIsEditingAppointment(false);
+
   } catch (err) {
-    console.error(err);
-    toast.error("Erreur lors de l'enregistrement du rendez-vous");
+    console.error("Erreur appointment:", err);
+
+    if (err.response) {
+      if (err.response.status === 409) {
+        toast.error("Impossible de créer le rendez-vous : il chevauche un autre rendez-vous !");
+      } else if (err.response.status === 400) {
+        toast.error("Informations invalides : vérifiez la date, l'heure ou les champs saisis.");
+      } else {
+        toast.error("Une erreur est survenue lors de l'enregistrement du rendez-vous.");
+      }
+    } else {
+      toast.error("Impossible de contacter le serveur. Vérifiez votre connexion internet.");
+    }
   }
 };
+
+
 
 const handleDeletePrescription = (o) => {
   setConfirmMessage("Voulez-vous supprimer cette ordonnance ?");
@@ -487,10 +524,22 @@ const handleDeleteAppointment = (a) => {
        {/* --- PATIENT INFO --- */}
 <div className="patient-top">
   <div className="patient-info-left">
-    <div className="patient-name">{patient.firstname} {patient.lastname}</div>
+   <div className="patient-name">
+  {patient.firstname} {patient.lastname}
+  {patient.sex === "Homme" ? (
+    <span className="sex-icon male">♂</span>
+  ) : patient.sex === "Femme" ? (
+    <span className="sex-icon female">♀</span>
+  ) : (
+    "—"
+  )}
+</div>
+
     <div className="patient-details">
-      <div>{patient.age ?? "N/A"} ans - {patient.sex || "—"}</div>
-      <div>{formatPhone(patient.phone)}</div>
+<div>
+  {patient.age ?? "N/A"} ans
+  
+</div>      <div>{formatPhone(patient.phone)}</div>
       <div>Créé le {formatDate(patient.createdAt)}</div>
     </div>
   </div>
@@ -961,6 +1010,7 @@ const handleDeleteAppointment = (a) => {
     <div className="modal-content" onClick={e => e.stopPropagation()}>
       <h2>{isEditingAppointment ? "Modifier rendez-vous" : "Ajouter rendez-vous"}</h2>
       <form className="modal-form" onSubmit={handleCreateOrUpdateAppointment}>
+
         <label>Date</label>
         <input 
           type="date" 
@@ -970,33 +1020,48 @@ const handleDeleteAppointment = (a) => {
           required 
         />
 
+        {/* Créneau / Heure */}
         <label>Heure</label>
         <div style={{ display: "flex", gap: "8px" }}>
-          <input
-            type="number"
-            placeholder="Heures"
-            min="8"
-            max="18"
-            value={appointmentForm.hour || ""}
-            onChange={(e) =>
-              setAppointmentForm({ ...appointmentForm, hour: e.target.value })
-            }
-            required
-          />
-          <input
-            type="number"
-            placeholder="Minutes"
-            min="0"
-            max="59"
-            step="30"
-            value={appointmentForm.minute || ""}
-            onChange={(e) =>
-              setAppointmentForm({ ...appointmentForm, minute: e.target.value })
-            }
-            required
-          />
+         <input
+  type="number"
+  placeholder="Heures"
+  min="8"
+  max="18"
+  value={appointmentForm.hour !== undefined ? appointmentForm.hour : ""}
+  onChange={(e) =>
+    setAppointmentForm({ ...appointmentForm, hour: Number(e.target.value) })
+  }
+  required
+/>
+<input
+  type="number"
+  placeholder="Minutes"
+  min="0"
+  max="59"
+  step={15}
+  value={appointmentForm.minute !== undefined ? appointmentForm.minute : ""}
+  onChange={(e) =>
+    setAppointmentForm({ ...appointmentForm, minute: Number(e.target.value) })
+  }
+  required
+/>
         </div>
 
+        {/* Duration Selector */}
+        <div className="form-field">
+          <label>Durée du rendez-vous :</label>
+          <select
+            value={appointmentForm.duration || 30} // default 30 min
+            onChange={(e) => setAppointmentForm({ ...appointmentForm, duration: Number(e.target.value) })}
+          >
+            <option value={15}>15 min</option>
+            <option value={30}>30 min</option>
+            <option value={60}>60 min</option>
+          </select>
+        </div>
+
+        {/* Notes */}
         <label>Notes</label>
         <textarea
           name="notes"
@@ -1012,6 +1077,7 @@ const handleDeleteAppointment = (a) => {
     </div>
   </div>
 )}
+
 
 {showConfirm && (
   <div

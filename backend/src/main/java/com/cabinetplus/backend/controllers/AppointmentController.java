@@ -3,7 +3,9 @@ package com.cabinetplus.backend.controllers;
 import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.AppointmentRequest;
 import com.cabinetplus.backend.dto.AppointmentResponse;
@@ -28,8 +31,8 @@ import com.cabinetplus.backend.services.UserService;
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
-    private final UserService userService; //  inject userService
-    private final PatientService patientService; // 💡 inject patientService
+    private final UserService userService;
+    private final PatientService patientService;
 
     public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService) {
         this.appointmentService = appointmentService;
@@ -37,12 +40,12 @@ public class AppointmentController {
         this.patientService = patientService;
     }
 
-    //  Return appointments only for the logged-in practitioner
+    // Return appointments only for the logged-in practitioner
     @GetMapping
     public List<Appointment> getAllAppointments(Principal principal) {
         String username = principal.getName();
         User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         return appointmentService.findByPractitioner(currentUser);
     }
@@ -52,46 +55,78 @@ public class AppointmentController {
         return appointmentService.findById(id);
     }
 
-  @PostMapping
-public AppointmentResponse createAppointment(@RequestBody AppointmentRequest request, Principal principal) {
-    String username = principal.getName();
-    User currentUser = userService.findByUsername(username)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+    @PostMapping
+    public AppointmentResponse createAppointment(@RequestBody AppointmentRequest request, Principal principal) {
+        String username = principal.getName();
+        User currentUser = userService.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-    // Build entity
-    Appointment appointment = new Appointment();
-    appointment.setDateTimeStart(request.dateTimeStart());
-    appointment.setDateTimeEnd(request.dateTimeEnd());
-    appointment.setStatus(request.status());
+        // Overlap check
+        List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
+                .filter(a ->
+                        a.getDateTimeStart().isBefore(request.dateTimeEnd()) &&
+                        a.getDateTimeEnd().isAfter(request.dateTimeStart())
+                )
+                .collect(Collectors.toList());
 
-   PatientDto patientDto = patientService.findById(request.patientId())
-        .orElseThrow(() -> new RuntimeException("Patient not found")); Patient patientEntity = new Patient();
-    patientEntity.setId(patientDto.id());
-    appointment.setPatient(patientEntity);
+        if (!overlapping.isEmpty()) {
+            // Retourner 409 CONFLICT
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment overlaps with existing appointments");
+        }
 
-    appointment.setPractitioner(currentUser);
+        // Build appointment
+        Appointment appointment = new Appointment();
+        appointment.setDateTimeStart(request.dateTimeStart());
+        appointment.setDateTimeEnd(request.dateTimeEnd());
+        appointment.setStatus(request.status());
 
-    Appointment saved = appointmentService.save(appointment);
+        PatientDto patientDto = patientService.findById(request.patientId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+        Patient patientEntity = new Patient();
+        patientEntity.setId(patientDto.id());
+        appointment.setPatient(patientEntity);
 
-    return new AppointmentResponse(
-            saved.getId(),
-            saved.getDateTimeStart(),
-            saved.getDateTimeEnd(),
-            saved.getStatus(),   // status is already AppointmentStatus
-            saved.getNotes(),
-            patientDto,
-            currentUser.getId(),
-            currentUser.getFirstname(),
-            currentUser.getLastname()
-    );
-}
+        appointment.setPractitioner(currentUser);
 
+        Appointment saved = appointmentService.save(appointment);
 
+        return new AppointmentResponse(
+                saved.getId(),
+                saved.getDateTimeStart(),
+                saved.getDateTimeEnd(),
+                saved.getStatus(),
+                saved.getNotes(),
+                patientDto,
+                currentUser.getId(),
+                currentUser.getFirstname(),
+                currentUser.getLastname()
+        );
+    }
 
     @PutMapping("/{id}")
-    public Appointment updateAppointment(@PathVariable Long id, @RequestBody Appointment appointment) {
-        appointment.setId(id);
-        return appointmentService.save(appointment);
+    public Appointment updateAppointment(@PathVariable Long id, @RequestBody Appointment updatedAppointment, Principal principal) {
+        String username = principal.getName();
+        User currentUser = userService.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        // Overlap check (ignore current appointment)
+        List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
+                .filter(a -> !a.getId().equals(id)) // ignore itself
+                .filter(a ->
+                        a.getDateTimeStart().isBefore(updatedAppointment.getDateTimeEnd()) &&
+                        a.getDateTimeEnd().isAfter(updatedAppointment.getDateTimeStart())
+                )
+                .collect(Collectors.toList());
+
+        if (!overlapping.isEmpty()) {
+            // Retourner 409 CONFLICT
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment overlaps with existing appointments");
+        }
+
+        updatedAppointment.setId(id);
+        updatedAppointment.setPractitioner(currentUser);
+
+        return appointmentService.save(updatedAppointment);
     }
 
     @DeleteMapping("/{id}")

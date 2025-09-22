@@ -44,6 +44,7 @@ export default function Appointments() {
     hour: "",
     minute: "",
     status: "SCHEDULED",
+    duration: 30, // <-- added duration field
   });
 
   const [newPatient, setNewPatient] = useState({
@@ -100,14 +101,14 @@ export default function Appointments() {
     }
     const results = patients.filter(
       (p) =>
-        p.firstname.toLowerCase().includes(query.toLowerCase()) ||
-        p.lastname.toLowerCase().includes(query.toLowerCase()) ||
+        (p.firstname || "").toLowerCase().includes(query.toLowerCase()) ||
+        (p.lastname || "").toLowerCase().includes(query.toLowerCase()) ||
         (p.phone && p.phone.includes(query))
     );
     setSearchResults(results.slice(0, 3));
   };
 
-const getSlotAppointments = () => {
+ const getSlotAppointments = () => {
   const slots = [];
   let baseDate;
   if (selectedDate === "today") baseDate = new Date();
@@ -121,57 +122,58 @@ const getSlotAppointments = () => {
     baseDate = new Date();
   }
 
-  // Reset hours/minutes/seconds for baseDate to compare only date part
-  const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0, 0);
-  const dayEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 23, 59, 59);
+  const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 8, 0, 0); // 8:00
+  const dayEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 18, 0, 0); // 18:00
 
-  // Filter appointments to only include those on the selected date
-  const filteredAppointments = appointments.filter((a) => {
-    const apptStart = new Date(a.dateTimeStart + "Z");
-    return apptStart >= dayStart && apptStart <= dayEnd;
-  });
+  // Sort appointments by start time
+  const dayAppointments = appointments
+    .filter((a) => {
+      const apptStart = new Date(a.dateTimeStart);
+      return apptStart >= dayStart && apptStart <= dayEnd;
+    })
+    .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
 
-  // 1️⃣ Sort appointments by start time
-  const sortedAppointments = filteredAppointments.sort(
-    (a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart)
-  );
+  let currentTime = new Date(dayStart);
 
-  // 2️⃣ Generate slots
-  const startHour = 8;
-  const endHour = 18;
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (let minute = 0; minute < 60; minute += slotDuration) {
-      const slotStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), hour, minute, 0);
-      const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
+  while (currentTime < dayEnd) {
+    // Find the next appointment starting after currentTime
+    const nextAppt = dayAppointments.find((a) => new Date(a.dateTimeStart) >= currentTime);
 
-      const overlapping = sortedAppointments.filter((a) => {
-        const aStart = new Date(a.dateTimeStart + "Z");
-        const aEnd = new Date(a.dateTimeEnd + "Z");
-        return aStart < slotEnd && aEnd > slotStart;
-      });
+    if (nextAppt && new Date(nextAppt.dateTimeStart) <= currentTime) {
+      // We're at the start of an appointment
+      const apptStart = new Date(nextAppt.dateTimeStart);
+      const apptEnd = new Date(nextAppt.dateTimeEnd);
 
       slots.push({
-        start: slotStart,
-        end: slotEnd,
-        appointments: overlapping,
+        start: apptStart,
+        end: apptEnd,
+        appointments: [nextAppt],
       });
+
+      currentTime = new Date(apptEnd);
+    } else {
+      // Empty slot
+      let nextSlotEnd;
+      if (nextAppt) {
+        // Either fill to next appointment or by slotDuration
+        nextSlotEnd = new Date(Math.min(currentTime.getTime() + slotDuration * 60000, new Date(nextAppt.dateTimeStart).getTime()));
+      } else {
+        nextSlotEnd = new Date(currentTime.getTime() + slotDuration * 60000);
+        if (nextSlotEnd > dayEnd) nextSlotEnd = new Date(dayEnd);
+      }
+
+      slots.push({
+        start: new Date(currentTime),
+        end: new Date(nextSlotEnd),
+        appointments: [], // empty
+      });
+
+      currentTime = new Date(nextSlotEnd);
     }
   }
 
-  // Add any appointments not included (in case of odd times)
-  sortedAppointments.forEach((a) => {
-    const aStart = new Date(a.dateTimeStart + "Z");
-    if (!slots.some((s) => s.start.getTime() === aStart.getTime())) {
-      slots.push({ start: aStart, end: new Date(a.dateTimeEnd + "Z"), appointments: [a] });
-    }
-  });
-
-  // Sort slots
-  slots.sort((a, b) => a.start - b.start);
-
   return slots;
 };
-
 
 
 
@@ -184,6 +186,7 @@ const getSlotAppointments = () => {
       hour: slot.start.getHours().toString().padStart(2, "0"),
       minute: slot.start.getMinutes().toString().padStart(2, "0"),
       status: "SCHEDULED",
+      duration: slotDuration,
     });
     setIsEditing(false);
     setOpenedFromSlot(true);
@@ -213,51 +216,72 @@ const getSlotAppointments = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      let patientId = formData.patientId;
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    let patientId = formData.patientId;
 
-      if (isNewPatient) {
-        const newP = await createPatient(newPatient, token);
-        patientId = newP.id;
-      }
-
-      let baseDate = new Date();
-      if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
-      if (selectedDate === "custom" && customDate) baseDate = new Date(customDate);
-
-      const start = new Date(
-        baseDate.getFullYear(),
-        baseDate.getMonth(),
-        baseDate.getDate(),
-        Number(formData.hour),
-        Number(formData.minute),
-        0
-      );
-      const end = new Date(start.getTime() + slotDuration * 60000); // use selected slot duration
-
-      const startStr = start.toISOString().slice(0, 19);
-      const endStr = end.toISOString().slice(0, 19);
-
-      const payload = {
-        dateTimeStart: startStr,
-        dateTimeEnd: endStr,
-        status: formData.status,
-        patientId,
-      };
-
-      await createAppointment(payload, token);
-      const updated = await getAppointments(token);
-      setAppointments(updated);
-
-      toast.success("Rendez-vous ajouté ");
-      closeModal();
-    } catch (err) {
-      console.error("Error saving appointment:", err);
-      toast.error("Erreur lors de l'enregistrement ");
+    // Create new patient if needed
+    if (isNewPatient) {
+      const newP = await createPatient(newPatient, token);
+      patientId = newP.id;
     }
-  };
+
+    // Determine base date
+    let baseDate = new Date();
+    if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
+    if (selectedDate === "custom" && customDate) {
+      const [year, month, day] = customDate.split("-");
+      baseDate = new Date(Number(year), Number(month) - 1, Number(day));
+    }
+
+    // Compute start and end datetime
+    const start = new Date(
+      baseDate.getFullYear(),
+      baseDate.getMonth(),
+      baseDate.getDate(),
+      Number(formData.hour),
+      Number(formData.minute),
+      0
+    );
+
+    const end = new Date(start.getTime() + (formData.duration || slotDuration) * 60000);
+
+    // Check for overlapping appointments locally
+    
+
+    // Format ISO strings for API
+    const startStr = start.toISOString().slice(0, 19);
+    const endStr = end.toISOString().slice(0, 19);
+
+    const payload = {
+      dateTimeStart: startStr,
+      dateTimeEnd: endStr,
+      status: formData.status,
+      patientId,
+    };
+
+    // Call API
+    await createAppointment(payload, token);
+
+    // Refresh appointments after creation
+    const updated = await getAppointments(token);
+    setAppointments(updated);
+
+    toast.success("Rendez-vous ajouté !");
+    closeModal();
+  } catch (err) {
+    console.error("Error saving appointment:", err);
+
+    // Handle backend overlap conflict
+    if (err.response && err.response.status === 409) {
+      toast.error("Impossible de créer le rendez-vous : il chevauche un autre rendez-vous !");
+    } else {
+      toast.error("Erreur lors de l'enregistrement du rendez-vous");
+    }
+  }
+};
+
 
   const handleDeleteClick = (id) => {
     setConfirmDelete(id);
@@ -294,6 +318,7 @@ const getSlotAppointments = () => {
       hour: "",
       minute: "",
       status: "SCHEDULED",
+      duration: slotDuration,
     });
     setIsNewPatient(false);
     setNewPatient({ firstname: "", lastname: "", phone: "", age: "", sex: "Homme" });
@@ -302,7 +327,7 @@ const getSlotAppointments = () => {
     setOpenedFromSlot(false);
   };
 
-const slots = React.useMemo(() => getSlotAppointments(), [appointments, selectedDate, customDate, slotDuration]);
+  const slots = React.useMemo(() => getSlotAppointments(), [appointments, selectedDate, customDate, slotDuration]);
 
   const getPatientName = (appt) => {
     if (!appt) return "";
@@ -319,53 +344,49 @@ const slots = React.useMemo(() => getSlotAppointments(), [appointments, selected
         <PageHeader title="Rendez-vous" subtitle="Liste des rendez-vous" align="left" />
 
         {/* Controls */}
-       {/* Controls: Date Selector + Add Button */}
-<div className="appointments-controls">
-  <div className="date-selector">
-    <button
-      className={selectedDate === "today" ? "active" : ""}
-      onClick={() => { setSelectedDate("today"); setCustomDate(""); }}
-    >
-      Aujourd'hui
-    </button>
+        <div className="appointments-controls">
+          <div className="date-selector">
+            <button
+              className={selectedDate === "today" ? "active" : ""}
+              onClick={() => { setSelectedDate("today"); setCustomDate(""); }}
+            >
+              Aujourd'hui
+            </button>
 
-    <button
-      className={selectedDate === "tomorrow" ? "active" : ""}
-      onClick={() => { setSelectedDate("tomorrow"); setCustomDate(""); }}
-    >
-      Demain
-    </button>
+            <button
+              className={selectedDate === "tomorrow" ? "active" : ""}
+              onClick={() => { setSelectedDate("tomorrow"); setCustomDate(""); }}
+            >
+              Demain
+            </button>
 
-    <input
-      type="date"
-      value={customDate}
-      onChange={(e) => { setCustomDate(e.target.value); setSelectedDate("custom"); }}
-    />
-  </div>
+            <input
+              type="date"
+              value={customDate}
+              onChange={(e) => { setCustomDate(e.target.value); setSelectedDate("custom"); }}
+            />
+          </div>
 
-  {/* Add button on the right */}
-  <button
-    className="btn-primary"
-    onClick={() => { setOpenedFromSlot(false); setShowModal(true); }}
-  >
-    <Plus size={16} /> Ajouter un rendez-vous
-  </button>
-</div>
+          <button
+            className="btn-primary"
+            onClick={() => { setOpenedFromSlot(false); setShowModal(true); }}
+          >
+            <Plus size={16} /> Ajouter un rendez-vous
+          </button>
+        </div>
 
-{/* Slot duration selector BELOW the date selector, ABOVE the slots */}
-<div className="slot-duration-selector" style={{ marginBottom: "16px" }}>
-  <label>Durée du créneau :</label>
-  <select
-    value={slotDuration}
-    onChange={(e) => setSlotDuration(Number(e.target.value))}
-    className="slot-duration-select"
-  >
-    <option value={15}>15 min</option>
-    <option value={30}>30 min</option>
-    <option value={60}>60 min</option>
-  </select>
-</div>
-
+        <div className="slot-duration-selector" style={{ marginBottom: "16px" }}>
+          <label>Durée du créneau :</label>
+          <select
+            value={slotDuration}
+            onChange={(e) => setSlotDuration(Number(e.target.value))}
+            className="slot-duration-select"
+          >
+            <option value={15}>15 min</option>
+            <option value={30}>30 min</option>
+            <option value={60}>60 min</option>
+          </select>
+        </div>
 
         {/* Slots */}
         <div className="appointments-slots">
@@ -479,12 +500,26 @@ const slots = React.useMemo(() => getSlotAppointments(), [appointments, selected
                   </div>
                 )}
 
+                {/* Appointment Time */}
                 {!openedFromSlot && (
                   <div style={{ display: "flex", gap: "8px" }}>
                     <input type="number" placeholder="Heures" min="8" max="18" value={formData.hour || ""} onChange={(e) => setFormData({ ...formData, hour: e.target.value })} required />
                     <input type="number" placeholder="Minutes" min="0" max="59" step={slotDuration} value={formData.minute || ""} onChange={(e) => setFormData({ ...formData, minute: e.target.value })} required />
                   </div>
                 )}
+
+                {/* Appointment Duration Selector */}
+                <div className="form-field">
+                  <label>Durée du rendez-vous :</label>
+                  <select
+                    value={formData.duration || slotDuration}
+                    onChange={(e) => setFormData({...formData, duration: Number(e.target.value)})}
+                  >
+                    <option value={15}>15 min</option>
+                    <option value={30}>30 min</option>
+                    <option value={60}>60 min</option>
+                  </select>
+                </div>
 
                 <div className="modal-actions">
                   <button type="submit" className="btn-primary2">Ajouter</button>
@@ -524,6 +559,7 @@ const slots = React.useMemo(() => getSlotAppointments(), [appointments, selected
             </div>
           </div>
         )}
+        
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
     </div>

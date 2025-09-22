@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import { Plus, Filter } from "react-feather";
 import { Edit2, Trash2,Eye,Search   } from "react-feather";
 import { useNavigate } from "react-router-dom";
+import { FaMale, FaFemale } from "react-icons/fa";
 
   import { ChevronDown } from "react-feather"; // ⬅️ at the top with imports
 import { toast, ToastContainer } from "react-toastify";
@@ -351,47 +352,51 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
-          {currentPatients.map((p) => (
-            <tr key={p.id}>
-              <td>{p.firstname || "—"}</td>
-              <td>{p.lastname || "—"}</td>
-              <td>{p.age ?? "N/A"} ans</td>
-              <td>{p.sex || "—"}</td>
-             <td>{formatPhone(p.phone)}</td>
-<td>{formatDate(p.createdAt)}</td>
-<td className="actions-cell">
-  <button
-    className="action-btn view"
-    onClick={() => navigate(`/patients/${p.id}`)}
-    title="Voir le patient"
-  >
-    <Eye size={16} />
-  </button>
-
-  <button
-    className="action-btn edit"
-    onClick={() => handleEdit(p)}
-    title="Modifier"
-  >
-    <Edit2 size={16} />
-  </button>
-
-
+       <tbody>
+  {currentPatients.map((p) => (
+    <tr key={p.id}>
+      <td>{p.firstname || "—"}</td>
+      <td>{p.lastname || "—"}</td>
+      <td>{p.age ?? "N/A"} ans</td>
+<td>
+  {p.sex === "Homme" ? (
+    <span className="sex-icon male">♂</span>
+  ) : p.sex === "Femme" ? (
+    <span className="sex-icon female">♀</span>
+  ) : (
+    "—"
+  )}
 </td>
+      <td>{formatPhone(p.phone)}</td>
+      <td>{formatDate(p.createdAt)}</td>
+      <td className="actions-cell">
+        <button
+          className="action-btn view"
+          onClick={() => navigate(`/patients/${p.id}`)}
+          title="Voir le patient"
+        >
+          <Eye size={16} />
+        </button>
 
+        <button
+          className="action-btn edit"
+          onClick={() => handleEdit(p)}
+          title="Modifier"
+        >
+          <Edit2 size={16} />
+        </button>
+      </td>
+    </tr>
+  ))}
 
-
-            </tr>
-          ))}
-          {filteredPatients.length === 0 && (
-            <tr>
-              <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
-                Aucun patient trouvé
-              </td>
-            </tr>
-          )}
-        </tbody>
+  {filteredPatients.length === 0 && (
+    <tr>
+      <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
+        Aucun patient trouvé
+      </td>
+    </tr>
+  )}
+</tbody>
       </table>
 {/* Pagination controls */}
 {totalPages > 1 && (

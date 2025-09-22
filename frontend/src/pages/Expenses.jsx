@@ -209,8 +209,8 @@ const Expenses = () => {
               <td>{e.date}</td>
               <td>{e.description || "—"}</td>
               <td className="actions-cell">
-                <button className="action-btn edit" onClick={() => handleEdit(e)}> <Edit2 size={16} /> </button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(e.id)}> <Trash2 size={16} /> </button>
+                <button className="action-btn edit" onClick={() => handleEdit(e)} title="Modifier"> <Edit2 size={16} /> </button>
+                <button className="action-btn delete" onClick={() => handleDeleteClick(e.id)} title="Supprimer"> <Trash2 size={16} /> </button>
               </td>
             </tr>
           ))}

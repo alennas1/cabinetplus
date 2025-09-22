@@ -22,6 +22,7 @@ import Ordonnance from "./pages/Ordonnance";
 import Inventory from "./pages/Inventory";
 import Items from "./pages/Items";
 import SessionExpiredModal from "./components/SessionExpiredModal";
+import Employees from "./pages/Employees";
 
 import "./index.css";
 
@@ -57,6 +58,7 @@ function App() {
               <Route path="/expenses" element={<Expenses />} />
               <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
               <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
+              <Route path="/employees" element={<Employees />} />
             </Route>
           </Route>
 

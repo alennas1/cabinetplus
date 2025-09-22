@@ -270,7 +270,17 @@
   border-radius: 8px;
   font-size: 14px;
 }
-
+.slot-duration-select {
+  padding: 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  min-height: 44px;             /* same as input height */
+  background-color: #fff;
+  appearance: none;             /* remove default arrow styling if needed */
+  cursor: pointer;
+  margin-bottom: 4px;           /* extra spacing so it’s not hidden */
+}
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -402,6 +412,24 @@
 .btn-primary-app:hover {
   background-color: #2176c1;
 }
+
+.sex-icon {
+  font-size: 28px;         /* size of the icon */
+  font-weight: bold;
+  margin-left: 8px;        /* space from text */
+  line-height: 1;          /* prevents extra vertical spacing */
+  display: inline-block;   /* ensures proper alignment */
+  transform: translateY(-2px); /* tweak vertical position */
+}
+.sex-icon.male {
+  color: #1E88E5;        /* blue */
+}
+
+.sex-icon.female {
+  color: #E91E63;        /* pink */
+}
+
+
 
 /* --- RESPONSIVE --- */
 @media screen and (max-width: 768px) {

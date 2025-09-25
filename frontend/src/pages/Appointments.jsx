@@ -216,7 +216,7 @@ export default function Appointments() {
     }
   };
 
- const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e.preventDefault();
   try {
     let patientId = formData.patientId;
@@ -247,12 +247,19 @@ export default function Appointments() {
 
     const end = new Date(start.getTime() + (formData.duration || slotDuration) * 60000);
 
-    // Check for overlapping appointments locally
-    
+    // Format local ISO (not UTC)
+    const formatLocalISO = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
 
-    // Format ISO strings for API
-    const startStr = start.toISOString().slice(0, 19);
-    const endStr = end.toISOString().slice(0, 19);
+    const startStr = formatLocalISO(start);
+    const endStr = formatLocalISO(end);
 
     const payload = {
       dateTimeStart: startStr,
@@ -281,6 +288,7 @@ export default function Appointments() {
     }
   }
 };
+
 
 
   const handleDeleteClick = (id) => {

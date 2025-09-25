@@ -1,14 +1,14 @@
 package com.cabinetplus.backend.repositories;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.User;
 
-@Repository
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
-    List<Employee> findByDentist(User dentist);
+    List<Employee> findAllByDentist(User dentist);
+    Optional<Employee> findByIdAndDentist(Long id, User dentist);
 }

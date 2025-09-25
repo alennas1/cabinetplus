@@ -8,11 +8,9 @@ import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
-import com.cabinetplus.backend.dto.EmployeeStatus;
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
-import com.cabinetplus.backend.repositories.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,13 +19,9 @@ import lombok.RequiredArgsConstructor;
 public class EmployeeService {
 
     private final EmployeeRepository employeeRepository;
-    private final UserRepository userRepository;
 
     // --- Create ---
-    public EmployeeResponseDTO saveEmployee(EmployeeRequestDTO dto) {
-        User dentist = userRepository.findById(dto.getDentistId())
-                .orElseThrow(() -> new RuntimeException("Dentist not found"));
-
+    public EmployeeResponseDTO saveEmployee(EmployeeRequestDTO dto, User dentist) {
         Employee employee = Employee.builder()
                 .firstName(dto.getFirstName())
                 .lastName(dto.getLastName())
@@ -39,7 +33,7 @@ public class EmployeeService {
                 .address(dto.getAddress())
                 .hireDate(dto.getHireDate())
                 .endDate(dto.getEndDate())
-                .status(EmployeeStatus.valueOf(dto.getStatus()))
+                .status(dto.getStatus())
                 .salary(dto.getSalary())
                 .contractType(dto.getContractType())
                 .dentist(dentist)
@@ -50,8 +44,8 @@ public class EmployeeService {
     }
 
     // --- Update ---
-    public EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO dto) {
-        Employee existing = employeeRepository.findById(id)
+    public EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO dto, User dentist) {
+        Employee existing = employeeRepository.findByIdAndDentist(id, dentist)
                 .orElseThrow(() -> new RuntimeException("Employee not found with id " + id));
 
         existing.setFirstName(dto.getFirstName());
@@ -64,37 +58,34 @@ public class EmployeeService {
         existing.setAddress(dto.getAddress());
         existing.setHireDate(dto.getHireDate());
         existing.setEndDate(dto.getEndDate());
-        existing.setStatus(EmployeeStatus.valueOf(dto.getStatus()));
+        existing.setStatus(dto.getStatus());
         existing.setSalary(dto.getSalary());
         existing.setContractType(dto.getContractType());
-
-        if (dto.getDentistId() != null) {
-            User dentist = userRepository.findById(dto.getDentistId())
-                    .orElseThrow(() -> new RuntimeException("Dentist not found with id " + dto.getDentistId()));
-            existing.setDentist(dentist);
-        }
 
         Employee updated = employeeRepository.save(existing);
         return mapToResponse(updated);
     }
 
     // --- Get All ---
-    public List<EmployeeResponseDTO> getAllEmployees() {
-        return employeeRepository.findAll()
+    public List<EmployeeResponseDTO> getAllEmployeesForDentist(User dentist) {
+        return employeeRepository.findAllByDentist(dentist)
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     // --- Get by ID ---
-    public Optional<EmployeeResponseDTO> getEmployeeById(Long id) {
-        return employeeRepository.findById(id)
+    public Optional<EmployeeResponseDTO> getEmployeeByIdForDentist(Long id, User dentist) {
+        return employeeRepository.findByIdAndDentist(id, dentist)
                 .map(this::mapToResponse);
     }
 
     // --- Delete ---
-    public void deleteEmployee(Long id) {
-        employeeRepository.deleteById(id);
+    public void deleteEmployee(Long id, User dentist) {
+        Employee existing = employeeRepository.findByIdAndDentist(id, dentist)
+                .orElseThrow(() -> new RuntimeException("Employee not found with id " + id));
+
+        employeeRepository.delete(existing);
     }
 
     // --- Mapper ---
@@ -113,7 +104,7 @@ public class EmployeeService {
                 .address(employee.getAddress())
                 .hireDate(employee.getHireDate())
                 .endDate(employee.getEndDate())
-                .status(employee.getStatus().name())
+                .status(employee.getStatus())
                 .salary(employee.getSalary())
                 .contractType(employee.getContractType())
                 .dentistId(employee.getDentist().getId())

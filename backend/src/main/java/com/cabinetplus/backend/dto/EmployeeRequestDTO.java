@@ -19,9 +19,7 @@ public class EmployeeRequestDTO {
     private LocalDate hireDate;
     private LocalDate endDate;
 
-    private String status;       // ACTIVE, INACTIVE, ON_LEAVE
+    private EmployeeStatus status;
     private Double salary;
     private String contractType;
-
-    private Long dentistId;      // link to User (dentist)
 }

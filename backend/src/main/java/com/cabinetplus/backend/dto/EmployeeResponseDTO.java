@@ -23,13 +23,13 @@ public class EmployeeResponseDTO {
 
     private LocalDate hireDate;
     private LocalDate endDate;
-    private String status;
 
+    private EmployeeStatus status;   // enum for better type-safety
     private Double salary;
     private String contractType;
 
     private Long dentistId;
-    private String dentistName; // optional: dentist full name
+    private String dentistName;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

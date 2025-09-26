@@ -36,7 +36,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 120px;
+  min-width: 180px;   /* ⬅️ force all labels to take same space */
   font-weight: 500;
   font-size: 14px;
   color: #111827;

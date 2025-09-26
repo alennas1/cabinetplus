@@ -23,6 +23,7 @@ import Inventory from "./pages/Inventory";
 import Items from "./pages/Items";
 import SessionExpiredModal from "./components/SessionExpiredModal";
 import Employees from "./pages/Employees";
+import EmployeeDetails from "./pages/EmployeeDetails";
 
 import "./index.css";
 
@@ -59,6 +60,8 @@ function App() {
               <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
               <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
               <Route path="/employees" element={<Employees />} />
+              <Route path="/employees/:id" element={<EmployeeDetails />} />
+
             </Route>
           </Route>
 

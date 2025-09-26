@@ -4,6 +4,8 @@ import { Plus, Eye, Trash2, Search } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import { useNavigate } from "react-router-dom";
+
 import {
   getEmployees,
   createEmployee,
@@ -14,6 +16,7 @@ import "./Patients.css"; // reuse same CSS as Patients
 
 const Employees = () => {
   const token = useSelector((state) => state.auth.token);
+const navigate = useNavigate();
 
   const [employees, setEmployees] = useState([]);
 
@@ -213,15 +216,24 @@ const Employees = () => {
               <td>{emp.firstName || "—"}</td>
               <td>{emp.lastName || "—"}</td>
               <td>{emp.phone || "—"}</td>
-              <td>{emp.status || "—"}</td>
-              <td className="actions-cell">
-                <button
-                  className="action-btn view"
-                  onClick={() => handleEdit(emp)}
-                  title="Voir / Modifier"
-                >
-                  <Eye size={16} />
-                </button>
+<td>
+  <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
+    {emp.status === "ACTIVE"
+      ? "Actif"
+      : emp.status === "INACTIVE"
+      ? "Inactif"
+      : emp.status === "ON_LEAVE"
+      ? "En congé"
+      : "—"}
+  </span>
+</td>              <td className="actions-cell">
+<button
+  className="action-btn view"
+  onClick={() => navigate(`/employees/${emp.id}`)}
+  title="Voir / Modifier"
+>
+  <Eye size={16} />
+</button>
                 <button
                   className="action-btn delete"
                   onClick={() => handleDelete(emp.id)}
@@ -312,29 +324,31 @@ const Employees = () => {
                     onChange={handleChange}
                   />
                   <div className="form-field">
-                    <span className="field-label">Sexe</span>
-                    <div className="radio-group">
-                      <label>
-                        <input
-                          type="radio"
-                          name="gender"
-                          value="Homme"
-                          checked={formData.gender === "Homme"}
-                          onChange={handleChange}
-                        />
-                        Homme
-                      </label>
-                      <label>
-                        <input
-                          type="radio"
-                          name="gender"
-                          value="Femme"
-                          checked={formData.gender === "Femme"}
-                          onChange={handleChange}
-                        />
-                        Femme
-                      </label>
-                    </div>
+                   <span className="field-label">Sexe</span>
+                <div className="radio-group">
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="sex"
+                      value="Homme"
+                      checked={formData.sex === "Homme"}
+                      onChange={handleChange}
+                      required
+                    />
+                    <span>Homme</span>
+                  </label>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="sex"
+                      value="Femme"
+                      checked={formData.sex === "Femme"}
+                      onChange={handleChange}
+                      required
+                    />
+                    <span>Femme</span>
+                  </label>
+                </div>
                   </div>
                 </>
               )}

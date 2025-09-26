@@ -444,3 +444,37 @@
     flex-wrap: wrap;
   }
 }
+
+/* === Status Badges === */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-width: 100px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.status-badge.active {
+  background-color: #d1f7d6;
+  color: #1e7d32;
+}
+
+.status-badge.inactive {
+  background-color: #fddede;
+  color: #c62828;
+}
+
+.status-badge.on_leave {
+  background-color: #fff4cc;
+  color: #b28704;
+}
+
+.status-badge.default {
+  background-color: #e0e0e0;
+  color: #555;
+}

@@ -795,3 +795,37 @@
   color: #E91E63 !important;
 }
 
+/* === Status Badges === */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  min-width: 80px;
+}
+
+/* Active - light green bg, darker text */
+.status-badge.active {
+  background-color: #d1f7d6;
+  color: #1e7d32;
+}
+
+/* Inactive - light red bg, darker text */
+.status-badge.inactive {
+  background-color: #fddede;
+  color: #c62828;
+}
+
+/* On leave - light yellow bg, darker text */
+.status-badge.on_leave {
+  background-color: #fff4cc;
+  color: #b28704;
+}
+
+/* Fallback */
+.status-badge.default {
+  background-color: #e0e0e0;
+  color: #555;
+}

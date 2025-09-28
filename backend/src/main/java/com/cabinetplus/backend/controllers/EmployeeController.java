@@ -4,14 +4,7 @@ import java.security.Principal;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
@@ -29,7 +22,6 @@ public class EmployeeController {
     private final EmployeeService employeeService;
     private final UserService userService;
 
-    // --- Create ---
     @PostMapping
     public ResponseEntity<EmployeeResponseDTO> createEmployee(
             @RequestBody EmployeeRequestDTO dto,
@@ -38,10 +30,10 @@ public class EmployeeController {
         User dentist = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return ResponseEntity.ok(employeeService.saveEmployee(dto, dentist));
+        EmployeeResponseDTO employeeResponse = employeeService.saveEmployee(dto, dentist);
+        return ResponseEntity.ok(employeeResponse);
     }
 
-    // --- Update ---
     @PutMapping("/{id}")
     public ResponseEntity<EmployeeResponseDTO> updateEmployee(
             @PathVariable Long id,
@@ -54,7 +46,6 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.updateEmployee(id, dto, dentist));
     }
 
-    // --- Get All ---
     @GetMapping
     public ResponseEntity<List<EmployeeResponseDTO>> getAllEmployees(Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
@@ -63,7 +54,6 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.getAllEmployeesForDentist(dentist));
     }
 
-    // --- Get by ID ---
     @GetMapping("/{id}")
     public ResponseEntity<EmployeeResponseDTO> getEmployeeById(
             @PathVariable Long id,
@@ -77,7 +67,6 @@ public class EmployeeController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // --- Delete ---
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEmployee(
             @PathVariable Long id,

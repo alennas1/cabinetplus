@@ -10,6 +10,7 @@ import {
   updateExpense,
   deleteExpense,
 } from "../services/expenseService";
+import { getEmployees } from "../services/employeeService";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -25,6 +26,10 @@ const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
@@ -37,6 +42,7 @@ const Expenses = () => {
     category: "SUPPLIES",
     date: "",
     description: "",
+    employeeId: "",
   });
 
   // Pagination
@@ -85,8 +91,29 @@ const Expenses = () => {
   const totalPages = Math.ceil(filteredExpenses.length / itemsPerPage);
 
   // Handlers
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = async (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+
+    // Fetch employees if category = SALARY
+    if (name === "category") {
+      if (value === "SALARY") {
+        setLoadingEmployees(true);
+        try {
+          const data = await getEmployees(token);
+          setEmployees(data);
+        } catch (err) {
+          console.error(err);
+          toast.error("Erreur lors du chargement des employés");
+        } finally {
+          setLoadingEmployees(false);
+        }
+      } else {
+        setEmployees([]);
+        setSelectedEmployeeId("");
+        setFormData({ ...formData, employeeId: "" });
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -102,9 +129,10 @@ const Expenses = () => {
         toast.success("Dépense ajoutée");
       }
       setShowModal(false);
-      setFormData({ title: "", amount: "", category: "SUPPLIES", date: "", description: "" });
+      setFormData({ title: "", amount: "", category: "SUPPLIES", date: "", description: "", employeeId: "" });
       setIsEditing(false);
       setEditingExpense(null);
+      setSelectedEmployeeId("");
     } catch (err) {
       console.error(err);
       toast.error("Erreur lors de l'enregistrement");
@@ -113,6 +141,7 @@ const Expenses = () => {
 
   const handleEdit = (expense) => {
     setFormData(expense);
+    setSelectedEmployeeId(expense.employeeId || "");
     setEditingExpense(expense);
     setIsEditing(true);
     setShowModal(true);
@@ -178,8 +207,9 @@ const Expenses = () => {
           <button
             className="btn-primary"
             onClick={() => {
-              setFormData({ title: "", amount: "", category: "SUPPLIES", date: "", description: "" });
+              setFormData({ title: "", amount: "", category: "SUPPLIES", date: "", description: "", employeeId: "" });
               setIsEditing(false);
+              setSelectedEmployeeId("");
               setShowModal(true);
             }}
           >
@@ -263,6 +293,25 @@ const Expenses = () => {
 
               <span className="field-label">Description</span>
               <textarea name="description" value={formData.description} onChange={handleChange} />
+
+              {/* Employee Dropdown */}
+              <span className="field-label">Employé</span>
+              <select
+                name="employeeId"
+                value={selectedEmployeeId || formData.employeeId || ""}
+                onChange={(e) => {
+                  setSelectedEmployeeId(e.target.value);
+                  setFormData({ ...formData, employeeId: e.target.value });
+                }}
+                disabled={formData.category !== "SALARY" || loadingEmployees}
+              >
+                <option value="">-- Sélectionner un employé --</option>
+              {employees.map((emp) => (
+  <option key={emp.id} value={emp.id}>
+    {emp.firstName} {emp.lastName}
+  </option>
+))}
+              </select>
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>

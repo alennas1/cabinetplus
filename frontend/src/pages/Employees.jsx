@@ -327,27 +327,28 @@ const navigate = useNavigate();
                    <span className="field-label">Sexe</span>
                 <div className="radio-group">
                   <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="sex"
-                      value="Homme"
-                      checked={formData.sex === "Homme"}
-                      onChange={handleChange}
-                      required
-                    />
-                    <span>Homme</span>
-                  </label>
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="sex"
-                      value="Femme"
-                      checked={formData.sex === "Femme"}
-                      onChange={handleChange}
-                      required
-                    />
-                    <span>Femme</span>
-                  </label>
+  <input
+    type="radio"
+    name="gender"
+    value="Homme"
+    checked={formData.gender === "Homme"}
+    onChange={handleChange}
+    required
+  />
+  <span>Homme</span>
+</label>
+<label className="radio-option">
+  <input
+    type="radio"
+    name="gender"
+    value="Femme"
+    checked={formData.gender === "Femme"}
+    onChange={handleChange}
+    required
+  />
+  <span>Femme</span>
+</label>
+
                 </div>
                   </div>
                 </>

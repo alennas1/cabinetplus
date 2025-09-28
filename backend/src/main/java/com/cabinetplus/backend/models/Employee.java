@@ -2,18 +2,11 @@ package com.cabinetplus.backend.models;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.cabinetplus.backend.dto.EmployeeStatus;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -57,6 +50,10 @@ public class Employee {
     @ManyToOne
     @JoinColumn(name = "dentist_id")
     private User dentist;
+
+    // Relation with working hours
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EmployeeWorkingHours> workingHours;
 
     // Audit timestamps
     private LocalDateTime createdAt;

@@ -51,4 +51,9 @@ public class Expense {
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
+
+    // 👇 Added relation with Employee (optional)
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "employee_id")
+    private Employee employee;
 }

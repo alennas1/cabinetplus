@@ -2,6 +2,7 @@ package com.cabinetplus.backend.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +25,7 @@ public class EmployeeResponseDTO {
     private LocalDate hireDate;
     private LocalDate endDate;
 
-    private EmployeeStatus status;   // enum for better type-safety
+    private EmployeeStatus status;
     private Double salary;
     private String contractType;
 
@@ -33,4 +34,7 @@ public class EmployeeResponseDTO {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Add working hours
+    private List<EmployeeWorkingHoursDTO> workingHours;
 }

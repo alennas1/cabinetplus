@@ -18,4 +18,7 @@ public class ExpenseResponseDTO {
     private ExpenseCategory category;
     private LocalDate date;
     private String description;
+
+    // 👇 Added (null if not a salary expense)
+    private Long employeeId;
 }

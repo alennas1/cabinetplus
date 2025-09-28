@@ -33,3 +33,12 @@ export const deleteExpense = async (id, token) => {
     headers: { Authorization: `Bearer ${token}` },
   });
 };
+
+// Get expenses by employee
+export const getExpensesByEmployee = async (employeeId, token) => {
+  const response = await axios.get(`${API_URL}/employee/${employeeId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+

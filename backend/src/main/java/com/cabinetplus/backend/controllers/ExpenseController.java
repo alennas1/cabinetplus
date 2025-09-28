@@ -32,51 +32,34 @@ public class ExpenseController {
 
     @GetMapping
     public ResponseEntity<List<ExpenseResponseDTO>> getAll(Principal principal) {
-        System.out.println("GET /api/expenses called. Principal: " + principal);
-
         User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        System.out.println("User found: " + user.getUsername());
 
         List<ExpenseResponseDTO> dtos = expenseService.getExpensesForUser(user)
                 .stream()
                 .map(expenseService::toDTO)
                 .toList();
 
-        System.out.println("Expenses fetched: " + dtos.size());
         return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ExpenseResponseDTO> getById(@PathVariable Long id, Principal principal) {
-        System.out.println("GET /api/expenses/" + id + " called. Principal: " + principal);
-
         User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        System.out.println("User found: " + user.getUsername());
 
         return expenseService.getExpenseByIdForUser(id, user)
                 .map(expenseService::toDTO)
-                .map(dto -> {
-                    System.out.println("Expense found: " + dto.getTitle());
-                    return ResponseEntity.ok(dto);
-                })
-                .orElseGet(() -> {
-                    System.out.println("Expense not found: " + id);
-                    return ResponseEntity.notFound().build();
-                });
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
     public ResponseEntity<ExpenseResponseDTO> create(@RequestBody ExpenseRequestDTO dto, Principal principal) {
-        System.out.println("POST /api/expenses called. Principal: " + principal);
-
         User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        System.out.println("User creating expense: " + user.getUsername());
 
         Expense expense = expenseService.createExpense(dto, user);
-        System.out.println("Expense created: " + expense.getTitle());
         return ResponseEntity.ok(expenseService.toDTO(expense));
     }
 
@@ -84,27 +67,36 @@ public class ExpenseController {
     public ResponseEntity<ExpenseResponseDTO> update(@PathVariable Long id,
                                                      @RequestBody ExpenseRequestDTO dto,
                                                      Principal principal) {
-        System.out.println("PUT /api/expenses/" + id + " called. Principal: " + principal);
-
         User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        System.out.println("User updating expense: " + user.getUsername());
 
         Expense expense = expenseService.updateExpense(id, dto, user);
-        System.out.println("Expense updated: " + expense.getTitle());
         return ResponseEntity.ok(expenseService.toDTO(expense));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
-        System.out.println("DELETE /api/expenses/" + id + " called. Principal: " + principal);
-
         User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        System.out.println("User deleting expense: " + user.getUsername());
 
         expenseService.deleteExpense(id, user);
-        System.out.println("Expense deleted: " + id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/employee/{employeeId}")
+public ResponseEntity<List<ExpenseResponseDTO>> getByEmployee(
+        @PathVariable Long employeeId,
+        Principal principal) {
+
+    User dentist = userService.findByUsername(principal.getName())
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+    List<ExpenseResponseDTO> dtos = expenseService
+            .getExpensesByEmployee(employeeId, dentist) // service method we discussed
+            .stream()
+            .map(expenseService::toDTO)
+            .toList();
+
+    return ResponseEntity.ok(dtos);
+}
 }

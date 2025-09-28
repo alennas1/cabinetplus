@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
 
@@ -23,4 +24,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
                                         @Param("end") LocalDate end);
 
     List<Expense> findByCreatedByAndDateBetween(User dentist, LocalDate start, LocalDate end);
+
+    List<Expense> findByEmployeeAndCreatedBy(Employee employee, User dentist);
+
 }

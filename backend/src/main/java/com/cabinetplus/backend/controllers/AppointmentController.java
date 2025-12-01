@@ -2,6 +2,7 @@ package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -147,4 +148,19 @@ public class AppointmentController {
         practitioner.setId(practitionerId);
         return appointmentService.findByPractitioner(practitioner);
     }
+
+   @GetMapping("/stats/completed-today")
+public Map<String, Long> getCompletedAppointmentsStats(Principal principal) {
+    String username = principal.getName();
+    User currentUser = userService.findByUsername(username)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+    Long totalCompletedToday = appointmentService.getCompletedAppointmentsTodayForPractitioner(currentUser);
+    Long completedWithNewPatientsToday = appointmentService.getCompletedAppointmentsWithNewPatientsTodayForPractitioner(currentUser);
+
+    return Map.of(
+        "completedToday", totalCompletedToday,
+        "completedWithNewPatientsToday", completedWithNewPatientsToday
+    );
+}
 }

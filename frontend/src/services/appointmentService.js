@@ -49,3 +49,12 @@ export const getAppointmentsByPractitioner = async (practitionerId, token) => {
   });
   return response.data;
 };
+
+// ------------------- New statistics endpoints -------------------
+
+export const getCompletedAppointmentsStats = async (token) => {
+  const response = await axios.get(`${API_URL}/stats/completed-today`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data; // { completedToday: X, completedWithNewPatientsToday: Y }
+};

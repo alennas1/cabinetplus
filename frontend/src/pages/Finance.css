@@ -256,3 +256,18 @@
   background-color: #f5f5f5; /* light gray background */
   color: #888888;            /* dark gray text */
 }
+.finance-square {
+  transition: background 0.2s;
+}
+
+.finance-square:hover {
+  background: #f9fcff;
+}
+.finance-row {
+  transition: background 0.2s;
+  border-radius: 6px; /* optional, makes hover look nicer */
+}
+
+.finance-row:hover {
+  background: #f9fcff;
+}

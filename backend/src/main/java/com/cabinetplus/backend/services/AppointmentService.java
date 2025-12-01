@@ -1,14 +1,16 @@
 package com.cabinetplus.backend.services;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.AppointmentRepository;
-import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
 
 @Service
 public class AppointmentService {
@@ -46,4 +48,15 @@ public class AppointmentService {
     public void delete(Long id) {
         appointmentRepository.deleteById(id);
     }
+
+     public Long getCompletedAppointmentsTodayForPractitioner(User practitioner) {
+    LocalDate today = LocalDate.now();
+    return appointmentRepository.countCompletedAppointmentsTodayForPractitioner(practitioner, today.atStartOfDay());
+}
+
+public Long getCompletedAppointmentsWithNewPatientsTodayForPractitioner(User practitioner) {
+    LocalDate today = LocalDate.now();
+    return appointmentRepository.countCompletedAppointmentsWithNewPatientsTodayForPractitioner(practitioner, today.atStartOfDay());
+}
+
 }

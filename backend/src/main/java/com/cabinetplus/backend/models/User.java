@@ -2,6 +2,7 @@ package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
 
+import com.cabinetplus.backend.enums.PlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 
 import jakarta.persistence.Column;
@@ -18,10 +19,13 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "users")
-@Data @NoArgsConstructor @AllArgsConstructor
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class User {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(unique = true, nullable = false)
@@ -36,7 +40,17 @@ public class User {
     private String lastname;
     private String email;
 
-    @Column(length = 20) // enough for international format (+213..., etc.)
+    private boolean isEmailVerified = false;
+    private boolean isPhoneVerified = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PlanStatus planStatus = PlanStatus.PENDING_PLAN;
+
+    @Column(length = 20)
     private String phoneNumber;
+
     private LocalDateTime createdAt;
+
+    private LocalDateTime expirationDate;  // <-- new field
 }

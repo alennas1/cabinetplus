@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.controllers;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.enums.PlanStatus;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.UserService;
 
@@ -22,7 +24,7 @@ import com.cabinetplus.backend.services.UserService;
 @RequestMapping("/api/users")
 public class UserController {
 
-     private final UserService userService;
+    private final UserService userService;
     private final PasswordEncoder passwordEncoder; // Injected encoder
 
     public UserController(UserService userService, PasswordEncoder passwordEncoder) {
@@ -55,29 +57,32 @@ public class UserController {
     public void deleteUser(@PathVariable Long id) {
         userService.delete(id);
     }
-@GetMapping("/me")
-public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
-    String username = userDetails.getUsername();
-    return userService.findByUsername(username)
-                      .orElseThrow(() -> new RuntimeException("User not found"));
-}
-@PutMapping("/me")
-public User updateCurrentUser(
-        @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-        @RequestBody Map<String, Object> updates) { // receive a map instead of full User
-    String username = userDetails.getUsername();
-    User user = userService.findByUsername(username)
-            .orElseThrow(() -> new RuntimeException("User not found"));
 
-    // Update only the fields present in the request
-    if (updates.containsKey("firstname")) user.setFirstname((String) updates.get("firstname"));
-    if (updates.containsKey("lastname")) user.setLastname((String) updates.get("lastname"));
-    if (updates.containsKey("email")) user.setEmail((String) updates.get("email"));
-    if (updates.containsKey("phoneNumber")) user.setPhoneNumber((String) updates.get("phoneNumber"));
+    @GetMapping("/me")
+    public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+        String username = userDetails.getUsername();
+        return userService.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
 
-    return userService.save(user);
-}
-@PutMapping("/me/password")
+    @PutMapping("/me")
+    public User updateCurrentUser(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+            @RequestBody Map<String, Object> updates) { // receive a map instead of full User
+        String username = userDetails.getUsername();
+        User user = userService.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Update only the fields present in the request
+        if (updates.containsKey("firstname")) user.setFirstname((String) updates.get("firstname"));
+        if (updates.containsKey("lastname")) user.setLastname((String) updates.get("lastname"));
+        if (updates.containsKey("email")) user.setEmail((String) updates.get("email"));
+        if (updates.containsKey("phoneNumber")) user.setPhoneNumber((String) updates.get("phoneNumber"));
+
+        return userService.save(user);
+    }
+
+    @PutMapping("/me/password")
     public User updatePassword(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
             @RequestBody Map<String, String> passwords) {
@@ -96,4 +101,40 @@ public User updateCurrentUser(
         return userService.save(user);
     }
 
+    // ================= SIMPLE UPDATES =================
+
+    @PutMapping("/me/verify-email")
+    public User verifyEmail(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setEmailVerified(true);
+        return userService.save(user);
+    }
+
+    @PutMapping("/me/verify-phone")
+    public User verifyPhone(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setPhoneVerified(true);
+        return userService.save(user);
+    }
+
+    @PutMapping("/me/plan")
+    public User updatePlan(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+                           @RequestBody Map<String, String> planData) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (planData.containsKey("planStatus")) {
+            user.setPlanStatus(PlanStatus.valueOf(planData.get("planStatus")));
+        }
+
+        if (planData.containsKey("expirationDate")) {
+            user.setExpirationDate(LocalDateTime.parse(planData.get("expirationDate")));
+        }
+
+        return userService.save(user);
+    }
 }

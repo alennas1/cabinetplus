@@ -49,14 +49,15 @@ public class AppointmentService {
         appointmentRepository.deleteById(id);
     }
 
-     public Long getCompletedAppointmentsTodayForPractitioner(User practitioner) {
-    LocalDate today = LocalDate.now();
-    return appointmentRepository.countCompletedAppointmentsTodayForPractitioner(practitioner, today.atStartOfDay());
+    public Long getCompletedAppointmentsForPractitionerOnDate(User practitioner, LocalDate date) {
+    return appointmentRepository.countCompletedAppointmentsForPractitionerOnDate(
+            practitioner, date.atStartOfDay(), date.plusDays(1).atStartOfDay());
 }
 
-public Long getCompletedAppointmentsWithNewPatientsTodayForPractitioner(User practitioner) {
-    LocalDate today = LocalDate.now();
-    return appointmentRepository.countCompletedAppointmentsWithNewPatientsTodayForPractitioner(practitioner, today.atStartOfDay());
+public Long getCompletedAppointmentsWithNewPatientsForPractitionerOnDate(User practitioner, LocalDate date) {
+    return appointmentRepository.countCompletedAppointmentsWithNewPatientsForPractitionerOnDate(
+            practitioner, date.atStartOfDay(), date.plusDays(1).atStartOfDay());
 }
+
 
 }

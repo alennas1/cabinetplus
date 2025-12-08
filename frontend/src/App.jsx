@@ -1,14 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
+// --- Page Imports ---
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Settings from "./pages/Settings";
-import Layout from "./components/Layout";
-import RequireAuth from "./components/RequireAuth";
 import Unauthorized from "./pages/Unauthorized";
 import Patient from "./pages/Patient";
 import Medications from "./pages/Medications";
@@ -21,13 +20,22 @@ import Expenses from "./pages/Expenses";
 import Ordonnance from "./pages/Ordonnance";
 import Inventory from "./pages/Inventory";
 import Items from "./pages/Items";
-import SessionExpiredModal from "./components/SessionExpiredModal";
 import Employees from "./pages/Employees";
-import EmployeeDetails from "./pages/EmployeeDetails";
+import EmployeeDetails from "./pages/EmployeeDetails"; 
+
+// --- NEW PAGE IMPORTS ---
+import VerificationPage from "./pages/VerificationPage"; 
+import PlanPage from "./pages/PlanPage";             
+
+// --- Component Imports ---
+import Layout from "./components/Layout";
+import RequireAuth from "./components/RequireAuth"; // This is your updated ProtectedRoute
+import SessionExpiredModal from "./components/SessionExpiredModal";
 
 import "./index.css";
 
 function App() {
+  // Get authentication status from Redux
   const { isAuthenticated } = useSelector((state) => state.auth);
 
   return (
@@ -35,13 +43,23 @@ function App() {
       <SessionExpiredModal /> {/* global modal */}
       <div className="app-container">
         <Routes>
-          {/* Public Routes */}
+          {/* ======================================= */}
+          {/* PUBLIC/GATED ROUTES           */}
+          {/* ======================================= */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          
+          {/* NEW GATED PAGES: Users are redirected here by login/RequireAuth logic */}
+          <Route path="/verify" element={<VerificationPage />} /> 
+          <Route path="/plan" element={<PlanPage />} />          
 
-          {/* Protected Routes */}
+          {/* ======================================= */}
+          {/* PROTECTED ROUTES              */}
+          {/* ======================================= */}
+          {/* RequireAuth component enforces JWT claims checks (verification, plan status) */}
           <Route element={<RequireAuth />}>
+            {/* Layout wraps all pages that use the sidebar/header */}
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/patients" element={<Patients />} />
@@ -61,13 +79,15 @@ function App() {
               <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/employees/:id" element={<EmployeeDetails />} />
-
             </Route>
           </Route>
 
-          {/* Default Route */}
+          {/* ======================================= */}
+          {/* DEFAULT & CATCH-ALL         */}
+          {/* ======================================= */}
           <Route
             path="/"
+            // Redirects root path based on simple authentication status
             element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />}
           />
           <Route path="*" element={<Navigate to="/" replace />} />

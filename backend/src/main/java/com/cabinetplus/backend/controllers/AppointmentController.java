@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -149,18 +150,33 @@ public class AppointmentController {
         return appointmentService.findByPractitioner(practitioner);
     }
 
-   @GetMapping("/stats/completed-today")
-public Map<String, Long> getCompletedAppointmentsStats(Principal principal) {
-    String username = principal.getName();
-    User currentUser = userService.findByUsername(username)
+  @GetMapping("/stats/completed-today")
+public Map<String, Object> getComparisonStats(Principal principal) {
+
+    User user = userService.findByUsername(principal.getName())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-    Long totalCompletedToday = appointmentService.getCompletedAppointmentsTodayForPractitioner(currentUser);
-    Long completedWithNewPatientsToday = appointmentService.getCompletedAppointmentsWithNewPatientsTodayForPractitioner(currentUser);
+    LocalDate today = LocalDate.now();
+    LocalDate yesterday = today.minusDays(1);
+
+    Long todayCompleted = appointmentService.getCompletedAppointmentsForPractitionerOnDate(user, today);
+    Long yesterdayCompleted = appointmentService.getCompletedAppointmentsForPractitionerOnDate(user, yesterday);
+
+    Long todayNewPatients = appointmentService.getCompletedAppointmentsWithNewPatientsForPractitionerOnDate(user, today);
+    Long yesterdayNewPatients = appointmentService.getCompletedAppointmentsWithNewPatientsForPractitionerOnDate(user, yesterday);
 
     return Map.of(
-        "completedToday", totalCompletedToday,
-        "completedWithNewPatientsToday", completedWithNewPatientsToday
+        "completed", Map.of(
+                "today", todayCompleted,
+                "yesterday", yesterdayCompleted,
+                "difference", todayCompleted - yesterdayCompleted
+        ),
+        "newPatients", Map.of(
+                "today", todayNewPatients,
+                "yesterday", yesterdayNewPatients,
+                "difference", todayNewPatients - yesterdayNewPatients
+        )
     );
 }
+
 }

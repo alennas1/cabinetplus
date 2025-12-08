@@ -5,6 +5,8 @@ import java.util.Date;
 
 import org.springframework.stereotype.Component;
 
+import com.cabinetplus.backend.models.User;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
@@ -16,35 +18,41 @@ import io.jsonwebtoken.security.Keys;
 public class JwtUtil {
 
     private final Key key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-// Access token: 15 minutes
-private final long accessExpirationMs = 15 * 60 * 1000;
 
-// Refresh token: 7 days
-private final long refreshExpirationMs = 7 * 24 * 60 * 60 * 1000;
+    // Access token: 15 minutes
+    private final long accessExpirationMs = 15 * 60 * 1000;
 
-    public String generateAccessToken(String username, String role) {
+    // Refresh token: 7 days
+    private final long refreshExpirationMs = 7 * 24 * 60 * 60 * 1000;
+
+    // Generate access token with full user info
+    public String generateAccessToken(User user) {
         return Jwts.builder()
-                .setSubject(username)
-                .claim("role", role)
+                .setSubject(user.getUsername())
+                .claim("role", user.getRole().name())                 // existing claim
+                .claim("isEmailVerified", user.isEmailVerified())    // new claim
+                .claim("isPhoneVerified", user.isPhoneVerified())    // new claim
+                .claim("planStatus", user.getPlanStatus().name())    // new claim
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessExpirationMs))
                 .signWith(key)
                 .compact();
     }
 
+    // Generate refresh token with optional custom expiration
     public String generateRefreshToken(String username, long customExpirationMs) {
-    return Jwts.builder()
-            .setSubject(username)
-            .setIssuedAt(new Date())
-            .setExpiration(new Date(System.currentTimeMillis() + customExpirationMs))
-            .signWith(key)
-            .compact();
-}
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + customExpirationMs))
+                .signWith(key)
+                .compact();
+    }
 
-// default 7 days
-public String generateRefreshToken(String username) {
-    return generateRefreshToken(username, refreshExpirationMs);
-}
+    // Default 7 days
+    public String generateRefreshToken(String username) {
+        return generateRefreshToken(username, refreshExpirationMs);
+    }
 
     public String extractUsername(String token) {
         return parseClaims(token).getBody().getSubject();

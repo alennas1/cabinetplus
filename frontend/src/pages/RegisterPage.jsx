@@ -9,7 +9,7 @@ const RegisterPage = () => {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    role: "SECRETARY",
+    role: "DENTIST",  // automatically set
     firstname: "",
     lastname: "",
     email: "",
@@ -141,12 +141,7 @@ const RegisterPage = () => {
           />
           {errors.phoneNumber && <p className="error-text">{errors.phoneNumber}</p>}
 
-          <select name="role" value={formData.role} onChange={handleChange} disabled={loading}>
-            <option value="SECRETARY">Secrétaire</option>
-            <option value="DENTIST">Dentiste</option>
-          </select>
-          {errors.role && <p className="error-text">{errors.role}</p>}
-
+          {/* Role is now automatic; no select */}
           <button type="submit" disabled={loading}>
             {loading ? "Inscription..." : "S'inscrire"}
           </button>
@@ -161,3 +156,14 @@ const RegisterPage = () => {
 };
 
 export default RegisterPage;
+/*
+so fill out info then click sign up => account created but not verified so it won't let you into the app ou first need to 
+confirm mail and phone and if you already sign up did not confirm you can login into your account but it will be directed 
+to the confirmation place for mail and phone you have logout button or confrim then if done both confirmations it will take
+ you to the chossing of plans 
+free-7 days trial
+basic  4000dzd
+pro 5000dzd
+
+if you dont' chose the plan anytime logged in it will take you here so you ahve to chose plan or logout 
+*/

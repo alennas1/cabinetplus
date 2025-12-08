@@ -1,0 +1,110 @@
+/*
+  Styles specific to the VerificationPage, leveraging the theme
+  established in Login.css (for .auth-container, .auth-card, etc.)
+*/
+
+/* --- Status Box Base Style --- */
+.verification-step-box {
+    margin: 1rem 0;
+    padding: 1rem;
+    border-radius: 8px;
+    
+    /* Using theme primary color for consistency */
+    border: 1px solid #3498db; 
+    background-color: #f0f7ff; /* Light blue background */
+    
+    color: #2c3e50; /* Dark text for readability */
+    text-align: left;
+    transition: all 0.2s ease;
+}
+
+/* --- Verified/Completed State --- */
+.verification-step-box.verified {
+    border: 1px solid #2ecc71; /* Green for success */
+    background-color: #e6f7f0;
+    color: #27ae60;
+}
+
+/* --- General Step Content --- */
+.verification-step-box p {
+    margin: 0;
+}
+
+/* ---------------------------------------------------- */
+/* --- NOUVEAUX STYLES POUR ALIGNEMENT HORIZONTAL --- */
+/* ---------------------------------------------------- */
+
+/* Container pour aligner le Statut (gauche) et l'Action (droite) */
+.verification-content-container {
+    display: flex;
+    justify-content: space-between; /* Pousse le statut à gauche et l'action à droite */
+    align-items: center;
+    width: 100%;
+}
+
+/* Ligne de statut - Laisser la marge à 0 */
+.verification-status-row {
+    font-weight: 600;
+    display: flex;
+    /* justify-content: space-between; -> inutile ici car il est dans verification-content-container */
+    align-items: center;
+    font-size: 1rem;
+    margin-bottom: 0; 
+    /* Le statut Vérifié/En attente doit être affiché ici si besoin, sinon l'alignement interne est géré par le flex ci-dessus */
+    gap: 10px; /* Espace entre "Vérification E-mail:" et "✅ Vérifié" */
+}
+
+/* Input and Button Container within Step Box */
+.verification-action-group {
+    /* Mettre l'input et le bouton sur la même ligne */
+    display: flex;
+    flex-direction: row; 
+    align-items: center;
+    gap: 10px;
+    margin-top: 0; /* Important: enlève l'espace vertical */
+}
+
+.verification-action-group input {
+    /* Taille réduite pour laisser de la place au bouton */
+    padding: 0.85rem;
+    border: 1px solid #dcdfe3;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    box-sizing: border-box; 
+    width: 130px; /* Taille fixe pour l'input de code */
+}
+
+.verification-action-group .auth-form-button {
+    /* Rendre le bouton compact */
+    flex-shrink: 0; 
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+    width: auto;
+}
+
+/* ---------------------------------------------------- */
+/* --- Autres styles (inchangés ou ajustés si nécessaire) --- */
+/* ---------------------------------------------------- */
+
+/* Custom Logout Button Style */
+.verification-logout-btn {
+    /* Inherit the primary button style from Login.css */
+    width: 100%;
+    padding: 0.9rem;
+    background: #e74c3c; /* Red color for logout */
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    margin-top: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.verification-logout-btn:hover {
+    background: #c0392b;
+}

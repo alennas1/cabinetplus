@@ -273,9 +273,22 @@
   border-radius: 12px;
   width: 400px;
   max-width: 95%;
+  max-height: 80vh; /* limit modal height to 80% of viewport */
+  overflow-y: auto; /* scrolls only inside modal */
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
   animation: popup-fade 0.25s ease;
 }
+
+/* Optional: smooth scrollbar style (modern browsers) */
+.modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
 
 /* Simple fade/scale animation */
 @keyframes popup-fade {

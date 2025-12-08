@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { loginSuccess } from "../store/authSlice";
 import { login } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
+import { jwtDecode } from 'jwt-decode'; // ✅ Make sure this is the NAMED import
 import "./Login.css";
 
 const LoginPage = () => {
@@ -14,11 +15,15 @@ const LoginPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // ✅ Auto-redirect if already authenticated
+  // Access the authentication state
   const { isAuthenticated } = useSelector((state) => state.auth);
+
+  // Auto-redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/dashboard");
+      // We navigate to /dashboard, and the RequireAuth component (Step 6) 
+      // will handle the actual final destination (/verify, /plan, or /dashboard).
+      navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -30,11 +35,32 @@ const LoginPage = () => {
     try {
       const { accessToken } = await login(username.trim(), password.trim());
 
-      // Save access token in Redux/localStorage
+      // --- New Logic: Decode and Check Claims for Navigation ---
+      const userClaims = jwtDecode(accessToken);
+      const { isEmailVerified, isPhoneVerified, planStatus, exp } = userClaims;
+      
+      const isVerified = isEmailVerified && isPhoneVerified;
+      const isPlanPending = planStatus === "PENDING_PLAN";
+      
+      // Calculate expiration: exp is in seconds, Date.now() is in milliseconds.
+      const isExpired = Date.now() >= exp * 1000; 
+
+      // Save access token in Redux (This also stores the decoded user claims in state)
       dispatch(loginSuccess(accessToken));
 
-      // Navigate after login
-      navigate("/dashboard");
+      // Conditional Navigation based on JWT claims
+      if (!isVerified) {
+        // Redirect to new VerificationPage
+        navigate("/verify", { replace: true }); 
+      } else if (isPlanPending || isExpired) {
+        // Redirect to new PlanPage if plan is pending or token has expired
+        navigate("/plan", { replace: true }); 
+      } else {
+        // All checks pass, go to Dashboard
+        navigate("/dashboard", { replace: true });
+      }
+      // -----------------------------------------------------------
+
     } catch (err) {
       const msg = err.response?.data?.message || "Identifiants invalides";
       setError(msg);

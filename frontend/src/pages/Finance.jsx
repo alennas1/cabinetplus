@@ -463,22 +463,38 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
             <div style={{ flex: 1, background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
               <h4 className="pie-legend">Top 5 types de dépenses</h4>
 <div style={{ width: "100%", minWidth: "300px", height: 300 }}>
-               <ResponsivePie
-  data={expensePie}
-  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-  innerRadius={0.5}
-  padAngle={1}
-  cornerRadius={5}
-  colors={{ datum: "data.color" }}
-  enableRadialLabels={true}
-  radialLabel={(d) => d.id}
-  radialLabelsSkipAngle={10}
-  radialLabelsTextColor="#333"
-  sliceLabelsSkipAngle={10}
-  sliceLabel={(d) => `${d.value} DA`}
-  sliceLabelsTextColor="#000"
-/>
-              </div>
+  {expensePie.length > 0 ? (
+    <ResponsivePie
+      data={expensePie}
+      margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+      innerRadius={0.5}
+      padAngle={1}
+      cornerRadius={5}
+      colors={{ datum: "data.color" }}
+      enableRadialLabels={true}
+      radialLabel={(d) => d.id}
+      radialLabelsSkipAngle={10}
+      radialLabelsTextColor="#333"
+      sliceLabelsSkipAngle={10}
+      sliceLabel={(d) => `${d.value} DA`}
+      sliceLabelsTextColor="#000"
+    />
+  ) : (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        color: "#888",
+        fontSize: "14px",
+      }}
+    >
+      Aucun élément
+    </div>
+  )}
+</div>
+
             </div>
           </div>
       </>
@@ -735,24 +751,38 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
             <div style={{ flex: 1, background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
               <h4 className="pie-legend">Top 5 types de revenusss</h4>
 <div style={{ width: "100%", minWidth: "300px", height: 300 }}>
-               <ResponsivePie
-  data={revenuePie}
-  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-  innerRadius={0.5}
-  padAngle={1}
-  cornerRadius={5}
-  colors={{ datum: "data.color" }}
-  enableRadialLabels={true}
-  radialLabel={(d) => d.id}
-  radialLabelsSkipAngle={10}
-  radialLabelsTextColor="#333"
-  sliceLabelsSkipAngle={10}
-  sliceLabel={(d) => `${d.value} DA`}
-  sliceLabelsTextColor="#000"
-  
-/>
+  {revenuePie.length > 0 ? (
+    <ResponsivePie
+      data={revenuePie}
+      margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+      innerRadius={0.5}
+      padAngle={1}
+      cornerRadius={5}
+      colors={{ datum: "data.color" }}
+      enableRadialLabels={true}
+      radialLabel={(d) => d.id}
+      radialLabelsSkipAngle={10}
+      radialLabelsTextColor="#333"
+      sliceLabelsSkipAngle={10}
+      sliceLabel={(d) => `${d.value} DA`}
+      sliceLabelsTextColor="#000"
+    />
+  ) : (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        color: "#888",
+        fontSize: "14px",
+      }}
+    >
+      Aucun élément
+    </div>
+  )}
+</div>
 
-              </div>
             </div>
           </div>
         </>

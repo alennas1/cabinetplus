@@ -2,18 +2,21 @@ import React, { useState, useEffect } from "react";
 import { Eye, AlertTriangle, ChevronLeft, ChevronRight } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import { getFinanceCards } from "../services/financeService";
-import { getCompletedAppointmentsStats } from "../services/appointmentService"; // make sure this is your correct import
+import { getCompletedAppointmentsStats, getAppointments } from "../services/appointmentService";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom"; // <-- Added
 import "react-toastify/dist/ReactToastify.css";
 import "./Finance.css";
 
 export default function DashboardUpdated() {
+  const navigate = useNavigate(); // <-- Added
+
   // --- Revenue & Net Revenue state ---
   const [revenueData, setRevenueData] = useState({
     revenue: 0,
     revenuenet: 0,
     previousRevenue: 0,
-    previousNet: 0
+    previousNet: 0,
   });
   const [loadingRevenue, setLoadingRevenue] = useState(false);
 
@@ -38,18 +41,23 @@ export default function DashboardUpdated() {
   // --- Completed appointments stats ---
   const [completedStats, setCompletedStats] = useState({
     completedToday: 0,
-    completedWithNewPatientsToday: 0
+    completedWithNewPatientsToday: 0,
+    completedDifference: 0,
+    newPatientsDifference: 0,
   });
   const [loadingStats, setLoadingStats] = useState(false);
 
   const fetchCompletedAppointmentsStats = async () => {
     setLoadingStats(true);
     try {
-      const token = localStorage.getItem("token"); // adjust if token is stored elsewhere
+      const token = localStorage.getItem("token");
       const data = await getCompletedAppointmentsStats(token);
+
       setCompletedStats({
-        completedToday: data.completedToday || 0,
-        completedWithNewPatientsToday: data.completedWithNewPatientsToday || 0
+        completedToday: data.completed?.today || 0,
+        completedWithNewPatientsToday: data.newPatients?.today || 0,
+        completedDifference: data.completed?.difference || 0,
+        newPatientsDifference: data.newPatients?.difference || 0,
       });
     } catch (error) {
       console.error("Erreur fetch completed appointments stats:", error);
@@ -59,10 +67,51 @@ export default function DashboardUpdated() {
     }
   };
 
+  // --- Appointments for today ---
+  const [appointments, setAppointments] = useState([]);
+  const [todayAppointments, setTodayAppointments] = useState([]);
+  const [patientPage, setPatientPage] = useState(0);
+  const pageSize = 4;
+
+  const fetchAppointments = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const data = await getAppointments(token);
+      setAppointments(data);
+    } catch (err) {
+      console.error("Error fetching appointments:", err);
+      toast.error("Erreur lors du chargement des rendez-vous");
+    }
+  };
+
+  const filterTodayAppointments = () => {
+    const baseDate = new Date();
+    const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 8, 0, 0);
+    const dayEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 18, 0, 0);
+
+    const filtered = appointments
+      .filter((a) => {
+        const apptStart = new Date(a.dateTimeStart);
+        return (
+          apptStart >= dayStart &&
+          apptStart <= dayEnd &&
+          a.status === "SCHEDULED" // Only scheduled appointments
+        );
+      })
+      .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
+
+    setTodayAppointments(filtered);
+  };
+
   useEffect(() => {
     fetchRevenue();
     fetchCompletedAppointmentsStats();
+    fetchAppointments();
   }, []);
+
+  useEffect(() => {
+    filterTodayAppointments();
+  }, [appointments]);
 
   const calcChange = (current, previous) => {
     if (!previous || previous === 0) return "0%";
@@ -92,27 +141,18 @@ export default function DashboardUpdated() {
     {
       title: "Patients du jour",
       value: completedStats.completedToday,
-      change: "+0%", // you can compute change vs yesterday if available
-      changeColor: "green",
+      change: `${completedStats.completedDifference >= 0 ? "+" : ""}${completedStats.completedDifference}`,
+      changeColor: completedStats.completedDifference >= 0 ? "green" : "red",
     },
     {
       title: "Nouveaux patients",
       value: completedStats.completedWithNewPatientsToday,
-      change: "+0%",
-      changeColor: "green",
+      change: `${completedStats.newPatientsDifference >= 0 ? "+" : ""}${completedStats.newPatientsDifference}`,
+      changeColor: completedStats.newPatientsDifference >= 0 ? "green" : "red",
     },
   ];
 
-  // --- Waiting list (mock) ---
-  const waitingList = [
-    { time: "09:00", patient: "Mme. Aissatou", service: "Détartrage" },
-    { time: "09:30", patient: "M. Karim", service: "Consultation" },
-    { time: "10:00", patient: "Sofia Ben", service: "Détartrage" },
-    { time: "10:30", patient: "M. Yassine", service: "Contrôle" },
-    { time: "11:00", patient: "M. Rachid", service: "Extraction" },
-  ];
-
-  // --- Low stock (mock) ---
+  // --- Low stock mock ---
   const lowStock = [
     { name: "Gants nitrile (L)", qty: 8 },
     { name: "Anesthésique 2%", qty: 3 },
@@ -121,20 +161,14 @@ export default function DashboardUpdated() {
     { name: "Bandelettes", qty: 5 },
   ];
 
-  const [patientPage, setPatientPage] = useState(0);
   const [stockPage, setStockPage] = useState(0);
-  const pageSize = 4;
 
-  const pagedPatients = waitingList.slice(patientPage * pageSize, (patientPage + 1) * pageSize);
+  const pagedPatients = todayAppointments.slice(patientPage * pageSize, (patientPage + 1) * pageSize);
   const pagedStock = lowStock.slice(stockPage * pageSize, (stockPage + 1) * pageSize);
 
   return (
     <div className="finance-container" style={{ paddingBottom: 40 }}>
-      <PageHeader
-        title="Tableau de bord"
-        subtitle="Vue d'ensemble quotidienne du cabinet"
-        align="left"
-      />
+      <PageHeader title="Tableau de bord" subtitle="Vue d'ensemble quotidienne du cabinet" align="left" />
 
       {/* Top stats */}
       <div className="finance-squares" style={{ marginTop: 8 }}>
@@ -148,77 +182,139 @@ export default function DashboardUpdated() {
               </span>
             </div>
             <div className="square-bottom">
-              <span className={`change-pill ${s.changeColor}`}>
-                {s.change} vs hier
-              </span>
+              <span className={`change-pill ${s.changeColor}`}>{s.change} vs hier</span>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Patients & Inventory columns */}
-      <div style={{ display: "flex", gap: 20, marginTop: 24, alignItems: "stretch" }}>
-        {/* Left column */}
+      {/* Patients & Stock */}
+      <div style={{ display: "flex", gap: 20, marginTop: 24 }}>
+        {/* LEFT COLUMN */}
         <div style={{ flex: 1.6, display: "flex", flexDirection: "column" }}>
-          <div style={{
-            background: "#fff",
-            borderRadius: 12,
-            padding: 20,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-            flex: 1,
-            display: "flex",
-            flexDirection: "column"
-          }}>
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h4 style={{ margin: 0 }}>Prochains patients</h4>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, color: "#666" }}>
-                {patientPage > 0 && <ChevronLeft size={16} style={{cursor: 'pointer'}} onClick={() => setPatientPage(patientPage - 1)} />}
-                {patientPage < Math.ceil(waitingList.length / pageSize) - 1 && <ChevronRight size={16} style={{cursor: 'pointer'}} onClick={() => setPatientPage(patientPage + 1)} />}
-                <span>{waitingList.length} en attente</span>
+              <div style={{ display: "flex", gap: 10, fontSize: 13, color: "#666" }}>
+                {patientPage > 0 && <ChevronLeft size={16} style={{ cursor: "pointer" }} onClick={() => setPatientPage(patientPage - 1)} />}
+                {patientPage < Math.ceil(todayAppointments.length / pageSize) - 1 && <ChevronRight size={16} style={{ cursor: "pointer" }} onClick={() => setPatientPage(patientPage + 1)} />}
+                <span>{todayAppointments.length} en attente</span>
               </div>
             </div>
 
-            <div style={{ marginTop: 14, flex: 1 }}>
-              {pagedPatients.map((a, idx) => (
-                <div key={idx} className="finance-row" style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: idx < pagedPatients.length - 1 ? "1px solid #f1f1f1" : "none" }}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <div style={{ width: 64, textAlign: "center", padding: "6px 8px", borderRadius: 8, background: "#fafafa" }}>{a.time}</div>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{a.patient}</div>
-                      <div style={{ fontSize: 13, color: "#666" }}>{a.service}</div>
-                    </div>
-                  </div>
-                  <button className="action-btn view" title="Voir / Modifier"><Eye size={16} /></button>
-                </div>
-              ))}
+           <div style={{ marginTop: 14, flex: 1 }}>
+  {pagedPatients.length === 0 ? (
+    <div
+      style={{
+        textAlign: "center",
+        padding: "40px 0",
+        color: "#777",
+        fontSize: 14,
+      }}
+    >
+      Aucun patient pour aujourd’hui
+    </div>
+  ) : (
+    pagedPatients.map((a, idx) => (
+      <div
+        key={idx}
+        className="finance-row"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          padding: "12px 0",
+          borderBottom: idx < pagedPatients.length - 1 ? "1px solid #f1f1f1" : "none",
+        }}
+      >
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div
+            style={{
+              width: 64,
+              textAlign: "center",
+              padding: "6px 8px",
+              borderRadius: 8,
+              background: "#fafafa",
+            }}
+          >
+            {new Date(a.dateTimeStart).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600 }}>
+              {`${a.patient.firstname} ${a.patient.lastname}`}
+            </div>
+            <div style={{ fontSize: 13, color: "#666" }}>
+              {a.notes || "Aucune note"}
             </div>
           </div>
         </div>
 
-        {/* Right column */}
+        <button
+          className="action-btn view"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/patients/${a.patient.id}`);
+          }}
+          title="Voir le patient"
+        >
+          <Eye size={16} />
+        </button>
+      </div>
+    ))
+  )}
+</div>
+
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <div style={{
-            background: "#fff",
-            borderRadius: 12,
-            padding: 16,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-            flex: 1,
-            display: "flex",
-            flexDirection: "column"
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
                 <AlertTriangle size={18} color="#e67e22" /> Inventaire - Alertes
               </h4>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {stockPage > 0 && <ChevronLeft size={16} style={{cursor: 'pointer'}} onClick={() => setStockPage(stockPage - 1)} />}
-                {stockPage < Math.ceil(lowStock.length / pageSize) - 1 && <ChevronRight size={16} style={{cursor: 'pointer'}} onClick={() => setStockPage(stockPage + 1)} />}
+
+              <div style={{ display: "flex", gap: 8 }}>
+                {stockPage > 0 && <ChevronLeft size={16} style={{ cursor: "pointer" }} onClick={() => setStockPage(stockPage - 1)} />}
+                {stockPage < Math.ceil(lowStock.length / pageSize) - 1 && <ChevronRight size={16} style={{ cursor: "pointer" }} onClick={() => setStockPage(stockPage + 1)} />}
               </div>
             </div>
 
             <div style={{ marginTop: 12, flex: 1 }}>
               {pagedStock.map((it, i) => (
-                <div key={i} className="finance-row" style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: i < pagedStock.length - 1 ? "1px solid #f6f6f6" : "none" }}>
+                <div
+                  key={i}
+                  className="finance-row"
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    padding: "10px 0",
+                    borderBottom: i < pagedStock.length - 1 ? "1px solid #f6f6f6" : "none",
+                  }}
+                >
                   <div>
                     <div style={{ fontWeight: 600 }}>{it.name}</div>
                     <div style={{ fontSize: 12, color: "#777" }}>En stock: {it.qty}</div>

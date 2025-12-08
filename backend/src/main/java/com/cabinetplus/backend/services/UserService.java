@@ -1,11 +1,12 @@
 package com.cabinetplus.backend.services;
 
-import com.cabinetplus.backend.models.User;
-import com.cabinetplus.backend.repositories.UserRepository;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+
+import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.UserRepository;
 
 @Service
 public class UserService {

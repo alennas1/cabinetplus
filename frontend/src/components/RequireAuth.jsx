@@ -1,3 +1,4 @@
+// RequireAuth.jsx
 import { useSelector, useDispatch } from "react-redux";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
@@ -5,26 +6,30 @@ import { jwtDecode } from "jwt-decode";
 import { logout, loginSuccess } from "../store/authSlice";
 import api from "../services/authService";
 
-const RequireAuth = () => {
-  // 👈 1. Get the 'user' object from Redux
+const RequireAuth = ({ allowedRoles }) => {
+  // 1. Get state and hooks
   const { token, isAuthenticated, user } = useSelector((state) => state.auth);
   const location = useLocation();
   const dispatch = useDispatch();
   const refreshTimer = useRef(null);
+  
+  // Helper function to get the user's main dashboard path
+  const getDashboardPath = (role) => { // 👈 NEW HELPER FUNCTION
+      if (role === "ADMIN") return "/admin-dashboard";
+      return "/dashboard"; // Default to DENTIST dashboard
+  };
 
   // --- Token Refresh Logic (Keep as is) ---
   useEffect(() => {
     if (!token) return;
-
+    // ... (rest of token refresh logic remains unchanged) ...
     const handleLogout = () => {
       window.dispatchEvent(new Event("sessionExpired"));
       dispatch(logout());
     };
 
-    // ... (refreshToken and scheduleRefresh functions remain the same) ...
     const refreshToken = async () => {
       try {
-        // Assuming api.post("/auth/refresh") returns { accessToken: 'new_token' }
         const { data } = await api.post("/auth/refresh", {}, { withCredentials: true });
         dispatch(loginSuccess(data.accessToken));
         scheduleRefresh(data.accessToken);
@@ -39,7 +44,6 @@ const RequireAuth = () => {
         const decoded = jwtDecode(currentToken);
         const exp = decoded.exp * 1000;
         const now = Date.now();
-        // Refresh 5s before expiration
         const timeout = exp - now - 5000; 
 
         if (timeout <= 0) {
@@ -61,14 +65,13 @@ const RequireAuth = () => {
   // ----------------------------------------
 
 
-  // 👈 2. Check for basic authentication first
+  // 2. Check for basic authentication first
   if (!token || !isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Ensure the user object is available for claim checks
   if (!user) {
-    // This case suggests a corrupt token in storage; force logout
     console.error("Authenticated but missing user claims. Forcing logout.");
     dispatch(logout());
     return <Navigate to="/login" replace />;
@@ -78,26 +81,32 @@ const RequireAuth = () => {
   const isVerified = user.isEmailVerified && user.isPhoneVerified;
   const planStatus = user.planStatus;
   const isPlanPending = planStatus === "PENDING_PLAN";
+  const userRole = user.role; 
 
-  // Check expiration locally to block access even if the token refresh hasn't run yet
-  // This is redundant if scheduleRefresh works perfectly but adds safety.
   const isExpired = Date.now() >= user.exp * 1000;
 
-  // 3a. Check Verification
-  if (!isVerified) {
-    // Redirect if not fully verified
+  // 3a. Check Verification (ADMIN BYPASSES)
+  if (userRole === "DENTIST" && !isVerified) {
     return <Navigate to="/verify" replace />;
   }
 
-  // 3b. Check Plan Status/Expiration
-  if (isPlanPending || isExpired) {
-    // Redirect if plan is pending or the token has definitively expired
+  // 3b. Check Plan Status/Expiration (ADMIN BYPASSES)
+  if (userRole === "DENTIST" && (isPlanPending || isExpired)) {
     return <Navigate to="/plan" replace />;
   }
   // ---------------------------------------------
 
 
-  // 4. All checks pass: Grant access to the protected route's children
+  // 4. ROLE-BASED ACCESS CONTROL CHECK (MODIFIED REDIRECTION)
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
+    const dashboard = getDashboardPath(userRole); // Get the correct dashboard
+    console.warn(`Access denied: User role '${userRole}' not in allowed roles: [${allowedRoles.join(', ')}]. Redirecting to ${dashboard}`);
+    // Redirect to the user's main dashboard instead of /unauthorized
+    return <Navigate to={dashboard} replace />; 
+  }
+
+
+  // 5. All checks pass: Grant access to the protected route's children
   return <Outlet />;
 };
 

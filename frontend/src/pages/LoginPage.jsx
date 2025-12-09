@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { loginSuccess } from "../store/authSlice";
 import { login } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
-import { jwtDecode } from 'jwt-decode'; // ✅ Make sure this is the NAMED import
+import { jwtDecode } from 'jwt-decode';
 import "./Login.css";
 
 const LoginPage = () => {
@@ -15,17 +15,24 @@ const LoginPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Access the authentication state
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  // Access the authentication state AND user object (MODIFIED)
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
 
-  // Auto-redirect if already authenticated
+  // Auto-redirect if already authenticated (MODIFIED LOGIC)
   useEffect(() => {
-    if (isAuthenticated) {
-      // We navigate to /dashboard, and the RequireAuth component (Step 6) 
-      // will handle the actual final destination (/verify, /plan, or /dashboard).
-      navigate("/dashboard", { replace: true });
+    // Check if authenticated AND user data (containing role) is present
+    if (isAuthenticated && user) {
+      let redirectPath = "/dashboard"; // Default for DENTIST
+
+      // Determine the correct landing page based on the role
+      if (user.role === "ADMIN") {
+        redirectPath = "/admin-dashboard";
+      }
+      
+      // Navigate the authenticated user to their correct dashboard
+      navigate(redirectPath, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]); // Added 'user' to dependency array
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,7 +49,6 @@ const LoginPage = () => {
       const isVerified = isEmailVerified && isPhoneVerified;
       const isPlanPending = planStatus === "PENDING_PLAN";
       
-      // Calculate expiration: exp is in seconds, Date.now() is in milliseconds.
       const isExpired = Date.now() >= exp * 1000; 
 
       // Save access token in Redux (This also stores the decoded user claims in state)
@@ -50,14 +56,21 @@ const LoginPage = () => {
 
       // Conditional Navigation based on JWT claims
       if (!isVerified) {
-        // Redirect to new VerificationPage
         navigate("/verify", { replace: true }); 
       } else if (isPlanPending || isExpired) {
-        // Redirect to new PlanPage if plan is pending or token has expired
         navigate("/plan", { replace: true }); 
       } else {
-        // All checks pass, go to Dashboard
-        navigate("/dashboard", { replace: true });
+        // All checks pass, navigate based on role (POST-LOGIN REDIRECT)
+        const userRole = userClaims.role;
+        
+        if (userRole === "ADMIN") {
+          navigate("/admin-dashboard", { replace: true }); // New Admin landing
+        } else if (userRole === "DENTIST") {
+          navigate("/dashboard", { replace: true }); // Existing Dentist landing
+        } else {
+          // Fallback for unknown role
+          navigate("/unauthorized", { replace: true }); 
+        }
       }
       // -----------------------------------------------------------
 

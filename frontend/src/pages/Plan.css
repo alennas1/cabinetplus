@@ -1,0 +1,232 @@
+/* --- Container général (identique au style Verify/Login) --- */
+.plan-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #f4f7f9;
+}
+
+.plan-card {
+    width: 95%;
+    max-width: 750px;
+    background: #fff;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+/* --- Titre général --- */
+.plan-card h1 {
+    font-size: 1.8rem;
+    color: #2c3e50;
+    margin-bottom: 1rem;
+}
+
+/* --- Bloc statut --- */
+.plan-status-box {
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Couleurs selon statut */
+.plan-status-trial {
+    background-color: #fff3cd;
+    border: 1px solid #ffc107;
+    color: #856404;
+}
+
+.plan-status-expired {
+    background-color: #f8d7da;
+    border: 1px solid #dc3545;
+    color: #721c24;
+}
+
+/* Grille des plans */
+.plan-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+}
+
+/* Style de chaque plan */
+.plan-box {
+    padding: 1.5rem;
+    border: 1px solid #cdd3d8;
+    border-radius: 10px;
+    background: #fff;
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.plan-box:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+}
+
+/* Version Free Trial actif */
+.plan-box-active {
+    border: 2px solid #007bff;
+    background-color: #e9f5ff;
+}
+
+/* Titres des plans */
+.plan-box p:first-child {
+    font-size: 1.25rem;
+    font-weight: bold;
+    margin-bottom: .5rem;
+}
+
+/* Bouton générique */
+.plan-btn {
+    margin-top: 1rem;
+    padding: 0.7rem 1rem;
+    border: none;
+    color: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    font-weight: 600;
+    transition: background 0.2s ease;
+}
+
+/* Couleurs adaptées */
+.plan-btn-blue {
+    background: #007bff;
+}
+.plan-btn-blue:hover {
+    background: #0069d9;
+}
+
+.plan-btn-green {
+    background: #28a745;
+}
+.plan-btn-green:hover {
+    background: #1e7e34;
+}
+
+.plan-btn-yellow {
+    background: #ffc107;
+    color: #333;
+}
+.plan-btn-yellow:hover {
+    background: #e0a800;
+}
+
+/* Logout */
+.plan-logout-btn {
+    margin-top: 2rem;
+    padding: 0.9rem;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+}
+
+.plan-logout-btn:hover {
+    background: #5a6268;
+}
+
+/* POPUP (modal) */
+.payment-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.payment-popup {
+    width: 350px;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1.8rem;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.payment-popup h2 {
+    margin-bottom: 1rem;
+    color: #2c3e50;
+}
+
+.payment-method-btn {
+    margin: 10px 0;
+    width: 100%;
+    padding: 0.85rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+}
+
+.pm-card {
+    background: #007bff;
+}
+
+.pm-hand {
+    background: #28a745;
+}
+
+.pm-cancel {
+    background: #dc3545;
+}
+.pm-cancel:hover {
+    background: #c82333;
+}
+/* --- WAITING PAGE --- */
+
+.waiting-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #f4f7f9;
+}
+
+.waiting-card {
+    width: 90%;
+    max-width: 500px;
+    background: #ffffff;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.waiting-card h2 {
+    font-size: 1.6rem;
+    color: #2c3e50;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.waiting-card p {
+    color: #555;
+    font-size: 1rem;
+    margin-top: 0.5rem;
+}
+
+/* Optional: subtle animation for the icon */
+.waiting-card svg {
+    animation: slowPulse 1.6s infinite ease-in-out;
+}
+
+@keyframes slowPulse {
+    0% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 0.5; transform: scale(1); }
+}

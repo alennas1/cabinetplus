@@ -2,7 +2,7 @@ package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
 
-import com.cabinetplus.backend.enums.PlanStatus;
+import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 
 import jakarta.persistence.Column;
@@ -12,6 +12,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -43,14 +45,17 @@ public class User {
     private boolean isEmailVerified = false;
     private boolean isPhoneVerified = false;
 
+    @ManyToOne
+    @JoinColumn(name = "plan_id")
+    private Plan plan; // selected plan
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private PlanStatus planStatus = PlanStatus.PENDING_PLAN;
+    private UserPlanStatus planStatus = UserPlanStatus.PENDING;
 
     @Column(length = 20)
     private String phoneNumber;
 
     private LocalDateTime createdAt;
 
-    private LocalDateTime expirationDate;  // <-- new field
+    private LocalDateTime expirationDate; 
 }

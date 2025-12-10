@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
 
@@ -27,6 +28,9 @@ public class UserService {
 
     public Optional<User> findById(Long id) {
         return userRepository.findById(id);
+    }
+    public List<User> findByPlanStatus(UserPlanStatus status) {
+        return userRepository.findByPlanStatus(status);
     }
 
     public Optional<User> findByUsername(String username) {

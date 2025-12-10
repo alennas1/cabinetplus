@@ -62,7 +62,13 @@ export const register = async (userData) => {
   return response.data;
 };
 
-// Helper for secured endpoints
+// --- New: Fetch current user ---
+export const getCurrentUser = async () => {
+  const response = await api.get("/api/users/me");
+  return response.data;
+};
+
+// Helper for other secured endpoints
 export const getSecured = async (url) => {
   const response = await api.get(url);
   return response.data;

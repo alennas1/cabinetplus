@@ -1,15 +1,19 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { jwtDecode } from 'jwt-decode'; // ✅ CORRECT (Using named import)
+import { jwtDecode } from "jwt-decode"; // ✅ Correct import
+
 const token = localStorage.getItem("token");
 
-// ℹ️ Helper function to decode token if it exists
+// Helper function to decode token safely
 const getDecodedUser = (t) => {
   if (t) {
     try {
-      return jwtDecode(t);
+      const decoded = jwtDecode(t);
+      // Ensure plan object exists
+      decoded.plan = decoded.plan || null;
+      return decoded;
     } catch (error) {
       console.error("Invalid token found in storage:", error);
-      localStorage.removeItem("token"); // Clear bad token
+      localStorage.removeItem("token");
       return null;
     }
   }
@@ -19,7 +23,7 @@ const getDecodedUser = (t) => {
 const initialState = {
   token: token || null,
   isAuthenticated: !!token,
-  user: getDecodedUser(token), // 👈 2. ADD & INITIALIZE
+  user: getDecodedUser(token),
 };
 
 const authSlice = createSlice({
@@ -27,23 +31,24 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     loginSuccess: (state, action) => {
-      const accessToken = action.payload; // Use a clearer variable name
+      const accessToken = action.payload;
       state.token = accessToken;
       state.isAuthenticated = true;
       localStorage.setItem("token", accessToken);
 
-      // 3. DECODE AND SAVE THE USER CLAIMS
       try {
-        state.user = jwtDecode(accessToken);
+        const decoded = jwtDecode(accessToken);
+        decoded.plan = decoded.plan || null; // ensure plan exists
+        state.user = decoded;
       } catch (error) {
         console.error("Failed to decode token after login:", error);
-        state.user = null; // Token is invalid, treat as unauthenticated logic might follow
+        state.user = null;
       }
     },
     logout: (state) => {
       state.token = null;
       state.isAuthenticated = false;
-      state.user = null; // 4. CLEAR USER DATA ON LOGOUT
+      state.user = null;
       localStorage.removeItem("token");
     },
   },

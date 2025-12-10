@@ -24,18 +24,19 @@ import Employees from "./pages/Employees";
 import EmployeeDetails from "./pages/EmployeeDetails"; 
 import VerificationPage from "./pages/VerificationPage"; 
 import PlanPage from "./pages/PlanPage"; 
+import WaitingPage from "./pages/WaitingPage"; 
 import AdminDashboard from "./pages/AdminDashboard"; 
 
-// --- ADMIN PAGE Imports (Placeholders - ensure you create these!) ---
-import DentistsPage from "./pages/Dentists"; // Assuming Dentists management page
-import PendingPaymentsPage from "./pages/PendingPayments"; // Assuming Pending Payments page
-import PaymentHistoryPage from "./pages/PaymentHistory"; // Assuming Payment History page
-import ExpiringPlansPage from "./pages/EndingPlans"; // Assuming Expiring Plans page
-import AdminSettings from "./pages/AdminSettings"; // Reusing Settings for Admin
+// --- ADMIN PAGE Imports ---
+import DentistsPage from "./pages/Dentists"; 
+import PendingPaymentsPage from "./pages/PendingPayments"; 
+import PaymentHistoryPage from "./pages/PaymentHistory"; 
+import ExpiringPlansPage from "./pages/EndingPlans"; 
+import AdminSettings from "./pages/AdminSettings"; 
 
 // --- Component Imports ---
 import Layout from "./components/Layout";
-import AdminLayout from "./components/AdminLayout"; // <-- NEW IMPORT
+import AdminLayout from "./components/AdminLayout";
 import RequireAuth from "./components/RequireAuth"; 
 import SessionExpiredModal from "./components/SessionExpiredModal";
 
@@ -44,47 +45,36 @@ import "./index.css";
 function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth); 
 
-  // Handles the root '/' redirect
   const RootRedirect = () => {
-    if (!isAuthenticated || !user) {
-      return <Navigate to="/login" replace />;
-    }
-    if (user.role === "ADMIN") {
-      return <Navigate to="/admin-dashboard" replace />;
-    }
+    if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+    if (user.role === "ADMIN") return <Navigate to="/admin-dashboard" replace />;
     return <Navigate to="/dashboard" replace />;
   };
 
-  // Handles all non-existent routes
   const CatchAllRedirect = () => {
-    if (!isAuthenticated || !user) {
-      return <Navigate to="/login" replace />; 
-    }
-    if (user.role === "ADMIN") {
-      return <Navigate to="/admin-dashboard" replace />; 
-    }
+    if (!isAuthenticated || !user) return <Navigate to="/login" replace />; 
+    if (user.role === "ADMIN") return <Navigate to="/admin-dashboard" replace />; 
     return <Navigate to="/dashboard" replace />;
   };
 
   return (
     <Router>
-      <SessionExpiredModal /> 
+      <SessionExpiredModal />
       <div className="app-container">
         <Routes>
-          {/* ======================================= */}
-          {/* PUBLIC/GATED ROUTES */}
-          {/* ======================================= */}
+          {/* PUBLIC ROUTES */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
-          <Route path="/verify" element={<VerificationPage />} /> 
-          <Route path="/plan" element={<PlanPage />} />          
 
-          {/* ======================================= */}
-          {/* DENTIST PROTECTED ROUTES (uses Layout) */}
-          {/* ======================================= */}
+          {/* SPECIAL DENTIST ROUTES: accessible without RequireAuth */}
+          <Route path="/verify" element={<VerificationPage />} />
+          <Route path="/plan" element={<PlanPage />} />
+          <Route path="/waiting" element={<WaitingPage />} />
+
+          {/* DENTIST PROTECTED ROUTES */}
           <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
-            <Route element={<Layout />}> {/* Layout uses the DENTIST Sidebar */}
+            <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/patients" element={<Patients />} />
               <Route path="/patients/:id" element={<Patient />} />
@@ -105,28 +95,22 @@ function App() {
               <Route path="/employees/:id" element={<EmployeeDetails />} />
             </Route>
           </Route>
-          
-          {/* ======================================= */}
-          {/* ADMIN PROTECTED ROUTES (uses AdminLayout) */}
-          {/* ======================================= */}
+
+          {/* ADMIN PROTECTED ROUTES */}
           <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
-            <Route element={<AdminLayout />}> {/* AdminLayout uses the ADMIN Sidebar */}
+            <Route element={<AdminLayout />}>
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
-              {/* ADMIN-SPECIFIC ROUTES (Matching the SidebarAdmin links) */}
               <Route path="/dentists" element={<DentistsPage />} />
               <Route path="/pending-payments" element={<PendingPaymentsPage />} />
               <Route path="/payment-history" element={<PaymentHistoryPage />} />
               <Route path="/expiring-plans" element={<ExpiringPlansPage />} />
-              <Route path="/settings-admin" element={<AdminSettings />} /> {/* Reusing Settings page */}
-              {/* Note: Employees routes might also be needed here for Admin management */}
+              <Route path="/settings-admin" element={<AdminSettings />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/employees/:id" element={<EmployeeDetails />} />
             </Route>
           </Route>
 
-          {/* ======================================= */}
-          {/* ROOT & CATCH-ALL REDIRECT */}
-          {/* ======================================= */}
+          {/* ROOT & CATCH-ALL */}
           <Route index element={<RootRedirect />} />
           <Route path="*" element={<CatchAllRedirect />} />
         </Routes>

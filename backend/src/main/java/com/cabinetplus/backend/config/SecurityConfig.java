@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                 // DENTIST-only endpoints
-                .requestMatchers("/api/**").hasRole("DENTIST") 
+                .requestMatchers("/api/**").hasAnyRole("DENTIST","ADMIN") 
 
                 // ADMIN-only endpoints
                 .requestMatchers("/admin/**").hasRole("ADMIN") 

@@ -1,0 +1,117 @@
+.waiting-page {
+  font-family: "Montserrat", sans-serif;
+  padding: 20px;
+  background: #f9fbfd;
+  min-height: 100vh;
+}
+
+/* Search input */
+.search-wrapper {
+  position: relative;
+  max-width: 300px;
+  margin-bottom: 20px;
+}
+.search-wrapper input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-wrapper input:focus {
+  border-color: #3498db;
+}
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #aaa;
+}
+
+/* Payments Table */
+.payments-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.payments-table th,
+.payments-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+.empty-row {
+  text-align: center;
+  color: #888;
+}
+
+/* Status Chips */
+.status-chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+.status-chip.pending {
+  background: #ffecb3;
+  color: #795548;
+}
+.status-chip.confirmed {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+.status-chip.rejected {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+/* Action buttons */
+.action-btn {
+  border-radius: 8px;
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.action-btn.confirm {
+  background: #ecfdf5;
+  color: #059669;
+}
+.action-btn.confirm:hover {
+  background: #d1fae5;
+}
+.action-btn.reject {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.action-btn.reject:hover {
+  background: #fecaca;
+}
+
+/* Pagination */
+.pagination {
+  margin-top: 20px;
+  display: flex;
+  gap: 6px;
+}
+.pagination button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+.pagination button.active {
+  background: #3498db;
+  color: #fff;
+  border-color: #3498db;
+}
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -6,20 +6,19 @@ import java.util.Map;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.UserPlanStatus;
+import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.UserService;
+
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api/users")
@@ -28,24 +27,44 @@ public class UserController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final PlanService planService;
+    private final JwtUtil jwtUtil;
 
-    public UserController(UserService userService, PasswordEncoder passwordEncoder, PlanService planService) {
+    public UserController(UserService userService, PasswordEncoder passwordEncoder, PlanService planService, JwtUtil jwtUtil) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.planService = planService;
+        this.jwtUtil = jwtUtil;
     }
 
-    // ==========================================================
+    // ===============================
     // BASIC CRUD
-    // ==========================================================
+    // ===============================
     @GetMapping
     public List<User> getAllUsers() {
         return userService.findAll();
     }
 
+    @GetMapping("/dentists")
+    public List<User> getAllDentists() {
+        return userService.getAllDentists();
+    }
+
+    @GetMapping("/admins")
+    public List<User> getAllAdmins(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
+        User currentUser = userService.findByUsername(current.getUsername())
+                .orElseThrow(() -> new RuntimeException("Current user not found"));
+        return userService.getAllAdmins(currentUser);
+    }
+
+    @GetMapping("/expiring-in/{days}")
+    public List<User> getUsersExpiringIn(@PathVariable int days) {
+        return userService.getUsersExpiringInDays(days);
+    }
+
     @GetMapping("/{id}")
     public User getUserById(@PathVariable Long id) {
-        return userService.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+        return userService.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     @PostMapping
@@ -59,14 +78,29 @@ public class UserController {
         return userService.save(user);
     }
 
-    @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id) {
+    // ===============================
+    // DELETE USER (ADMIN RESTRICTION)
+    // ===============================
+    @DeleteMapping("/admin/delete/{id}")
+    public void deleteUser(@PathVariable Long id,
+                           @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
+
+        User currentUser = userService.findByUsername(current.getUsername())
+                .orElseThrow(() -> new RuntimeException("Current user not found"));
+
+        User targetUser = userService.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (targetUser.getRole() == UserRole.ADMIN && !currentUser.isCanDeleteAdmin()) {
+            throw new RuntimeException("You cannot delete another admin account");
+        }
+
         userService.delete(id);
     }
 
-    // ==========================================================
+    // ===============================
     // CURRENT USER
-    // ==========================================================
+    // ===============================
     @GetMapping("/me")
     public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
         return userService.findByUsername(userDetails.getUsername())
@@ -87,9 +121,9 @@ public class UserController {
         return userService.save(user);
     }
 
-    // ==========================================================
+    // ===============================
     // PASSWORD
-    // ==========================================================
+    // ===============================
     @PutMapping("/me/password")
     public User updatePassword(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                @RequestBody Map<String, String> passwords) {
@@ -107,15 +141,15 @@ public class UserController {
         return userService.save(user);
     }
 
-    // ==========================================================
+    // ===============================
     // EMAIL + PHONE VERIFICATION
-    // ==========================================================
+    // ===============================
     @PutMapping("/me/verify-email")
     public User verifyEmail(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        user.setEmailVerified(true);
+        user.setEmailVerified(false); // ensure default value
         return userService.save(user);
     }
 
@@ -124,13 +158,13 @@ public class UserController {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        user.setPhoneVerified(true);
+        user.setPhoneVerified(false); // ensure default value
         return userService.save(user);
     }
 
-    // ==========================================================
-    // USER SELECTS A PLAN (PLAN NOT ACTIVE YET)
-    // ==========================================================
+    // ===============================
+    // USER SELECTS A PLAN
+    // ===============================
     @PutMapping("/me/plan")
     public User selectPlan(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                            @RequestBody Map<String, String> planData) {
@@ -146,15 +180,15 @@ public class UserController {
                 .orElseThrow(() -> new RuntimeException("Plan not found"));
 
         user.setPlan(plan);
-        user.setPlanStatus(UserPlanStatus.WAITING); // selected but not activated
-        user.setExpirationDate(null); // will be set when admin activates
+        user.setPlanStatus(UserPlanStatus.WAITING);
+        user.setExpirationDate(null);
 
         return userService.save(user);
     }
 
-    // ==========================================================
-    // ADMIN ENDPOINTS: MANAGE WAITING PLANS
-    // ==========================================================
+    // ===============================
+    // ADMIN ENDPOINTS: MANAGE PLANS
+    // ===============================
     @GetMapping("/admin/waiting-plans")
     public List<User> getWaitingPlans() {
         return userService.findByPlanStatus(UserPlanStatus.WAITING);
@@ -170,8 +204,6 @@ public class UserController {
         }
 
         user.setPlanStatus(UserPlanStatus.ACTIVE);
-
-        // Set expiration from activation date
         int durationDays = user.getPlan().getDurationDays() != null ? user.getPlan().getDurationDays() : 30;
         user.setExpirationDate(LocalDateTime.now().plusDays(durationDays));
 
@@ -186,5 +218,66 @@ public class UserController {
         user.setPlanStatus(UserPlanStatus.INACTIVE);
         user.setExpirationDate(null);
         return userService.save(user);
+    }
+
+    // ===============================
+    // ADMIN MANAGEMENT: CREATE ADMIN
+    // ===============================
+    @PostMapping("/admin/create")
+    public Map<String, Object> createAdmin(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails currentDetails,
+            @RequestBody User newAdmin,
+            HttpServletResponse response) {
+
+        User currentUser = userService.findByUsername(currentDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("Current user not found"));
+
+        // Only super-admin can create another super-admin
+        if (newAdmin.isCanDeleteAdmin() && !currentUser.isCanDeleteAdmin()) {
+            throw new RuntimeException("Only super-admin can create another super-admin");
+        }
+
+        // Fill default required fields
+        if (newAdmin.getUsername() == null || newAdmin.getUsername().isBlank()) {
+            newAdmin.setUsername(newAdmin.getEmail() != null ? newAdmin.getEmail().split("@")[0] : newAdmin.getFirstname().toLowerCase());
+        }
+        if (newAdmin.getPasswordHash() == null || newAdmin.getPasswordHash().isBlank()) {
+            newAdmin.setPasswordHash(passwordEncoder.encode("DefaultPassword123!"));
+        }
+
+        newAdmin.setRole(UserRole.ADMIN);
+        newAdmin.setCreatedAt(LocalDateTime.now());
+        newAdmin.setPlanStatus(UserPlanStatus.PENDING);
+        newAdmin.setEmailVerified(false);
+        newAdmin.setPhoneVerified(false);
+
+        User saved = userService.createAdmin(currentUser, newAdmin);
+
+        // Generate JWT immediately
+        String accessToken = jwtUtil.generateAccessToken(saved);
+        String refreshToken = jwtUtil.generateRefreshToken(saved.getUsername());
+
+        Cookie cookie = new Cookie("refresh_token", refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // local dev
+        cookie.setPath("/auth/refresh");
+        cookie.setMaxAge(7 * 24 * 60 * 60);
+        response.addCookie(cookie);
+
+        // Return user DTO + access token
+        UserDto dto = new UserDto(
+                saved.getId(),
+                saved.getUsername(),
+                saved.getFirstname(),
+                saved.getLastname(),
+                saved.getEmail(),
+                saved.getPhoneNumber(),
+                saved.getRole().name()
+        );
+
+        return Map.of(
+                "user", dto,
+                "accessToken", accessToken
+        );
     }
 }

@@ -5,16 +5,8 @@ import java.time.LocalDateTime;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -47,7 +39,7 @@ public class User {
 
     @ManyToOne
     @JoinColumn(name = "plan_id")
-    private Plan plan; // selected plan
+    private Plan plan;
 
     @Enumerated(EnumType.STRING)
     private UserPlanStatus planStatus = UserPlanStatus.PENDING;
@@ -56,6 +48,7 @@ public class User {
     private String phoneNumber;
 
     private LocalDateTime createdAt;
+    private LocalDateTime expirationDate;
 
-    private LocalDateTime expirationDate; 
+    private boolean canDeleteAdmin = false; // super-admin flag
 }

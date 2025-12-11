@@ -41,11 +41,37 @@ public class SecurityConfig {
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // DENTIST-only endpoints
-                .requestMatchers("/api/**").hasAnyRole("DENTIST","ADMIN") 
+                // --------------------------
+                // ADMIN-ONLY HAND PAYMENT ENDPOINTS
+                // --------------------------
+                .requestMatchers(
+                    "/api/hand-payments/all",
+                    "/api/hand-payments/pending",
+                    "/api/hand-payments/confirm/**",
+                    "/api/hand-payments/reject/**"
+                ).hasRole("ADMIN")
 
-                // ADMIN-only endpoints
-                .requestMatchers("/admin/**").hasRole("ADMIN") 
+                // --------------------------
+                // DENTIST OR ADMIN ENDPOINTS
+                // --------------------------
+                .requestMatchers(
+                    "/api/hand-payments/create",
+                    "/api/hand-payments/my-payments"
+                ).hasAnyRole("DENTIST", "ADMIN")
+
+                // --------------------------
+                // ADMIN-ONLY USER MANAGEMENT
+                // --------------------------
+                .requestMatchers(
+                    "/api/users/dentists",
+                    "/api/users/admins"
+                ).hasRole("ADMIN")
+
+                // any other /api endpoint
+                .requestMatchers("/api/**").hasAnyRole("DENTIST", "ADMIN")
+
+                // admin panel endpoints
+                .requestMatchers("/admin/**").hasRole("ADMIN")
 
                 // everything else requires authentication
                 .anyRequest().authenticated()
@@ -78,10 +104,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173")); // React frontend
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true); // allow cookies
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

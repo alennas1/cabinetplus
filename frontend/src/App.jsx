@@ -33,6 +33,10 @@ import PendingPaymentsPage from "./pages/PendingPayments";
 import PaymentHistoryPage from "./pages/PaymentHistory"; 
 import ExpiringPlansPage from "./pages/EndingPlans"; 
 import AdminSettings from "./pages/AdminSettings"; 
+import AdminFinance from "./pages/AdminFinance";
+import ManageAdmins from "./pages/ManageAdmins";
+import AdminChangePassword from "./pages/AdminChangePassword";
+import ManagePlans from "./pages/ManagePlans";
 
 // --- Component Imports ---
 import Layout from "./components/Layout";
@@ -105,8 +109,10 @@ function App() {
               <Route path="/payment-history" element={<PaymentHistoryPage />} />
               <Route path="/expiring-plans" element={<ExpiringPlansPage />} />
               <Route path="/settings-admin" element={<AdminSettings />} />
-              <Route path="/employees" element={<Employees />} />
-              <Route path="/employees/:id" element={<EmployeeDetails />} />
+              <Route path="/finance-admin" element={<AdminFinance />} />
+               <Route path="/admin/manage-admins" element={<ManageAdmins />} />
+    <Route path="/admin/change-password" element={<AdminChangePassword />} />
+    <Route path="/admin/manage-plans" element={<ManagePlans />} />
             </Route>
           </Route>
 

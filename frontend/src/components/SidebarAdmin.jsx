@@ -12,6 +12,7 @@ import {
   LogOut,
   PlusSquare,
   BarChart2,
+  PieChart ,
 } from "react-feather";
 import { logout } from "../store/authSlice";
 import "./Sidebar.css";
@@ -70,11 +71,16 @@ const SidebarAdmin = () => {
         </li>
         <li>
           <Link to="/expiring-plans">
-            <BarChart2 size={20} /> 
+            <PieChart size={20} /> 
             <span className="link-text">Plans expirants</span>
           </Link>
         </li>
-        
+        <li>
+  <Link to="/finance-admin">
+    <BarChart2  size={20} /> 
+    <span className="link-text">Finance</span>
+  </Link>
+</li>
         {/* --- Système Group --- */}
         <li className="sidebar-group-title">Système</li>
         

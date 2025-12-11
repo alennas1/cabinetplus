@@ -1,10 +1,12 @@
 package com.cabinetplus.backend.services;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cabinetplus.backend.dto.HandPaymentResponseDTO;
 import com.cabinetplus.backend.enums.PaymentStatus;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.models.HandPayment;
@@ -24,6 +26,75 @@ public class HandPaymentService {
      * Create a new hand payment
      * Sets user's planStatus to WAITING
      */
+
+    public List<HandPaymentResponseDTO> getAllPendingPayments() {
+    return handPaymentRepository.findByStatus(PaymentStatus.PENDING)
+            .stream()
+            .map(p -> new HandPaymentResponseDTO(
+                    p.getId(),
+                    p.getAmount(),
+                    p.getPaymentDate(),
+                    p.getStatus().name(),
+                    p.getPaymentMethod().name(),
+                    p.getNotes(),
+
+                    p.getUser().getId(),
+                    p.getUser().getUsername(),
+                    p.getUser().getFirstname() + " " + p.getUser().getLastname(),
+                    p.getUser().getPhoneNumber(),
+
+                    p.getPlan().getId(),
+                    p.getPlan().getName(),
+                    p.getPlan().getDurationDays()
+            ))
+            .toList();
+}
+public List<HandPaymentResponseDTO> getPaymentsByUser(User user) {
+    return handPaymentRepository.findByUser(user)
+            .stream()
+            .map(p -> new HandPaymentResponseDTO(
+                    p.getId(),
+                    p.getAmount(),
+                    p.getPaymentDate(),
+                    p.getStatus().name(),
+                    p.getPaymentMethod().name(),
+                    p.getNotes(),
+
+                    p.getUser().getId(),
+                    p.getUser().getUsername(),
+                    p.getUser().getFirstname() + " " + p.getUser().getLastname(),
+                    p.getUser().getPhoneNumber(),
+
+                    p.getPlan().getId(),
+                    p.getPlan().getName(),
+                    p.getPlan().getDurationDays()
+            ))
+            .toList();
+}
+public List<HandPaymentResponseDTO> getAllPayments() {
+    return handPaymentRepository.findAll()
+            .stream()
+            .map(p -> new HandPaymentResponseDTO(
+                    p.getId(),
+                    p.getAmount(),
+                    p.getPaymentDate(),
+                    p.getStatus().name(),
+                    p.getPaymentMethod().name(),
+                    p.getNotes(),
+
+                    p.getUser().getId(),
+                    p.getUser().getUsername(),
+                    p.getUser().getFirstname() + " " + p.getUser().getLastname(),
+                    p.getUser().getPhoneNumber(),
+
+                    p.getPlan().getId(),
+                    p.getPlan().getName(),
+                    p.getPlan().getDurationDays()
+            ))
+            .toList();
+}
+
+
     public HandPayment createHandPayment(HandPayment payment) {
         payment.setStatus(PaymentStatus.PENDING);
         if (payment.getPaymentMethod() == null) {

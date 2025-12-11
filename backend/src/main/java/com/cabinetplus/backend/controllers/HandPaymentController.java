@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.HandPaymentDTO;
+import com.cabinetplus.backend.dto.HandPaymentResponseDTO;
 import com.cabinetplus.backend.models.HandPayment;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
@@ -33,10 +34,24 @@ public class HandPaymentController {
     /**
      * Get all pending hand payments
      */
+
+    @GetMapping("/all")
+public ResponseEntity<List<HandPaymentResponseDTO>> getAllPayments() {
+    return ResponseEntity.ok(handPaymentService.getAllPayments());
+}
+
     @GetMapping("/pending")
-    public ResponseEntity<List<HandPayment>> getPendingPayments() {
-        return ResponseEntity.ok(handPaymentService.getAllPendingPayments());
-    }
+    public ResponseEntity<List<HandPaymentResponseDTO>> getPendingPayments() {
+    return ResponseEntity.ok(handPaymentService.getAllPendingPayments());
+}
+
+@GetMapping("/my-payments")
+public ResponseEntity<List<HandPaymentResponseDTO>> getMyPayments(Principal principal) {
+    User user = userRepository.findByUsername(principal.getName())
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+    return ResponseEntity.ok(handPaymentService.getPaymentsByUser(user));
+}
 
     /**
      * Create a new hand payment for the authenticated user

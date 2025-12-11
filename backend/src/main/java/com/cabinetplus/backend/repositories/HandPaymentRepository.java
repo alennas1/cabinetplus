@@ -20,4 +20,7 @@ public interface HandPaymentRepository extends JpaRepository<HandPayment, Long> 
 
     // Optional: find by status and user
     List<HandPayment> findByUserAndStatus(User user, PaymentStatus status);
+
+    List<HandPayment> findAll();
+
 }

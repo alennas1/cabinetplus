@@ -3,13 +3,14 @@ import { register, login } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { loginSuccess } from "../store/authSlice";
+import { jwtDecode } from "jwt-decode"; // <-- Import jwtDecode
 import "./Register.css";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    role: "DENTIST",  // automatically set
+    role: "DENTIST",  // automatically set
     firstname: "",
     lastname: "",
     email: "",
@@ -23,9 +24,9 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // Redirect if already logged in
+  // Redirect if already logged in (This logic is fine for pre-login checks)
   useEffect(() => {
-    if (isAuthenticated) navigate("/dashboard");
+    if (isAuthenticated) navigate("/dashboard", { replace: true });
   }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
@@ -47,14 +48,68 @@ const RegisterPage = () => {
 
       // 2️⃣ Auto-login after registration
       const { accessToken } = await login(formData.username, formData.password);
+      
+      // 3️⃣ Decode JWT to get required user claims
+      const userClaims = jwtDecode(accessToken);
+      const { 
+        isEmailVerified, 
+        isPhoneVerified, 
+        planStatus, 
+        plan, 
+        role,
+      } = userClaims;
+      
+      const isVerified = isEmailVerified && isPhoneVerified;
+
+      // 4️⃣ Dispatch loginSuccess (stores token and user claims)
       dispatch(loginSuccess(accessToken));
 
-      // 3️⃣ Navigate to dashboard
-      navigate("/dashboard");
+      // 5️⃣ Determine Redirection Path based on the claims
 
+      // ADMINs go straight to their dashboard (Assuming ADMIN registration is separate or handled differently)
+      if (role === "ADMIN") {
+        navigate("/admin-dashboard", { replace: true });
+        return;
+      }
+      
+      // DENTIST Redirection Logic
+      
+      // A. Check for verification first
+      if (!isVerified) {
+        navigate("/verify", { replace: true });
+        return;
+      }
+      
+      // B. If verified, check plan status
+      switch (planStatus) {
+        case "ACTIVE":
+          // If active and has a valid plan, go to dashboard
+          if (plan && ["FREE_TRIAL", "BASIC", "PRO"].includes(plan.code.toUpperCase())) {
+            navigate("/dashboard", { replace: true });
+          } else {
+            // Should theoretically not happen for a new user, but directs to plan page as a safeguard
+            navigate("/plan", { replace: true });
+          }
+          break;
+        case "PENDING":
+        case "WAITING":
+        case "INACTIVE":
+        default:
+          // New registered users will likely have PENDING/INACTIVE/null plan status and are directed to select a plan
+          navigate("/plan", { replace: true });
+          break;
+      }
+      
     } catch (error) {
       if (error.response && error.response.data) {
-        setErrors(error.response.data); // backend field errors
+        // Handle backend field errors (username already exists, invalid email format, etc.)
+        const errorData = error.response.data;
+        if (typeof errorData === 'object' && errorData !== null) {
+             setErrors(error.response.data);
+        } else {
+             // Handle generic message if not field-specific
+             alert(errorData.message || "Erreur inconnue lors de l'inscription");
+        }
       } else {
         alert("Erreur inconnue lors de l'inscription");
       }
@@ -141,7 +196,6 @@ const RegisterPage = () => {
           />
           {errors.phoneNumber && <p className="error-text">{errors.phoneNumber}</p>}
 
-          {/* Role is now automatic; no select */}
           <button type="submit" disabled={loading}>
             {loading ? "Inscription..." : "S'inscrire"}
           </button>
@@ -156,14 +210,3 @@ const RegisterPage = () => {
 };
 
 export default RegisterPage;
-/*
-so fill out info then click sign up => account created but not verified so it won't let you into the app ou first need to 
-confirm mail and phone and if you already sign up did not confirm you can login into your account but it will be directed 
-to the confirmation place for mail and phone you have logout button or confrim then if done both confirmations it will take
- you to the chossing of plans 
-free-7 days trial
-basic  4000dzd
-pro 5000dzd
-
-if you dont' chose the plan anytime logged in it will take you here so you ahve to chose plan or logout 
-*/

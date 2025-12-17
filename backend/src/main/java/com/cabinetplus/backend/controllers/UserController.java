@@ -6,7 +6,14 @@ import java.util.Map;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.UserPlanStatus;
@@ -149,18 +156,18 @@ public class UserController {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        user.setEmailVerified(false); // ensure default value
+        user.setEmailVerified(true); // ensure default value
         return userService.save(user);
     }
 
     @PutMapping("/me/verify-phone")
-    public User verifyPhone(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
-        User user = userService.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+public User verifyPhone(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+    User user = userService.findByUsername(userDetails.getUsername())
+        .orElseThrow(() -> new RuntimeException("User not found"));
 
-        user.setPhoneVerified(false); // ensure default value
-        return userService.save(user);
-    }
+    user.setPhoneVerified(true); // <--- Sets the phone verification status
+    return userService.save(user);
+}
 
     // ===============================
     // USER SELECTS A PLAN

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { loginSuccess } from "../store/authSlice";
-import { login } from "../services/authService";
+import { login } from "../services/authService"; // Assuming you have this service
 import { Link, useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import "./Login.css";
@@ -16,13 +16,22 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
-  // Redirect on login status change
+  // Redirect on login status change (Handles users accessing /login while already logged in)
   useEffect(() => {
     if (isAuthenticated && user) {
       if (user.role === "ADMIN") {
         navigate("/admin-dashboard", { replace: true });
       } else {
-        // DENTIST redirects based on plan status
+        // DENTIST redirects based on plan status and verification status from the store
+        // NOTE: The initial login redirect is handled in handleSubmit below.
+        
+        const isVerified = user.isEmailVerified && user.isPhoneVerified;
+
+        if (!isVerified) {
+          navigate("/verify", { replace: true });
+          return;
+        }
+
         switch (user.planStatus) {
           case "ACTIVE":
             navigate("/dashboard", { replace: true });
@@ -31,11 +40,7 @@ const LoginPage = () => {
             navigate("/waiting", { replace: true });
             break;
           case "PENDING":
-            navigate("/plan", { replace: true });
-            break;
           case "INACTIVE":
-            navigate("/plan", { replace: true });
-            break;
           default:
             navigate("/plan", { replace: true });
         }
@@ -51,20 +56,37 @@ const LoginPage = () => {
     try {
       const { accessToken } = await login(username.trim(), password.trim());
       const userClaims = jwtDecode(accessToken);
-      const { isEmailVerified, isPhoneVerified, planStatus, plan, role, expirationDate } =
-        userClaims;
+      const { 
+        isEmailVerified, 
+        isPhoneVerified, 
+        planStatus, 
+        plan, 
+        role, 
+        expirationDate 
+      } = userClaims;
 
-      // Dispatch login
-      dispatch(loginSuccess(accessToken));
-
-      // Check email/phone verification
       const isVerified = isEmailVerified && isPhoneVerified;
+
+      // --- CRITICAL FIX: Handle unverified users first ---
+      
+      // We must dispatch loginSuccess before redirecting to /verify 
+      // so the token and user details (including verification status) are stored in Redux.
+      dispatch(loginSuccess(accessToken)); 
+
       if (role === "DENTIST" && !isVerified) {
         navigate("/verify", { replace: true });
+        return; // Stop further execution
+      }
+      
+      // --- End of Fix ---
+      
+      // ADMIN Redirection
+      if (role === "ADMIN") {
+        navigate("/admin-dashboard", { replace: true });
         return;
       }
 
-      // Plan status redirection
+      // DENTIST Redirection (For verified dentists)
       switch (planStatus) {
         case "PENDING":
           navigate("/plan", { replace: true });
@@ -73,14 +95,15 @@ const LoginPage = () => {
           navigate("/waiting", { replace: true });
           break;
         case "ACTIVE":
+          // Check for a valid plan code before redirecting to dashboard
           if (plan && ["FREE_TRIAL", "BASIC", "PRO"].includes(plan.code.toUpperCase())) {
             navigate("/dashboard", { replace: true });
           } else {
-            navigate("/plan", { replace: true });
+            // Should not happen often if planStatus is ACTIVE, but directs to plan page if plan data is missing/invalid
+            navigate("/plan", { replace: true }); 
           }
           break;
         case "INACTIVE":
-          // Only show expiration message if user had a previous plan
           if (expirationDate) {
             alert(`Votre offre a expiré le ${new Date(expirationDate).toLocaleDateString()}`);
           }
@@ -89,7 +112,9 @@ const LoginPage = () => {
         default:
           navigate("/plan", { replace: true });
       }
+      
     } catch (err) {
+      // If login fails, remove the token and show error
       const msg = err.response?.data?.message || "Identifiants invalides";
       setError(msg);
     } finally {

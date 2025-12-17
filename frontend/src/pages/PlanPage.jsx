@@ -114,7 +114,7 @@ const PlanPage = () => {
           {plans.map((plan) => (
             <div key={plan.id} className="plan-box">
               <p>{plan.name}</p>
-              <p>{plan.monthlyPrice === 0 ? "Gratuit" : `${plan.monthlyPrice}€ / mois`}</p>
+              <p>{plan.monthlyPrice === 0 ? "Gratuit" : `${plan.monthlyPrice}DZD / mois`}</p>
               <button
                 className={`plan-btn ${
                   plan.monthlyPrice === 0 ? "plan-btn-blue" : "plan-btn-green"

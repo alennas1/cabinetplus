@@ -279,51 +279,7 @@ export default function DashboardUpdated() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              padding: 16,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-                <AlertTriangle size={18} color="#e67e22" /> Inventaire - Alertes
-              </h4>
-
-              <div style={{ display: "flex", gap: 8 }}>
-                {stockPage > 0 && <ChevronLeft size={16} style={{ cursor: "pointer" }} onClick={() => setStockPage(stockPage - 1)} />}
-                {stockPage < Math.ceil(lowStock.length / pageSize) - 1 && <ChevronRight size={16} style={{ cursor: "pointer" }} onClick={() => setStockPage(stockPage + 1)} />}
-              </div>
-            </div>
-
-            <div style={{ marginTop: 12, flex: 1 }}>
-              {pagedStock.map((it, i) => (
-                <div
-                  key={i}
-                  className="finance-row"
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    padding: "10px 0",
-                    borderBottom: i < pagedStock.length - 1 ? "1px solid #f6f6f6" : "none",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{it.name}</div>
-                    <div style={{ fontSize: 12, color: "#777" }}>En stock: {it.qty}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        
       </div>
     </div>
   );

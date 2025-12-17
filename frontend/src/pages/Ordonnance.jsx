@@ -1,7 +1,7 @@
 // src/pages/Ordonnance.jsx
 import React, { useState, useEffect } from "react";
 import { Edit2, Trash2, Printer, ArrowLeft } from "react-feather";
-import { createPrescription, getPrescriptionById, updatePrescription  } from "../services/prescriptionService";
+import { createPrescription, getPrescriptionById, updatePrescription, downloadPrescriptionPdf } from "../services/prescriptionService";
 import { getMedications } from "../services/medicationService";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -145,40 +145,66 @@ function handleRemove(id) {
     navigate(`/patients/${patient.id}`);
   };
   const [showConfirm, setShowConfirm] = useState(false);
-
+async function handlePrint() {
+  if (!isEditMode) {
+    toast.info("Veuillez d'abord enregistrer l'ordonnance pour l'imprimer.");
+    return;
+  }
+  
+  try {
+    toast.info("Génération du PDF...");
+    await downloadPrescriptionPdf(ordonnanceId, rxId || "prescription");
+  } catch (error) {
+    toast.error("Erreur lors de la génération du PDF.");
+  }
+}
 async function handleSave() {
+  // 1. Validation: Ensure we actually have medications
+  if (medications.length === 0) {
+    toast.error("Veuillez ajouter au moins un médicament.");
+    return;
+  }
+
   const payload = {
-    date: new Date().toISOString(),
-    patientId,
-    notes,
+    patientId: Number(patientId), // Ensure it's a number
+    notes: notes,
     medications: medications.map((m) => ({
-      medicationId: m.medicationId,
-      amount: Number(m.amount),
-      unit: m.unit,
+      medicationId: Number(m.medicationId), // Ensure ID is a number
+      amount: parseFloat(m.amount) || 0,    // Ensure amount is a float/double
+      unit: m.unit || "mg",
       frequency: m.frequency,
       duration: m.duration,
-      instructions: m.instruction,
+      instructions: m.instruction || m.instructions || "", // Match DTO field
     })),
   };
 
+  console.log("Sending Payload:", payload); // DEBUG: Check this in browser console
+
   try {
+    let response;
     if (isEditMode) {
-      await updatePrescription(ordonnanceId, payload); // new service for PUT
+      // Ensure ordonnanceId is passed correctly
+      response = await updatePrescription(ordonnanceId, payload);
       toast.success("Ordonnance mise à jour !");
     } else {
-      await createPrescription(payload);
+      response = await createPrescription(payload);
       toast.success("Ordonnance créée !");
     }
 
+    // Give the toast time to show before navigating
     setTimeout(() => {
-      navigate(`/patients/${patientId}`);
-    }, 1000);
+      // Use patientId from state or the response
+      const targetId = patient?.id || patientId;
+      navigate(`/patients/${targetId}`);
+    }, 1500);
+
   } catch (error) {
-    console.error("Error saving prescription:", error.response?.data || error);
-    toast.error("Erreur lors de l'enregistrement.");
+    // This will tell you EXACTLY what the backend didn't like
+    const errorMsg = error.response?.data?.message || error.response?.data || "Erreur serveur";
+    console.error("Detailed Error:", errorMsg);
+    toast.error(`Erreur: ${errorMsg}`);
   }
 }
-
 
 
   return (
@@ -227,9 +253,17 @@ async function handleSave() {
             </div>
           </div>
           <div className="col-span-4 flex justify-end gap-3">
-            <button className="px-3 py-2 rounded-lg border border-gray-200 bg-white hover:shadow-sm flex items-center gap-2 text-sm">
-              <Printer size={16} /> Imprimer
-            </button>
+           <button
+  type="button"
+  onClick={handlePrint}
+  disabled={!isEditMode}
+  className={`px-3 py-2 rounded-lg border border-gray-200 bg-white hover:shadow-sm flex items-center gap-2 text-sm transition-all ${
+    !isEditMode ? "opacity-50 cursor-not-allowed bg-gray-50" : "text-gray-700 hover:bg-gray-50"
+  }`}
+>
+  <Printer size={16} />
+  <span>Imprimer</span>
+</button>
 <button
   onClick={handleSave}
   className="px-4 py-2 rounded-lg text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"

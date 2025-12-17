@@ -49,16 +49,30 @@ import "./index.css";
 function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth); 
 
+  // Centralized redirection logic for root and catch-all
+  const getRedirectPath = (user) => {
+    if (!user) return "/login";
+    if (user.role === "ADMIN") return "/admin-dashboard";
+
+    // Detailed check for Dentists (must be synchronized with RequireAuth logic)
+    const isVerified = user.isEmailVerified && user.isPhoneVerified;
+    if (!isVerified) return "/verify";
+    
+    // If verified but not active/pending/waiting, go to plan selection
+    if (user.planStatus === "WAITING") return "/waiting";
+    if (user.planStatus !== "ACTIVE") return "/plan";
+
+    return "/dashboard";
+  };
+
   const RootRedirect = () => {
-    if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
-    if (user.role === "ADMIN") return <Navigate to="/admin-dashboard" replace />;
-    return <Navigate to="/dashboard" replace />;
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    return <Navigate to={getRedirectPath(user)} replace />;
   };
 
   const CatchAllRedirect = () => {
-    if (!isAuthenticated || !user) return <Navigate to="/login" replace />; 
-    if (user.role === "ADMIN") return <Navigate to="/admin-dashboard" replace />; 
-    return <Navigate to="/dashboard" replace />;
+    if (!isAuthenticated) return <Navigate to="/login" replace />; 
+    return <Navigate to={getRedirectPath(user)} replace />;
   };
 
   return (
@@ -71,13 +85,17 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* SPECIAL DENTIST ROUTES: accessible without RequireAuth */}
-          <Route path="/verify" element={<VerificationPage />} />
-          <Route path="/plan" element={<PlanPage />} />
-          <Route path="/waiting" element={<WaitingPage />} />
-
-          {/* DENTIST PROTECTED ROUTES */}
+          {/* ---------------------------------------------------- */}
+          {/* DENTIST PROTECTED ROUTES (All dentist access is controlled here) */}
+          {/* ---------------------------------------------------- */}
           <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
+            
+            {/* 1. INTERMEDIATE PAGES (Requires Auth, but not full verification/plan) */}
+            <Route path="/verify" element={<VerificationPage />} />
+            <Route path="/plan" element={<PlanPage />} />
+            <Route path="/waiting" element={<WaitingPage />} />
+
+            {/* 2. MAIN APP PAGES (Requires Auth AND full verification/active plan) */}
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/patients" element={<Patients />} />

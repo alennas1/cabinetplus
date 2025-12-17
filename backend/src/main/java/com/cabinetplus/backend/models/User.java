@@ -1,12 +1,9 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
-
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
-
 import jakarta.persistence.*;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -51,4 +48,10 @@ public class User {
     private LocalDateTime expirationDate;
 
     private boolean canDeleteAdmin = false; // super-admin flag
+
+    // --- NEW OPTIONAL CLINIC FIELDS ---
+    private String clinicName;
+    
+    @Column(columnDefinition = "TEXT") // TEXT allows for longer addresses
+    private String address;
 }

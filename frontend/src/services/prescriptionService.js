@@ -88,3 +88,33 @@ export const updatePrescription = async (id, updatedData) => {
     throw error;
   }
 };
+
+// ✅ DOWNLOAD/VIEW prescription PDF
+export const downloadPrescriptionPdf = async (id, rxId = "prescription") => {
+  try {
+    const response = await axios.get(`${API_URL}/${id}/pdf`, {
+      headers: getAuthHeader(),
+      responseType: "blob", // Important: tells axios to handle binary data
+    });
+
+    // Create a URL for the PDF blob
+    const file = new Blob([response.data], { type: "application/pdf" });
+    const fileURL = URL.createObjectURL(file);
+
+    // Create a temporary link and trigger download/open
+    const link = document.createElement("a");
+    link.href = fileURL;
+    link.setAttribute("download", `ordonnance_${rxId}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    link.parentNode.removeChild(link);
+    URL.revokeObjectURL(fileURL);
+
+    return true;
+  } catch (error) {
+    console.error("Error downloading PDF:", error.response || error);
+    throw error;
+  }
+};

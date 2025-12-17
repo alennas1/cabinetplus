@@ -141,7 +141,7 @@ const Dentists = () => {
             <th>Téléphone</th>
             <th>Statut</th>
             <th>Plan actuel</th>
-            <th>Date</th>
+            <th>Date d'expiration</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -176,7 +176,7 @@ const Dentists = () => {
                     </span>
                   </td>
                   <td>{status === "ACTIVE" && d.plan ? d.plan.name : "-"}</td>
-                  <td>{formatDate(d.createdAt)}</td>
+                  <td>{formatDate(d.expirationDate)}</td>
                   <td className="actions-cell">
                     <button
                       className="action-btn view"

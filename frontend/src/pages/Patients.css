@@ -842,3 +842,43 @@
   background-color: #e0e0e0;
   color: #555;
 }
+/* --- Add this to your existing Patients.css --- */
+
+/* --- Plan Status Pills --- */
+.status-pill {
+ display: inline-flex;
+ align-items: center;
+ padding: 4px 8px;
+ border-radius: 12px;
+ font-size: 13px;
+ font-weight: 600;
+ transition: background-color 0.2s;
+}
+
+.status-pill.active {
+ background-color: #e6f7ee; /* Light green */
+ color: #38a169; /* Darker green */
+}
+
+.status-pill.inactive {
+ background-color: #fcebeb; /* Light red */
+ color: #e53e3e; /* Darker red */
+}
+
+/* --- Small text in form --- */
+.form-small-text {
+ font-size: 0.85em;
+ color: #6c757d;
+ display: block;
+ margin-top: -10px; /* Adjust spacing after input */
+ margin-bottom: 10px; /* Space before next label */
+}
+
+/* --- If you need specific modal header styling (optional) --- */
+/* (The main modal styles should be copied from the original file) */
+/* .modal-content h2 {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 15px;
+} */

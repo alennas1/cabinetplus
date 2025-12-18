@@ -15,7 +15,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findByPatient(Patient patient);
     List<Appointment> findByPractitioner(User practitioner);
     List<Appointment> findByDateTimeStartBetween(LocalDateTime start, LocalDateTime end);
-
+List<Appointment> findByPatientId(Long patientId);
+    
+    // Optional: If you want them ordered by date in the PDF
+    List<Appointment> findByPatientIdOrderByDateTimeStartDesc(Long patientId);
    @Query("SELECT COUNT(a) FROM Appointment a " +
        "WHERE a.practitioner = :practitioner " +
        "AND a.status = 'COMPLETED' " +

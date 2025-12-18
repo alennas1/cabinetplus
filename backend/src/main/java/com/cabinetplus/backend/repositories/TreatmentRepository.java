@@ -8,9 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
-import com.cabinetplus.backend.models.Patient;
 
 public interface TreatmentRepository extends JpaRepository<Treatment, Long> {
 
@@ -35,4 +35,5 @@ public interface TreatmentRepository extends JpaRepository<Treatment, Long> {
                                                 @Param("end") LocalDateTime end);
 
     List<Treatment> findByPractitionerAndDateBetween(User dentist, LocalDateTime start, LocalDateTime end);
+    List<Treatment> findByPatientId(Long patientId);
 }

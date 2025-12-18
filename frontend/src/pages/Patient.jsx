@@ -5,7 +5,7 @@ import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ToothGraph from "./ToothGraph";
-
+import { downloadPatientFiche } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
 import { 
   getTreatmentsByPatient, createTreatment, updateTreatment, deleteTreatment 
@@ -22,7 +22,7 @@ import { getPrescriptionsByPatient,deletePrescription } from "../services/prescr
 
 
 import "./Patient.css";
-import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText } from "react-feather";
+import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download } from "react-feather";
 
 const Patient = () => {
   const { id } = useParams();
@@ -55,7 +55,18 @@ const handleCompleteAppointment = async (a) => {
     toast.error("Erreur lors de la mise à jour du rendez-vous");
   }
 };
+const [isDownloading, setIsDownloading] = useState(false);
 
+const handleDownloadPdf = async () => {
+  setIsDownloading(true);
+  try {
+    await downloadPatientFiche(id, token, patient.lastname);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setIsDownloading(false);
+  }
+};
 
 const [ordonnances, setOrdonnances] = useState([]);
 useEffect(() => {
@@ -582,6 +593,15 @@ const handleDeleteAppointment = (a) => {
   >
     <FileText size={16} />
     Créer une ordonnance
+  </button>
+
+  <button 
+    className="btn-secondary-app" 
+    onClick={handleDownloadPdf}
+    disabled={isDownloading}
+  >
+    <Download size={16} />
+    {isDownloading ? "Téléchargement..." : "Fiche Patient PDF"}
   </button>
 </div>
 

@@ -3,19 +3,19 @@ package com.cabinetplus.backend.repositories;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import com.cabinetplus.backend.models.User;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.cabinetplus.backend.models.Payment;
+import com.cabinetplus.backend.models.User;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     // Existing methods
     List<Payment> findByPatientIdOrderByDateDesc(Long patientId);
-
+List<Payment> findByPatientId(Long patientId);
     @Query("select coalesce(sum(p.amount), 0) from Payment p where p.patient.id = :patientId")
     Double sumByPatientId(@Param("patientId") Long patientId);
 
@@ -30,6 +30,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
            "(SELECT t.patient FROM Treatment t WHERE t.id = :treatmentId)")
     Optional<Double> sumByPatientAndTreatment(@Param("patientId") Long patientId,
                                               @Param("treatmentId") Long treatmentId);
+                                              
+
+
 }
 
 

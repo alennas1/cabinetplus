@@ -1,8 +1,7 @@
 import axios from "axios";
 
 // 1. Vite specific env access
-const API_URL = import.meta.env.VITE_API_URL;
-
+const API_URL = "https://cabinetplus-production.up.railway.app";
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,

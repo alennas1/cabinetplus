@@ -58,15 +58,22 @@ const AppContent = () => {
   // --- Session Expired Listener ---
   // This ensures that if the refresh token fails (authService catches it),
   // the app cleans up the state and sends the user to login.
-  useEffect(() => {
-    const handleSessionExpired = () => {
-      dispatch(logout());
-      navigate("/login", { replace: true });
-    };
+// Inside AppContent component in App.js
+useEffect(() => {
+  const handleSessionExpired = () => {
+    // 1. Clear Redux state so RequireAuth triggers redirect
+    dispatch(sessionExpired());
+    
+    // 2. Redirect to login with a state flag to show the modal/alert
+    navigate("/login", { 
+      replace: true, 
+      state: { reason: "session_expired" } 
+    });
+  };
 
-    window.addEventListener("sessionExpired", handleSessionExpired);
-    return () => window.removeEventListener("sessionExpired", handleSessionExpired);
-  }, [dispatch, navigate]);
+  window.addEventListener("sessionExpired", handleSessionExpired);
+  return () => window.removeEventListener("sessionExpired", handleSessionExpired);
+}, [dispatch, navigate]);
 
   const getRedirectPath = (user) => {
     if (!user) return "/login";

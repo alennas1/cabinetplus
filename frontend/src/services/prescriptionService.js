@@ -8,6 +8,8 @@ const getAuthHeader = () => {
   return { Authorization: `Bearer ${token}` };
 };
 
+
+///sds
 // Create prescription (already present)
 export const createPrescription = async (prescriptionData) => {
   try {

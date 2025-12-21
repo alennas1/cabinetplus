@@ -55,7 +55,6 @@ public class User {
 
 
 
-    private String email;
     private LocalDateTime createdAt;
     private LocalDateTime expirationDate;
 

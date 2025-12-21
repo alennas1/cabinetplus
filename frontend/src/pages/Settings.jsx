@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Lock, Package, Settings as Gear, FileText, Box } from "react-feather";
+import { User, Lock, Package, Settings as Gear, FileText, Box, CreditCard } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
 
@@ -11,8 +11,24 @@ const Settings = () => {
     {
       title: "Compte",
       options: [
-        { title: "Profil", desc: "Modifier votre nom, email et informations personnelles", icon: <User />, path: "/settings/profile" },
-        { title: "Sécurité", desc: "Changer mot de passe et paramètres de sécurité", icon: <Lock />, path: "/settings/security" },
+        { 
+          title: "Profil", 
+          desc: "Modifier votre nom, email et informations personnelles", 
+          icon: <User />, 
+          path: "/settings/profile" 
+        },
+        { 
+          title: "Sécurité", 
+          desc: "Changer mot de passe et paramètres de sécurité", 
+          icon: <Lock />, 
+          path: "/settings/security" 
+        },
+        { 
+          title: "Historique de paiements", 
+          desc: "Consulter vos factures et l'état de vos abonnements", 
+          icon: <CreditCard />, 
+          path: "/settings/payments" // Le chemin vers votre nouveau composant
+        },
       ],
     },
     

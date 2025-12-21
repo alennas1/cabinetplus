@@ -8,6 +8,7 @@ import lombok.Data;
 public class MedicationDTO {
     private Long id;          // existing medication id
     private String name;      // e.g. "Amoxicillin"
+    private String genericName; // e.g. "Amoxicillin"
     private String strength;  // e.g. "500mg"
     private DosageForm dosageForm;
     private String description;

@@ -14,8 +14,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class HandPaymentDTO {
     private Long id;
-    private Long planId;             // just the ID, not full Plan
+    private Long planId;
     private Integer amount;
+    private String billingCycle; // Add this: should match "MONTHLY" or "YEARLY"
     private LocalDateTime paymentDate;
     private PaymentStatus status;
     private PaymentMethod paymentMethod;

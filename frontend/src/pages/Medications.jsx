@@ -15,9 +15,13 @@ import "./Patients.css";
 
 const DOSAGE_FORMS = {
   TABLET: "Comprimé",
-  CAPSULE: "Capsule",
+  CAPSULE: "Gélule",
   SYRUP: "Sirop",
   INJECTION: "Injection",
+  OINTMENT: "Pommade",
+  CREAM: "Crème",
+  DROPS: "Gouttes",
+  INHALER: "Inhalateur"
 };
 
 const Medications = () => {
@@ -37,6 +41,7 @@ const Medications = () => {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
     name: "",
+    genericName: "", // New Field Added
     dosageForm: "TABLET",
     strength: "",
     description: "",
@@ -103,7 +108,7 @@ const Medications = () => {
       }
 
       setShowModal(false);
-      setForm({ name: "", dosageForm: "TABLET", strength: "", description: "" });
+      setForm({ name: "", genericName: "", dosageForm: "TABLET", strength: "", description: "" });
       setIsEditing(false);
     } catch (err) {
       console.error("Error saving medication:", err);
@@ -115,6 +120,7 @@ const Medications = () => {
     setForm({
       id: med.id,
       name: med.name || "",
+      genericName: med.genericName || "", // New Field Added
       dosageForm: med.dosageForm || "TABLET",
       strength: med.strength || "",
       description: med.description || "",
@@ -150,7 +156,7 @@ const Medications = () => {
 
   return (
     <div className="patients-container">
-      <PageHeader title="Médicaments" subtitle="Liste des médicaments" align="left" />
+      <PageHeader title="Médicaments" subtitle="Gestion de la pharmacie" align="left" />
 
       {/* Controls */}
       <div className="patients-controls">
@@ -173,6 +179,8 @@ const Medications = () => {
               <span>
                 {filterBy === "name"
                   ? "Par Nom"
+                  : filterBy === "genericName"
+                  ? "Par Nom Générique"
                   : filterBy === "dosageForm"
                   ? "Par Forme"
                   : "Par Dosage"}
@@ -182,6 +190,7 @@ const Medications = () => {
             {dropdownOpen && (
               <ul className="dropdown-menu">
                 <li onClick={() => { setFilterBy("name"); setDropdownOpen(false); }}>Par Nom</li>
+                <li onClick={() => { setFilterBy("genericName"); setDropdownOpen(false); }}>Par Nom Générique</li>
                 <li onClick={() => { setFilterBy("dosageForm"); setDropdownOpen(false); }}>Par Forme</li>
                 <li onClick={() => { setFilterBy("strength"); setDropdownOpen(false); }}>Par Dosage</li>
               </ul>
@@ -193,7 +202,7 @@ const Medications = () => {
           <button
             className="btn-primary"
             onClick={() => {
-              setForm({ name: "", dosageForm: "TABLET", strength: "", description: "" });
+              setForm({ name: "", genericName: "", dosageForm: "TABLET", strength: "", description: "" });
               setIsEditing(false);
               setShowModal(true);
             }}
@@ -202,31 +211,26 @@ const Medications = () => {
           </button>
         </div>
       </div>
-
       {/* Table */}
       <table className="patients-table">
         <thead>
           <tr>
             <th>Nom</th>
+            <th>Nom Générique</th>
             <th>Forme</th>
             <th>Dosage</th>
-            <th>Description</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {currentMedications.map((m) => (
             <tr key={m.id}>
-              <td>{m.name || "—"}</td>
+              <td><strong>{m.name || "—"}</strong></td>
+              <td>{m.genericName || "—"}</td>
               <td>{DOSAGE_FORMS[m.dosageForm] || m.dosageForm || "—"}</td>
               <td>{m.strength || "—"}</td>
-              <td>{m.description || "—"}</td>
               <td className="actions-cell">
-                <button 
-                  className="action-btn view" 
-                  onClick={() => setViewMedication(m)} 
-                  title="Voir"
-                >
+                <button className="action-btn view" onClick={() => setViewMedication(m)} title="Voir">
                   <Eye size={16} />
                 </button>
                 <button className="action-btn edit" onClick={() => handleEdit(m)} title="Modifier">
@@ -245,7 +249,6 @@ const Medications = () => {
           )}
         </tbody>
       </table>
-
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="pagination">
@@ -259,27 +262,41 @@ const Medications = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Form Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{isEditing ? "Modifier Médicament" : "Ajouter Médicament"}</h2>
+            <h2 className="mb-4">{isEditing ? "Modifier Médicament" : "Ajouter Médicament"}</h2>
             <form className="modal-form" onSubmit={handleSubmit}>
-              <span className="field-label">Nom</span>
-              <input type="text" name="name" value={form.name} onChange={handleChange} required />
+              <div className="mb-3">
+                <span className="field-label">Nom Commercial (Marque)</span>
+                <input type="text" name="name" value={form.name} onChange={handleChange} required placeholder="ex: Doliprane" />
+              </div>
 
-              <span className="field-label">Forme</span>
-              <select name="dosageForm" value={form.dosageForm} onChange={handleChange} required>
-                {Object.entries(DOSAGE_FORMS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
+              <div className="mb-3">
+                <span className="field-label">Nom Générique (Molécule)</span>
+                <input type="text" name="genericName" value={form.genericName} onChange={handleChange} required placeholder="ex: Paracétamol" />
+              </div>
 
-              <span className="field-label">Dosage</span>
-              <input type="text" name="strength" value={form.strength} onChange={handleChange} required />
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <span className="field-label">Forme</span>
+                  <select name="dosageForm" value={form.dosageForm} onChange={handleChange} required>
+                    {Object.entries(DOSAGE_FORMS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <span className="field-label">Dosage</span>
+                  <input type="text" name="strength" value={form.strength} onChange={handleChange} required placeholder="ex: 500mg" />
+                </div>
+              </div>
 
-              <span className="field-label">Description</span>
-              <input type="text" name="description" value={form.description} onChange={handleChange} />
+              <div className="mb-3">
+                <span className="field-label">Description / Notes</span>
+                <input type="text" name="description" value={form.description} onChange={handleChange} placeholder="Notes optionnelles..." />
+              </div>
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>
@@ -308,8 +325,9 @@ const Medications = () => {
       {viewMedication && (
         <div className="modal-overlay" onClick={() => setViewMedication(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Détails du médicament</h2>
-            <div className="view-field"><strong>Nom:</strong> {viewMedication.name || "—"}</div>
+            <h2 className="mb-4">Détails du médicament</h2>
+            <div className="view-field"><strong>Nom Commercial:</strong> {viewMedication.name || "—"}</div>
+            <div className="view-field"><strong>Nom Générique:</strong> {viewMedication.genericName || "—"}</div>
             <div className="view-field"><strong>Forme:</strong> {DOSAGE_FORMS[viewMedication.dosageForm] || viewMedication.dosageForm || "—"}</div>
             <div className="view-field"><strong>Dosage:</strong> {viewMedication.strength || "—"}</div>
             <div className="view-field"><strong>Description:</strong> {viewMedication.description || "—"}</div>
@@ -318,7 +336,7 @@ const Medications = () => {
         </div>
       )}
 
-      <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick pauseOnHover draggable theme="light" />
+      <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
 };

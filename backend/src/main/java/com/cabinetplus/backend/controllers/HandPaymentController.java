@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.HandPaymentDTO;
 import com.cabinetplus.backend.dto.HandPaymentResponseDTO;
+import com.cabinetplus.backend.enums.BillingCycle;
 import com.cabinetplus.backend.models.HandPayment;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
@@ -56,27 +57,35 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getMyPayments(Principal prin
     /**
      * Create a new hand payment for the authenticated user
      */
-    @PostMapping("/create")
-    public ResponseEntity<HandPayment> createPayment(@RequestBody HandPaymentDTO dto, Principal principal) {
-        // Get the logged-in user
-        User user = userRepository.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+   @PostMapping("/create")
+public ResponseEntity<HandPayment> createPayment(@RequestBody HandPaymentDTO dto, Principal principal) {
+    User user = userRepository.findByUsername(principal.getName())
+            .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Load the plan from DB
-        Plan plan = planRepository.findById(dto.getPlanId())
-                .orElseThrow(() -> new RuntimeException("Plan not found"));
+    Plan plan = planRepository.findById(dto.getPlanId())
+            .orElseThrow(() -> new RuntimeException("Plan not found"));
 
-        // Create hand payment and set all fields
-        HandPayment payment = new HandPayment();
-        payment.setUser(user);
-        payment.setPlan(plan);
-        payment.setAmount(dto.getAmount());
-        payment.setNotes(dto.getNotes());
+    HandPayment payment = new HandPayment();
+    payment.setUser(user);
+    payment.setPlan(plan);
+    payment.setAmount(dto.getAmount());
+    payment.setNotes(dto.getNotes());
 
-        // Delegate to service to save and return
-        HandPayment savedPayment = handPaymentService.createHandPayment(payment);
-        return ResponseEntity.ok(savedPayment);
+    // IMPORTANT: Map the billing cycle from DTO to Entity
+    if (dto.getBillingCycle() != null) {
+        try {
+            payment.setBillingCycle(BillingCycle.valueOf(dto.getBillingCycle().toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            // Fallback if string doesn't match Enum
+            payment.setBillingCycle(BillingCycle.MONTHLY);
+        }
+    } else {
+        payment.setBillingCycle(BillingCycle.MONTHLY);
     }
+
+    HandPayment savedPayment = handPaymentService.createHandPayment(payment);
+    return ResponseEntity.ok(savedPayment);
+}
 
     /**
      * Confirm a pending hand payment

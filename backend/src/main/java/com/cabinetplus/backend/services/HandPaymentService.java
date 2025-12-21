@@ -116,28 +116,50 @@ public List<HandPaymentResponseDTO> getAllPayments() {
      * Confirm a pending payment
      * Sets user's planStatus to ACTIVE
      */
-    @Transactional
-    public HandPayment confirmPayment(Long paymentId) {
-        HandPayment payment = handPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new RuntimeException("Payment not found"));
+   @Transactional
+public HandPayment confirmPayment(Long paymentId) {
+    HandPayment payment = handPaymentRepository.findById(paymentId)
+            .orElseThrow(() -> new RuntimeException("Payment not found"));
 
-        if (payment.getStatus() != PaymentStatus.PENDING) {
-            throw new RuntimeException("Payment is already processed");
-        }
-
-        payment.setStatus(PaymentStatus.CONFIRMED);
-        handPaymentRepository.save(payment);
-
-        // Update user plan
-        User user = payment.getUser();
-        user.setPlan(payment.getPlan());
-        user.setPlanStatus(UserPlanStatus.ACTIVE);
-        LocalDateTime startDate = LocalDateTime.now();
-        user.setExpirationDate(startDate.plusDays(payment.getPlan().getDurationDays()));
-        userRepository.save(user);
-
-        return payment;
+    if (payment.getStatus() != PaymentStatus.PENDING) {
+        throw new RuntimeException("Payment is already processed");
     }
+
+    // 1. Confirm the payment status
+    payment.setStatus(PaymentStatus.CONFIRMED);
+    handPaymentRepository.save(payment);
+
+    // 2. Update user plan details
+    User user = payment.getUser();
+    user.setPlan(payment.getPlan());
+    user.setPlanStatus(UserPlanStatus.ACTIVE);
+    
+    LocalDateTime startDate = LocalDateTime.now();
+    LocalDateTime expirationDate;
+
+    // 3. Logic for Expiration Date based on Plan type and Billing Cycle
+    if (payment.getPlan().getMonthlyPrice() == 0) {
+        // Logic for FREE/TRIAL plan (7 days as per your React frontend)
+        expirationDate = startDate.plusDays(7);
+    } else {
+        // Logic for PAID plans based on the BillingCycle attribute
+        switch (payment.getBillingCycle()) {
+            case YEARLY:
+                expirationDate = startDate.plusYears(1);
+                break;
+            case MONTHLY:
+            default:
+                expirationDate = startDate.plusMonths(1);
+                break;
+        }
+    }
+
+    user.setExpirationDate(expirationDate);
+    userRepository.save(user);
+
+    return payment;
+}
+
 
     /**
      * Reject a pending payment

@@ -6,7 +6,8 @@ import lombok.Data;
 public class PrescriptionMedicationDTO {
     private Long prescriptionMedicationId;
     private Long medicationId;
-    private String name;         // Medication name
+    private String name; 
+    private String genericName;  // From Medication.genericName
     private String form;         // From Medication.dosageForm
     private String strength;     // From Medication.strength
     private String description;  // Optional

@@ -31,6 +31,11 @@ public class Medication {
     @Column(nullable = false)
     private String name;
 
+
+    @NotBlank(message = "genericName is required")
+    @Column(nullable = false)
+    private String genericName;
+
     @NotNull(message = "Dosage form is required")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

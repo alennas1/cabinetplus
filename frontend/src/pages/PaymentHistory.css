@@ -1,0 +1,123 @@
+.history-page-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    font-weight: 500;
+    margin-bottom: 20px;
+    transition: color 0.2s;
+}
+
+.back-btn:hover { color: #3b82f6; }
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 30px;
+}
+
+.payment-history-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    transition: transform 0.2s;
+}
+
+.card-main-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.plan-info h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    color: #1e293b;
+}
+
+.payment-meta {
+    display: flex;
+    gap: 15px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.payment-meta span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.price-info {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.amount {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* --- TABLE ALIGNEMENT --- */
+.patients-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* On force le centrage du titre ET du contenu de la dernière colonne */
+.patients-table th:last-child, 
+.patients-table td:last-child {
+  text-align: center !important;
+  padding-left: 0 !important;   /* Crucial : supprime le décalage gauche */
+  padding-right: 0 !important;  /* Crucial : supprime le décalage droit */
+  width: 140px;                 /* Largeur fixe pour stabiliser l'alignement */
+}
+
+/* --- BADGE COMPACT & CENTRÉ --- */
+.status-badge {
+  display: inline-flex;         /* Permet au badge d'être sensible au text-align du parent */
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  width: fit-content;           /* Ne prend que la place nécessaire */
+  margin: 0 auto;               /* Centre le bloc horizontalement */
+  box-sizing: border-box;
+}
+
+/* Vos couleurs de statut */
+.status-badge.active { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.status-badge.on_leave { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.status-badge.inactive { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+.payment-notes {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px dashed #e2e8f0;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px;
+    color: #94a3b8;
+}

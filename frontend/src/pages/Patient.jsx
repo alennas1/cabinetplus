@@ -7,6 +7,9 @@ import "react-toastify/dist/ReactToastify.css";
 import ToothGraph from "./ToothGraph";
 import { downloadPatientFiche } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
+import { QRCodeCanvas } from "qrcode.react";
+import { DownloadCloud, X, Smartphone } from "react-feather";
+import { Grid, Maximize } from "react-feather";
 import { 
   getTreatmentsByPatient, createTreatment, updateTreatment, deleteTreatment 
 } from "../services/treatmentService";
@@ -55,7 +58,13 @@ const handleCompleteAppointment = async (a) => {
     toast.error("Erreur lors de la mise à jour du rendez-vous");
   }
 };
-const [isDownloading, setIsDownloading] = useState(false);
+
+
+const [showQrModal, setShowQrModal] = useState(false);
+
+const [qrTimestamp, setQrTimestamp] = useState(Date.now());
+const MY_IP = "192.168.1.6"; 
+const publicDownloadUrl = `http://${MY_IP}:8080/api/public/pdf/${id}?t=${qrTimestamp}`;const [isDownloading, setIsDownloading] = useState(false);
 
 const handleDownloadPdf = async () => {
   setIsDownloading(true);
@@ -603,6 +612,26 @@ const handleDeleteAppointment = (a) => {
     <Download size={16} />
     {isDownloading ? "Téléchargement..." : "Fiche Patient PDF"}
   </button>
+ <button 
+  className="action-btn view" 
+  onClick={() => {
+    setQrTimestamp(Date.now());
+    setShowQrModal(true);
+  }}
+  title="Générer QR Code"
+  style={{ 
+    backgroundColor: '#3b82f6', 
+    color: 'white', 
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    padding: '8px',
+    borderRadius: '8px',
+    marginLeft: '5px'
+  }}
+>
+  <Grid size={18} strokeWidth={3} />
+</button>
 </div>
 
 
@@ -816,7 +845,28 @@ const handleDeleteAppointment = (a) => {
 
 
 
+{showQrModal && (
+        <div className="modal-overlay" onClick={() => setShowQrModal(false)}>
+          <div className="modal-content" style={{textAlign: 'center'}} onClick={e => e.stopPropagation()}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <h3>Scanner pour Télécharger</h3>
+              <X size={20} onClick={() => setShowQrModal(false)} style={{cursor:'pointer'}}/>
+            </div>
+            
+            <p style={{fontSize: '14px', color: '#666', margin: '15px 0'}}>
+              Le patient peut scanner ce code pour télécharger son dossier PDF instantanément.
+            </p>
 
+            <div style={{ background: 'white', padding: '15px', display: 'inline-block', borderRadius: '10px', border: '1px solid #eee' }}>
+              <QRCodeCanvas value={publicDownloadUrl} size={250} />
+            </div>
+
+            <p style={{ marginTop: '15px', fontWeight: 'bold', color: '#3b82f6' }}>
+              {patient.firstname} {patient.lastname}
+            </p>
+          </div>
+        </div>
+      )}
 {showModal && (
   <div
     className="modal-overlay"

@@ -1,10 +1,11 @@
-// src/services/clientPlanService.js
 import axios from "axios";
 
-const CLIENT_API_URL = "http://localhost:8080/api/admin/plans"; // same endpoint, read-only for clients
+// Updated to the new public-facing client endpoint
+const CLIENT_API_URL = "http://localhost:8080/api/plans";
 
 /**
- * Get all plans (client view)
+ * Get all active plans (Client view)
+ * Calls GET /api/plan
  */
 export const getAllPlansClient = async (token) => {
   const response = await axios.get(CLIENT_API_URL, {
@@ -14,7 +15,8 @@ export const getAllPlansClient = async (token) => {
 };
 
 /**
- * Get plan by ID
+ * Get a specific plan by ID (Client view)
+ * Calls GET /api/plan/{id}
  */
 export const getPlanByIdClient = async (id, token) => {
   const response = await axios.get(`${CLIENT_API_URL}/${id}`, {

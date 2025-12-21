@@ -1,35 +1,25 @@
 package com.cabinetplus.backend.controllers;
 
-import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Optional;
 
-import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Payment;
 import com.cabinetplus.backend.models.Prescription;
 import com.cabinetplus.backend.models.Treatment;
-import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.AppointmentRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.PaymentRepository;
 import com.cabinetplus.backend.repositories.PrescriptionRepository;
 import com.cabinetplus.backend.repositories.TreatmentRepository;
-import com.cabinetplus.backend.services.AppointmentService;
-import com.cabinetplus.backend.services.PatientService;
-import com.cabinetplus.backend.services.UserService;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
@@ -45,84 +35,44 @@ import com.lowagie.text.pdf.draw.LineSeparator;
 import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
-@RequestMapping("/api/patients")
-public class PatientController {
+@RequestMapping("/api/public/pdf")
+@CrossOrigin("*") // Essential for phone access
+public class PublicPdfController {
 
-    private final PatientService patientService;
-    private final UserService userService;
-    private final AppointmentService appointmentService;
-    
     private final PatientRepository patientRepository;
     private final TreatmentRepository treatmentRepository;
+    private final PaymentRepository paymentRepository;
     private final AppointmentRepository appointmentRepository;
     private final PrescriptionRepository prescriptionRepository;
-    private final PaymentRepository paymentRepository;
 
-    public PatientController(PatientService patientService, 
-                             UserService userService, 
-                             AppointmentService appointmentService,
-                             PatientRepository patientRepository,
-                             TreatmentRepository treatmentRepository,
-                             AppointmentRepository appointmentRepository,
-                             PrescriptionRepository prescriptionRepository,
-                             PaymentRepository paymentRepository) {
-        this.patientService = patientService;
-        this.userService = userService;
-        this.appointmentService = appointmentService;
-        this.patientRepository = patientRepository;
-        this.treatmentRepository = treatmentRepository;
-        this.appointmentRepository = appointmentRepository;
-        this.prescriptionRepository = prescriptionRepository;
-        this.paymentRepository = paymentRepository;
-    }
-
-    @GetMapping
-    public List<PatientDto> getAllPatients(Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return patientService.findByCreatedBy(currentUser);
+    public PublicPdfController(PatientRepository p, 
+                               TreatmentRepository t, 
+                               PaymentRepository pay, 
+                               AppointmentRepository a,
+                               PrescriptionRepository rx) {
+        this.patientRepository = p;
+        this.treatmentRepository = t;
+        this.paymentRepository = pay;
+        this.appointmentRepository = a;
+        this.prescriptionRepository = rx;
     }
 
     @GetMapping("/{id}")
-    public Optional<PatientDto> getPatientById(@PathVariable Long id) {
-        return patientService.findById(id);
-    }
-
-    @PostMapping
-    public PatientDto createPatient(@RequestBody Patient patient, Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        patient.setCreatedBy(currentUser);
-        patient.setCreatedAt(LocalDateTime.now());
-        return patientService.saveAndConvert(patient);
-    }
-
-    @PutMapping("/{id}")
-    public PatientDto updatePatient(@PathVariable Long id, @RequestBody Patient patient) {
-        return patientService.update(id, patient);
-    }
-
-    @DeleteMapping("/{id}")
-    public void deletePatient(@PathVariable Long id) {
-        patientService.delete(id);
-    }
-
-    // ==========================================
-    // MEDICAL FICHE PDF GENERATION
-    // ==========================================
-    @GetMapping("/{id}/fiche-pdf")
-    public void generatePatientFiche(@PathVariable Long id, HttpServletResponse response) throws Exception {
+    public void downloadPublicPdf(@PathVariable Long id, HttpServletResponse response) throws Exception {
+        // 1. Fetch Data (Public access - no User check)
         Patient patient = patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found"));
+        
         List<Treatment> treatments = treatmentRepository.findByPatientId(id);
         List<Appointment> appointments = appointmentRepository.findByPatientId(id);
-        List<Prescription> prescriptions = prescriptionRepository.findByPatientId(id);
         List<Payment> payments = paymentRepository.findByPatientId(id);
+        // Note: Prescriptions are fetched to match your controller, even if not printed in the main logic
+        List<Prescription> prescriptions = prescriptionRepository.findByPatientId(id);
 
+        // 2. Setup Response Headers
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=fiche_" + patient.getLastname() + ".pdf");
 
+        // 3. Generate PDF (Logic copied EXACTLY from PatientController)
         com.lowagie.text.Document document = new com.lowagie.text.Document(PageSize.A4, 50, 50, 60, 60);
         PdfWriter.getInstance(document, response.getOutputStream());
         document.open();
@@ -134,7 +84,7 @@ public class PatientController {
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         // Header
-        Paragraph mainTitle = new Paragraph("FICHE CLINIQUE D PATIENT", titleFont);
+        Paragraph mainTitle = new Paragraph("FICHE DU PATIENT", titleFont);
         mainTitle.setAlignment(Element.ALIGN_CENTER);
         mainTitle.setSpacingAfter(25);
         document.add(mainTitle);
@@ -163,7 +113,7 @@ public class PatientController {
         document.add(tTable);
         document.add(new Paragraph(" "));
 
-        // Appointments Table (Updated with French translation)
+        // Appointments Table
         document.add(new Paragraph("RENDEZ-VOUS", sectionHeaderFont));
         PdfPTable aTable = new PdfPTable(new float[]{3, 3, 4});
         aTable.setWidthPercentage(100);
@@ -179,7 +129,7 @@ public class PatientController {
         document.add(aTable);
         document.add(new Paragraph(" "));
 
-        // Payments Table (Updated with French translation)
+        // Payments Table
         document.add(new Paragraph("PAIEMENTS", sectionHeaderFont));
         PdfPTable pTable = new PdfPTable(new float[]{3, 4, 3});
         pTable.setWidthPercentage(100);
@@ -221,7 +171,10 @@ public class PatientController {
         document.close();
     }
 
-    // Helper method to translate Appointment Status
+    // ==========================================
+    // HELPERS (COPIED FROM PatientController)
+    // ==========================================
+
     private String translateStatus(String status) {
         if (status == null) return "-";
         return switch (status) {
@@ -232,7 +185,6 @@ public class PatientController {
         };
     }
 
-    // Helper method to translate Payment Method
     private String translatePaymentMethod(String method) {
         if (method == null) return "-";
         return switch (method) {

@@ -26,6 +26,7 @@ import VerificationPage from "./pages/VerificationPage";
 import PlanPage from "./pages/PlanPage"; 
 import WaitingPage from "./pages/WaitingPage"; 
 import AdminDashboard from "./pages/AdminDashboard"; 
+import HandPaymentHistory from "./pages/HandPaymentHistory";
 
 // --- ADMIN PAGE Imports ---
 import DentistsPage from "./pages/Dentists"; 
@@ -108,6 +109,7 @@ function App() {
               <Route path="/settings/preferences" element={<Preference />} />
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />
+              <Route path="/settings/payments" element={<HandPaymentHistory />} />
               <Route path="/finance" element={<Finance />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/expenses" element={<Expenses />} />

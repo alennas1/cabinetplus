@@ -46,6 +46,7 @@ public class MedicationController {
                 .map(m -> new MedicationResponse(
                         m.getId(),
                         m.getName(),
+                        m.getGenericName(),
                         m.getDosageForm(),
                         m.getStrength(),
                         m.getDescription()
@@ -65,6 +66,7 @@ public class MedicationController {
                 .map(m -> new MedicationResponse(
                         m.getId(),
                         m.getName(),
+                        m.getGenericName(),
                         m.getDosageForm(),
                         m.getStrength(),
                         m.getDescription()
@@ -84,6 +86,7 @@ public class MedicationController {
 
         Medication entity = new Medication();
         entity.setName(dto.getName());
+        entity.setGenericName(dto.getGenericName());
         entity.setDosageForm(dto.getDosageForm());
         entity.setStrength(dto.getStrength());
         entity.setDescription(dto.getDescription());
@@ -94,6 +97,7 @@ public class MedicationController {
         MedicationResponse response = new MedicationResponse(
                 saved.getId(),
                 saved.getName(),
+                saved.getGenericName(),
                 saved.getDosageForm(),
                 saved.getStrength(),
                 saved.getDescription()
@@ -115,6 +119,7 @@ public class MedicationController {
         return medicationService.update(id, new Medication(
                 id,
                 dto.getName(),
+                dto.getGenericName(),
                 dto.getDosageForm(),
                 dto.getStrength(),
                 dto.getDescription(),
@@ -122,6 +127,7 @@ public class MedicationController {
         ), currentUser).map(saved -> new MedicationResponse(
                 saved.getId(),
                 saved.getName(),
+                saved.getGenericName(),
                 saved.getDosageForm(),
                 saved.getStrength(),
                 saved.getDescription()

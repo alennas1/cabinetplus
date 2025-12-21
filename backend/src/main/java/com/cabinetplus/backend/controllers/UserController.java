@@ -124,6 +124,8 @@ public class UserController {
         if (updates.containsKey("lastname")) user.setLastname((String) updates.get("lastname"));
         if (updates.containsKey("email")) user.setEmail((String) updates.get("email"));
         if (updates.containsKey("phoneNumber")) user.setPhoneNumber((String) updates.get("phoneNumber"));
+        if (updates.containsKey("clinicName")) user.setClinicName((String) updates.get("clinicName"));
+        if (updates.containsKey("address")) user.setAddress((String) updates.get("address"));
 
         return userService.save(user);
     }

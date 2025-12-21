@@ -1,11 +1,17 @@
 package com.cabinetplus.backend.controllers;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.services.PlanService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/plans")
@@ -18,10 +24,12 @@ public class PlanController {
     }
 
     // GET : Tous les plans pour le dashboard (Admin)
+    
     @GetMapping
-    public ResponseEntity<List<Plan>> getAllPlansAdmin() {
+    public ResponseEntity<Iterable<Plan>> getAllPlans() {
         return ResponseEntity.ok(planService.getAllPlansForAdmin());
-    }
+    }   
+    
 
     @GetMapping("/{id}")
     public ResponseEntity<Plan> getPlanById(@PathVariable Long id) {

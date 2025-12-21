@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Edit2, Check, X, User, Mail, Phone } from "react-feather";
+import { Edit2, Check, X, User, Mail, Phone,Home } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -13,6 +13,8 @@ const fieldLabels = {
   email: "Email",
   phoneNumber: "Téléphone",
     profession: "Profession",
+    clinicName: "Nom de la clinique",
+    address: "Adresse",
 
 };
 
@@ -22,6 +24,8 @@ const fieldIcons = {
   email: <Mail size={16} />,
   phoneNumber: <Phone size={16} />,
     profession: <User size={16} />, // you can pick another icon if you prefer
+    clinicName: <Home size={16} />, // Clinic Icon
+  address: <Home size={16} />,
 
 };
 

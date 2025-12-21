@@ -1,19 +1,11 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
-
 import com.cabinetplus.backend.enums.PaymentMethod;
 import com.cabinetplus.backend.enums.PaymentStatus;
+import com.cabinetplus.backend.enums.BillingCycle; // Import the new Enum
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,6 +30,11 @@ public class HandPayment {
     private Plan plan;
 
     private Integer amount;
+
+    // --- NEW ATTRIBUTE ---
+    @Enumerated(EnumType.STRING)
+    private BillingCycle billingCycle; 
+    // ---------------------
 
     private LocalDateTime paymentDate = LocalDateTime.now();
 

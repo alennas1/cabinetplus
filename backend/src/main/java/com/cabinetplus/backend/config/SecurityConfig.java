@@ -54,6 +54,10 @@ public class SecurityConfig {
                 // --------------------------
                 // DENTIST OR ADMIN ENDPOINTS
                 // --------------------------
+
+                .requestMatchers("/api/public/**").permitAll() 
+
+
                 .requestMatchers(
                     "/api/hand-payments/create",
                     "/api/hand-payments/my-payments"
@@ -102,15 +106,26 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    
+    // Add all URLs that are allowed to talk to your backend
+    configuration.setAllowedOrigins(List.of(
+        "http://localhost:5173",          // Local React (Vite)
+        "http://localhost:3000",          // Local React (CRA)
+        "https://cabinetplusdz.com",      // Your future domain
+        "https://www.cabinetplusdz.com",  // Your future domain
+        "https://*.vercel.app"            // Allows all Vercel deployments
+    ));
+    
+    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+    configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+    configuration.setAllowCredentials(true);
+    // Important: Expose headers if you need to read JWT from headers in React
+    configuration.setExposedHeaders(List.of("Authorization"));
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
+}
 }

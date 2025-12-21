@@ -444,40 +444,49 @@
     flex-wrap: wrap;
   }
 }
+/* === Status Badges - Version Compacte === */
+/* Cibler spécifiquement la colonne des statuts */
+/* 1. Aligner le header et la cellule parfaitement au centre */
+.payments-table th:last-child, 
+.payments-table td:last-child {
+  text-align: center !important;
+  padding-left: 0 !important;   /* Supprime le décalage gauche */
+  padding-right: 0 !important;  /* Supprime le décalage droit */
+  width: 120px;                 /* Fixe une largeur pour la colonne statut */
+}
 
-/* === Status Badges === */
+/* 2. Ajuster le badge */
 .status-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 14px;
-  border-radius: 12px;
-  font-size: 0.9rem;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
   font-weight: 600;
-  min-width: 60px;
-  line-height: 1.2;
-  text-align: center;
+  width: fit-content;
+  margin: 0 auto;               /* Centre le bloc dans la cellule */
+  box-sizing: border-box;
 }
 
 .status-badge.active {
-  background-color: #d1f7d6;
-  color: #1e7d32;
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
 }
 
 .status-badge.inactive {
-  background-color: #fddede;
-  color: #c62828;
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
 }
 
 .status-badge.on_leave {
-  background-color: #fff4cc;
-  color: #b28704;
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
 }
 
-.status-badge.default {
-  background-color: #e0e0e0;
-  color: #555;
-}
 /* Overlay */
 .modal-overlay {
   position: fixed;

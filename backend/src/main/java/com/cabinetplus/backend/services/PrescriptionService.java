@@ -91,6 +91,8 @@ public class PrescriptionService {
             pmDto.setName(pm.getName());
             pmDto.setAmount(Double.parseDouble(pm.getAmount()));
             pmDto.setUnit(pm.getUnit());
+            pmDto.setGenericName(pm.getMedication().getGenericName());
+            pmDto.setStrength(pm.getMedication().getStrength());
             pmDto.setFrequency(pm.getFrequency());
             pmDto.setDuration(pm.getDuration());
             pmDto.setInstructions(pm.getInstructions());
@@ -115,37 +117,51 @@ public class PrescriptionService {
         return mapToResponseDTO(getPrescriptionEntity(id, practitioner));
     }
 
-    @Transactional
-    public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User practitioner) {
-        Prescription prescription = getPrescriptionEntity(id, practitioner);
-        prescription.setNotes(dto.getNotes());
+  @Transactional
+public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User practitioner) {
+    // 1. Fetch the existing prescription and check ownership
+    Prescription prescription = getPrescriptionEntity(id, practitioner);
+    
+    // 2. Update basic fields
+    prescription.setNotes(dto.getNotes());
+    Patient patient = patientRepository.findById(dto.getPatientId())
+            .orElseThrow(() -> new RuntimeException("Patient not found"));
+    prescription.setPatient(patient);
 
-        Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
-        prescription.setPatient(patient);
+    // 3. Identify which items to KEEP vs. which to DELETE
+    // We collect the IDs of medications that are coming from the frontend
+    List<Long> incomingPrescriptionMedIds = dto.getMedications().stream()
+            .map(PrescriptionMedicationDTO::getPrescriptionMedicationId)
+            .filter(nodeId -> nodeId != null) // New items won't have an ID yet
+            .collect(Collectors.toList());
 
-        List<Long> incomingIds = dto.getMedications().stream()
-                .map(PrescriptionMedicationDTO::getMedicationId)
-                .collect(Collectors.toList());
-        
-        prescription.getMedications().removeIf(pm -> !incomingIds.contains(pm.getMedication().getId()));
+    // Remove medications from the database that are NOT in the incoming list
+    prescription.getMedications().removeIf(pm -> 
+        pm.getId() != null && !incomingPrescriptionMedIds.contains(pm.getId())
+    );
 
-        for (PrescriptionMedicationDTO medDto : dto.getMedications()) {
+    // 4. Update existing items or Add new ones
+    for (PrescriptionMedicationDTO medDto : dto.getMedications()) {
+        if (medDto.getPrescriptionMedicationId() != null) {
+            // CASE: Update existing line
             prescription.getMedications().stream()
-                    .filter(pm -> pm.getMedication().getId().equals(medDto.getMedicationId()))
-                    .findFirst()
-                    .ifPresentOrElse(
-                        existing -> {
-                            // Apply formatting here as well for updates
-                            existing.setAmount(df.format(medDto.getAmount()));
-                            existing.setUnit(medDto.getUnit());
-                            existing.setFrequency(medDto.getFrequency());
-                            existing.setDuration(medDto.getDuration());
-                            existing.setInstructions(medDto.getInstructions());
-                        },
-                        () -> prescription.getMedications().add(mapToPrescriptionMedication(medDto, prescription))
-                    );
+                .filter(pm -> pm.getId().equals(medDto.getPrescriptionMedicationId()))
+                .findFirst()
+                .ifPresent(existing -> {
+                    existing.setAmount(df.format(medDto.getAmount()));
+                    existing.setUnit(medDto.getUnit());
+                    existing.setFrequency(medDto.getFrequency());
+                    existing.setDuration(medDto.getDuration());
+                    existing.setInstructions(medDto.getInstructions());
+                    // Update name in case it changed in the medication DB
+                    existing.setName(existing.getMedication().getName()); 
+                });
+        } else {
+            // CASE: This is a brand new medication added during the edit session
+            prescription.getMedications().add(mapToPrescriptionMedication(medDto, prescription));
         }
-        return prescriptionRepository.save(prescription);
     }
+
+    return prescriptionRepository.save(prescription);
+}
 }

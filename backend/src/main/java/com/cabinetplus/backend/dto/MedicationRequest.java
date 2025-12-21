@@ -11,6 +11,9 @@ public class MedicationRequest {
     @NotBlank(message = "Name is required")
     private String name;
 
+    @NotBlank(message = "genericName is required")
+    private String genericName;
+
     @NotNull(message = "Dosage form is required")
     private DosageForm dosageForm;
 

@@ -1,5 +1,7 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import React, { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { logout } from "./store/authSlice";
 
 // --- Page Imports ---
 import LoginPage from "./pages/LoginPage";
@@ -47,16 +49,30 @@ import SessionExpiredModal from "./components/SessionExpiredModal";
 
 import "./index.css";
 
-function App() {
+// Separate the navigation logic into a wrapper to use hooks like useNavigate
+const AppContent = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth); 
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  // --- Session Expired Listener ---
+  // This ensures that if the refresh token fails (authService catches it),
+  // the app cleans up the state and sends the user to login.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      dispatch(logout());
+      navigate("/login", { replace: true });
+    };
+
+    window.addEventListener("sessionExpired", handleSessionExpired);
+    return () => window.removeEventListener("sessionExpired", handleSessionExpired);
+  }, [dispatch, navigate]);
 
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
 
-    const isVerified = user.isPhoneVerified; // Email check removed
-    if (!isVerified) return "/verify";
-    
+    if (!user.isPhoneVerified) return "/verify";
     if (user.planStatus === "WAITING") return "/waiting";
     if (user.planStatus !== "ACTIVE") return "/plan";
 
@@ -74,61 +90,70 @@ function App() {
   };
 
   return (
-    <Router>
+    <div className="app-container">
       <SessionExpiredModal />
-      <div className="app-container">
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
 
-          <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
-            <Route path="/verify" element={<VerificationPage />} />
-            <Route path="/plan" element={<PlanPage />} />
-            <Route path="/waiting" element={<WaitingPage />} />
+        {/* Dentist Routes */}
+        <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
+          <Route path="/verify" element={<VerificationPage />} />
+          <Route path="/plan" element={<PlanPage />} />
+          <Route path="/waiting" element={<WaitingPage />} />
 
-            <Route element={<Layout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/patients" element={<Patients />} />
-              <Route path="/patients/:id" element={<Patient />} />
-              <Route path="/appointments" element={<Appointments />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/settings/medications" element={<Medications />} />
-              <Route path="/settings/treatments" element={<TreatmentCatalog />} />
-              <Route path="/settings/items" element={<Items />} />
-              <Route path="/settings/preferences" element={<Preference />} />
-              <Route path="/settings/profile" element={<Profile />} />
-              <Route path="/settings/security" element={<Security />} />
-              <Route path="/settings/payments" element={<HandPaymentHistory />} />
-              <Route path="/finance" element={<Finance />} />
-              <Route path="/inventory" element={<Inventory />} />
-              <Route path="/expenses" element={<Expenses />} />
-              <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
-              <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
-              <Route path="/employees" element={<Employees />} />
-              <Route path="/employees/:id" element={<EmployeeDetails />} />
-            </Route>
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/patients/:id" element={<Patient />} />
+            <Route path="/appointments" element={<Appointments />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/medications" element={<Medications />} />
+            <Route path="/settings/treatments" element={<TreatmentCatalog />} />
+            <Route path="/settings/items" element={<Items />} />
+            <Route path="/settings/preferences" element={<Preference />} />
+            <Route path="/settings/profile" element={<Profile />} />
+            <Route path="/settings/security" element={<Security />} />
+            <Route path="/settings/payments" element={<HandPaymentHistory />} />
+            <Route path="/finance" element={<Finance />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
+            <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
+            <Route path="/employees" element={<Employees />} />
+            <Route path="/employees/:id" element={<EmployeeDetails />} />
           </Route>
+        </Route>
 
-          <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
-            <Route element={<AdminLayout />}>
-              <Route path="/admin-dashboard" element={<AdminDashboard />} />
-              <Route path="/dentists" element={<DentistsPage />} />
-              <Route path="/pending-payments" element={<PendingPaymentsPage />} />
-              <Route path="/payment-history" element={<PaymentHistoryPage />} />
-              <Route path="/expiring-plans" element={<ExpiringPlansPage />} />
-              <Route path="/settings-admin" element={<AdminSettings />} />
-              <Route path="/finance-admin" element={<AdminFinance />} />
-              <Route path="/admin/manage-admins" element={<ManageAdmins />} />
-              <Route path="/admin/change-password" element={<AdminChangePassword />} />
-              <Route path="/admin/manage-plans" element={<ManagePlans />} />
-            </Route>
+        {/* Admin Routes */}
+        <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin-dashboard" element={<AdminDashboard />} />
+            <Route path="/dentists" element={<DentistsPage />} />
+            <Route path="/pending-payments" element={<PendingPaymentsPage />} />
+            <Route path="/payment-history" element={<PaymentHistoryPage />} />
+            <Route path="/expiring-plans" element={<ExpiringPlansPage />} />
+            <Route path="/settings-admin" element={<AdminSettings />} />
+            <Route path="/finance-admin" element={<AdminFinance />} />
+            <Route path="/admin/manage-admins" element={<ManageAdmins />} />
+            <Route path="/admin/change-password" element={<AdminChangePassword />} />
+            <Route path="/admin/manage-plans" element={<ManagePlans />} />
           </Route>
+        </Route>
 
-          <Route index element={<RootRedirect />} />
-          <Route path="*" element={<CatchAllRedirect />} />
-        </Routes>
-      </div>
+        <Route index element={<RootRedirect />} />
+        <Route path="*" element={<CatchAllRedirect />} />
+      </Routes>
+    </div>
+  );
+};
+
+// Router must wrap AppContent so useNavigate is available
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }

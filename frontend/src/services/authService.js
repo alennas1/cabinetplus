@@ -1,13 +1,29 @@
 import axios from "axios";
 
-// 1. Vite specific env access
 const API_URL = "https://cabinetplus-production.up.railway.app";
+
+// Create the main instance
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
-}); 
+});
 
-// 2. Attach JWT access token
+// Logic to prevent multiple simultaneous refresh calls
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// 1. Attach JWT access token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -16,37 +32,57 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 3. Robust Refresh Token Interceptor
+// 2. Robust Interceptor for Auto-Refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Only retry if it's a 401 and NOT the refresh request itself failing
-    if (
-      error.response?.status === 401 && 
-      !originalRequest._retry &&
-      !originalRequest.url.includes("/auth/refresh") 
-    ) {
+    // Check for 401 Unauthorized
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      
+      // If refresh is already happening, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
-        // Use the base axios to avoid infinite loops
+        // Use base axios (not 'api') to avoid interceptor loops
         const { data } = await axios.post(
           `${API_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
+
+        const newToken = data.accessToken;
+        localStorage.setItem("token", newToken);
         
-        localStorage.setItem("token", data.accessToken);
+        // Update the instance default header for future requests
+        api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
         
-        // Use the new token for the retry
-        originalRequest.headers["Authorization"] = `Bearer ${data.accessToken}`;
+        // Retry the original failed request
+        originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
+        processQueue(null, newToken);
+        
         return api(originalRequest);
-      } catch (err) {
-        localStorage.removeItem("token"); // Clear bad token
+      } catch (refreshError) {
+        // If refresh fails, clear everything and force logout
+        processQueue(refreshError, null);
+        localStorage.removeItem("token");
         window.dispatchEvent(new Event("sessionExpired"));
-        return Promise.reject(err);
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
@@ -62,36 +98,21 @@ export const login = async (username, password) => {
   return response.data;
 };
 
-/**
- * Register a new user. 
- * Note: userData now only contains username, password, firstname, lastname, and phoneNumber.
- */
 export const register = async (userData) => {
   const response = await api.post("/auth/register", userData);
   return response.data;
 };
 
-/**
- * Fetches the current user profile.
- * The backend response for this should no longer include an 'email' field.
- */
 export const getCurrentUser = async () => {
   const response = await api.get("/api/users/me");
   return response.data;
 };
 
-/**
- * OPTIONAL: Helper for Phone Verification
- * Use this to verify the phone OTP.
- */
 export const verifyPhone = async (otp) => {
   const response = await api.post("/auth/verify-phone", { otp });
   return response.data;
 };
 
-/**
- * OPTIONAL: Helper to resend Phone OTP
- */
 export const resendPhoneOtp = async (phoneNumber) => {
   const response = await api.post("/auth/resend-phone-otp", { phoneNumber });
   return response.data;

@@ -87,3 +87,23 @@
   font-size: 14px;
   margin-top: 10px;
 }
+.remember-me-container {
+  display: flex;
+  align-items: center;
+  margin: 10px 0;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.checkbox-label input {
+  width: auto; /* Prevent input from stretching */
+  margin: 0;
+  cursor: pointer;
+}

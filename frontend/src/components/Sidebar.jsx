@@ -9,12 +9,10 @@ import {
   Settings,
   LogOut,
   PlusSquare,
-  Briefcase,
   BarChart2,
   Package,
-  FileText,
   UserCheck,
-} from "react-feather"; // final optimized icon set
+} from "react-feather";
 import { logout } from "../store/authSlice";
 import "./Sidebar.css";
 
@@ -23,13 +21,15 @@ const Sidebar = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    dispatch(logout());
-    navigate("/login");
+    // 1. Clear Redux state & Browser Storage (Local + Session)
+    dispatch(logout()); 
+    
+    // 2. Redirect to Login and wipe history stack
+    navigate("/login", { replace: true });
   };
 
   return (
     <div className="sidebar">
-      {/* Tous les éléments y compris Cabinet+ */}
       <ul className="sidebar-links">
         {/* --- Brand --- */}
         <li className="brand">

@@ -1,169 +1,84 @@
-import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
-import { Edit2, Check, X, User, Mail, Phone,Home } from "react-feather";
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { User, Lock, Package, Settings as Gear, FileText, Box, CreditCard } from "react-feather";
+import "./Settings.css";
 import PageHeader from "../components/PageHeader";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { getUserProfile, updateUserProfile } from "../services/userService";
-import "./Profile.css";
 
-const fieldLabels = {
-  firstname: "Prénom",
-  lastname: "Nom",
-  email: "Email",
-  phoneNumber: "Téléphone",
-    profession: "Profession",
-    clinicName: "Nom de la clinique",
-    address: "Adresse",
+const Settings = () => {
+  const navigate = useNavigate();
 
-};
-
-const fieldIcons = {
-  firstname: <User size={16} />,
-  lastname: <User size={16} />,
-  email: <Mail size={16} />,
-  phoneNumber: <Phone size={16} />,
-    profession: <User size={16} />, // you can pick another icon if you prefer
-    clinicName: <Home size={16} />, // Clinic Icon
-  address: <Home size={16} />,
-
-};
-
-const Profile = () => {
-  const token = useSelector((state) => state.auth.token);
-  const [profile, setProfile] = useState({ profession: "Dentiste" }); // default profession
-  const [editingField, setEditingField] = useState(null);
-  const [tempValue, setTempValue] = useState("");
-
-  
-  const formatPhoneNumber = (phone) => {
-  if (!phone) return "";
-  return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
-};
-
-
-
-
- useEffect(() => {
-  const fetchProfile = async () => {
-    try {
-      const data = await getUserProfile(token);
-      setProfile({ ...data, profession: "Dentiste" }); // ✅ merge with profession
-    } catch (err) {
-      console.error(err);
-      toast.error("Erreur lors du chargement du profil");
-    }
-  };
-  fetchProfile();
-}, [token]);
-  const handleEdit = (field) => {
-    setEditingField(field);
-    const value = profile[field] || "";
-    setTempValue(field === "phoneNumber" ? formatPhoneNumber(value) : value);
-  };
-
-  const handleInputChange = (field, value) => {
-    if (field === "phoneNumber") {
-      const digits = value.replace(/\D/g, "");
-      const formatted = digits.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
-      setTempValue(formatted);
-    } else {
-      setTempValue(value);
-    }
-  };
-
-  const handleCancel = () => {
-    setEditingField(null);
-    setTempValue("");
-  };
-
-  const handleSave = async (field) => {
-    try {
-      let valueToSave = tempValue;
-
-      if (field === "phoneNumber") {
-        valueToSave = tempValue.replace(/\s/g, "");
-      }
-
-      if (valueToSave === profile[field]) {
-      setEditingField(null);
-      setTempValue("");
-      return; // no update, no toast
-    }
-      const updatedProfile = { ...profile, [field]: valueToSave };
-      await updateUserProfile(updatedProfile, token);
-      setProfile(updatedProfile);
-      setEditingField(null);
-      toast.success(`${fieldLabels[field]} mis à jour avec succès`);
-    } catch (err) {
-      console.error(err);
-      toast.error(`Erreur lors de la mise à jour de ${fieldLabels[field]}`);
-    }
-  };
-
-  const renderField = (field) => (
-  <div className="profile-field" key={field}>
-    <div className="field-label">
-      {fieldIcons[field]}
-      <span>{fieldLabels[field]}:</span>
-    </div>
-
-    {field === "profession" ? (
-      // Profession is fixed, no edit button
-      <span className="field-value">{profile.profession}</span>
-    ) : editingField === field ? (
-      <>
-        <input
-          type="text"
-          value={tempValue}
-          onChange={(e) => handleInputChange(field, e.target.value)}
-        />
-        <Check
-          size={18}
-          className="icon action confirm"
-          onClick={() => handleSave(field)}
-        />
-        <X size={18} className="icon action cancel" onClick={handleCancel} />
-      </>
-    ) : (
-      <>
-        <span className="field-value">
-          {field === "phoneNumber"
-            ? formatPhoneNumber(profile[field])
-            : profile[field] || "—"}
-        </span>
-        <Edit2
-          size={18}
-          className="icon action edit"
-          onClick={() => handleEdit(field)}
-        />
-      </>
-    )}
-  </div>
-);
-
+  const settingsGroups = [
+    {
+      title: "Compte",
+      options: [
+        { 
+          title: "Profil", 
+          desc: "Modifier votre nom et informations personnelles", // Removed 'email'
+          icon: <User />, 
+          path: "/settings/profile" 
+        },
+        { 
+          title: "Sécurité", 
+          desc: "Changer mot de passe et paramètres de sécurité", 
+          icon: <Lock />, 
+          path: "/settings/security" 
+        },
+        { 
+          title: "Historique de paiements", 
+          desc: "Consulter vos factures et l'état de vos abonnements", 
+          icon: <CreditCard />, 
+          path: "/settings/payments"
+        },
+      ],
+    },
+    {
+      title: "Catalogues",
+      options: [
+        { title: "Catalogue des médicaments", desc: "Gérer la liste des médicaments disponibles", icon: <Box />, path: "/settings/medications" },
+        { title: "Catalogue des traitements", desc: "Ajouter, modifier ou supprimer les traitements proposés", icon: <FileText />, path: "/settings/treatments" },
+        { title: "Catalogue des articles", desc: "Ajouter, modifier ou supprimer les articles disponibles", icon: <Package />, path: "/settings/items" },
+      ],
+    },
+    {
+      title: "Préférences",
+      options: [
+        { title: "Préférences", desc: "Personnaliser l'application selon vos besoins", icon: <Gear />, path: "/settings/preferences" },
+      ],
+    },
+  ];
 
   return (
-    <div className="profile-container">
-      <PageHeader
-        title="Profil"
-        subtitle="Gérer vos informations personnelles"
+    <div className="settings-container">
+      <PageHeader 
+        title="Paramètres" 
+        subtitle="Choisissez ce que vous souhaitez gérer :" 
+        align="left" 
       />
-      <div className="profile-content">
-        {Object.keys(fieldLabels).map(renderField)}
-      </div>
-      <ToastContainer
-        position="bottom-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-      />
+
+      {settingsGroups.map((group, i) => (
+        <div key={i} className="settings-group">
+          <h3 className="group-title">{group.title}</h3>
+          <div className="settings-options">
+            {group.options.map((option, index) => (
+              <div 
+                key={index} 
+                className="settings-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(option.path)}
+              >
+                <div className="settings-icon">{option.icon}</div>
+                <div className="settings-text">
+                  <h2>{option.title}</h2>
+                  <p>{option.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
 
-export default Profile;
+export default Settings;

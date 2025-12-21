@@ -13,7 +13,7 @@ const Settings = () => {
       options: [
         { 
           title: "Profil", 
-          desc: "Modifier votre nom, email et informations personnelles", 
+          desc: "Modifier votre nom et informations personnelles", // Removed 'email'
           icon: <User />, 
           path: "/settings/profile" 
         },
@@ -27,11 +27,10 @@ const Settings = () => {
           title: "Historique de paiements", 
           desc: "Consulter vos factures et l'état de vos abonnements", 
           icon: <CreditCard />, 
-          path: "/settings/payments" // Le chemin vers votre nouveau composant
+          path: "/settings/payments"
         },
       ],
     },
-    
     {
       title: "Catalogues",
       options: [

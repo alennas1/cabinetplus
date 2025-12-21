@@ -34,11 +34,6 @@ export const updateUserPassword = (passwords, token) =>
     body: JSON.stringify(passwords),
   }).then(handleResponse);
 
-export const verifyEmail = (token) =>
-  fetch(`${API_BASE}/me/verify-email`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-  }).then(handleResponse);
 
 export const verifyPhone = (token) =>
   fetch(`${API_BASE}/me/verify-phone`, {

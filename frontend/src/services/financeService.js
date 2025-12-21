@@ -1,17 +1,10 @@
 // src/services/financeService.js
-import axios from "axios";
-
-const API_URL = "https://cabinetplus-production.up.railway.app/api/finance"; // Adjust if your backend runs elsewhere
-
-// Helper to get token (from localStorage or wherever you store it)
-const getToken = () => localStorage.getItem("token");
+import api from "./authService"; // Use your configured instance
 
 export const getFinanceGraph = async (timeframe) => {
-  const response = await axios.get(`${API_URL}/graph`, {
+  // The 'api' instance already knows the Railway URL and the Token
+  const response = await api.get("/api/finance/graph", {
     params: { timeframe },
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
   });
   return response.data;
 };
@@ -22,11 +15,6 @@ export const getFinanceCards = async (timeframe, startDate, endDate) => {
     params.startDate = startDate;
     params.endDate = endDate;
   }
-  const response = await axios.get(`${API_URL}/cards`, {
-    params,
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
-  });
+  const response = await api.get("/api/finance/cards", { params });
   return response.data;
 };

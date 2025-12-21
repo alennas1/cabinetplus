@@ -1,26 +1,30 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { jwtDecode } from "jwt-decode";
 
-// 1. Helper to find token in any storage
+/**
+ * Helper to retrieve the token regardless of which 
+ * storage method the user chose (Persistent vs Session)
+ */
 const getPersistedToken = () => {
   return localStorage.getItem("token") || sessionStorage.getItem("token");
 };
 
-// 2. Helper to decode and prepare user data
+/**
+ * Decodes the JWT safely and handles potential corruption
+ */
 const getDecodedUser = (t) => {
-  if (t) {
-    try {
-      const decoded = jwtDecode(t);
-      decoded.plan = decoded.plan || null;
-      return decoded;
-    } catch (error) {
-      console.error("Invalid token found in storage:", error);
-      localStorage.removeItem("token");
-      sessionStorage.removeItem("token");
-      return null;
-    }
+  if (!t) return null;
+  try {
+    const decoded = jwtDecode(t);
+    // Ensure nested objects exist to prevent UI 'undefined' crashes
+    decoded.plan = decoded.plan || null;
+    return decoded;
+  } catch (error) {
+    console.error("Invalid or corrupted token in storage:", error);
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
+    return null;
   }
-  return null;
 };
 
 const token = getPersistedToken();
@@ -39,23 +43,20 @@ const authSlice = createSlice({
       const accessToken = action.payload;
       state.token = accessToken;
       state.isAuthenticated = true;
-
-      try {
-        const decoded = jwtDecode(accessToken);
-        decoded.plan = decoded.plan || null;
-        state.user = decoded;
-      } catch (error) {
-        console.error("Failed to decode token after login:", error);
-        state.user = null;
-      }
+      
+      // Decode and set user data immediately after login
+      const decoded = getDecodedUser(accessToken);
+      state.user = decoded;
     },
 
     setCredentials: (state, action) => {
       const { user, token } = action.payload;
       if (user) state.user = user;
+      
       if (token) {
         state.token = token;
-        // Update whichever storage is active
+        // Update whichever storage is currently active so the 
+        // user stays logged in after a background refresh
         if (localStorage.getItem("token")) {
           localStorage.setItem("token", token);
         } else if (sessionStorage.getItem("token")) {
@@ -68,6 +69,8 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       state.user = null;
+      
+      // Hard wipe of all possible storage locations
       localStorage.removeItem("token");
       sessionStorage.removeItem("token");
     },

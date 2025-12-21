@@ -2,6 +2,7 @@ import axios from "axios";
 
 const API_URL = "https://cabinetplus-production.up.railway.app";
 
+// Main instance with interceptors
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
@@ -27,7 +28,7 @@ const saveTokenToActiveStorage = (token) => {
   }
 };
 
-// 1. Request Interceptor: Attach token from either storage
+// 1. Request Interceptor: Attach token from whichever storage has it
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token") || sessionStorage.getItem("token");
   if (token) {
@@ -36,7 +37,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 2. Response Interceptor: Handle Auto-Refresh
+// 2. Response Interceptor: Handle 401 and Auto-Refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -58,6 +59,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        // We use raw axios here to avoid interceptor loops
         const { data } = await axios.post(
           `${API_URL}/auth/refresh`,
           {},
@@ -65,8 +67,6 @@ api.interceptors.response.use(
         );
 
         const newToken = data.accessToken;
-        
-        // Update the storage currently in use
         saveTokenToActiveStorage(newToken);
         
         api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
@@ -76,6 +76,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
+        // Clean up everything on failure
         localStorage.removeItem("token");
         sessionStorage.removeItem("token");
         window.dispatchEvent(new Event("sessionExpired"));
@@ -91,23 +92,35 @@ api.interceptors.response.use(
 // --- Auth Requests ---
 
 export const login = async (username, password, rememberMe) => {
+  // Use 'api' instance to ensure consistent header handling
   const response = await api.post("/auth/login", { username, password });
   const token = response.data.accessToken;
 
   if (rememberMe) {
     localStorage.setItem("token", token);
-    sessionStorage.removeItem("token"); // Cleanup
+    sessionStorage.removeItem("token");
   } else {
     sessionStorage.setItem("token", token);
-    localStorage.removeItem("token"); // Cleanup
+    localStorage.removeItem("token");
   }
   
   return response.data;
 };
 
 export const register = async (userData) => {
-  const response = await api.post("/auth/register", userData);
-  return response.data;
+  return (await api.post("/auth/register", userData)).data;
+};
+
+export const getCurrentUser = async () => {
+  return (await api.get("/api/users/me")).data;
+};
+
+export const verifyPhone = async (otp) => {
+  return (await api.post("/auth/verify-phone", { otp })).data;
+};
+
+export const resendPhoneOtp = async (phoneNumber) => {
+  return (await api.post("/auth/resend-phone-otp", { phoneNumber })).data;
 };
 
 export default api;

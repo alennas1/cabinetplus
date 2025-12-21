@@ -11,12 +11,10 @@ const getDecodedUser = (t) => {
   if (t) {
     try {
       const decoded = jwtDecode(t);
-      // Ensure plan exists to avoid UI crashes
       decoded.plan = decoded.plan || null;
       return decoded;
     } catch (error) {
       console.error("Invalid token found in storage:", error);
-      // Clear both just in case
       localStorage.removeItem("token");
       sessionStorage.removeItem("token");
       return null;
@@ -38,10 +36,6 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     loginSuccess: (state, action) => {
-      // Note: We don't set localStorage here anymore because 
-      // authService.js handles the logic of WHERE to save it 
-      // based on the 'Remember Me' checkbox.
-      
       const accessToken = action.payload;
       state.token = accessToken;
       state.isAuthenticated = true;
@@ -61,8 +55,7 @@ const authSlice = createSlice({
       if (user) state.user = user;
       if (token) {
         state.token = token;
-        // If a new token comes in (e.g., via refresh), 
-        // update whichever storage is currently holding it
+        // Update whichever storage is active
         if (localStorage.getItem("token")) {
           localStorage.setItem("token", token);
         } else if (sessionStorage.getItem("token")) {
@@ -75,7 +68,6 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       state.user = null;
-      // Wipe everything
       localStorage.removeItem("token");
       sessionStorage.removeItem("token");
     },

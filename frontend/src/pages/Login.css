@@ -87,23 +87,46 @@
   font-size: 14px;
   margin-top: 10px;
 }
-.remember-me-container {
+/* Container for the checkbox and potential future "Forgot Password" link */
+.auth-options {
   display: flex;
   align-items: center;
-  margin: 10px 0;
-  font-size: 0.9rem;
-  color: #555;
+  justify-content: space-between; /* Keeps checkbox left, allows link on right */
+  margin: 0.5rem 0;
 }
 
 .checkbox-label {
   display: flex;
   align-items: center;
   cursor: pointer;
+  font-size: 0.85rem;
+  color: #64748b; /* Subtle grey-blue */
+  user-select: none;
   gap: 8px;
+  transition: color 0.2s ease;
 }
 
-.checkbox-label input {
-  width: auto; /* Prevent input from stretching */
-  margin: 0;
+.checkbox-label:hover {
+  color: #2c3e50;
+}
+
+/* Customizing the checkbox appearance */
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
   cursor: pointer;
+  accent-color: #3498db; /* Matches your theme color */
+  border: 1.5px solid #dcdfe3;
+  border-radius: 4px;
+}
+
+/* Optional: if you add a forgot password link later */
+.forgot-password {
+  font-size: 0.85rem;
+  color: #3498db;
+  text-decoration: none;
+}
+
+.forgot-password:hover {
+  text-decoration: underline;
 }

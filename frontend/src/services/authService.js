@@ -6,7 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
-});
+}); 
 
 // 2. Attach JWT access token
 api.interceptors.request.use((config) => {

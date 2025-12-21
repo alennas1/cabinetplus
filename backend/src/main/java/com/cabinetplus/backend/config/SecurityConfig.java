@@ -36,10 +36,12 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            // Enable CORS with our custom source
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
+                // PUBLIC ENDPOINTS (No login required)
                 .requestMatchers("/auth/**").permitAll()
+                .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers("/api/verify/**").permitAll() // Added this to allow OTP/Email verification
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                 // ADMIN-ONLY HAND PAYMENT ENDPOINTS
@@ -51,7 +53,6 @@ public class SecurityConfig {
                 ).hasRole("ADMIN")
 
                 // DENTIST OR ADMIN ENDPOINTS
-                .requestMatchers("/api/public/**").permitAll() 
                 .requestMatchers(
                     "/api/hand-payments/create",
                     "/api/hand-payments/my-payments"
@@ -63,16 +64,17 @@ public class SecurityConfig {
                     "/api/users/admins"
                 ).hasRole("ADMIN")
 
-                // any other /api endpoint
+                // PROTECTED API ENDPOINTS (Requires Login)
                 .requestMatchers("/api/**").hasAnyRole("DENTIST", "ADMIN")
 
-                // admin panel endpoints
+                // ADMIN PANEL
                 .requestMatchers("/admin/**").hasRole("ADMIN")
 
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
+        // Add our JWT Filter
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -100,18 +102,17 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Use setAllowedOriginPatterns to allow wildcards with credentials
         configuration.setAllowedOriginPatterns(List.of(
             "http://localhost:5173",
             "http://localhost:3000",
             "https://cabinetplusdz.com",
             "https://www.cabinetplusdz.com",
-            "https://*.vercel.app" // Correctly matches all Vercel subdomains
+            "https://cabinetplus.vercel.app", // Added your specific Vercel URL
+            "https://*.vercel.app" 
         ));
         
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         
-        // Updated headers to be more inclusive for Axios/JWT
         configuration.setAllowedHeaders(List.of(
             "Authorization", 
             "Content-Type", 

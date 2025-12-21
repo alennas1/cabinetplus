@@ -2,7 +2,6 @@ import axios from "axios";
 
 const API_URL = "https://cabinetplus-production.up.railway.app";
 
-// Main instance with interceptors
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
@@ -19,25 +18,16 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// --- Helper: Save token to whichever storage is currently active ---
-const saveTokenToActiveStorage = (token) => {
-  if (localStorage.getItem("token")) {
-    localStorage.setItem("token", token);
-  } else {
-    sessionStorage.setItem("token", token);
-  }
-};
-
-// 1. Request Interceptor: Attach token from whichever storage has it
+// 1. Request Interceptor: Now strictly checks localStorage for persistence
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+  const token = localStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// 2. Response Interceptor: Handle 401 and Auto-Refresh
+// 2. Response Interceptor: Handle Auto-Refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -59,7 +49,6 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // We use raw axios here to avoid interceptor loops
         const { data } = await axios.post(
           `${API_URL}/auth/refresh`,
           {},
@@ -67,7 +56,7 @@ api.interceptors.response.use(
         );
 
         const newToken = data.accessToken;
-        saveTokenToActiveStorage(newToken);
+        localStorage.setItem("token", newToken); // Always persistent
         
         api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
         originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
@@ -76,9 +65,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // Clean up everything on failure
         localStorage.removeItem("token");
-        sessionStorage.removeItem("token");
         window.dispatchEvent(new Event("sessionExpired"));
         return Promise.reject(refreshError);
       } finally {
@@ -91,18 +78,13 @@ api.interceptors.response.use(
 
 // --- Auth Requests ---
 
-export const login = async (username, password, rememberMe) => {
-  // Use 'api' instance to ensure consistent header handling
+export const login = async (username, password) => {
   const response = await api.post("/auth/login", { username, password });
   const token = response.data.accessToken;
 
-  if (rememberMe) {
-    localStorage.setItem("token", token);
-    sessionStorage.removeItem("token");
-  } else {
-    sessionStorage.setItem("token", token);
-    localStorage.removeItem("token");
-  }
+  // Always save to localStorage for permanent session
+  localStorage.setItem("token", token);
+  sessionStorage.removeItem("token"); // Cleanup any old session traces
   
   return response.data;
 };

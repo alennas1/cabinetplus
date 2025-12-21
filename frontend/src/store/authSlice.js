@@ -1,28 +1,18 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { jwtDecode } from "jwt-decode";
 
-/**
- * Helper to retrieve the token regardless of which 
- * storage method the user chose (Persistent vs Session)
- */
 const getPersistedToken = () => {
-  return localStorage.getItem("token") || sessionStorage.getItem("token");
+  return localStorage.getItem("token");
 };
 
-/**
- * Decodes the JWT safely and handles potential corruption
- */
 const getDecodedUser = (t) => {
   if (!t) return null;
   try {
     const decoded = jwtDecode(t);
-    // Ensure nested objects exist to prevent UI 'undefined' crashes
     decoded.plan = decoded.plan || null;
     return decoded;
   } catch (error) {
-    console.error("Invalid or corrupted token in storage:", error);
     localStorage.removeItem("token");
-    sessionStorage.removeItem("token");
     return null;
   }
 };
@@ -40,39 +30,23 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     loginSuccess: (state, action) => {
-      const accessToken = action.payload;
-      state.token = accessToken;
+      state.token = action.payload;
       state.isAuthenticated = true;
-      
-      // Decode and set user data immediately after login
-      const decoded = getDecodedUser(accessToken);
-      state.user = decoded;
+      state.user = getDecodedUser(action.payload);
     },
-
     setCredentials: (state, action) => {
       const { user, token } = action.payload;
       if (user) state.user = user;
-      
       if (token) {
         state.token = token;
-        // Update whichever storage is currently active so the 
-        // user stays logged in after a background refresh
-        if (localStorage.getItem("token")) {
-          localStorage.setItem("token", token);
-        } else if (sessionStorage.getItem("token")) {
-          sessionStorage.setItem("token", token);
-        }
+        localStorage.setItem("token", token);
       }
     },
-
     logout: (state) => {
       state.token = null;
       state.isAuthenticated = false;
       state.user = null;
-      
-      // Hard wipe of all possible storage locations
       localStorage.removeItem("token");
-      sessionStorage.removeItem("token");
     },
   },
 });

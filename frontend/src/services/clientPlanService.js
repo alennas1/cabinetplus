@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Updated to the new public-facing client endpoint
-const CLIENT_API_URL = "http://localhost:8080/api/plans";
+const CLIENT_API_URL = "${process.env.REACT_APP_API_URL}/api/plans";
 
 /**
  * Get all active plans (Client view)

@@ -1,7 +1,7 @@
 // src/services/prescriptionMedicationService.js
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/prescription-medications";
+const API_URL = "${process.env.REACT_APP_API_URL}/api/prescription-medications";
 
 // Get all prescription medications
 export const getAllPrescriptionMedications = async (token) => {

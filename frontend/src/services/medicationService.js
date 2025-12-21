@@ -1,7 +1,7 @@
 // src/services/medicationService.js
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/medications";
+const API_URL = "${process.env.REACT_APP_API_URL}/api/medications";
 
 export const getMedications = async (token) => {
   const response = await axios.get(API_URL, {

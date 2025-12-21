@@ -1,7 +1,7 @@
 // src/services/treatmentService.js
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/treatments";
+const API_URL = "${process.env.REACT_APP_API_URL}/api/treatments";
 
 /**
  * Get all treatments

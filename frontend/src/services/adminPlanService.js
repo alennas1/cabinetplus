@@ -1,7 +1,7 @@
 // src/services/adminPlanService.js
 import axios from "axios";
 
-const ADMIN_API_URL = "http://localhost:8080/api/admin/plans";
+const ADMIN_API_URL = "${process.env.REACT_APP_API_URL}/api/admin/plans";
 
 /**
  * Get all active plans (admin view)

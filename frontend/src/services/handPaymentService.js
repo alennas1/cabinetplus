@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/hand-payments";
+const API_URL = "${process.env.REACT_APP_API_URL}/api/hand-payments";
 
 /**
  * Get ALL hand payments (ADMIN only)

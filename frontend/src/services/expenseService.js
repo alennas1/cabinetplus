@@ -1,7 +1,7 @@
 // src/services/expenseService.js
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/expenses"; // Adjust if your backend runs elsewhere
+const API_URL = "${process.env.REACT_APP_API_URL}/api/expenses"; // Adjust if your backend runs elsewhere
 
 // Get all expenses
 export const getExpenses = async (token) => {

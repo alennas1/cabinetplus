@@ -1,14 +1,12 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { jwtDecode } from "jwt-decode"; // ✅ Correct import
+import { jwtDecode } from "jwt-decode";
 
 const token = localStorage.getItem("token");
 
-// Helper function to decode token safely
 const getDecodedUser = (t) => {
   if (t) {
     try {
       const decoded = jwtDecode(t);
-      // Ensure plan object exists
       decoded.plan = decoded.plan || null;
       return decoded;
     } catch (error) {
@@ -38,12 +36,18 @@ const authSlice = createSlice({
 
       try {
         const decoded = jwtDecode(accessToken);
-        decoded.plan = decoded.plan || null; // ensure plan exists
+        decoded.plan = decoded.plan || null;
         state.user = decoded;
       } catch (error) {
         console.error("Failed to decode token after login:", error);
         state.user = null;
       }
+    },
+    // ✅ New Reducer to update user data manually (Verification, Plan changes, etc.)
+    setCredentials: (state, action) => {
+      const { user, token } = action.payload;
+      if (user) state.user = user;
+      if (token) state.token = token;
     },
     logout: (state) => {
       state.token = null;
@@ -54,5 +58,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { loginSuccess, logout } = authSlice.actions;
+export const { loginSuccess, logout, setCredentials } = authSlice.actions;
 export default authSlice.reducer;

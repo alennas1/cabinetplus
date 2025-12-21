@@ -1,9 +1,20 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
+
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
-import jakarta.persistence.*;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -54,4 +65,11 @@ public class User {
     
     @Column(columnDefinition = "TEXT") // TEXT allows for longer addresses
     private String address;
+
+    // User.java
+private String emailOtp;
+private LocalDateTime emailOtpExpires;
+
+private String phoneOtp;
+private LocalDateTime phoneOtpExpires;
 }

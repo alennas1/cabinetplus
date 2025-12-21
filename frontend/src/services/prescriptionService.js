@@ -15,7 +15,7 @@ export const createPrescription = async (prescriptionData) => {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
-      },
+      },      
     });
     return response.data;
   } catch (error) {

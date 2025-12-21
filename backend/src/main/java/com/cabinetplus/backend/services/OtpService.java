@@ -40,12 +40,13 @@ public class OtpService {
 
     public void sendEmailOtp(String toEmail, String otp) {
         SimpleMailMessage message = new SimpleMailMessage();
+        // Add this line below
+        message.setFrom("cabinetplusofficiel@gmail.com"); 
         message.setTo(toEmail);
         message.setSubject("Votre code CabinetPlus");
         message.setText("Votre code de vérification est : " + otp);
         mailSender.send(message);
     }
-
     public void sendSmsOtp(String toPhoneNumber, String otp) {
         Message.creator(
             new PhoneNumber(toPhoneNumber),

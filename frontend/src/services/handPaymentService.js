@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "${import.meta.env.VITE_API_URL}/api/hand-payments";
+const API_URL = "https://cabinetplus-production.up.railway.app/api/hand-payments";
 
 /**
  * Get ALL hand payments (ADMIN only)

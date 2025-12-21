@@ -1,7 +1,7 @@
 // src/services/itemDefaultService.js
 import axios from "axios";
 
-const API_URL = "${import.meta.env.VITE_API_URL}/api/item-defaults";
+const API_URL = "https://cabinetplus-production.up.railway.app/api/item-defaults";
 
 export const getItemDefaults = async (token) => {
   const response = await axios.get(API_URL, {

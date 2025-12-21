@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Updated to the new public-facing client endpoint
-const CLIENT_API_URL = "${import.meta.env.VITE_API_URL}/api/plans";
+const CLIENT_API_URL = "https://cabinetplus-production.up.railway.app/api/plans";
 
 /**
  * Get all active plans (Client view)

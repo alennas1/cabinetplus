@@ -1,7 +1,7 @@
 // src/services/expenseService.js
 import axios from "axios";
 
-const API_URL = "${import.meta.env.VITE_API_URL}/api/expenses"; // Adjust if your backend runs elsewhere
+const API_URL = "https://cabinetplus-production.up.railway.app/api/expenses"; // Adjust if your backend runs elsewhere
 
 // Get all expenses
 export const getExpenses = async (token) => {

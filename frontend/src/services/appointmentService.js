@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "${import.meta.env.VITE_API_URL}/api/appointments";
+const API_URL = "https://cabinetplus-production.up.railway.app/api/appointments";
 
 export const getAppointments = async (token) => {
   const response = await axios.get(API_URL, {

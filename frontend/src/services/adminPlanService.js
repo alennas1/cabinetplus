@@ -1,7 +1,7 @@
 // src/services/adminPlanService.js
 import axios from "axios";
 
-const ADMIN_API_URL = "${import.meta.env.VITE_API_URL}/api/admin/plans";
+const ADMIN_API_URL = "https://cabinetplus-production.up.railway.app/api/admin/plans";
 
 /**
  * Get all active plans (admin view)

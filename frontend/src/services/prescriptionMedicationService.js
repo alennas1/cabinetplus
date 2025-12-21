@@ -1,7 +1,7 @@
 // src/services/prescriptionMedicationService.js
 import axios from "axios";
 
-const API_URL = "${import.meta.env.VITE_API_URL}/api/prescription-medications";
+const API_URL = "https://cabinetplus-production.up.railway.app/api/prescription-medications";
 
 // Get all prescription medications
 export const getAllPrescriptionMedications = async (token) => {

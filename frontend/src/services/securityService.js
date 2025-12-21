@@ -2,7 +2,7 @@ import axios from "axios";
 
 export const updatePassword = async (data, token) => {
   const response = await axios.put(
-    "${import.meta.env.VITE_API_URL}/api/users/me/password",
+    "https://cabinetplus-production.up.railway.app/api/users/me/password",
     data,
     {
       headers: {

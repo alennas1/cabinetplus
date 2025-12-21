@@ -1,7 +1,7 @@
 // src/services/medicationService.js
 import axios from "axios";
 
-const API_URL = "${import.meta.env.VITE_API_URL}/api/medications";
+const API_URL = "https://cabinetplus-production.up.railway.app/api/medications";
 
 export const getMedications = async (token) => {
   const response = await axios.get(API_URL, {

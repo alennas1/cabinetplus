@@ -1,4 +1,4 @@
-const API_BASE = "${import.meta.env.VITE_API_URL}/api/users";
+const API_BASE = "https://cabinetplus-production.up.railway.app/api/users";
 
 // ==========================
 // HELPER

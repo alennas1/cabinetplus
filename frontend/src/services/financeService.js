@@ -1,7 +1,7 @@
 // src/services/financeService.js
 import axios from "axios";
 
-const API_URL = "${import.meta.env.VITE_API_URL}/api/finance"; // Adjust if your backend runs elsewhere
+const API_URL = "https://cabinetplus-production.up.railway.app/api/finance"; // Adjust if your backend runs elsewhere
 
 // Helper to get token (from localStorage or wherever you store it)
 const getToken = () => localStorage.getItem("token");

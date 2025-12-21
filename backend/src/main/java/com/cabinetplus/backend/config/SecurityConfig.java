@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.config;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.context.annotation.Bean;
@@ -38,43 +39,37 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
-                // PUBLIC ENDPOINTS (No login required)
+                // 1. PUBLIC ENDPOINTS
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/verify/**").permitAll() // Added this to allow OTP/Email verification
+                .requestMatchers("/api/verify/**").permitAll() // KEPT FOR PHONE VERIFICATION
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // ADMIN-ONLY HAND PAYMENT ENDPOINTS
+                // 2. ADMIN-ONLY ENDPOINTS
                 .requestMatchers(
                     "/api/hand-payments/all",
                     "/api/hand-payments/pending",
                     "/api/hand-payments/confirm/**",
-                    "/api/hand-payments/reject/**"
+                    "/api/hand-payments/reject/**",
+                    "/api/users/dentists",
+                    "/api/users/admins",
+                    "/admin/**"
                 ).hasRole("ADMIN")
 
-                // DENTIST OR ADMIN ENDPOINTS
+                // 3. SHARED PROTECTED ENDPOINTS (DENTIST & ADMIN)
                 .requestMatchers(
                     "/api/hand-payments/create",
-                    "/api/hand-payments/my-payments"
+                    "/api/hand-payments/my-payments",
+                    "/api/users/me/**"
                 ).hasAnyRole("DENTIST", "ADMIN")
 
-                // ADMIN-ONLY USER MANAGEMENT
-                .requestMatchers(
-                    "/api/users/dentists",
-                    "/api/users/admins"
-                ).hasRole("ADMIN")
-
-                // PROTECTED API ENDPOINTS (Requires Login)
+                // 4. GENERAL API PROTECTION
                 .requestMatchers("/api/**").hasAnyRole("DENTIST", "ADMIN")
-
-                // ADMIN PANEL
-                .requestMatchers("/admin/**").hasRole("ADMIN")
 
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        // Add our JWT Filter
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -102,18 +97,23 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        configuration.setAllowedOriginPatterns(List.of(
+        // Use explicit origins for your live domains
+        configuration.setAllowedOrigins(List.of(
             "http://localhost:5173",
             "http://localhost:3000",
             "https://cabinetplusdz.com",
             "https://www.cabinetplusdz.com",
-            "https://cabinetplus.vercel.app", // Added your specific Vercel URL
-            "https://*.vercel.app" 
+            "https://cabinetplus.vercel.app"
         ));
         
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Use pattern for Vercel dynamic preview branches
+        configuration.setAllowedOriginPatterns(List.of(
+            "https://*.vercel.app"
+        ));
+
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         
-        configuration.setAllowedHeaders(List.of(
+        configuration.setAllowedHeaders(Arrays.asList(
             "Authorization", 
             "Content-Type", 
             "X-Requested-With", 
@@ -124,7 +124,8 @@ public class SecurityConfig {
         ));
         
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Set-Cookie"));
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

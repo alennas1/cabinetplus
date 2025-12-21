@@ -36,14 +36,13 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
+            // Enable CORS with our custom source
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // --------------------------
                 // ADMIN-ONLY HAND PAYMENT ENDPOINTS
-                // --------------------------
                 .requestMatchers(
                     "/api/hand-payments/all",
                     "/api/hand-payments/pending",
@@ -51,21 +50,14 @@ public class SecurityConfig {
                     "/api/hand-payments/reject/**"
                 ).hasRole("ADMIN")
 
-                // --------------------------
                 // DENTIST OR ADMIN ENDPOINTS
-                // --------------------------
-
                 .requestMatchers("/api/public/**").permitAll() 
-
-
                 .requestMatchers(
                     "/api/hand-payments/create",
                     "/api/hand-payments/my-payments"
                 ).hasAnyRole("DENTIST", "ADMIN")
 
-                // --------------------------
                 // ADMIN-ONLY USER MANAGEMENT
-                // --------------------------
                 .requestMatchers(
                     "/api/users/dentists",
                     "/api/users/admins"
@@ -77,7 +69,6 @@ public class SecurityConfig {
                 // admin panel endpoints
                 .requestMatchers("/admin/**").hasRole("ADMIN")
 
-                // everything else requires authentication
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
@@ -106,26 +97,36 @@ public class SecurityConfig {
     }
 
     @Bean
-public CorsConfigurationSource corsConfigurationSource() {
-    CorsConfiguration configuration = new CorsConfiguration();
-    
-    // Add all URLs that are allowed to talk to your backend
-    configuration.setAllowedOrigins(List.of(
-        "http://localhost:5173",          // Local React (Vite)
-        "http://localhost:3000",          // Local React (CRA)
-        "https://cabinetplusdz.com",      // Your future domain
-        "https://www.cabinetplusdz.com",  // Your future domain
-        "https://*.vercel.app"            // Allows all Vercel deployments
-    ));
-    
-    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-    configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
-    configuration.setAllowCredentials(true);
-    // Important: Expose headers if you need to read JWT from headers in React
-    configuration.setExposedHeaders(List.of("Authorization"));
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        
+        // Use setAllowedOriginPatterns to allow wildcards with credentials
+        configuration.setAllowedOriginPatterns(List.of(
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://cabinetplusdz.com",
+            "https://www.cabinetplusdz.com",
+            "https://*.vercel.app" // Correctly matches all Vercel subdomains
+        ));
+        
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        
+        // Updated headers to be more inclusive for Axios/JWT
+        configuration.setAllowedHeaders(List.of(
+            "Authorization", 
+            "Content-Type", 
+            "X-Requested-With", 
+            "Accept", 
+            "Origin", 
+            "Access-Control-Request-Method", 
+            "Access-Control-Request-Headers"
+        ));
+        
+        configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(List.of("Authorization"));
 
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", configuration);
-    return source;
-}
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 }

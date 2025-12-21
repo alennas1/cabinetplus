@@ -5,11 +5,11 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Random;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
@@ -18,6 +18,8 @@ import com.cabinetplus.backend.services.OtpService;
 @RestController
 @RequestMapping("/api/verify")
 public class VerificationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(VerificationController.class);
 
     private final UserRepository userRepo;
     private final OtpService otpService;
@@ -30,31 +32,40 @@ public class VerificationController {
     // --- 1. SEND EMAIL OTP ---
     @PostMapping("/email/send")
     public ResponseEntity<?> sendEmailOtp(Principal principal) {
+        logger.info("Request received: /api/verify/email/send");
         User user = getUser(principal);
-        
-        // Generate random 6-digit code
-        String otp = String.format("%06d", new Random().nextInt(999999));
-        
-        user.setEmailOtp(otp);
-        user.setEmailOtpExpires(LocalDateTime.now().plusMinutes(15));
-        userRepo.save(user);
+        if (user == null) return unauthorizedResponse();
 
-        otpService.sendEmailOtp(user.getEmail(), otp);
-        return ResponseEntity.ok(Map.of("message", "Code email envoyé !"));
+        try {
+            String otp = String.format("%06d", new Random().nextInt(999999));
+            user.setEmailOtp(otp);
+            user.setEmailOtpExpires(LocalDateTime.now().plusMinutes(15));
+            userRepo.save(user);
+
+            logger.info("Attempting to send email OTP to: {}", user.getEmail());
+            otpService.sendEmailOtp(user.getEmail(), otp);
+            
+            return ResponseEntity.ok(Map.of("message", "Code email envoyé !"));
+        } catch (Exception e) {
+            logger.error("Error sending email OTP: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Erreur service email: " + e.getMessage()));
+        }
     }
 
     // --- 2. CHECK EMAIL OTP ---
     @PostMapping("/email/check")
     public ResponseEntity<?> checkEmailOtp(Principal principal, @RequestBody Map<String, String> body) {
         User user = getUser(principal);
-        String code = body.get("code");
+        if (user == null) return unauthorizedResponse();
 
+        String code = body.get("code");
         if (user.getEmailOtp() != null && 
             user.getEmailOtp().equals(code) && 
             user.getEmailOtpExpires().isAfter(LocalDateTime.now())) {
             
             user.setEmailVerified(true);
-            user.setEmailOtp(null); // Clear after success
+            user.setEmailOtp(null);
             userRepo.save(user);
             return ResponseEntity.ok(Map.of("verified", true));
         }
@@ -62,64 +73,43 @@ public class VerificationController {
     }
 
     // --- 3. SEND PHONE OTP ---
-    // --- 3. SEND PHONE OTP ---
-@PostMapping("/phone/send")
-public ResponseEntity<?> sendPhoneOtp(Principal principal) {
-    User user = getUser(principal);
-    
-    // 1. Get the raw number from the user object
-    String rawNumber = user.getPhoneNumber();
-    
-    // 2. Format it to E.164 (e.g., +213...)
-    String formattedNumber = formatPhoneNumber(rawNumber);
-    
-    if (formattedNumber == null) {
-        return ResponseEntity.badRequest().body(Map.of("message", "Format de numéro invalide. Utilisez 05, 06 ou 07..."));
+    @PostMapping("/phone/send")
+    public ResponseEntity<?> sendPhoneOtp(Principal principal) {
+        logger.info("Request received: /api/verify/phone/send");
+        User user = getUser(principal);
+        if (user == null) return unauthorizedResponse();
+
+        String rawNumber = user.getPhoneNumber();
+        String formattedNumber = formatPhoneNumber(rawNumber);
+        
+        if (formattedNumber == null || formattedNumber.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Numéro de téléphone invalide ou manquant."));
+        }
+
+        try {
+            String otp = String.format("%06d", new Random().nextInt(999999));
+            user.setPhoneOtp(otp);
+            user.setPhoneOtpExpires(LocalDateTime.now().plusMinutes(15));
+            userRepo.save(user);
+
+            logger.info("Attempting to send SMS OTP to formatted number: {}", formattedNumber);
+            otpService.sendSmsOtp(formattedNumber, otp);
+            
+            return ResponseEntity.ok(Map.of("message", "Code SMS envoyé au " + formattedNumber));
+        } catch (Exception e) {
+            logger.error("Error sending SMS OTP: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Erreur service SMS: " + e.getMessage()));
+        }
     }
-
-    String otp = String.format("%06d", new Random().nextInt(999999));
-    
-    user.setPhoneOtp(otp);
-    user.setPhoneOtpExpires(LocalDateTime.now().plusMinutes(15));
-    userRepo.save(user);
-
-    // 3. Send using the clean, formatted number
-    otpService.sendSmsOtp(formattedNumber, otp);
-    
-    return ResponseEntity.ok(Map.of("message", "Code SMS envoyé au " + formattedNumber));
-}
-
-/**
- * Helper to convert local Algerian numbers to Twilio-friendly E.164 format.
- * Adjust the "+213" if you are testing with numbers from another country.
- */
-private String formatPhoneNumber(String number) {
-    if (number == null) return null;
-    
-    // Remove all spaces, dots, or dashes
-    String clean = number.replaceAll("[^0-9+]", "");
-
-    // If already starts with +, assume it's correct
-    if (clean.startsWith("+")) return clean;
-
-    // If starts with 00, replace with +
-    if (clean.startsWith("00")) return "+" + clean.substring(2);
-
-    // If starts with 0 and is likely a local Algerian number (10 digits)
-    if (clean.startsWith("0") && clean.length() == 10) {
-        return "+213" + clean.substring(1);
-    }
-
-    // Return as is if we don't recognize the pattern, but Twilio might still fail
-    return clean;
-}
 
     // --- 4. CHECK PHONE OTP ---
     @PostMapping("/phone/check")
     public ResponseEntity<?> checkPhoneOtp(Principal principal, @RequestBody Map<String, String> body) {
         User user = getUser(principal);
-        String code = body.get("code");
+        if (user == null) return unauthorizedResponse();
 
+        String code = body.get("code");
         if (user.getPhoneOtp() != null && 
             user.getPhoneOtp().equals(code) && 
             user.getPhoneOtpExpires().isAfter(LocalDateTime.now())) {
@@ -132,8 +122,35 @@ private String formatPhoneNumber(String number) {
         return ResponseEntity.badRequest().body(Map.of("message", "Code SMS invalide"));
     }
 
+    // --- HELPER METHODS ---
+
+    private String formatPhoneNumber(String number) {
+        if (number == null || number.isBlank()) return null;
+        String clean = number.replaceAll("[^0-9]", "");
+
+        // Algeria formatting logic
+        if (clean.startsWith("0") && clean.length() == 10) {
+            return "+213" + clean.substring(1);
+        }
+        if (clean.startsWith("213") && clean.length() == 12) {
+            return "+" + clean;
+        }
+        if (clean.length() >= 10) {
+            return "+" + clean;
+        }
+        return null;
+    }
+
     private User getUser(Principal principal) {
-        return userRepo.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+        if (principal == null) {
+            logger.warn("Principal is null - user not authenticated");
+            return null;
+        }
+        return userRepo.findByUsername(principal.getName()).orElse(null);
+    }
+
+    private ResponseEntity<?> unauthorizedResponse() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("message", "Session expirée. Veuillez vous reconnecter."));
     }
 }

@@ -1,7 +1,7 @@
 // src/services/workingHoursService.js
 import axios from "axios";
 
-const API_URL = "${process.env.REACT_APP_API_URL}/api/working-hours"; // adjust if needed
+const API_URL = "${import.meta.env.VITE_API_URL}/api/working-hours"; // adjust if needed
 
 // --- Get all working hours for a specific employee
 export const getWorkingHours = async (employeeId, token) => {

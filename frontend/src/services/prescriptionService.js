@@ -1,7 +1,7 @@
 // src/services/prescriptionService.js
 import axios from "axios";
 
-const API_URL = "${process.env.REACT_APP_API_URL}/api/prescriptions";
+const API_URL = "${import.meta.env.VITE_API_URL}/api/prescriptions";
 
 const getAuthHeader = () => {
   const token = localStorage.getItem("token");

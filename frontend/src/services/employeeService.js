@@ -1,7 +1,7 @@
 // src/services/employeeService.js
 import axios from "axios";
 
-const API_URL = "${process.env.REACT_APP_API_URL}/api/employees";
+const API_URL = "${import.meta.env.VITE_API_URL}/api/employees";
 
 // 🔹 Create employee
 export const createEmployee = async (data, token) => {

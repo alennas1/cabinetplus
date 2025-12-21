@@ -34,7 +34,6 @@ public class JwtUtil {
     return Jwts.builder()
             .setSubject(user.getUsername())
             .claim("role", user.getRole().name())
-            .claim("isEmailVerified", user.isEmailVerified())
             .claim("isPhoneVerified", user.isPhoneVerified())
             .claim("planStatus", 
                    user.getRole() == UserRole.ADMIN 

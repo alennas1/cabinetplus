@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { LogOut, CheckCircle, XCircle } from "react-feather";
 import { useNavigate } from "react-router-dom";
-import { logout, setCredentials } from "../store/authSlice"; // Added setCredentials to update user state
-import api from "../services/authService"; // Ensure this points to your axios instance
+import { logout, setCredentials } from "../store/authSlice"; 
+import api from "../services/authService"; 
 import "./Verify.css"; 
 
 const VerificationPage = () => {
@@ -12,54 +12,20 @@ const VerificationPage = () => {
     const { user, token } = useSelector((state) => state.auth);
 
     // --- Local State for UI Toggles ---
-    const [emailCodeSent, setEmailCodeSent] = useState(false);
     const [phoneCodeSent, setPhoneCodeSent] = useState(false);
-    const [emailCode, setEmailCode] = useState("");
     const [phoneCode, setPhoneCode] = useState("");
     const [loading, setLoading] = useState(false);
 
-    // --- Status Checks ---
-    const isEmailVerified = user?.isEmailVerified;
+    // --- Status Checks (Email removed) ---
     const isPhoneVerified = user?.isPhoneVerified;
-    const needsEmailVerification = !isEmailVerified;
     const needsPhoneVerification = !isPhoneVerified;
     
-    const isFullyVerified = !needsEmailVerification && !needsPhoneVerification;
+    // Fully verified now only depends on the phone
+    const isFullyVerified = isPhoneVerified;
 
     const getStatusText = (isVerified) => isVerified ? "✅ Vérifié" : "⏳ En attente";
 
     // --- API Logic ---
-
-    const handleSendEmailCode = async () => {
-        setLoading(true);
-        try {
-            await api.post("/api/verify/email/send");
-            setEmailCodeSent(true);
-            alert("Un code a été envoyé à votre adresse email.");
-        } catch (err) {
-            alert("Erreur lors de l'envoi de l'email. Réessayez plus tard.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleSubmitEmailCode = async () => {
-        if (!emailCode) return alert("Veuillez entrer le code.");
-        setLoading(true);
-        try {
-            const response = await api.post("/api/verify/email/check", { code: emailCode });
-            if (response.data.verified) {
-                // Update Redux state so the checkmark appears immediately
-                const updatedUser = { ...user, isEmailVerified: true };
-                dispatch(setCredentials({ user: updatedUser, token }));
-                alert("Email vérifié !");
-            }
-        } catch (err) {
-            alert("Code incorrect ou expiré.");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleSendPhoneCode = async () => {
         setLoading(true);
@@ -80,6 +46,7 @@ const VerificationPage = () => {
         try {
             const response = await api.post("/api/verify/phone/check", { code: phoneCode });
             if (response.data.verified) {
+                // Update Redux state immediately
                 const updatedUser = { ...user, isPhoneVerified: true };
                 dispatch(setCredentials({ user: updatedUser, token }));
                 alert("Téléphone vérifié !");
@@ -108,37 +75,10 @@ const VerificationPage = () => {
                 <h2>Action Requise : Vérification</h2>
                 
                 <p style={{ color: '#555', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                    Veuillez compléter les étapes suivantes pour accéder à l'application.
+                    Veuillez confirmer votre numéro de téléphone pour accéder à votre cabinet.
                 </p>
 
                 <div className="auth-form" style={{ gap: '0.5rem' }}>
-
-                    {/* --- Email Verification Section --- */}
-                    <div className="verification-step-box"> 
-                        <p className="verification-status-row">
-                            <span>Vérification E-mail:</span>
-                            <span>{getStatusText(isEmailVerified)}</span>
-                        </p>
-                        {needsEmailVerification && (
-                            <div className="verification-action-group">
-                                {emailCodeSent && (
-                                    <input
-                                        type="text"
-                                        placeholder="Entrez le code"
-                                        value={emailCode}
-                                        onChange={(e) => setEmailCode(e.target.value)}
-                                    />
-                                )}
-                                <button
-                                    className="auth-form-button"
-                                    disabled={loading}
-                                    onClick={emailCodeSent ? handleSubmitEmailCode : handleSendEmailCode}
-                                >
-                                    {loading ? 'Chargement...' : emailCodeSent ? 'Soumettre le code' : 'Envoyer le code'}
-                                </button>
-                            </div>
-                        )}
-                    </div>
 
                     {/* --- Phone Verification Section --- */}
                     <div className="verification-step-box">

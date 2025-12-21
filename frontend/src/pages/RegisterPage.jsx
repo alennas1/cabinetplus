@@ -3,18 +3,17 @@ import { register, login } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { loginSuccess } from "../store/authSlice";
-import { jwtDecode } from "jwt-decode"; // <-- Import jwtDecode
+import { jwtDecode } from "jwt-decode";
 import "./Register.css";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    role: "DENTIST",  // automatically set
+    role: "DENTIST",
     firstname: "",
     lastname: "",
-    email: "",
-    phoneNumber: "",
+    phoneNumber: "", // Email removed
   });
 
   const [errors, setErrors] = useState({});
@@ -24,7 +23,6 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // Redirect if already logged in (This logic is fine for pre-login checks)
   useEffect(() => {
     if (isAuthenticated) navigate("/dashboard", { replace: true });
   }, [isAuthenticated, navigate]);
@@ -43,51 +41,37 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
-      // 1️⃣ Register user
       await register(formData);
-
-      // 2️⃣ Auto-login after registration
       const { accessToken } = await login(formData.username, formData.password);
       
-      // 3️⃣ Decode JWT to get required user claims
       const userClaims = jwtDecode(accessToken);
       const { 
-        isEmailVerified, 
-        isPhoneVerified, 
+        isPhoneVerified, // isEmailVerified removed
         planStatus, 
         plan, 
         role,
       } = userClaims;
       
-      const isVerified = isEmailVerified && isPhoneVerified;
+      // Verification now only depends on Phone
+      const isVerified = isPhoneVerified;
 
-      // 4️⃣ Dispatch loginSuccess (stores token and user claims)
       dispatch(loginSuccess(accessToken));
 
-      // 5️⃣ Determine Redirection Path based on the claims
-
-      // ADMINs go straight to their dashboard (Assuming ADMIN registration is separate or handled differently)
       if (role === "ADMIN") {
         navigate("/admin-dashboard", { replace: true });
         return;
       }
       
-      // DENTIST Redirection Logic
-      
-      // A. Check for verification first
       if (!isVerified) {
         navigate("/verify", { replace: true });
         return;
       }
       
-      // B. If verified, check plan status
       switch (planStatus) {
         case "ACTIVE":
-          // If active and has a valid plan, go to dashboard
           if (plan && ["FREE_TRIAL", "BASIC", "PRO"].includes(plan.code.toUpperCase())) {
             navigate("/dashboard", { replace: true });
           } else {
-            // Should theoretically not happen for a new user, but directs to plan page as a safeguard
             navigate("/plan", { replace: true });
           }
           break;
@@ -95,19 +79,16 @@ const RegisterPage = () => {
         case "WAITING":
         case "INACTIVE":
         default:
-          // New registered users will likely have PENDING/INACTIVE/null plan status and are directed to select a plan
           navigate("/plan", { replace: true });
           break;
       }
       
     } catch (error) {
       if (error.response && error.response.data) {
-        // Handle backend field errors (username already exists, invalid email format, etc.)
         const errorData = error.response.data;
         if (typeof errorData === 'object' && errorData !== null) {
              setErrors(error.response.data);
         } else {
-             // Handle generic message if not field-specific
              alert(errorData.message || "Erreur inconnue lors de l'inscription");
         }
       } else {
@@ -175,16 +156,6 @@ const RegisterPage = () => {
               {errors.lastname && <p className="error-text">{errors.lastname}</p>}
             </div>
           </div>
-
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={handleChange}
-            disabled={loading}
-          />
-          {errors.email && <p className="error-text">{errors.email}</p>}
 
           <input
             type="tel"

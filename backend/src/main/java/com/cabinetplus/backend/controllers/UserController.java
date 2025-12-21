@@ -122,7 +122,6 @@ public class UserController {
 
         if (updates.containsKey("firstname")) user.setFirstname((String) updates.get("firstname"));
         if (updates.containsKey("lastname")) user.setLastname((String) updates.get("lastname"));
-        if (updates.containsKey("email")) user.setEmail((String) updates.get("email"));
         if (updates.containsKey("phoneNumber")) user.setPhoneNumber((String) updates.get("phoneNumber"));
         if (updates.containsKey("clinicName")) user.setClinicName((String) updates.get("clinicName"));
         if (updates.containsKey("address")) user.setAddress((String) updates.get("address"));
@@ -153,14 +152,7 @@ public class UserController {
     // ===============================
     // EMAIL + PHONE VERIFICATION
     // ===============================
-    @PutMapping("/me/verify-email")
-    public User verifyEmail(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
-        User user = userService.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        user.setEmailVerified(true); // ensure default value
-        return userService.save(user);
-    }
+ 
 
     @PutMapping("/me/verify-phone")
 public User verifyPhone(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
@@ -246,10 +238,6 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
             throw new RuntimeException("Only super-admin can create another super-admin");
         }
 
-        // Fill default required fields
-        if (newAdmin.getUsername() == null || newAdmin.getUsername().isBlank()) {
-            newAdmin.setUsername(newAdmin.getEmail() != null ? newAdmin.getEmail().split("@")[0] : newAdmin.getFirstname().toLowerCase());
-        }
         if (newAdmin.getPasswordHash() == null || newAdmin.getPasswordHash().isBlank()) {
             newAdmin.setPasswordHash(passwordEncoder.encode("DefaultPassword123!"));
         }
@@ -257,7 +245,6 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         newAdmin.setRole(UserRole.ADMIN);
         newAdmin.setCreatedAt(LocalDateTime.now());
         newAdmin.setPlanStatus(UserPlanStatus.PENDING);
-        newAdmin.setEmailVerified(false);
         newAdmin.setPhoneVerified(false);
 
         User saved = userService.createAdmin(currentUser, newAdmin);
@@ -279,7 +266,6 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                 saved.getUsername(),
                 saved.getFirstname(),
                 saved.getLastname(),
-                saved.getEmail(),
                 saved.getPhoneNumber(),
                 saved.getRole().name()
         );

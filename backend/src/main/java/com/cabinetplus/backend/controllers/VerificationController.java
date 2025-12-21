@@ -9,7 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
@@ -27,49 +30,6 @@ public class VerificationController {
     public VerificationController(UserRepository userRepo, OtpService otpService) {
         this.userRepo = userRepo;
         this.otpService = otpService;
-    }
-
-    // --- 1. SEND EMAIL OTP ---
-    @PostMapping("/email/send")
-    public ResponseEntity<?> sendEmailOtp(Principal principal) {
-        logger.info("Request received: /api/verify/email/send");
-        User user = getUser(principal);
-        if (user == null) return unauthorizedResponse();
-
-        try {
-            String otp = String.format("%06d", new Random().nextInt(999999));
-            user.setEmailOtp(otp);
-            user.setEmailOtpExpires(LocalDateTime.now().plusMinutes(15));
-            userRepo.save(user);
-
-            logger.info("Attempting to send email OTP to: {}", user.getEmail());
-            otpService.sendEmailOtp(user.getEmail(), otp);
-            
-            return ResponseEntity.ok(Map.of("message", "Code email envoyé !"));
-        } catch (Exception e) {
-            logger.error("Error sending email OTP: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("message", "Erreur service email: " + e.getMessage()));
-        }
-    }
-
-    // --- 2. CHECK EMAIL OTP ---
-    @PostMapping("/email/check")
-    public ResponseEntity<?> checkEmailOtp(Principal principal, @RequestBody Map<String, String> body) {
-        User user = getUser(principal);
-        if (user == null) return unauthorizedResponse();
-
-        String code = body.get("code");
-        if (user.getEmailOtp() != null && 
-            user.getEmailOtp().equals(code) && 
-            user.getEmailOtpExpires().isAfter(LocalDateTime.now())) {
-            
-            user.setEmailVerified(true);
-            user.setEmailOtp(null);
-            userRepo.save(user);
-            return ResponseEntity.ok(Map.of("verified", true));
-        }
-        return ResponseEntity.badRequest().body(Map.of("message", "Code invalide ou expiré"));
     }
 
     // --- 3. SEND PHONE OTP ---

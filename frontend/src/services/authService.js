@@ -22,7 +22,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Fix: Only retry if it's a 401 and NOT the refresh request itself failing
+    // Only retry if it's a 401 and NOT the refresh request itself failing
     if (
       error.response?.status === 401 && 
       !originalRequest._retry &&
@@ -31,7 +31,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Use the base axios (not 'api' instance) to avoid infinite loops
+        // Use the base axios to avoid infinite loops
         const { data } = await axios.post(
           `${API_URL}/auth/refresh`,
           {},
@@ -54,21 +54,46 @@ api.interceptors.response.use(
   }
 );
 
-// --- Auth Requests (Cleaned up to use relative paths) ---
+// --- Auth Requests ---
+
 export const login = async (username, password) => {
-  // api.post automatically prepends API_URL
   const response = await api.post("/auth/login", { username, password });
   localStorage.setItem("token", response.data.accessToken);
   return response.data;
 };
 
+/**
+ * Register a new user. 
+ * Note: userData now only contains username, password, firstname, lastname, and phoneNumber.
+ */
 export const register = async (userData) => {
   const response = await api.post("/auth/register", userData);
   return response.data;
 };
 
+/**
+ * Fetches the current user profile.
+ * The backend response for this should no longer include an 'email' field.
+ */
 export const getCurrentUser = async () => {
   const response = await api.get("/api/users/me");
+  return response.data;
+};
+
+/**
+ * OPTIONAL: Helper for Phone Verification
+ * Use this to verify the phone OTP.
+ */
+export const verifyPhone = async (otp) => {
+  const response = await api.post("/auth/verify-phone", { otp });
+  return response.data;
+};
+
+/**
+ * OPTIONAL: Helper to resend Phone OTP
+ */
+export const resendPhoneOtp = async (phoneNumber) => {
+  const response = await api.post("/auth/resend-phone-otp", { phoneNumber });
   return response.data;
 };
 

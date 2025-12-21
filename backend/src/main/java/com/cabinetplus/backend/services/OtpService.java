@@ -1,13 +1,12 @@
 package com.cabinetplus.backend.services;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import com.twilio.Twilio;
-import com.twilio.rest.api.v2010.account.Message; // THIS MUST BE HERE
-import com.twilio.type.PhoneNumber;
+import com.twilio.rest.api.v2010.account.Message;
+import com.twilio.type.PhoneNumber; // THIS MUST BE HERE
 
 import jakarta.annotation.PostConstruct;
 
@@ -38,15 +37,7 @@ public class OtpService {
         }
     }
 
-    public void sendEmailOtp(String toEmail, String otp) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        // Add this line below
-        message.setFrom("cabinetplusofficiel@gmail.com"); 
-        message.setTo(toEmail);
-        message.setSubject("Votre code CabinetPlus");
-        message.setText("Votre code de vérification est : " + otp);
-        mailSender.send(message);
-    }
+    
     public void sendSmsOtp(String toPhoneNumber, String otp) {
         Message.creator(
             new PhoneNumber(toPhoneNumber),

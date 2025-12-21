@@ -50,16 +50,13 @@ import "./index.css";
 function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth); 
 
-  // Centralized redirection logic for root and catch-all
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
 
-    // Detailed check for Dentists (must be synchronized with RequireAuth logic)
-    const isVerified = user.isEmailVerified && user.isPhoneVerified;
+    const isVerified = user.isPhoneVerified; // Email check removed
     if (!isVerified) return "/verify";
     
-    // If verified but not active/pending/waiting, go to plan selection
     if (user.planStatus === "WAITING") return "/waiting";
     if (user.planStatus !== "ACTIVE") return "/plan";
 
@@ -81,22 +78,15 @@ function App() {
       <SessionExpiredModal />
       <div className="app-container">
         <Routes>
-          {/* PUBLIC ROUTES */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* ---------------------------------------------------- */}
-          {/* DENTIST PROTECTED ROUTES (All dentist access is controlled here) */}
-          {/* ---------------------------------------------------- */}
           <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
-            
-            {/* 1. INTERMEDIATE PAGES (Requires Auth, but not full verification/plan) */}
             <Route path="/verify" element={<VerificationPage />} />
             <Route path="/plan" element={<PlanPage />} />
             <Route path="/waiting" element={<WaitingPage />} />
 
-            {/* 2. MAIN APP PAGES (Requires Auth AND full verification/active plan) */}
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/patients" element={<Patients />} />
@@ -120,7 +110,6 @@ function App() {
             </Route>
           </Route>
 
-          {/* ADMIN PROTECTED ROUTES */}
           <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
             <Route element={<AdminLayout />}>
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
@@ -130,13 +119,12 @@ function App() {
               <Route path="/expiring-plans" element={<ExpiringPlansPage />} />
               <Route path="/settings-admin" element={<AdminSettings />} />
               <Route path="/finance-admin" element={<AdminFinance />} />
-               <Route path="/admin/manage-admins" element={<ManageAdmins />} />
-    <Route path="/admin/change-password" element={<AdminChangePassword />} />
-    <Route path="/admin/manage-plans" element={<ManagePlans />} />
+              <Route path="/admin/manage-admins" element={<ManageAdmins />} />
+              <Route path="/admin/change-password" element={<AdminChangePassword />} />
+              <Route path="/admin/manage-plans" element={<ManagePlans />} />
             </Route>
           </Route>
 
-          {/* ROOT & CATCH-ALL */}
           <Route index element={<RootRedirect />} />
           <Route path="*" element={<CatchAllRedirect />} />
         </Routes>

@@ -5,7 +5,6 @@ public record UserDto(
     String username,
     String firstname,
     String lastname,
-    String email,
     String phoneNumber,
     String role
 ) {}

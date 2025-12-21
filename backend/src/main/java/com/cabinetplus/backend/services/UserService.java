@@ -95,10 +95,8 @@ public class UserService {
         if (newAdmin.getCreatedAt() == null) newAdmin.setCreatedAt(LocalDateTime.now());
         if (newAdmin.getPlanStatus() == null) newAdmin.setPlanStatus(UserPlanStatus.PENDING);
         if (!newAdmin.isCanDeleteAdmin()) newAdmin.setCanDeleteAdmin(false);
-        if (newAdmin.getEmail() == null) newAdmin.setEmail("");
         if (newAdmin.getFirstname() == null) newAdmin.setFirstname("");
         if (newAdmin.getLastname() == null) newAdmin.setLastname("");
-        newAdmin.setEmailVerified(false);
         newAdmin.setPhoneVerified(false);
 
         return userRepository.save(newAdmin);

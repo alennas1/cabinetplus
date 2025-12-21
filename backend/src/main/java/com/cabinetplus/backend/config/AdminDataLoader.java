@@ -26,7 +26,6 @@ public class AdminDataLoader {
                 admin.setRole(UserRole.ADMIN);
                 admin.setFirstname("Super");
                 admin.setLastname("Admin");
-                admin.setEmail("admin@cabinetplus.com");
                 admin.setPlanStatus(UserPlanStatus.ACTIVE);
                 admin.setCreatedAt(LocalDateTime.now());
                 admin.setCanDeleteAdmin(true); // Super-admin flag

@@ -7,6 +7,7 @@ const getDecodedUser = (t) => {
   if (t) {
     try {
       const decoded = jwtDecode(t);
+      // Ensure plan is handled even if missing from token
       decoded.plan = decoded.plan || null;
       return decoded;
     } catch (error) {
@@ -43,7 +44,11 @@ const authSlice = createSlice({
         state.user = null;
       }
     },
-    // ✅ New Reducer to update user data manually (Verification, Plan changes, etc.)
+    /**
+     * Updates user data manually.
+     * Use this when Phone Verification is successful to update 
+     * the 'isPhoneVerified' status in the global state.
+     */
     setCredentials: (state, action) => {
       const { user, token } = action.payload;
       if (user) state.user = user;

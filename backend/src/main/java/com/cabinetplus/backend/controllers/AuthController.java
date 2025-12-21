@@ -93,7 +93,6 @@ public class AuthController {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setFirstname(request.firstname());
         user.setLastname(request.lastname());
-        user.setEmail(request.email());
         user.setPhoneNumber(request.phoneNumber());
         user.setRole(UserRole.valueOf(request.role()));
         user.setCreatedAt(LocalDateTime.now());
@@ -110,7 +109,6 @@ public class AuthController {
                 saved.getUsername(),
                 saved.getFirstname(),
                 saved.getLastname(),
-                saved.getEmail(),
                 saved.getPhoneNumber(),
                 saved.getRole().name()
         );

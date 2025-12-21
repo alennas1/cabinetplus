@@ -40,9 +40,7 @@ public class User {
 
     private String firstname;
     private String lastname;
-    private String email;
 
-    private boolean isEmailVerified = false;
     private boolean isPhoneVerified = false;
 
     @ManyToOne
@@ -55,6 +53,9 @@ public class User {
     @Column(length = 20)
     private String phoneNumber;
 
+
+
+    private String email;
     private LocalDateTime createdAt;
     private LocalDateTime expirationDate;
 
@@ -66,9 +67,6 @@ public class User {
     @Column(columnDefinition = "TEXT") // TEXT allows for longer addresses
     private String address;
 
-    // User.java
-private String emailOtp;
-private LocalDateTime emailOtpExpires;
 
 private String phoneOtp;
 private LocalDateTime phoneOtpExpires;

@@ -135,6 +135,7 @@ useEffect(() => {
         {/* Admin Routes */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
+          <Route path="/admin-dashboard" element={<DentistsPage />} />
             <Route path="/dentists" element={<DentistsPage />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
             <Route path="/payment-history" element={<PaymentHistoryPage />} />

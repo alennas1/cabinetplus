@@ -40,12 +40,6 @@ const SidebarAdmin = () => {
         {/* --- Général Group --- */}
         <li className="sidebar-group-title">Général</li>
         <li>
-          <Link to="/admin-dashboard">
-            <Home size={20} />
-            <span className="link-text">Tableau de bord</span>
-          </Link>
-        </li>
-        <li>
           {/* Remplacé /patients par /dentists pour l'Admin */}
           <Link to="/dentists">
             <User size={20} /> 

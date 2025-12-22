@@ -27,7 +27,6 @@ import EmployeeDetails from "./pages/EmployeeDetails";
 import VerificationPage from "./pages/VerificationPage"; 
 import PlanPage from "./pages/PlanPage"; 
 import WaitingPage from "./pages/WaitingPage"; 
-import AdminDashboard from "./pages/AdminDashboard"; 
 import HandPaymentHistory from "./pages/HandPaymentHistory";
 
 // --- ADMIN PAGE Imports ---
@@ -136,7 +135,6 @@ useEffect(() => {
         {/* Admin Routes */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
-            <Route path="/admin-dashboard" element={<AdminDashboard />} />
             <Route path="/dentists" element={<DentistsPage />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
             <Route path="/payment-history" element={<PaymentHistoryPage />} />

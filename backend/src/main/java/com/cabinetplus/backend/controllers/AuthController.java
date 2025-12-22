@@ -3,7 +3,7 @@ package com.cabinetplus.backend.controllers;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-import org.springframework.http.HttpHeaders; // Used for better cookie control
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -44,14 +44,18 @@ public class AuthController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Helper method to create production-ready cookies
+    /**
+     * Helper method to create production-ready cookies.
+     * Changed path from "/auth/refresh" to "/" to ensure the browser 
+     * sends the cookie correctly during session restoration.
+     */
     private void addRefreshCookie(HttpServletResponse response, String refreshToken) {
         ResponseCookie cookie = ResponseCookie.from("refresh_token", refreshToken)
                 .httpOnly(true)
-                .secure(true)    // Required for Cross-Site on HTTPS
-                .sameSite("None") // Required for Cross-Site (Vercel to Railway)
-                .path("/auth/refresh")
-                .maxAge(7 * 24 * 60 * 60)
+                .secure(true)    // Required for Cross-Site (HTTPS)
+                .sameSite("None") // Required for Vercel -> Railway communication
+                .path("/")       // GLOBAL PATH: Critical for persistence
+                .maxAge(7 * 24 * 60 * 60) // 7 Days
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
@@ -123,7 +127,7 @@ public class AuthController {
     @PostMapping("/refresh")
     public Map<String, String> refresh(@CookieValue(name = "refresh_token", required = false) String refreshToken, HttpServletResponse response) {
         if (refreshToken == null) {
-            throw new RuntimeException("Refresh token missing");
+            return (Map<String, String>) ResponseEntity.status(401).body(Map.of("error", "Refresh token missing"));
         }
 
         if (jwtUtil.validateToken(refreshToken)) {
@@ -134,24 +138,26 @@ public class AuthController {
 
             String newAccessToken = jwtUtil.generateAccessToken(user);
             
-            // Optional: Rotate the refresh token
+            // Refresh Token Rotation: Gives the user a fresh 7 days every time they use the app
             String newRefreshToken = jwtUtil.generateRefreshToken(username);
             addRefreshCookie(response, newRefreshToken);
 
             return Map.of("accessToken", newAccessToken);
         }
+        
         throw new RuntimeException("Invalid refresh token");
     }
 
     // ---------------- LOGOUT ----------------
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
+        // Clear the cookie by setting maxAge to 0 and matching the path "/"
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("None")
-                .path("/auth/refresh")
-                .maxAge(0) // Deletes the cookie
+                .path("/") 
+                .maxAge(0) 
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
         return ResponseEntity.ok().build();

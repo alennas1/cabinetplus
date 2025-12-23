@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { setCredentials, sessionExpired } from "./store/authSlice";
-import api from "./authService"; // axios instance with interceptors
+import api from "./services/authService"; // axios instance with interceptors
 
 // --- Page Imports ---
 import LoginPage from "./pages/LoginPage";

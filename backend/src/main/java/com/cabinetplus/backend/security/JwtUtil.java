@@ -25,14 +25,13 @@ public class JwtUtil {
     // ✅ Injected from application.properties
     // This key must stay the same across server restarts
     @Value("${jwt.secret}")
-    private String secretKey;
+private String secretKey;
 
-    // Access token: 15 minutes
-    private final long accessExpirationMs = 15 * 60 * 1000;
+@Value("${jwt.access.expiration-ms}")
+private long accessExpirationMs;
 
-    // Refresh token: 7 days
-    private final long refreshExpirationMs = 7 * 24 * 60 * 60 * 1000;
-
+@Value("${jwt.refresh.expiration-ms}")
+private long refreshExpirationMs;
     /**
      * Helper to decode the Base64 secret into a HMAC Key object
      */

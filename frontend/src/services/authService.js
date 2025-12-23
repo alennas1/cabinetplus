@@ -1,5 +1,5 @@
 import axios from "axios";
-import store from "./store"; // Import your Redux store
+import store from "../store/store"; // Import your Redux store
 import { setCredentials, sessionExpired } from "./store/authSlice";
 
 const API_URL = "https://cabinetplus-production.up.railway.app";

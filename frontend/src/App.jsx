@@ -1,7 +1,9 @@
 import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { logout } from "./store/authSlice";
+import { setCredentials, sessionExpired } from "./store/authSlice";
+import { store } from "./store"; // Redux store
+import api from "./authService"; // axios instance with interceptors
 
 // --- Page Imports ---
 import LoginPage from "./pages/LoginPage";
@@ -48,40 +50,44 @@ import SessionExpiredModal from "./components/SessionExpiredModal";
 
 import "./index.css";
 
-// Separate the navigation logic into a wrapper to use hooks like useNavigate
 const AppContent = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth); 
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // --- Session Expired Listener ---
-  // This ensures that if the refresh token fails (authService catches it),
-  // the app cleans up the state and sends the user to login.
-// Inside AppContent component in App.js
-useEffect(() => {
-  const handleSessionExpired = () => {
-    // 1. Clear Redux state so RequireAuth triggers redirect
-    dispatch(sessionExpired());
-    
-    // 2. Redirect to login with a state flag to show the modal/alert
-    navigate("/login", { 
-      replace: true, 
-      state: { reason: "session_expired" } 
-    });
-  };
+  // --- Refresh token on app load ---
+  useEffect(() => {
+    const refreshOnLoad = async () => {
+      try {
+        const { data } = await api.post("/auth/refresh", {}, { withCredentials: true });
+        store.dispatch(setCredentials({ token: data.accessToken }));
+      } catch (err) {
+        store.dispatch(sessionExpired());
+      }
+    };
+    refreshOnLoad();
+  }, []);
 
-  window.addEventListener("sessionExpired", handleSessionExpired);
-  return () => window.removeEventListener("sessionExpired", handleSessionExpired);
-}, [dispatch, navigate]);
+  // --- Session Expired Listener ---
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      dispatch(sessionExpired());
+      navigate("/login", { 
+        replace: true, 
+        state: { reason: "session_expired" } 
+      });
+    };
+
+    window.addEventListener("sessionExpired", handleSessionExpired);
+    return () => window.removeEventListener("sessionExpired", handleSessionExpired);
+  }, [dispatch, navigate]);
 
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
-
     if (!user.isPhoneVerified) return "/verify";
     if (user.planStatus === "WAITING") return "/waiting";
     if (user.planStatus !== "ACTIVE") return "/plan";
-
     return "/dashboard";
   };
 
@@ -135,7 +141,7 @@ useEffect(() => {
         {/* Admin Routes */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
-          <Route path="/admin-dashboard" element={<DentistsPage />} />
+            <Route path="/admin-dashboard" element={<DentistsPage />} />
             <Route path="/dentists" element={<DentistsPage />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
             <Route path="/payment-history" element={<PaymentHistoryPage />} />

@@ -1,10 +1,12 @@
 import axios from "axios";
+import store from "./store"; // Import your Redux store
+import { setCredentials, sessionExpired } from "./store/authSlice";
 
 const API_URL = "https://cabinetplus-production.up.railway.app";
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
+  withCredentials: true, // ensures refresh token cookie is sent
 });
 
 let isRefreshing = false;
@@ -18,7 +20,7 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// 1. Request Interceptor: Now strictly checks localStorage for persistence
+// --- Request Interceptor ---
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -27,7 +29,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 2. Response Interceptor: Handle Auto-Refresh
+// --- Response Interceptor: Auto-Refresh ---
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -56,36 +58,39 @@ api.interceptors.response.use(
         );
 
         const newToken = data.accessToken;
-        localStorage.setItem("token", newToken); // Always persistent
-        
+
+        // ✅ Update Redux
+        store.dispatch(setCredentials({ token: newToken }));
+
+        // ✅ Update Axios defaults and retry original request
         api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
         originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
         processQueue(null, newToken);
-        
+
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem("token");
-        window.dispatchEvent(new Event("sessionExpired"));
+        store.dispatch(sessionExpired());
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   }
 );
 
 // --- Auth Requests ---
-
 export const login = async (username, password) => {
   const response = await api.post("/auth/login", { username, password });
   const token = response.data.accessToken;
 
-  // Always save to localStorage for permanent session
-  localStorage.setItem("token", token);
-  sessionStorage.removeItem("token"); // Cleanup any old session traces
-  
+  localStorage.setItem("token", token); // persist token
+  store.dispatch(setCredentials({ token })); // update Redux
+  sessionStorage.removeItem("token"); // cleanup
+
   return response.data;
 };
 

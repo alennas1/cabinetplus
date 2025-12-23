@@ -1,7 +1,8 @@
 import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { logout } from "./store/authSlice";
+import { logout, setCredentials, setLoading } from "./store/authSlice";
+import { getCurrentUser } from "./services/authService";
 
 // --- Page Imports ---
 import LoginPage from "./pages/LoginPage";
@@ -48,36 +49,57 @@ import SessionExpiredModal from "./components/SessionExpiredModal";
 
 import "./index.css";
 
-// Separate the navigation logic into a wrapper to use hooks like useNavigate
 const AppContent = () => {
-  const { isAuthenticated, user } = useSelector((state) => state.auth); 
+  const { isAuthenticated, user, token } = useSelector((state) => state.auth); 
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // --- Session Expired Listener ---
-  // This ensures that if the refresh token fails (authService catches it),
-  // the app cleans up the state and sends the user to login.
-// Inside AppContent component in App.js
-useEffect(() => {
-  const handleSessionExpired = () => {
-    // 1. Clear Redux state so RequireAuth triggers redirect
-    dispatch(sessionExpired());
-    
-    // 2. Redirect to login with a state flag to show the modal/alert
-    navigate("/login", { 
-      replace: true, 
-      state: { reason: "session_expired" } 
-    });
-  };
+  // --- 1. Session Initialization & Sync ---
+  // This runs once when the app loads to ensure Redux has the LATEST 
+  // data from the Database (not just the old data cached in the JWT)
+  useEffect(() => {
+    const initSession = async () => {
+      if (isAuthenticated && token) {
+        try {
+          dispatch(setLoading(true));
+          const latestUserData = await getCurrentUser();
+          // Update Redux with fresh DB data (planStatus, isPhoneVerified, etc.)
+          dispatch(setCredentials({ user: latestUserData }));
+        } catch (error) {
+          console.error("Failed to sync user session with server:", error);
+          // If 401, the interceptor will trigger "sessionExpired" event
+        } finally {
+          dispatch(setLoading(false));
+        }
+      } else {
+        dispatch(setLoading(false));
+      }
+    };
 
-  window.addEventListener("sessionExpired", handleSessionExpired);
-  return () => window.removeEventListener("sessionExpired", handleSessionExpired);
-}, [dispatch, navigate]);
+    initSession();
+  }, [dispatch]); // Run once on mount
 
+  // --- 2. Session Expired Listener ---
+  // Catches the custom event dispatched by authService.js when refresh fails
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      dispatch(logout());
+      navigate("/login", { 
+        replace: true, 
+        state: { reason: "session_expired" } 
+      });
+    };
+
+    window.addEventListener("sessionExpired", handleSessionExpired);
+    return () => window.removeEventListener("sessionExpired", handleSessionExpired);
+  }, [dispatch, navigate]);
+
+  // --- 3. Routing Helpers ---
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
 
+    // Dentist Onboarding Funnel Logic
     if (!user.isPhoneVerified) return "/verify";
     if (user.planStatus === "WAITING") return "/waiting";
     if (user.planStatus !== "ACTIVE") return "/plan";
@@ -99,21 +121,31 @@ useEffect(() => {
     <div className="app-container">
       <SessionExpiredModal />
       <Routes>
+        {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
-        {/* Dentist Routes */}
+        {/* --- DENTIST ROUTES (Protected) --- */}
         <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
+          {/* Setup/Onboarding Pages (No Sidebar Layout) */}
           <Route path="/verify" element={<VerificationPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/waiting" element={<WaitingPage />} />
 
+          {/* Main App Pages (With Sidebar Layout) */}
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/patients" element={<Patients />} />
             <Route path="/patients/:id" element={<Patient />} />
             <Route path="/appointments" element={<Appointments />} />
+            <Route path="/finance" element={<Finance />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/employees" element={<Employees />} />
+            <Route path="/employees/:id" element={<EmployeeDetails />} />
+            
+            {/* Settings Sub-routes */}
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/medications" element={<Medications />} />
             <Route path="/settings/treatments" element={<TreatmentCatalog />} />
@@ -122,20 +154,17 @@ useEffect(() => {
             <Route path="/settings/profile" element={<Profile />} />
             <Route path="/settings/security" element={<Security />} />
             <Route path="/settings/payments" element={<HandPaymentHistory />} />
-            <Route path="/finance" element={<Finance />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/expenses" element={<Expenses />} />
+            
+            {/* Patient Specific */}
             <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
             <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
-            <Route path="/employees" element={<Employees />} />
-            <Route path="/employees/:id" element={<EmployeeDetails />} />
           </Route>
         </Route>
 
-        {/* Admin Routes */}
+        {/* --- ADMIN ROUTES (Protected) --- */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
-          <Route path="/admin-dashboard" element={<DentistsPage />} />
+            <Route path="/admin-dashboard" element={<DentistsPage />} />
             <Route path="/dentists" element={<DentistsPage />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
             <Route path="/payment-history" element={<PaymentHistoryPage />} />
@@ -148,6 +177,7 @@ useEffect(() => {
           </Route>
         </Route>
 
+        {/* Redirects */}
         <Route index element={<RootRedirect />} />
         <Route path="*" element={<CatchAllRedirect />} />
       </Routes>
@@ -155,7 +185,7 @@ useEffect(() => {
   );
 };
 
-// Router must wrap AppContent so useNavigate is available
+// Router must wrap AppContent so useNavigate is available inside it
 function App() {
   return (
     <Router>

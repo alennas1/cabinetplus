@@ -2,7 +2,6 @@ import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { setCredentials, sessionExpired } from "./store/authSlice";
-import { store } from "./store"; // Redux store
 import api from "./authService"; // axios instance with interceptors
 
 // --- Page Imports ---
@@ -51,7 +50,7 @@ import SessionExpiredModal from "./components/SessionExpiredModal";
 import "./index.css";
 
 const AppContent = () => {
-  const { isAuthenticated, user } = useSelector((state) => state.auth); 
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -60,22 +59,19 @@ const AppContent = () => {
     const refreshOnLoad = async () => {
       try {
         const { data } = await api.post("/auth/refresh", {}, { withCredentials: true });
-        store.dispatch(setCredentials({ token: data.accessToken }));
-      } catch (err) {
-        store.dispatch(sessionExpired());
+        dispatch(setCredentials({ token: data.accessToken }));
+      } catch {
+        dispatch(sessionExpired());
       }
     };
     refreshOnLoad();
-  }, []);
-  //yiyo
+  }, [dispatch]);
+
   // --- Session Expired Listener ---
   useEffect(() => {
     const handleSessionExpired = () => {
       dispatch(sessionExpired());
-      navigate("/login", { 
-        replace: true, 
-        state: { reason: "session_expired" } 
-      });
+      navigate("/login", { replace: true, state: { reason: "session_expired" } });
     };
 
     window.addEventListener("sessionExpired", handleSessionExpired);
@@ -97,7 +93,7 @@ const AppContent = () => {
   };
 
   const CatchAllRedirect = () => {
-    if (!isAuthenticated) return <Navigate to="/login" replace />; 
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
     return <Navigate to={getRedirectPath(user)} replace />;
   };
 

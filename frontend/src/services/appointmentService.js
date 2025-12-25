@@ -1,8 +1,7 @@
 import axios from "axios";
 
 // Separating the Base URL from the specific resource path
-const BASE_URL = "https://cabinetplus-production.up.railway.app/api";
-const APPOINTMENTS_URL = `${BASE_URL}/appointments`;
+const APPOINTMENTS_URL = `${BASE_URL}/api/appointments`;
 
 // Helper function to generate headers
 const getHeaders = (token) => ({

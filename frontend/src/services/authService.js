@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "https://cabinetplus-production.up.railway.app";
+const API_URL = `${BASE_URL}`;
 
 const api = axios.create({
   baseURL: API_URL,

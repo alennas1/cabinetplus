@@ -1,104 +1,77 @@
 import React from "react";
-import { Clock, LogOut } from "react-feather";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { logout } from "../store/authSlice"; // Assuming this is your path
-
-// NOTE: You should create a specific CSS file (e.g., WaitingPage.css)
-// if you want to reuse styles from other components. For this example, 
-// I'll define necessary styles locally.
+import { LogOut, Clock, Coffee, ShieldCheck } from "react-feather";
+// Fix: Import logoutSuccess to match your authSlice
+import { logoutSuccess } from "../store/authSlice";
+// Import the service to clear backend cookies
+import { logout as logoutService } from "../services/authService";
+import "./Waiting.css";
 
 const WaitingPage = () => {
-    const dispatch = useDispatch();
-    const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
 
-    // --- Logout Logic ---
-    const handleLogout = () => {
-        dispatch(logout());
-        navigate("/login");
-    };
-
-    return (
-        <div style={styles.container}>
-            <div style={styles.card}>
-                <div style={styles.iconContainer}>
-                    <Clock size={48} color="#007bff" />
-                </div>
-                
-                <h1 style={styles.heading}>En attente de validation</h1>
-                <p style={styles.paragraph}>
-                    Merci d'avoir choisi votre plan. Votre accès complet sera activé
-                    dès que l’administrateur aura confirmé votre paiement.
-                </p>
-                <p style={styles.hint}>
-                    Cela ne devrait prendre que quelques instants. Veuillez réessayer de vous connecter plus tard.
-                </p>
-
-                {/* --- LOGOUT BUTTON --- */}
-                <button
-                    onClick={handleLogout}
-                    style={styles.logoutButton}
-                >
-                    <LogOut size={16} style={{ marginRight: '8px' }} />
-                    Se déconnecter
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const styles = {
-    container: {
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        width: "100%",
-        backgroundColor: "#f0f0f0",
-        fontFamily: "Arial, sans-serif",
-    },
-    card: {
-        textAlign: "center",
-        padding: "2.5rem 2rem",
-        maxWidth: "400px",
-        borderRadius: "12px",
-        backgroundColor: "#fff",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-    },
-    iconContainer: {
-        marginBottom: "1rem",
-    },
-    heading: {
-        fontSize: "1.5rem",
-        color: "#333",
-        marginBottom: "0.5rem",
-    },
-    paragraph: {
-        fontSize: "1rem",
-        color: "#555",
-        marginBottom: "1.5rem",
-    },
-    hint: {
-        fontSize: "0.85rem",
-        color: "#777",
-        marginBottom: "2rem",
-        fontStyle: "italic",
-    },
-    logoutButton: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-        padding: '0.8rem',
-        marginTop: '1rem',
-        backgroundColor: '#dc3545', // Red color for logout
-        color: 'white',
-        border: 'none',
-        borderRadius: '8px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s ease',
+  const handleLogout = async () => {
+    try {
+      // 1. Clear backend cookies
+      await logoutService();
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      // 2. Clear Redux state and redirect
+      dispatch(logoutSuccess());
+      navigate("/login");
     }
+  };
+
+  return (
+    <div className="waiting-container">
+      <div className="waiting-card">
+        <div className="waiting-icon-wrapper">
+          <Clock className="icon-clock" size={48} />
+          <Coffee className="icon-coffee" size={24} />
+        </div>
+
+        <h1>Paiement en attente de validation</h1>
+        
+        <div className="waiting-content">
+          <p>
+            Merci, <strong>{user?.firstname || user?.username}</strong>. 
+            Votre demande d'abonnement est bien reçue.
+          </p>
+          <p className="highlight">
+            Un administrateur vérifie actuellement votre paiement manuel. 
+            Dès validation, votre accès au cabinet sera activé automatiquement.
+          </p>
+        </div>
+
+        <div className="info-box">
+          <ShieldCheck size={20} />
+          <span>Cela prend généralement moins de 24 heures.</span>
+        </div>
+
+        <div className="waiting-actions">
+          <button 
+            className="refresh-btn" 
+            onClick={() => window.location.reload()}
+          >
+            Actualiser le statut
+          </button>
+          
+          <button className="logout-link" onClick={handleLogout}>
+            <LogOut size={16} /> 
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+      
+      <p className="waiting-footer">
+        Besoin d'aide ? Contactez le support technique.
+      </p>
+    </div>
+  );
 };
 
 export default WaitingPage;

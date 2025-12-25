@@ -1,8 +1,7 @@
 import axios from "axios";
 
 // Ensure BASE_URL is defined (e.g., from an env file)
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080"; 
-
+const API_URL = "https://cabinetplus-production.up.railway.app";
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true, 

@@ -1,6 +1,8 @@
 import axios from "axios";
 
 // Updated to the new public-facing client endpoint
+
+const BASE_URL = "https://cabinetplus-production.up.railway.app";
 const CLIENT_API_URL = `${BASE_URL}/api/plans`;
 /**
  * Get all active plans (Client view)

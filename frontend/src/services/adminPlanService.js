@@ -1,6 +1,8 @@
 // src/services/adminPlanService.js
 import axios from "axios";
 
+const BASE_URL = "https://cabinetplus-production.up.railway.app";
+
 const ADMIN_API_URL = `${BASE_URL}/api/admin/plans`;
 
 /**

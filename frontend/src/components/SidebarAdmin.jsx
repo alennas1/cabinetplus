@@ -3,27 +3,39 @@ import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import {
   Home,
-  User, // Nouveau: Utilisé pour 'Dentistes'
-  Users, // Utilisé pour 'Employés' ou 'Utilisateurs'
-  DollarSign, // Nouveau: Pour les paiements
-  Clock, // Nouveau: Pour les paiements en attente / plans expirants
-  List, // Nouveau: Pour l'historique des paiements
+  User,
+  Users,
+  DollarSign,
+  Clock,
+  List,
   Settings,
   LogOut,
   PlusSquare,
   BarChart2,
-  PieChart ,
+  PieChart,
 } from "react-feather";
-import { logout } from "../store/authSlice";
+// 1. Updated Import to match authSlice
+import { logoutSuccess } from "../store/authSlice";
+// 2. Import the actual logout service to clear cookies
+import { logout as logoutService } from "../services/authService";
 import "./Sidebar.css";
 
 const SidebarAdmin = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      // 1. Clear backend cookies via the API
+      await logoutService();
+    } catch (err) {
+      console.error("Erreur déconnexion admin:", err);
+    } finally {
+      // 2. Clear Redux state
+      dispatch(logoutSuccess());
+      // 3. Redirect
+      navigate("/login", { replace: true });
+    }
   };
 
   return (
@@ -40,14 +52,12 @@ const SidebarAdmin = () => {
         {/* --- Général Group --- */}
         <li className="sidebar-group-title">Général</li>
         <li>
-          {/* Remplacé /patients par /dentists pour l'Admin */}
           <Link to="/dentists">
             <User size={20} /> 
             <span className="link-text">Dentistes</span>
           </Link>
         </li>
       
-
         {/* --- Facturation & Abonnements Group --- */}
         <li className="sidebar-group-title">Facturation</li>
         
@@ -70,11 +80,12 @@ const SidebarAdmin = () => {
           </Link>
         </li>
         <li>
-  <Link to="/finance-admin">
-    <BarChart2  size={20} /> 
-    <span className="link-text">Finance</span>
-  </Link>
-</li>
+          <Link to="/finance-admin">
+            <BarChart2 size={20} /> 
+            <span className="link-text">Finance</span>
+          </Link>
+        </li>
+
         {/* --- Système Group --- */}
         <li className="sidebar-group-title">Système</li>
         

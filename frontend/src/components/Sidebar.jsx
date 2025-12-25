@@ -13,19 +13,29 @@ import {
   Package,
   UserCheck,
 } from "react-feather";
-import { logout } from "../store/authSlice";
+// 1. Updated Import to match authSlice
+import { logoutSuccess } from "../store/authSlice";
+// 2. Import the service to clear backend cookies
+import { logout as logoutService } from "../services/authService";
 import "./Sidebar.css";
 
 const Sidebar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    // 1. Clear Redux state & Browser Storage (Local + Session)
-    dispatch(logout()); 
-    //;;
-    // 2. Redirect to Login and wipe history stack
-    navigate("/login", { replace: true });
+  const handleLogout = async () => {
+    try {
+      // 1. Tell the backend to clear the HttpOnly cookies
+      await logoutService();
+    } catch (err) {
+      console.error("Erreur lors de la déconnexion:", err);
+    } finally {
+      // 2. Clear Redux state (isAuthenticated: false, user: null)
+      dispatch(logoutSuccess()); 
+      
+      // 3. Redirect to Login and wipe history stack
+      navigate("/login", { replace: true });
+    }
   };
 
   return (

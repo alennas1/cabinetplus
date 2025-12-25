@@ -55,14 +55,13 @@ const AppContent = () => {
   const navigate = useNavigate();
 
   // --- 1. Initial Session Check (Boot Logic) ---
-  // This replaces the old "Check localStorage" logic
   useEffect(() => {
     const initAuth = async () => {
       try {
         const userData = await getCurrentUser();
         dispatch(setCredentials(userData));
       } catch (err) {
-        // If /me fails, the user is not logged in or cookie is expired
+        // If /me fails, we clear state, but don't redirect yet (let the routes handle it)
         dispatch(logoutSuccess());
       } finally {
         dispatch(setLoading(false));
@@ -85,10 +84,12 @@ const AppContent = () => {
     return () => window.removeEventListener("sessionExpired", handleSessionExpired);
   }, [dispatch, navigate]);
 
+  // --- 3. Navigation Traffic Controller ---
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
 
+    // Dentist Onboarding Flow
     if (!user.isPhoneVerified) return "/verify";
     if (user.planStatus === "WAITING") return "/waiting";
     if (user.planStatus !== "ACTIVE") return "/plan";
@@ -96,33 +97,35 @@ const AppContent = () => {
     return "/dashboard";
   };
 
-  const RootRedirect = () => {
-    if (loading) return null; // Wait for initAuth
-    if (!isAuthenticated) return <Navigate to="/login" replace />;
-    return <Navigate to={getRedirectPath(user)} replace />;
-  };
-
-  const CatchAllRedirect = () => {
-    if (loading) return null;
-    if (!isAuthenticated) return <Navigate to="/login" replace />; 
-    return <Navigate to={getRedirectPath(user)} replace />;
-  };
+  // --- 4. Global Loading Spinner ---
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p className="ml-3 text-gray-600 font-medium">Chargement...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
       <SessionExpiredModal />
       <Routes>
         {/* Public Routes */}
-        <Route path="/login" element={<LoginPage />} />
+        <Route 
+          path="/login" 
+          element={isAuthenticated ? <Navigate to={getRedirectPath(user)} replace /> : <LoginPage />} 
+        />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
-        {/* Dentist Routes */}
+        {/* Protected Dentist Routes */}
         <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
           <Route path="/verify" element={<VerificationPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/waiting" element={<WaitingPage />} />
 
+          {/* Dentist App Layout */}
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/patients" element={<Patients />} />
@@ -146,7 +149,7 @@ const AppContent = () => {
           </Route>
         </Route>
 
-        {/* Admin Routes */}
+        {/* Protected Admin Routes */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
             <Route path="/admin-dashboard" element={<DentistsPage />} />
@@ -162,8 +165,9 @@ const AppContent = () => {
           </Route>
         </Route>
 
-        <Route index element={<RootRedirect />} />
-        <Route path="*" element={<CatchAllRedirect />} />
+        {/* Fallbacks */}
+        <Route path="/" element={<Navigate to={getRedirectPath(user)} replace />} />
+        <Route path="*" element={<Navigate to={getRedirectPath(user)} replace />} />
       </Routes>
     </div>
   );

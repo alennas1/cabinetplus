@@ -1,75 +1,50 @@
-// src/services/treatmentService.js
 import axios from "axios";
 
-const API_URL = "https://cabinetplus-production.up.railway.app/api/treatments";
+const API_URL = "https://cabinetplus-production.up.railway.app/api/treatment-catalog";
+
+// Create a dedicated instance for Treatment Catalog management
+const api = axios.create({
+  withCredentials: true, // Required to send the secure session cookie automatically
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
 /**
- * Get all treatments
+ * Get all treatments in the catalog
  */
-export const getAllTreatments = async (token) => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getTreatments = async () => {
+  const response = await api.get(API_URL);
   return response.data;
 };
 
 /**
- * Get treatment by ID
+ * Get a specific treatment by ID
  */
-export const getTreatmentById = async (id, token) => {
-  const response = await axios.get(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getTreatmentById = async (id) => {
+  const response = await api.get(`${API_URL}/${id}`);
   return response.data;
 };
 
 /**
- * Create a new treatment
- * treatment = { treatmentCatalog: { id }, patient: { id }, practitioner: { id }, date, price, notes }
+ * Add a new treatment to the catalog
  */
-export const createTreatment = async (treatment, token) => {
-  const response = await axios.post(API_URL, treatment, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const createTreatment = async (data) => {
+  const response = await api.post(API_URL, data);
   return response.data;
 };
 
 /**
- * Update treatment by ID
+ * Update an existing treatment
  */
-export const updateTreatment = async (id, treatment, token) => {
-  const response = await axios.put(`${API_URL}/${id}`, treatment, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const updateTreatment = async (id, data) => {
+  const response = await api.put(`${API_URL}/${id}`, data);
   return response.data;
 };
 
 /**
- * Delete treatment by ID
+ * Delete a treatment from the catalog
  */
-export const deleteTreatment = async (id, token) => {
-  const response = await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
-};
-
-/**
- * Get treatments for a specific patient
- */
-export const getTreatmentsByPatient = async (patientId, token) => {
-  const response = await axios.get(`${API_URL}/patient/${patientId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
-};
-
-/**
- * Get treatments for a specific practitioner
- */
-export const getTreatmentsByPractitioner = async (practitionerId, token) => {
-  const response = await axios.get(`${API_URL}/practitioner/${practitionerId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+export const deleteTreatment = async (id) => {
+  await api.delete(`${API_URL}/${id}`);
 };

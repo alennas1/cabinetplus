@@ -1,35 +1,42 @@
-// src/services/itemService.js
 import axios from "axios";
 
 const API_URL = "https://cabinetplus-production.up.railway.app/api/items";
 
-// Get all items (inventory)
-export const getInventoryItems = async (token) => {
-  const res = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+// Create a dedicated instance for Inventory Items
+const api = axios.create({
+  withCredentials: true, // MANDATORY: Sends secure cookies automatically
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+/**
+ * Get all items (inventory)
+ */
+export const getInventoryItems = async () => {
+  const res = await api.get(API_URL);
   return res.data;
 };
 
-// Create a new inventory item
-export const createInventoryItem = async (itemData, token) => {
-  const res = await axios.post(API_URL, itemData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Create a new inventory item
+ */
+export const createInventoryItem = async (itemData) => {
+  const res = await api.post(API_URL, itemData);
   return res.data;
 };
 
-// Update an inventory item
-export const updateInventoryItem = async (id, itemData, token) => {
-  const res = await axios.put(`${API_URL}/${id}`, itemData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Update an inventory item
+ */
+export const updateInventoryItem = async (id, itemData) => {
+  const res = await api.put(`${API_URL}/${id}`, itemData);
   return res.data;
 };
 
-// Delete an inventory item
-export const deleteInventoryItem = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Delete an inventory item
+ */
+export const deleteInventoryItem = async (id) => {
+  await api.delete(`${API_URL}/${id}`);
 };

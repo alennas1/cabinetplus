@@ -1,38 +1,50 @@
-// src/services/treatmentService.js
 import axios from "axios";
 
 const API_URL = "https://cabinetplus-production.up.railway.app/api/treatment-catalog";
 
-export const getTreatments = async (token) => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+// Create a dedicated instance for Treatment Catalog management
+const api = axios.create({
+  withCredentials: true, // Required to send the secure session cookie automatically
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+/**
+ * Get all treatments in the catalog
+ */
+export const getTreatments = async () => {
+  const response = await api.get(API_URL);
   return response.data;
 };
 
-export const getTreatmentById = async (id, token) => {
-  const response = await axios.get(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Get a specific treatment by ID
+ */
+export const getTreatmentById = async (id) => {
+  const response = await api.get(`${API_URL}/${id}`);
   return response.data;
 };
 
-export const createTreatment = async (data, token) => {
-  const response = await axios.post(API_URL, data, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Add a new treatment to the catalog
+ */
+export const createTreatment = async (data) => {
+  const response = await api.post(API_URL, data);
   return response.data;
 };
 
-export const updateTreatment = async (id, data, token) => {
-  const response = await axios.put(`${API_URL}/${id}`, data, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Update an existing treatment
+ */
+export const updateTreatment = async (id, data) => {
+  const response = await api.put(`${API_URL}/${id}`, data);
   return response.data;
 };
 
-export const deleteTreatment = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Delete a treatment from the catalog
+ */
+export const deleteTreatment = async (id) => {
+  await api.delete(`${API_URL}/${id}`);
 };

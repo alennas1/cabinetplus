@@ -1,49 +1,45 @@
-// src/services/patientService.js
 import axios from "axios";
 
 const API_URL = "https://cabinetplus-production.up.railway.app/api/patients";
 
-export const getPatients = async (token) => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+// Create a dedicated instance for Patient management
+const api = axios.create({
+  withCredentials: true, // Required to send the secure session cookie automatically
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+export const getPatients = async () => {
+  const response = await api.get(API_URL);
   return response.data;
 };
 
-export const getPatientById = async (id, token) => {
-  const response = await axios.get(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getPatientById = async (id) => {
+  const response = await api.get(`${API_URL}/${id}`);
   return response.data;
 };
 
-export const createPatient = async (patientData, token) => {
-  const response = await axios.post(API_URL, patientData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const createPatient = async (patientData) => {
+  const response = await api.post(API_URL, patientData);
   return response.data;
 };
 
-export const updatePatient = async (id, patientData, token) => {
-  const response = await axios.put(`${API_URL}/${id}`, patientData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const updatePatient = async (id, patientData) => {
+  const response = await api.put(`${API_URL}/${id}`, patientData);
   return response.data;
 };
 
-export const deletePatient = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const deletePatient = async (id) => {
+  await api.delete(`${API_URL}/${id}`);
 };
 
 // ==========================
 // PATIENT PDF GENERATION
 // ==========================
-export const downloadPatientFiche = async (id, token, lastname = "Patient") => {
+export const downloadPatientFiche = async (id, lastname = "Patient") => {
   try {
-    const response = await axios.get(`${API_URL}/${id}/fiche-pdf`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const response = await api.get(`${API_URL}/${id}/fiche-pdf`, {
       responseType: "blob", // TRÈS IMPORTANT pour les fichiers PDF
     });
 

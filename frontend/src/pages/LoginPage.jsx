@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { setCredentials } from "../store/authSlice"; // Changed from loginSuccess
-import { login } from "../services/authService";
+import { setCredentials } from "../store/authSlice";
+import { login } from "../services/authService"; // This now refers to the new cookie-based instance
 import { Link, useNavigate } from "react-router-dom";
 import "./Login.css";
 
@@ -15,7 +15,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
-  // --- Redirect Logic ---
+  // --- Unified Redirect Logic ---
   const handleRedirect = (userData) => {
     if (!userData) return;
 
@@ -46,7 +46,7 @@ const LoginPage = () => {
     }
   };
 
-  // If user is already logged in, redirect them away from login page
+  // Effect to handle already-logged-in users
   useEffect(() => {
     if (isAuthenticated && user) {
       handleRedirect(user);
@@ -59,28 +59,28 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      // 1. Call login (Backend sets cookies)
-      // 2. authService.login now returns the user object from /api/users/me
+      // 1. Service now handles the Cookie setting + fetching the user profile
       const userData = await login(username.trim(), password.trim());
 
-      // 3. Update Redux with the actual user data from the DB
+      // 2. Update Redux with User info (Cookies are handled by the browser)
       dispatch(setCredentials(userData));
 
-      // 4. Handle expired plan alert
+      // 3. Optional Alert for inactive plans
       if (userData.planStatus === "INACTIVE" && userData.expirationDate) {
         alert(`Votre offre a expiré le ${new Date(userData.expirationDate).toLocaleDateString()}`);
       }
 
-      // 5. Navigate based on the fetched user data
+      // 4. Navigate
       handleRedirect(userData);
 
     } catch (err) {
-      // Handle 401 Unauthorized or other errors
+      // 401: Wrong credentials | 400: Bad Request | Others
       if (err.response?.status === 401) {
         setError("Nom d'utilisateur ou mot de passe incorrect");
       } else {
         setError("Une erreur est survenue lors de la connexion");
       }
+      console.error("Login error:", err);
     } finally {
       setLoading(false);
     }

@@ -54,23 +54,32 @@ const AppContent = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // --- 1. Initial Session Check (Boot Logic) ---
+  /**
+   * 1. Initial Session Check (Boot Logic)
+   * This runs once when the app starts. It tries to get the current user
+   * using the HttpOnly cookie. If it fails (401/400), we stay logged out.
+   */
   useEffect(() => {
     const initAuth = async () => {
       try {
+        // This request automatically sends the session cookie
         const userData = await getCurrentUser();
         dispatch(setCredentials(userData));
       } catch (err) {
-        // If /me fails, we clear state, but don't redirect yet (let the routes handle it)
+        // We catch the error silently. It just means there's no active session.
         dispatch(logoutSuccess());
       } finally {
+        // Stop the global loading spinner
         dispatch(setLoading(false));
       }
     };
     initAuth();
   }, [dispatch]);
 
-  // --- 2. Session Expired Listener ---
+  /**
+   * 2. Session Expired Listener
+   * Listens for the "sessionExpired" event dispatched by authService's interceptor.
+   */
   useEffect(() => {
     const handleSessionExpired = () => {
       dispatch(logoutSuccess());
@@ -84,7 +93,10 @@ const AppContent = () => {
     return () => window.removeEventListener("sessionExpired", handleSessionExpired);
   }, [dispatch, navigate]);
 
-  // --- 3. Navigation Traffic Controller ---
+  /**
+   * 3. Navigation Traffic Controller
+   * Logic to determine where a user should land based on their status.
+   */
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
@@ -97,7 +109,10 @@ const AppContent = () => {
     return "/dashboard";
   };
 
-  // --- 4. Global Loading Spinner ---
+  /**
+   * 4. Global Loading Spinner
+   * Prevents "flickering" UI while we check if the user has a valid cookie.
+   */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -109,7 +124,9 @@ const AppContent = () => {
 
   return (
     <div className="app-container">
+      {/* Modal that appears when the Refresh Token fails */}
       <SessionExpiredModal />
+      
       <Routes>
         {/* Public Routes */}
         <Route 
@@ -125,7 +142,7 @@ const AppContent = () => {
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/waiting" element={<WaitingPage />} />
 
-          {/* Dentist App Layout */}
+          {/* Dentist App Layout - Content only accessible if plan is active */}
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/patients" element={<Patients />} />

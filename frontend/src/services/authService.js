@@ -1,13 +1,17 @@
 import axios from "axios";
 
-// Ensure BASE_URL is defined (e.g., from an env file)
 const API_URL = "https://cabinetplus-production.up.railway.app";
+
+/**
+ * Centralized Axios Instance
+ * Configured for HttpOnly Cookies and CSRF protection
+ */
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true, 
 });
 
-// Helper to get CSRF token from cookies
+// Helper to get CSRF token from browser cookies
 const getCsrfToken = () => {
   return document.cookie
     .split("; ")
@@ -15,17 +19,22 @@ const getCsrfToken = () => {
     ?.split("=")[1];
 };
 
-// 1. Request Interceptor: Attach CSRF token
+/**
+ * 1. REQUEST INTERCEPTOR
+ * Automatically attaches the CSRF token to POST/PUT/DELETE requests
+ */
 api.interceptors.request.use((config) => {
   const csrfToken = getCsrfToken();
-  // Spring Security expects 'X-XSRF-TOKEN' header for CSRF protection
   if (csrfToken && config.method !== "get") {
     config.headers["X-XSRF-TOKEN"] = csrfToken;
   }
   return config;
 });
 
-// 2. Response Interceptor: Auto-Refresh Logic
+/**
+ * 2. RESPONSE INTERCEPTOR
+ * Handles silent JWT refreshing and session expiration
+ */
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -41,11 +50,11 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
-    // Fix: use originalRequest.url (not _url)
     const isLoginRequest = originalRequest.url?.includes("/auth/login");
+    const isRefreshRequest = originalRequest.url?.includes("/auth/refresh");
 
-    if (error.response?.status === 401 && !originalRequest._retry && !isLoginRequest) {
+    // If 401 and it's not login/refresh, try to refresh the token
+    if (error.response?.status === 401 && !originalRequest._retry && !isLoginRequest && !isRefreshRequest) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -58,14 +67,12 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Call refresh - backend will set new access_token cookie
         await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
-        
         processQueue(null);
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        // Custom event so App.jsx can show the "Session Expired" modal
+        // Custom event to trigger "Session Expired" UI
         window.dispatchEvent(new Event("sessionExpired"));
         return Promise.reject(refreshError);
       } finally {
@@ -76,11 +83,12 @@ api.interceptors.response.use(
   }
 );
 
-// --- Auth Requests ---
+/* --- AUTHENTICATION API METHODS --- */
 
 export const login = async (username, password) => {
+  // Backend sets the access_token cookie here
   await api.post("/auth/login", { username, password });
-  // Immediately fetch profile to verify cookies and get user roles/status
+  // Immediately fetch full user details
   return await getCurrentUser();
 };
 
@@ -93,14 +101,16 @@ export const logout = async () => {
   try {
     await api.post("/auth/logout");
   } finally {
-    // Ensure Redux is cleared even if the network call fails
+    // Force redirect and clear storage to ensure a clean state
     window.location.href = "/login";
   }
 };
 
 export const getCurrentUser = async () => {
+  // This will succeed only if a valid cookie is present
   const response = await api.get("/api/users/me");
   return response.data;
 };
 
+// Export the instance for use in other services (PatientService, etc.)
 export default api;

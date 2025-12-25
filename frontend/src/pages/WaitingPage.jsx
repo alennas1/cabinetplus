@@ -1,7 +1,7 @@
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Clock, Coffee, ShieldCheck } from "react-feather";
+import { LogOut, Clock, Coffee, Shield } from "react-feather";
 // Fix: Import logoutSuccess to match your authSlice
 import { logoutSuccess } from "../store/authSlice";
 // Import the service to clear backend cookies
@@ -48,7 +48,7 @@ const WaitingPage = () => {
         </div>
 
         <div className="info-box">
-          <ShieldCheck size={20} />
+          <Shield size={20} />
           <span>Cela prend généralement moins de 24 heures.</span>
         </div>
 

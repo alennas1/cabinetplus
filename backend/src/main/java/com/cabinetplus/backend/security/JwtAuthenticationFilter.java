@@ -1,10 +1,12 @@
 package com.cabinetplus.backend.security;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -20,31 +22,16 @@ import jakarta.servlet.http.HttpServletResponse;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final CustomUserDetailsService userDetailsService;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil,
-                                   CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
-        this.userDetailsService = userDetailsService;
     }
 
     @Override
-    protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain)
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String path = request.getServletPath();
-
-        // Skip auth endpoints
-        if (path.startsWith("/auth/")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         String accessToken = null;
-
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
                 if ("access_token".equals(cookie.getName())) {
@@ -57,30 +44,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtUtil.validateAndGetClaims(accessToken);
 
-                if (!"ACCESS".equals(claims.get("tokenType"))) {
-                    filterChain.doFilter(request, response);
-                    return;
+                if ("ACCESS".equals(claims.get("tokenType"))) {
+                    String username = claims.getSubject();
+                    String role = claims.get("role", String.class);
+
+                    // Create authority list from the claim (prefix with ROLE_ for Spring Security)
+                    List<SimpleGrantedAuthority> authorities = 
+                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
+
+                    UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                            username, null, authorities);
+
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
                 }
-
-                String username = claims.getSubject();
-                UserDetails userDetails =
-                        userDetailsService.loadUserByUsername(username);
-
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-
-                auth.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-
-                SecurityContextHolder.getContext().setAuthentication(auth);
-
-            } catch (Exception ignored) {
-                // Invalid / expired token → user is unauthenticated
+            } catch (Exception e) {
+                // Token invalid or expired - clear context to be safe
+                SecurityContextHolder.clearContext();
             }
         }
 

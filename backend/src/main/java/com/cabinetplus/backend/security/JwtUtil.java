@@ -26,15 +26,18 @@ public class JwtUtil {
     @Value("${jwt.refresh.expiration-ms}")
     private long refreshExpirationMs;
 
+    // Getters for Controller to use
+    public long getAccessExpirationSeconds() { return accessExpirationMs / 1000; }
+    public long getRefreshExpirationSeconds() { return refreshExpirationMs / 1000; }
+
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
     }
 
-    // -------- ACCESS TOKEN --------
     public String generateAccessToken(User user) {
         return Jwts.builder()
                 .setSubject(user.getUsername())
-                .claim("role", user.getRole().name())
+                .claim("role", user.getRole().name()) // Crucial for skipping DB hits
                 .claim("tokenType", "ACCESS")
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessExpirationMs))
@@ -42,7 +45,6 @@ public class JwtUtil {
                 .compact();
     }
 
-    // -------- REFRESH TOKEN --------
     public String generateRefreshToken(String username) {
         return Jwts.builder()
                 .setSubject(username)
@@ -53,7 +55,6 @@ public class JwtUtil {
                 .compact();
     }
 
-    // -------- VALIDATION --------
     public Claims validateAndGetClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())

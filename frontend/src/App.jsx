@@ -1,7 +1,8 @@
 import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { logout } from "./store/authSlice";
+import { setCredentials, logoutSuccess, setLoading } from "./store/authSlice";
+import { getCurrentUser } from "./services/authService";
 
 // --- Page Imports ---
 import LoginPage from "./pages/LoginPage";
@@ -48,31 +49,41 @@ import SessionExpiredModal from "./components/SessionExpiredModal";
 
 import "./index.css";
 
-// Separate the navigation logic into a wrapper to use hooks like useNavigate
 const AppContent = () => {
-  const { isAuthenticated, user } = useSelector((state) => state.auth); 
+  const { isAuthenticated, user, loading } = useSelector((state) => state.auth); 
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // --- Session Expired Listener ---
-  // This ensures that if the refresh token fails (authService catches it),
-  // the app cleans up the state and sends the user to login.
-// Inside AppContent component in App.js
-useEffect(() => {
-  const handleSessionExpired = () => {
-    // 1. Clear Redux state so RequireAuth triggers redirect
-    dispatch(sessionExpired());
-    
-    // 2. Redirect to login with a state flag to show the modal/alert
-    navigate("/login", { 
-      replace: true, 
-      state: { reason: "session_expired" } 
-    });
-  };
+  // --- 1. Initial Session Check (Boot Logic) ---
+  // This replaces the old "Check localStorage" logic
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const userData = await getCurrentUser();
+        dispatch(setCredentials(userData));
+      } catch (err) {
+        // If /me fails, the user is not logged in or cookie is expired
+        dispatch(logoutSuccess());
+      } finally {
+        dispatch(setLoading(false));
+      }
+    };
+    initAuth();
+  }, [dispatch]);
 
-  window.addEventListener("sessionExpired", handleSessionExpired);
-  return () => window.removeEventListener("sessionExpired", handleSessionExpired);
-}, [dispatch, navigate]);
+  // --- 2. Session Expired Listener ---
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      dispatch(logoutSuccess());
+      navigate("/login", { 
+        replace: true, 
+        state: { reason: "session_expired" } 
+      });
+    };
+
+    window.addEventListener("sessionExpired", handleSessionExpired);
+    return () => window.removeEventListener("sessionExpired", handleSessionExpired);
+  }, [dispatch, navigate]);
 
   const getRedirectPath = (user) => {
     if (!user) return "/login";
@@ -86,11 +97,13 @@ useEffect(() => {
   };
 
   const RootRedirect = () => {
+    if (loading) return null; // Wait for initAuth
     if (!isAuthenticated) return <Navigate to="/login" replace />;
     return <Navigate to={getRedirectPath(user)} replace />;
   };
 
   const CatchAllRedirect = () => {
+    if (loading) return null;
     if (!isAuthenticated) return <Navigate to="/login" replace />; 
     return <Navigate to={getRedirectPath(user)} replace />;
   };
@@ -99,6 +112,7 @@ useEffect(() => {
     <div className="app-container">
       <SessionExpiredModal />
       <Routes>
+        {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
@@ -135,7 +149,7 @@ useEffect(() => {
         {/* Admin Routes */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
-          <Route path="/admin-dashboard" element={<DentistsPage />} />
+            <Route path="/admin-dashboard" element={<DentistsPage />} />
             <Route path="/dentists" element={<DentistsPage />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
             <Route path="/payment-history" element={<PaymentHistoryPage />} />
@@ -155,7 +169,6 @@ useEffect(() => {
   );
 };
 
-// Router must wrap AppContent so useNavigate is available
 function App() {
   return (
     <Router>

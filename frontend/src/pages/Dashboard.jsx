@@ -4,12 +4,15 @@ import PageHeader from "../components/PageHeader";
 import { getFinanceCards } from "../services/financeService";
 import { getCompletedAppointmentsStats, getAppointments } from "../services/appointmentService";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom"; // <-- Added
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux"; // Added to check loading state
 import "react-toastify/dist/ReactToastify.css";
 import "./Finance.css";
 
 export default function DashboardUpdated() {
-  const navigate = useNavigate(); // <-- Added
+  const navigate = useNavigate();
+  // Access global loading state to prevent API calls before auth is ready
+  const { loading: authLoading } = useSelector((state) => state.auth);
 
   // --- Revenue & Net Revenue state ---
   const [revenueData, setRevenueData] = useState({
@@ -18,10 +21,8 @@ export default function DashboardUpdated() {
     previousRevenue: 0,
     previousNet: 0,
   });
-  const [loadingRevenue, setLoadingRevenue] = useState(false);
 
   const fetchRevenue = async () => {
-    setLoadingRevenue(true);
     try {
       const data = await getFinanceCards("today");
       setRevenueData({
@@ -32,9 +33,6 @@ export default function DashboardUpdated() {
       });
     } catch (error) {
       console.error("Erreur fetch revenue:", error);
-      toast.error("Impossible de charger les revenus du jour.");
-    } finally {
-      setLoadingRevenue(false);
     }
   };
 
@@ -45,13 +43,12 @@ export default function DashboardUpdated() {
     completedDifference: 0,
     newPatientsDifference: 0,
   });
-  const [loadingStats, setLoadingStats] = useState(false);
 
   const fetchCompletedAppointmentsStats = async () => {
-    setLoadingStats(true);
     try {
-      const token = localStorage.getItem("token");
-      const data = await getCompletedAppointmentsStats(token);
+      // REMOVED: localStorage.getItem("token")
+      // Axios (api.js) handles the cookie automatically now
+      const data = await getCompletedAppointmentsStats(); 
 
       setCompletedStats({
         completedToday: data.completed?.today || 0,
@@ -60,10 +57,7 @@ export default function DashboardUpdated() {
         newPatientsDifference: data.newPatients?.difference || 0,
       });
     } catch (error) {
-      console.error("Erreur fetch completed appointments stats:", error);
-      toast.error("Impossible de charger les statistiques des rendez-vous.");
-    } finally {
-      setLoadingStats(false);
+      console.error("Erreur stats:", error);
     }
   };
 
@@ -75,19 +69,18 @@ export default function DashboardUpdated() {
 
   const fetchAppointments = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const data = await getAppointments(token);
+      // REMOVED: localStorage.getItem("token")
+      const data = await getAppointments();
       setAppointments(data);
     } catch (err) {
       console.error("Error fetching appointments:", err);
-      toast.error("Erreur lors du chargement des rendez-vous");
     }
   };
 
   const filterTodayAppointments = () => {
     const baseDate = new Date();
-    const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 8, 0, 0);
-    const dayEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 18, 0, 0);
+    const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0, 0);
+    const dayEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 23, 59, 59);
 
     const filtered = appointments
       .filter((a) => {
@@ -95,7 +88,7 @@ export default function DashboardUpdated() {
         return (
           apptStart >= dayStart &&
           apptStart <= dayEnd &&
-          a.status === "SCHEDULED" // Only scheduled appointments
+          a.status === "SCHEDULED"
         );
       })
       .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
@@ -104,15 +97,19 @@ export default function DashboardUpdated() {
   };
 
   useEffect(() => {
-    fetchRevenue();
-    fetchCompletedAppointmentsStats();
-    fetchAppointments();
-  }, []);
+    // Only fetch data if the app is finished initializing the auth session
+    if (!authLoading) {
+      fetchRevenue();
+      fetchCompletedAppointmentsStats();
+      fetchAppointments();
+    }
+  }, [authLoading]);
 
   useEffect(() => {
     filterTodayAppointments();
   }, [appointments]);
 
+  // UI Helpers (calcChange, getChangeColor, stats array remain the same)
   const calcChange = (current, previous) => {
     if (!previous || previous === 0) return "0%";
     const change = ((current - previous) / previous) * 100;
@@ -124,7 +121,6 @@ export default function DashboardUpdated() {
     return current > previous ? "green" : "red";
   };
 
-  // --- Stats array for cards ---
   const stats = [
     {
       title: "Revenu du jour",
@@ -152,25 +148,16 @@ export default function DashboardUpdated() {
     },
   ];
 
-  // --- Low stock mock ---
-  const lowStock = [
-    { name: "Gants nitrile (L)", qty: 8 },
-    { name: "Anesthésique 2%", qty: 3 },
-    { name: "Miroirs dentaires", qty: 4 },
-    { name: "Cotons", qty: 2 },
-    { name: "Bandelettes", qty: 5 },
-  ];
-
-  const [stockPage, setStockPage] = useState(0);
-
   const pagedPatients = todayAppointments.slice(patientPage * pageSize, (patientPage + 1) * pageSize);
-  const pagedStock = lowStock.slice(stockPage * pageSize, (stockPage + 1) * pageSize);
+
+  // Render
+  if (authLoading) return null; // Let App.jsx handle the global spinner
 
   return (
     <div className="finance-container" style={{ paddingBottom: 40 }}>
       <PageHeader title="Tableau de bord" subtitle="Vue d'ensemble quotidienne du cabinet" align="left" />
 
-      {/* Top stats */}
+      {/* Top stats cards */}
       <div className="finance-squares" style={{ marginTop: 8 }}>
         {stats.map((s, i) => (
           <div key={i} className="finance-square" style={{ minWidth: 220 }}>
@@ -188,98 +175,42 @@ export default function DashboardUpdated() {
         ))}
       </div>
 
-      {/* Patients & Stock */}
       <div style={{ display: "flex", gap: 20, marginTop: 24 }}>
-        {/* LEFT COLUMN */}
         <div style={{ flex: 1.6, display: "flex", flexDirection: "column" }}>
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              padding: 20,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
+          <div style={{ background: "#fff", borderRadius: 12, padding: 20, boxShadow: "0 4px 12px rgba(0,0,0,0.05)", flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h4 style={{ margin: 0 }}>Prochains patients</h4>
               <div style={{ display: "flex", gap: 10, fontSize: 13, color: "#666" }}>
-                {patientPage > 0 && <ChevronLeft size={16} style={{ cursor: "pointer" }} onClick={() => setPatientPage(patientPage - 1)} />}
-                {patientPage < Math.ceil(todayAppointments.length / pageSize) - 1 && <ChevronRight size={16} style={{ cursor: "pointer" }} onClick={() => setPatientPage(patientPage + 1)} />}
+                {patientPage > 0 && <ChevronLeft size={16} className="cursor-pointer" onClick={() => setPatientPage(p => p - 1)} />}
+                {patientPage < Math.ceil(todayAppointments.length / pageSize) - 1 && <ChevronRight size={16} className="cursor-pointer" onClick={() => setPatientPage(p => p + 1)} />}
                 <span>{todayAppointments.length} en attente</span>
               </div>
             </div>
 
-           <div style={{ marginTop: 14, flex: 1 }}>
-  {pagedPatients.length === 0 ? (
-    <div
-      style={{
-        textAlign: "center",
-        padding: "40px 0",
-        color: "#777",
-        fontSize: 14,
-      }}
-    >
-      Aucun patient pour aujourd’hui
-    </div>
-  ) : (
-    pagedPatients.map((a, idx) => (
-      <div
-        key={idx}
-        className="finance-row"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          padding: "12px 0",
-          borderBottom: idx < pagedPatients.length - 1 ? "1px solid #f1f1f1" : "none",
-        }}
-      >
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div
-            style={{
-              width: 64,
-              textAlign: "center",
-              padding: "6px 8px",
-              borderRadius: 8,
-              background: "#fafafa",
-            }}
-          >
-            {new Date(a.dateTimeStart).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600 }}>
-              {`${a.patient.firstname} ${a.patient.lastname}`}
-            </div>
-            <div style={{ fontSize: 13, color: "#666" }}>
-              {a.notes || "Aucune note"}
+            <div style={{ marginTop: 14 }}>
+              {pagedPatients.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: "#777" }}>Aucun patient pour aujourd’hui</div>
+              ) : (
+                pagedPatients.map((a, idx) => (
+                  <div key={idx} className="finance-row" style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: idx < pagedPatients.length - 1 ? "1px solid #f1f1f1" : "none" }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <div style={{ width: 64, textAlign: "center", padding: "6px 8px", borderRadius: 8, background: "#fafafa" }}>
+                        {new Date(a.dateTimeStart).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{`${a.patient.firstname} ${a.patient.lastname}`}</div>
+                        <div style={{ fontSize: 13, color: "#666" }}>{a.notes || "Consultation standard"}</div>
+                      </div>
+                    </div>
+                    <button className="action-btn view" onClick={() => navigate(`/patients/${a.patient.id}`)}>
+                      <Eye size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
-
-        <button
-          className="action-btn view"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/patients/${a.patient.id}`);
-          }}
-          title="Voir le patient"
-        >
-          <Eye size={16} />
-        </button>
-      </div>
-    ))
-  )}
-</div>
-
-          </div>
-        </div>
-
-        
       </div>
     </div>
   );

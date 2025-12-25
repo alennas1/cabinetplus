@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { loginSuccess } from "../store/authSlice";
+import { setCredentials } from "../store/authSlice"; // Changed from loginSuccess
 import { login } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode";
 import "./Login.css";
 
 const LoginPage = () => {
@@ -16,15 +15,20 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
+  // --- Redirect Logic ---
   const handleRedirect = (userData) => {
+    if (!userData) return;
+
     if (userData.role === "ADMIN") {
       navigate("/admin-dashboard", { replace: true });
       return;
     }
+
     if (!userData.isPhoneVerified) {
       navigate("/verify", { replace: true });
       return;
     }
+
     switch (userData.planStatus) {
       case "ACTIVE":
         const planCode = userData.plan?.code?.toUpperCase();
@@ -42,11 +46,12 @@ const LoginPage = () => {
     }
   };
 
+  // If user is already logged in, redirect them away from login page
   useEffect(() => {
     if (isAuthenticated && user) {
       handleRedirect(user);
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,18 +59,28 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      const { accessToken } = await login(username.trim(), password.trim());
+      // 1. Call login (Backend sets cookies)
+      // 2. authService.login now returns the user object from /api/users/me
+      const userData = await login(username.trim(), password.trim());
 
-      dispatch(loginSuccess(accessToken)); 
-      const userClaims = jwtDecode(accessToken);
-      
-      if (userClaims.planStatus === "INACTIVE" && userClaims.expirationDate) {
-        alert(`Votre offre a expiré le ${new Date(userClaims.expirationDate).toLocaleDateString()}`);
+      // 3. Update Redux with the actual user data from the DB
+      dispatch(setCredentials(userData));
+
+      // 4. Handle expired plan alert
+      if (userData.planStatus === "INACTIVE" && userData.expirationDate) {
+        alert(`Votre offre a expiré le ${new Date(userData.expirationDate).toLocaleDateString()}`);
       }
 
-      handleRedirect(userClaims);
+      // 5. Navigate based on the fetched user data
+      handleRedirect(userData);
+
     } catch (err) {
-      setError(err.response?.data?.message || "Identifiants invalides");
+      // Handle 401 Unauthorized or other errors
+      if (err.response?.status === 401) {
+        setError("Nom d'utilisateur ou mot de passe incorrect");
+      } else {
+        setError("Une erreur est survenue lors de la connexion");
+      }
     } finally {
       setLoading(false);
     }
@@ -84,6 +99,7 @@ const LoginPage = () => {
             onChange={(e) => setUsername(e.target.value)} 
             required 
             disabled={loading} 
+            autoComplete="username"
           />
           <input 
             type="password" 
@@ -92,6 +108,7 @@ const LoginPage = () => {
             onChange={(e) => setPassword(e.target.value)} 
             required 
             disabled={loading} 
+            autoComplete="current-password"
           />
 
           {error && <p className="error-message">{error}</p>}

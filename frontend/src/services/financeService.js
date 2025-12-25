@@ -1,20 +1,33 @@
-// src/services/financeService.js
-import api from "./authService"; // Use your configured instance
+import api from "./authService";
 
+/**
+ * Fetches the data for the finance charts/graphs.
+ * @param {string} timeframe - 'today', 'week', 'month', 'year', or 'custom'
+ */
 export const getFinanceGraph = async (timeframe) => {
-  // The 'api' instance already knows the Railway URL and the Token
   const response = await api.get("/api/finance/graph", {
     params: { timeframe },
   });
   return response.data;
 };
 
+/**
+ * Fetches the summary statistics cards (Revenue, Net, Expenses).
+ * Note: We removed the 'token' parameter as it's now handled by cookies.
+ */
 export const getFinanceCards = async (timeframe, startDate, endDate) => {
   const params = { timeframe };
-  if (timeframe === "custom") {
+  
+  if (timeframe === "custom" && startDate && endDate) {
     params.startDate = startDate;
     params.endDate = endDate;
   }
+
   const response = await api.get("/api/finance/cards", { params });
   return response.data;
+};
+
+export default {
+  getFinanceGraph,
+  getFinanceCards
 };

@@ -1,50 +1,48 @@
-import axios from "axios";
+import api from "./authService";
 
-// Separating the Base URL from the specific resource path
-const APPOINTMENTS_URL = `${BASE_URL}/api/appointments`;
+// The base path is now relative to the baseURL defined in authService
+const BASE_PATH = "/api/appointments";
 
-// Helper function to generate headers
-const getHeaders = (token) => ({
-  headers: { Authorization: `Bearer ${token}` },
-});
-
-export const getAppointments = async (token) => {
-  const response = await axios.get(APPOINTMENTS_URL, getHeaders(token));
+export const getAppointments = async () => {
+  // Cookies are sent automatically by the 'api' instance
+  const response = await api.get(BASE_PATH);
   return response.data;
 };
 
-export const getAppointmentById = async (id, token) => {
-  const response = await axios.get(`${APPOINTMENTS_URL}/${id}`, getHeaders(token));
+export const getAppointmentById = async (id) => {
+  const response = await api.get(`${BASE_PATH}/${id}`);
   return response.data;
 };
 
-export const createAppointment = async (appointmentData, token) => {
-  const response = await axios.post(APPOINTMENTS_URL, appointmentData, getHeaders(token));
+export const createAppointment = async (appointmentData) => {
+  // CSRF header 'X-XSRF-TOKEN' is added by the interceptor automatically
+  const response = await api.post(BASE_PATH, appointmentData);
   return response.data;
 };
 
-export const updateAppointment = async (id, appointmentData, token) => {
-  const response = await axios.put(`${APPOINTMENTS_URL}/${id}`, appointmentData, getHeaders(token));
+export const updateAppointment = async (id, appointmentData) => {
+  const response = await api.put(`${BASE_PATH}/${id}`, appointmentData);
   return response.data;
 };
 
-export const deleteAppointment = async (id, token) => {
-  await axios.delete(`${APPOINTMENTS_URL}/${id}`, getHeaders(token));
+export const deleteAppointment = async (id) => {
+  await api.delete(`${BASE_PATH}/${id}`);
 };
 
-export const getAppointmentsByPatient = async (patientId, token) => {
-  const response = await axios.get(`${APPOINTMENTS_URL}/patient/${patientId}`, getHeaders(token));
+export const getAppointmentsByPatient = async (patientId) => {
+  const response = await api.get(`${BASE_PATH}/patient/${patientId}`);
   return response.data;
 };
 
-export const getAppointmentsByPractitioner = async (practitionerId, token) => {
-  const response = await axios.get(`${APPOINTMENTS_URL}/practitioner/${practitionerId}`, getHeaders(token));
+export const getAppointmentsByPractitioner = async (practitionerId) => {
+  const response = await api.get(`${BASE_PATH}/practitioner/${practitionerId}`);
   return response.data;
 };
 
-// ------------------- New statistics endpoints -------------------
+// --- Statistics Endpoints ---
 
-export const getCompletedAppointmentsStats = async (token) => {
-  const response = await axios.get(`${APPOINTMENTS_URL}/stats/completed-today`, getHeaders(token));
+export const getCompletedAppointmentsStats = async () => {
+  // Matches the endpoint used in your Dashboard
+  const response = await api.get(`${BASE_PATH}/stats/completed-today`);
   return response.data; 
 };

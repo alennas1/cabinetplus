@@ -2,16 +2,14 @@ import { useSelector } from "react-redux";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 const RequireAuth = ({ allowedRoles }) => {
-  const { token, isAuthenticated, user, loading } = useSelector((state) => state.auth);
+  const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
   const location = useLocation();
   const currentPath = location.pathname;
 
   // 1. Loading State Check
-  // Prevents the "Empty App" white screen while Redux is initializing or 
-  // while the token is being verified by the refresh logic.
   if (loading) {
     return (
-      <div clsassName="flex flex-col items-center justify-center h-screen bg-gray-50">
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         <p className="mt-4 text-gray-600 font-medium">Chargement de votre session...</p>
       </div>
@@ -19,9 +17,9 @@ const RequireAuth = ({ allowedRoles }) => {
   }
 
   // 2. Basic Auth Check
-  // If no token or not authenticated, bounce to login immediately.
-  // We include !user here because if the user object is missing, the role checks will crash.
-  if (!token || !isAuthenticated || !user) {
+  // Note: We no longer check for 'token' here because it's in a secure cookie 
+  // hidden from JS. We rely entirely on isAuthenticated and the user object.
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -33,6 +31,7 @@ const RequireAuth = ({ allowedRoles }) => {
   }
 
   // 4. Dentist Workflow (Verification -> Plan -> Dashboard)
+  // This is your core business logic - restored and fully functional.
   if (role === "DENTIST") {
     const isVerified = isPhoneVerified;
     const planCode = plan?.code?.toUpperCase();
@@ -52,14 +51,13 @@ const RequireAuth = ({ allowedRoles }) => {
     }
 
     // Redirect Logic:
-    // If the user has a "targetPath" (meaning they haven't finished setup),
-    // and they aren't already on that page, redirect them.
     if (targetPath) {
+      // If they have a pending step, and aren't already there, move them.
       if (currentPath !== targetPath) {
         return <Navigate to={targetPath} replace />;
       }
     } else {
-      // If they are fully active but trying to access setup pages, send to dashboard
+      // If they are fully active but trying to access setup pages (like /verify), send to dashboard
       const setupPages = ["/verify", "/plan", "/waiting"];
       if (setupPages.includes(currentPath)) {
         return <Navigate to="/dashboard" replace />;

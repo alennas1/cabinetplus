@@ -1,47 +1,57 @@
 import axios from "axios";
 
-const API_URL = `${BASE_URL}`;
+// Ensure BASE_URL is defined (e.g., from an env file)
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080"; 
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
+  withCredentials: true, 
 });
 
-let isRefreshing = false;
-let failedQueue = [];
-
-const processQueue = (error, token = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) prom.reject(error);
-    else prom.resolve(token);
-  });
-  failedQueue = [];
+// Helper to get CSRF token from cookies
+const getCsrfToken = () => {
+  return document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("XSRF-TOKEN="))
+    ?.split("=")[1];
 };
 
-// 1. Request Interceptor: Now strictly checks localStorage for persistence
+// 1. Request Interceptor: Attach CSRF token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const csrfToken = getCsrfToken();
+  // Spring Security expects 'X-XSRF-TOKEN' header for CSRF protection
+  if (csrfToken && config.method !== "get") {
+    config.headers["X-XSRF-TOKEN"] = csrfToken;
   }
   return config;
 });
 
-// 2. Response Interceptor: Handle Auto-Refresh
+// 2. Response Interceptor: Auto-Refresh Logic
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error) => {
+  failedQueue.forEach((prom) => {
+    if (error) prom.reject(error);
+    else prom.resolve();
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Fix: use originalRequest.url (not _url)
+    const isLoginRequest = originalRequest.url?.includes("/auth/login");
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isLoginRequest) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
+          .then(() => api(originalRequest))
           .catch((err) => Promise.reject(err));
       }
 
@@ -49,23 +59,14 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(
-          `${API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-
-        const newToken = data.accessToken;
-        localStorage.setItem("token", newToken); // Always persistent
+        // Call refresh - backend will set new access_token cookie
+        await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
         
-        api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
-        originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
-        processQueue(null, newToken);
-        
+        processQueue(null);
         return api(originalRequest);
       } catch (refreshError) {
-        processQueue(refreshError, null);
-        localStorage.removeItem("token");
+        processQueue(refreshError);
+        // Custom event so App.jsx can show the "Session Expired" modal
         window.dispatchEvent(new Event("sessionExpired"));
         return Promise.reject(refreshError);
       } finally {
@@ -79,30 +80,28 @@ api.interceptors.response.use(
 // --- Auth Requests ---
 
 export const login = async (username, password) => {
-  const response = await api.post("/auth/login", { username, password });
-  const token = response.data.accessToken;
-
-  // Always save to localStorage for permanent session
-  localStorage.setItem("token", token);
-  sessionStorage.removeItem("token"); // Cleanup any old session traces
-  
-  return response.data;
+  await api.post("/auth/login", { username, password });
+  // Immediately fetch profile to verify cookies and get user roles/status
+  return await getCurrentUser();
 };
 
 export const register = async (userData) => {
-  return (await api.post("/auth/register", userData)).data;
+  await api.post("/auth/register", userData);
+  return await getCurrentUser();
+};
+
+export const logout = async () => {
+  try {
+    await api.post("/auth/logout");
+  } finally {
+    // Ensure Redux is cleared even if the network call fails
+    window.location.href = "/login";
+  }
 };
 
 export const getCurrentUser = async () => {
-  return (await api.get("/api/users/me")).data;
-};
-
-export const verifyPhone = async (otp) => {
-  return (await api.post("/auth/verify-phone", { otp })).data;
-};
-
-export const resendPhoneOtp = async (phoneNumber) => {
-  return (await api.post("/auth/resend-phone-otp", { phoneNumber })).data;
+  const response = await api.get("/api/users/me");
+  return response.data;
 };
 
 export default api;

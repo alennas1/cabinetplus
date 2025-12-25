@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
-import { logout } from "../store/authSlice";
+// Fix: Use logoutSuccess to match authSlice.js
+import { logoutSuccess } from "../store/authSlice";
 import { useNavigate } from "react-router-dom";
 
 const SessionExpiredModal = () => {
@@ -10,10 +11,9 @@ const SessionExpiredModal = () => {
 
   useEffect(() => {
     const handleSessionExpired = () => {
-      // 1. Immediately clear the Redux state and storage
-      // This ensures the user is "logged out" in the background 
-      // even before they click the button.
-      dispatch(logout());
+      // 1. Immediately clear the Redux state
+      // This switches isAuthenticated to false, protecting the UI
+      dispatch(logoutSuccess());
       
       // 2. Show the modal
       setVisible(true);
@@ -47,18 +47,17 @@ const SessionExpiredModal = () => {
             viewBox="0 0 24 24" 
             stroke="currentColor"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="避12H12m0 0l-4-4m4 4l4-4m-4 4V4" />
-            <circle cx="12" cy="12" r="10" strokeWidth={2} />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Session Expirée</h2>
         <p className="text-gray-600 mb-8">
-          Pour votre sécurité, votre session a expiré après une longue période d'inactivité.
+          Pour votre sécurité, votre session a expiré. Veuillez vous reconnecter pour continuer.
         </p>
         <button
           onClick={handleOk}
-          style={{ backgroundColor: "#3498db", width: "100%" }}
-          className="text-white font-semibold py-3 rounded-lg hover:brightness-110 transition-all shadow-md"
+          style={{ backgroundColor: "#3498db", width: "100%", border: "none" }}
+          className="text-white font-semibold py-3 rounded-lg hover:brightness-110 transition-all shadow-md cursor-pointer"
         >
           Se reconnecter
         </button>

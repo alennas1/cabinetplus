@@ -2,8 +2,7 @@ import React, { useState, useEffect } from "react";
 import { register, login } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { loginSuccess } from "../store/authSlice";
-import { jwtDecode } from "jwt-decode";
+import { setCredentials } from "../store/authSlice"; // Changed from loginSuccess
 import "./Register.css";
 
 const RegisterPage = () => {
@@ -13,7 +12,7 @@ const RegisterPage = () => {
     role: "DENTIST",
     firstname: "",
     lastname: "",
-    phoneNumber: "", // Email removed
+    phoneNumber: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -21,11 +20,47 @@ const RegisterPage = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+
+  // --- Redirect Logic Helper ---
+  const handleRedirect = (userData) => {
+    if (!userData) return;
+
+    const { role, isPhoneVerified, planStatus, plan } = userData;
+
+    if (role === "ADMIN") {
+      navigate("/admin-dashboard", { replace: true });
+      return;
+    }
+
+    if (!isPhoneVerified) {
+      navigate("/verify", { replace: true });
+      return;
+    }
+
+    switch (planStatus) {
+      case "ACTIVE":
+        const planCode = plan?.code?.toUpperCase();
+        if (planCode && ["FREE_TRIAL", "BASIC", "PRO"].includes(planCode)) {
+          navigate("/dashboard", { replace: true });
+        } else {
+          navigate("/plan", { replace: true });
+        }
+        break;
+      case "WAITING":
+        navigate("/waiting", { replace: true });
+        break;
+      default:
+        navigate("/plan", { replace: true });
+        break;
+    }
+  };
 
   useEffect(() => {
-    if (isAuthenticated) navigate("/dashboard", { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated && user) {
+      handleRedirect(user);
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange = (e) => {
     setFormData({
@@ -41,58 +76,28 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
+      // 1. Register the user
       await register(formData);
-      const { accessToken } = await login(formData.username, formData.password);
-      
-      const userClaims = jwtDecode(accessToken);
-      const { 
-        isPhoneVerified, // isEmailVerified removed
-        planStatus, 
-        plan, 
-        role,
-      } = userClaims;
-      
-      // Verification now only depends on Phone
-      const isVerified = isPhoneVerified;
 
-      dispatch(loginSuccess(accessToken));
+      // 2. Login the user (This sets the cookies and returns user profile data)
+      const userData = await login(formData.username, formData.password);
 
-      if (role === "ADMIN") {
-        navigate("/admin-dashboard", { replace: true });
-        return;
-      }
-      
-      if (!isVerified) {
-        navigate("/verify", { replace: true });
-        return;
-      }
-      
-      switch (planStatus) {
-        case "ACTIVE":
-          if (plan && ["FREE_TRIAL", "BASIC", "PRO"].includes(plan.code.toUpperCase())) {
-            navigate("/dashboard", { replace: true });
-          } else {
-            navigate("/plan", { replace: true });
-          }
-          break;
-        case "PENDING":
-        case "WAITING":
-        case "INACTIVE":
-        default:
-          navigate("/plan", { replace: true });
-          break;
-      }
-      
+      // 3. Update Redux state with fetched user data
+      dispatch(setCredentials(userData));
+
+      // 4. Navigate based on account status
+      handleRedirect(userData);
+
     } catch (error) {
       if (error.response && error.response.data) {
         const errorData = error.response.data;
         if (typeof errorData === 'object' && errorData !== null) {
-             setErrors(error.response.data);
+          setErrors(errorData);
         } else {
-             alert(errorData.message || "Erreur inconnue lors de l'inscription");
+          alert(errorData.message || "Erreur lors de l'inscription");
         }
       } else {
-        alert("Erreur inconnue lors de l'inscription");
+        alert("Une erreur est survenue lors de l'inscription");
       }
     } finally {
       setLoading(false);

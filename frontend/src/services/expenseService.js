@@ -1,8 +1,7 @@
 // src/services/expenseService.js
 import axios from "axios";
 
-const API_URL = "https://cabinetplus-production.up.railway.app/api/expenses"; // Adjust if your backend runs elsewhere
-
+const API_URL = `${BASE_URL}/api/expenses`;
 // Get all expenses
 export const getExpenses = async (token) => {
   const response = await axios.get(API_URL, {

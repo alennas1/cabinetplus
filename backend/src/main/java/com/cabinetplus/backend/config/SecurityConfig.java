@@ -28,24 +28,35 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     private final CustomUserDetailsService userDetailsService;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtFilter, CustomUserDetailsService userDetailsService) {
+    public SecurityConfig(JwtAuthenticationFilter jwtFilter,
+                          CustomUserDetailsService userDetailsService) {
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
         http
-            .csrf(csrf -> csrf.disable())
+            // ✅ CSRF ENABLED (cookie-based auth requires this)
+            .csrf(csrf -> csrf
+                .ignoringRequestMatchers("/auth/**")
+            )
+
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+
             .authorizeHttpRequests(auth -> auth
-                // 1. PUBLIC ENDPOINTS
+                // 1️⃣ PUBLIC ENDPOINTS
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/verify/**").permitAll() // KEPT FOR PHONE VERIFICATION
+                .requestMatchers("/api/verify/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // 2. ADMIN-ONLY ENDPOINTS
+                // 2️⃣ ADMIN ONLY
                 .requestMatchers(
                     "/api/hand-payments/all",
                     "/api/hand-payments/pending",
@@ -56,24 +67,26 @@ public class SecurityConfig {
                     "/admin/**"
                 ).hasRole("ADMIN")
 
-                // 3. SHARED PROTECTED ENDPOINTS (DENTIST & ADMIN)
+                // 3️⃣ SHARED (ADMIN + DENTIST)
                 .requestMatchers(
                     "/api/hand-payments/create",
                     "/api/hand-payments/my-payments",
                     "/api/users/me/**"
                 ).hasAnyRole("DENTIST", "ADMIN")
 
-                // 4. GENERAL API PROTECTION
+                // 4️⃣ ALL OTHER API
                 .requestMatchers("/api/**").hasAnyRole("DENTIST", "ADMIN")
 
                 .anyRequest().authenticated()
-            )
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+            );
 
+        // ✅ Cookie-based JWT filter
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
+    // ---------------- AUTH ----------------
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -82,22 +95,24 @@ public class SecurityConfig {
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
-        return authProvider;
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
+
+    // ---------------- CORS ----------------
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Use explicit origins for your live domains
+
         configuration.setAllowedOrigins(List.of(
             "http://localhost:5173",
             "http://localhost:3000",
@@ -105,30 +120,32 @@ public class SecurityConfig {
             "https://www.cabinetplusdz.com",
             "https://cabinetplus.vercel.app"
         ));
-        
-        // Use pattern for Vercel dynamic preview branches
+
         configuration.setAllowedOriginPatterns(List.of(
             "https://*.vercel.app"
         ));
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        
+        configuration.setAllowedMethods(
+            Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+        );
+
         configuration.setAllowedHeaders(Arrays.asList(
-            "Authorization", 
-            "Content-Type", 
-            "X-Requested-With", 
-            "Accept", 
-            "Origin", 
-            "Access-Control-Request-Method", 
+            "Content-Type",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+            "Access-Control-Request-Method",
             "Access-Control-Request-Headers"
         ));
-        
+
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Set-Cookie"));
+        configuration.setExposedHeaders(List.of("Set-Cookie"));
         configuration.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 }

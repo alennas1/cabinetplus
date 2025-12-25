@@ -8,8 +8,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.RegisterRequest;
-import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
@@ -36,60 +33,66 @@ public class AuthController {
     private final UserRepository userRepo;
     private final PasswordEncoder passwordEncoder;
 
-    public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
-                          UserRepository userRepo, PasswordEncoder passwordEncoder) {
+    public AuthController(AuthenticationManager authManager,
+                          JwtUtil jwtUtil,
+                          UserRepository userRepo,
+                          PasswordEncoder passwordEncoder) {
         this.authManager = authManager;
         this.jwtUtil = jwtUtil;
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
     }
 
-    /**
-     * Helper method to create production-ready cookies.
-     * Changed path from "/auth/refresh" to "/" to ensure the browser 
-     * sends the cookie correctly during session restoration.
-     */
-    private void addRefreshCookie(HttpServletResponse response, String refreshToken) {
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", refreshToken)
+    private void addCookie(HttpServletResponse response,
+                           String name,
+                           String value,
+                           int maxAge) {
+
+        ResponseCookie cookie = ResponseCookie.from(name, value)
                 .httpOnly(true)
-                .secure(true)    // Required for Cross-Site (HTTPS)
-                .sameSite("None") // Required for Vercel -> Railway communication
-                .path("/")       // GLOBAL PATH: Critical for persistence
-                .maxAge(7 * 24 * 60 * 60) // 7 Days
+                .secure(true)
+                .sameSite("None")
+                .path("/")
+                .maxAge(maxAge)
                 .build();
+
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
-    // ---------------- LOGIN ----------------
+    // -------- LOGIN --------
     @PostMapping("/login")
-    public Map<String, String> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
-        try {
-            String username = body.get("username");
-            String password = body.get("password");
+    public ResponseEntity<Void> login(
+            @RequestBody Map<String, String> body,
+            HttpServletResponse response) {
 
-            Authentication auth = authManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, password));
+        authManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        body.get("username"),
+                        body.get("password"))
+        );
 
-            User user = userRepo.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepo.findByUsername(body.get("username"))
+                .orElseThrow();
 
-            String accessToken = jwtUtil.generateAccessToken(user);
-            String refreshToken = jwtUtil.generateRefreshToken(username);
+        addCookie(response, "access_token",
+                jwtUtil.generateAccessToken(user),
+                15 * 60);
 
-            addRefreshCookie(response, refreshToken);
+        addCookie(response, "refresh_token",
+                jwtUtil.generateRefreshToken(user.getUsername()),
+                7 * 24 * 60 * 60);
 
-            return Map.of("accessToken", accessToken);
-
-        } catch (AuthenticationException e) {
-            throw new RuntimeException("Invalid username/password");
-        }
+        return ResponseEntity.ok().build();
     }
 
-    // ---------------- REGISTER ----------------
+    // -------- REGISTER --------
     @PostMapping("/register")
-    public Map<String, Object> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse response) {
+    public ResponseEntity<Void> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletResponse response) {
+
         if (userRepo.findByUsername(request.username()).isPresent()) {
-            throw new RuntimeException("Username already exists");
+            return ResponseEntity.badRequest().build();
         }
 
         User user = new User();
@@ -101,65 +104,54 @@ public class AuthController {
         user.setRole(UserRole.valueOf(request.role()));
         user.setCreatedAt(LocalDateTime.now());
 
-        User saved = userRepo.save(user);
+        userRepo.save(user);
 
-        String accessToken = jwtUtil.generateAccessToken(saved);
-        String refreshToken = jwtUtil.generateRefreshToken(saved.getUsername());
+        addCookie(response, "access_token",
+                jwtUtil.generateAccessToken(user),
+                15 * 60);
 
-        addRefreshCookie(response, refreshToken);
+        addCookie(response, "refresh_token",
+                jwtUtil.generateRefreshToken(user.getUsername()),
+                7 * 24 * 60 * 60);
 
-        UserDto dto = new UserDto(
-                saved.getId(),
-                saved.getUsername(),
-                saved.getFirstname(),
-                saved.getLastname(),
-                saved.getPhoneNumber(),
-                saved.getRole().name()
-        );
-
-        return Map.of(
-                "user", dto,
-                "accessToken", accessToken
-        );
+        return ResponseEntity.ok().build();
     }
 
-    // ---------------- REFRESH ----------------
+    // -------- REFRESH --------
     @PostMapping("/refresh")
-    public Map<String, String> refresh(@CookieValue(name = "refresh_token", required = false) String refreshToken, HttpServletResponse response) {
+    public ResponseEntity<Void> refresh(
+            @CookieValue(name = "refresh_token", required = false) String refreshToken,
+            HttpServletResponse response) {
+
         if (refreshToken == null) {
-            return (Map<String, String>) ResponseEntity.status(401).body(Map.of("error", "Refresh token missing"));
+            return ResponseEntity.status(401).build();
         }
 
-        if (jwtUtil.validateToken(refreshToken)) {
-            String username = jwtUtil.extractUsername(refreshToken);
+        var claims = jwtUtil.validateAndGetClaims(refreshToken);
 
-            User user = userRepo.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-
-            String newAccessToken = jwtUtil.generateAccessToken(user);
-            
-            // Refresh Token Rotation: Gives the user a fresh 7 days every time they use the app
-            String newRefreshToken = jwtUtil.generateRefreshToken(username);
-            addRefreshCookie(response, newRefreshToken);
-
-            return Map.of("accessToken", newAccessToken);
+        if (!"REFRESH".equals(claims.get("tokenType"))) {
+            return ResponseEntity.status(401).build();
         }
-        
-        throw new RuntimeException("Invalid refresh token");
+
+        User user = userRepo.findByUsername(claims.getSubject())
+                .orElseThrow();
+
+        addCookie(response, "access_token",
+                jwtUtil.generateAccessToken(user),
+                15 * 60);
+
+        addCookie(response, "refresh_token",
+                jwtUtil.generateRefreshToken(user.getUsername()),
+                7 * 24 * 60 * 60);
+
+        return ResponseEntity.ok().build();
     }
 
-    // ---------------- LOGOUT ----------------
+    // -------- LOGOUT --------
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
-        // Clear the cookie by setting maxAge to 0 and matching the path "/"
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("None")
-                .path("/") 
-                .maxAge(0) 
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        addCookie(response, "access_token", "", 0);
+        addCookie(response, "refresh_token", "", 0);
         return ResponseEntity.ok().build();
     }
 }

@@ -1,8 +1,7 @@
 // src/services/employeeService.js
 import axios from "axios";
 
-const API_URL = "https://cabinetplus-production.up.railway.app/api/employees";
-
+const API_URL = `${BASE_URL}/api/employees`;
 // 🔹 Create employee
 export const createEmployee = async (data, token) => {
   const response = await axios.post(API_URL, data, {

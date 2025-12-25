@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Check, Clock, Shield } from "react-feather";
-import { logout } from "../store/authSlice";
+// 1. Updated Import to match authSlice
+import { logoutSuccess } from "../store/authSlice"; 
+// 2. Import the actual logout service to clear cookies
+import { logout as logoutService } from "../services/authService";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment } from "../services/handPaymentService";
 import "./Plan.css";
@@ -11,7 +14,6 @@ const PlanPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const user = useSelector((state) => state.auth.user);
-  const token = useSelector((state) => state.auth.token);
 
   const [plans, setPlans] = useState([]);
   const [isYearly, setIsYearly] = useState(false);
@@ -22,37 +24,46 @@ const PlanPage = () => {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const data = await getAllPlansClient(token);
+        // No token needed - Axios 'api' instance handles cookies automatically
+        const data = await getAllPlansClient();
         setPlans(data.filter(p => p.active));
       } catch (err) {
         console.error("Error fetching plans:", err);
       }
     };
     fetchPlans();
-  }, [token]);
+  }, []);
 
   const handleHandPayment = async () => {
-  try {
-    const isFree = selectedPlan.monthlyPrice === 0;
-    const amountToPay = isFree ? 0 : (isYearly ? (selectedPlan.yearlyMonthlyPrice * 12) : selectedPlan.monthlyPrice);
+    try {
+      const isFree = selectedPlan.monthlyPrice === 0;
+      const amountToPay = isFree ? 0 : (isYearly ? (selectedPlan.yearlyMonthlyPrice * 12) : selectedPlan.monthlyPrice);
 
-    // Prepare the payload
-    const paymentData = {
-      planId: selectedPlan.id,
-      amount: amountToPay,
-      // Pass 'YEARLY' or 'MONTHLY' (matching your Java Enum)
-      billingCycle: isFree ? 'MONTHLY' : (isYearly ? 'YEARLY' : 'MONTHLY'),
-      notes: `Paiement ${isYearly ? 'Annuel' : 'Mensuel'} - ${selectedPlan.name}`,
-    };
+      const paymentData = {
+        planId: selectedPlan.id,
+        amount: amountToPay,
+        billingCycle: isFree ? 'MONTHLY' : (isYearly ? 'YEARLY' : 'MONTHLY'),
+        notes: `Paiement ${isYearly ? 'Annuel' : 'Mensuel'} - ${selectedPlan.name}`,
+      };
 
-    await createHandPayment(paymentData, token);
-    
-    setShowPopup(false);
-    setWaitingPayment(true);
-  } catch (err) {
-    alert("Erreur lors de la validation.");
-  }
-};
+      // No token passed here
+      await createHandPayment(paymentData);
+      
+      setShowPopup(false);
+      setWaitingPayment(true);
+    } catch (err) {
+      alert("Erreur lors de la validation.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutService(); // Clears backend cookies
+    } finally {
+      dispatch(logoutSuccess()); // Clears Redux state
+      navigate("/login");
+    }
+  };
 
   if (waitingPayment) {
     return (
@@ -86,11 +97,8 @@ const PlanPage = () => {
 
         <div className="plan-grid">
           {plans.map((plan) => {
-            // CONDITION : Est-ce un plan gratuit ?
             const isFree = plan.monthlyPrice === 0;
             const hasDiscount = plan.yearlyMonthlyPrice < plan.monthlyPrice;
-            
-            // Si gratuit, on ignore le toggle yearly
             const displayPrice = isFree ? 0 : (isYearly ? plan.yearlyMonthlyPrice : plan.monthlyPrice);
             const totalAnnualPrice = plan.yearlyMonthlyPrice * 12;
             const totalMonthlyEquivalent = plan.monthlyPrice * 12;
@@ -98,19 +106,14 @@ const PlanPage = () => {
             return (
               <div key={plan.id} className={`plan-box ${plan.code === 'PRO' ? 'plan-box-featured' : ''}`}>
                 <h3 className="plan-name">{plan.name}</h3>
-                
                 <div className="plan-price-container">
-                  {/* Ne montre les prix barrés QUE si ce n'est pas gratuit ET qu'on est en mode annuel */}
                   {!isFree && isYearly && hasDiscount && (
                     <div className="price-strikethrough">{plan.monthlyPrice} DZD</div>
                   )}
-                  
                   <div>
                     <span className="plan-price-main">{displayPrice}</span>
                     <span className="plan-price-sub"> DZD / mois</span>
                   </div>
-
-                  {/* Infos supplémentaires uniquement pour le payant en mode annuel */}
                   {!isFree && isYearly && hasDiscount && (
                     <>
                       <div className="annual-total-info">
@@ -121,11 +124,8 @@ const PlanPage = () => {
                       </div>
                     </>
                   )}
-                  
-                  {isFree && <div className="save-badge" style={{ background: '#f1f5f9', color: '#64748b' }}>7 jours d'essaie</div>}
+                  {isFree && <div className="save-badge" style={{ background: '#f1f5f9', color: '#64748b' }}>7 jours d'essai</div>}
                 </div>
-
-               
 
                 <button 
                   className={`plan-btn ${plan.code === 'PRO' ? 'plan-btn-primary' : 'plan-btn-outline'}`}
@@ -138,7 +138,7 @@ const PlanPage = () => {
           })}
         </div>
 
-        <button className="plan-logout-btn" onClick={() => { dispatch(logout()); navigate("/login"); }}>
+        <button className="plan-logout-btn" onClick={handleLogout}>
           <LogOut size={18} /> Se déconnecter
         </button>
 
@@ -149,7 +149,7 @@ const PlanPage = () => {
               <h2>Confirmation</h2>
               <p style={{ color: '#64748b', marginBottom: '20px' }}>
                 Plan : <strong>{selectedPlan.name}</strong> <br/>
-                {!selectedPlan.monthlyPrice === 0 && `Facturation : ${isYearly ? 'Annuelle' : 'Mensuelle'}`}
+                {selectedPlan.monthlyPrice !== 0 && `Facturation : ${isYearly ? 'Annuelle' : 'Mensuelle'}`}
               </p>
               
               <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', textAlign: 'left', marginBottom: '20px' }}>

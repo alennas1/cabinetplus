@@ -24,7 +24,7 @@ import com.cabinetplus.backend.security.JwtAuthenticationFilter;
 
 @Configuration
 public class SecurityConfig {
-
+//asd
     private final JwtAuthenticationFilter jwtFilter;
     private final CustomUserDetailsService userDetailsService;
 

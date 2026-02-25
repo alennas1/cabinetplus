@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { loginSuccess } from "../store/authSlice";
-import { login } from "../services/authService";
+import { setCredentials } from "../store/authSlice";
+import { login, getCurrentUser } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode";
 import "./Login.css";
 
 const LoginPage = () => {
@@ -17,6 +16,8 @@ const LoginPage = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
   const handleRedirect = (userData) => {
+    if (!userData) return navigate("/login", { replace: true });
+
     if (userData.role === "ADMIN") {
       navigate("/admin-dashboard", { replace: true });
       return;
@@ -25,6 +26,7 @@ const LoginPage = () => {
       navigate("/verify", { replace: true });
       return;
     }
+
     switch (userData.planStatus) {
       case "ACTIVE":
         const planCode = userData.plan?.code?.toUpperCase();
@@ -54,18 +56,28 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
+      // 1. Login via API (accessToken stored in memory)
       const { accessToken } = await login(username.trim(), password.trim());
 
-      dispatch(loginSuccess(accessToken)); 
-      const userClaims = jwtDecode(accessToken);
-      
-      if (userClaims.planStatus === "INACTIVE" && userClaims.expirationDate) {
-        alert(`Votre offre a expiré le ${new Date(userClaims.expirationDate).toLocaleDateString()}`);
+      // 2. Fetch current user details
+      const currentUser = await getCurrentUser();
+
+      // 3. Update Redux store
+      dispatch(setCredentials({ token: accessToken, user: currentUser }));
+
+      // 4. Alert if plan expired
+      if (currentUser.planStatus === "INACTIVE" && currentUser.expirationDate) {
+        alert(
+          `Votre offre a expiré le ${new Date(
+            currentUser.expirationDate
+          ).toLocaleDateString()}`
+        );
       }
 
-      handleRedirect(userClaims);
+      // 5. Redirect based on role / status
+      handleRedirect(currentUser);
     } catch (err) {
-      setError(err.response?.data?.message || "Identifiants invalides");
+      setError(err.response?.data?.error || "Identifiants invalides");
     } finally {
       setLoading(false);
     }
@@ -74,28 +86,30 @@ const LoginPage = () => {
   return (
     <div className="auth-container">
       <form onSubmit={handleSubmit} className="auth-card">
-        <div className="auth-logo"><img src="/logo.png" alt="Logo" /></div>
+        <div className="auth-logo">
+          <img src="/logo.png" alt="Logo" />
+        </div>
         <h2>Connexion</h2>
         <div className="auth-form">
-          <input 
-            type="text" 
-            placeholder="Nom d'utilisateur" 
-            value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
-            required 
-            disabled={loading} 
+          <input
+            type="text"
+            placeholder="Nom d'utilisateur"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            disabled={loading}
           />
-          <input 
-            type="password" 
-            placeholder="Mot de passe" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
-            disabled={loading} 
+          <input
+            type="password"
+            placeholder="Mot de passe"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            disabled={loading}
           />
 
           {error && <p className="error-message">{error}</p>}
-          
+
           <button type="submit" disabled={loading}>
             {loading ? "Connexion..." : "Se connecter"}
           </button>

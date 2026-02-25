@@ -1,12 +1,16 @@
 import axios from "axios";
 
-const API_URL = "https://cabinetplus-production.up.railway.app";
+const API_URL = "http://localhost:8080";
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
+  withCredentials: true, // refresh token cookie sent automatically
 });
 
+// ----------------- In-memory access token -----------------
+let accessToken = null;
+
+// Queue to hold requests while refreshing token
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -18,16 +22,15 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// 1. Request Interceptor: Now strictly checks localStorage for persistence
+// ----------------- Request Interceptor -----------------
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 });
 
-// 2. Response Interceptor: Handle Auto-Refresh
+// ----------------- Response Interceptor -----------------
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -49,60 +52,78 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(
-          `${API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
+        // ✅ Do NOT send an empty object {} here
+        const { data } = await axios.post(`${API_URL}/auth/session`, null, {
+          withCredentials: true,
+        });
 
-        const newToken = data.accessToken;
-        localStorage.setItem("token", newToken); // Always persistent
-        
-        api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
-        originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
-        processQueue(null, newToken);
-        
+        accessToken = data.accessToken || null;
+
+        processQueue(null, accessToken);
+
+        if (!accessToken) {
+          window.dispatchEvent(new Event("sessionExpired"));
+          return Promise.reject(error);
+        }
+
+        api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+        originalRequest.headers["Authorization"] = `Bearer ${accessToken}`;
+
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.removeItem("token");
+        accessToken = null;
         window.dispatchEvent(new Event("sessionExpired"));
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   }
 );
 
-// --- Auth Requests ---
+// ----------------- Session Initialization -----------------
+export const initializeSession = async () => {
+  try {
+    // ✅ Do NOT send any body
+    const { data } = await api.post("/auth/session");
+    accessToken = data.accessToken || null;
+    if (accessToken) {
+      api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+      return true;
+    }
+    return false;
+  } catch (err) {
+    accessToken = null;
+    return false;
+  }
+};
 
+// ----------------- Auth Functions -----------------
 export const login = async (username, password) => {
-  const response = await api.post("/auth/login", { username, password });
-  const token = response.data.accessToken;
-
-  // Always save to localStorage for permanent session
-  localStorage.setItem("token", token);
-  sessionStorage.removeItem("token"); // Cleanup any old session traces
-  
-  return response.data;
+  const { data } = await api.post("/auth/login", { username, password });
+  accessToken = data.accessToken;
+  api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+  return data;
 };
 
 export const register = async (userData) => {
-  return (await api.post("/auth/register", userData)).data;
+  const { data } = await api.post("/auth/register", userData);
+  accessToken = data.accessToken;
+  api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+  return data;
 };
 
 export const getCurrentUser = async () => {
   return (await api.get("/api/users/me")).data;
 };
 
-export const verifyPhone = async (otp) => {
-  return (await api.post("/auth/verify-phone", { otp })).data;
-};
-
-export const resendPhoneOtp = async (phoneNumber) => {
-  return (await api.post("/auth/resend-phone-otp", { phoneNumber })).data;
+export const logout = async () => {
+  await api.post("/auth/logout");
+  accessToken = null;
+  delete api.defaults.headers.common["Authorization"];
 };
 
 export default api;

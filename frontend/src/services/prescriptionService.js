@@ -1,122 +1,59 @@
 // src/services/prescriptionService.js
-import axios from "axios";
+import api from "./authService"; // use axios instance with interceptors
 
-const API_URL = "https://cabinetplus-production.up.railway.app/api/prescriptions";
+const BASE_URL = "/api/prescriptions";
 
-const getAuthHeader = () => {
-  const token = localStorage.getItem("token");
-  return { Authorization: `Bearer ${token}` };
-};
-
-
-///sds
-// Create prescription (already present)
+// 🔹 Create prescription
 export const createPrescription = async (prescriptionData) => {
-  try {
-    const response = await axios.post(API_URL, prescriptionData, {
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-      },      
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error creating prescription:", error.response || error);
-    throw error;
-  }
+  const response = await api.post(BASE_URL, prescriptionData);
+  return response.data;
 };
 
-// Get all prescriptions (already present)
+// 🔹 Get all prescriptions
 export const getPrescriptions = async () => {
-  try {
-    const response = await axios.get(API_URL, { headers: getAuthHeader() });
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching prescriptions:", error.response || error);
-    throw error;
-  }
+  const response = await api.get(BASE_URL);
+  return response.data;
 };
 
-// Get prescriptions by patient (already present)
+// 🔹 Get prescriptions by patient
 export const getPrescriptionsByPatient = async (patientId) => {
-  try {
-    const response = await axios.get(`${API_URL}/patient/${patientId}`, {
-      headers: getAuthHeader(),
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching prescriptions by patient:", error.response || error);
-    throw error;
-  }
+  const response = await api.get(`${BASE_URL}/patient/${patientId}`);
+  return response.data;
 };
 
-// ✅ DELETE prescription by id
+// 🔹 Delete prescription by id
 export const deletePrescription = async (id) => {
-  try {
-    const response = await axios.delete(`${API_URL}/${id}`, {
-      headers: getAuthHeader(),
-    });
-    return response.data; // could return a success message
-  } catch (error) {
-    console.error("Error deleting prescription:", error.response || error);
-    throw error;
-  }
+  const response = await api.delete(`${BASE_URL}/${id}`);
+  return response.data;
 };
 
-// Get prescription by id
+// 🔹 Get prescription by id
 export const getPrescriptionById = async (id) => {
-  try {
-    const response = await axios.get(`${API_URL}/${id}`, {
-      headers: getAuthHeader(),
-    });
-    return response.data; // this will be a PrescriptionResponseDTO
-  } catch (error) {
-    console.error("Error fetching prescription by id:", error.response || error);
-    throw error;
-  }
+  const response = await api.get(`${BASE_URL}/${id}`);
+  return response.data;
 };
 
+// 🔹 Update prescription
 export const updatePrescription = async (id, updatedData) => {
-  try {
-    const response = await axios.put(`${API_URL}/${id}`, updatedData, {
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-      },
-    });
-    return response.data; // this will be the updated PrescriptionResponseDTO
-  } catch (error) {
-    console.error("Error updating prescription:", error.response || error);
-    throw error;
-  }
+  const response = await api.put(`${BASE_URL}/${id}`, updatedData);
+  return response.data;
 };
 
-// ✅ DOWNLOAD/VIEW prescription PDF
+// 🔹 Download/View prescription PDF
 export const downloadPrescriptionPdf = async (id, rxId = "prescription") => {
-  try {
-    const response = await axios.get(`${API_URL}/${id}/pdf`, {
-      headers: getAuthHeader(),
-      responseType: "blob", // Important: tells axios to handle binary data
-    });
+  const response = await api.get(`${BASE_URL}/${id}/pdf`, { responseType: "blob" });
 
-    // Create a URL for the PDF blob
-    const file = new Blob([response.data], { type: "application/pdf" });
-    const fileURL = URL.createObjectURL(file);
+  const file = new Blob([response.data], { type: "application/pdf" });
+  const fileURL = URL.createObjectURL(file);
 
-    // Create a temporary link and trigger download/open
-    const link = document.createElement("a");
-    link.href = fileURL;
-    link.setAttribute("download", `ordonnance_${rxId}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    
-    // Clean up
-    link.parentNode.removeChild(link);
-    URL.revokeObjectURL(fileURL);
+  const link = document.createElement("a");
+  link.href = fileURL;
+  link.setAttribute("download", `ordonnance_${rxId}.pdf`);
+  document.body.appendChild(link);
+  link.click();
 
-    return true;
-  } catch (error) {
-    console.error("Error downloading PDF:", error.response || error);
-    throw error;
-  }
+  link.parentNode.removeChild(link);
+  URL.revokeObjectURL(fileURL);
+
+  return true;
 };

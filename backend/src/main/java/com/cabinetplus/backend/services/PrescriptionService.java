@@ -1,19 +1,27 @@
 package com.cabinetplus.backend.services;
 
-import com.cabinetplus.backend.dto.PrescriptionMedicationDTO;
-import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
-import com.cabinetplus.backend.dto.PrescriptionResponseDTO;
-import com.cabinetplus.backend.dto.PrescriptionSummaryDTO;
-import com.cabinetplus.backend.models.*;
-import com.cabinetplus.backend.repositories.*;
-import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
 import java.text.DecimalFormat;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+
+import com.cabinetplus.backend.dto.PrescriptionMedicationDTO;
+import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
+import com.cabinetplus.backend.dto.PrescriptionResponseDTO;
+import com.cabinetplus.backend.dto.PrescriptionSummaryDTO;
+import com.cabinetplus.backend.models.Medication;
+import com.cabinetplus.backend.models.Patient;
+import com.cabinetplus.backend.models.Prescription;
+import com.cabinetplus.backend.models.PrescriptionMedication;
+import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.MedicationRepository;
+import com.cabinetplus.backend.repositories.PatientRepository;
+import com.cabinetplus.backend.repositories.PrescriptionRepository;
+
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -65,7 +73,7 @@ public class PrescriptionService {
     }
 
     public Prescription getPrescriptionEntity(Long id, User practitioner) {
-        Prescription prescription = prescriptionRepository.findById(id)
+        Prescription prescription = prescriptionRepository.findByIdWithMedications(id)
                 .orElseThrow(() -> new RuntimeException("Prescription not found"));
 
         if (!prescription.getPractitioner().getId().equals(practitioner.getId())) {

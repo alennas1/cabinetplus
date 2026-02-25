@@ -1,9 +1,10 @@
 import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { logout } from "./store/authSlice";
+import { initializeSession, getCurrentUser } from "./services/authService";
+import { setCredentials, sessionExpired, setLoading } from "./store/authSlice";
 
-// --- Page Imports ---
+// --- Pages ---
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import Dashboard from "./pages/Dashboard";
@@ -29,7 +30,7 @@ import PlanPage from "./pages/PlanPage";
 import WaitingPage from "./pages/WaitingPage"; 
 import HandPaymentHistory from "./pages/HandPaymentHistory";
 
-// --- ADMIN PAGE Imports ---
+// --- Admin Pages ---
 import DentistsPage from "./pages/Dentists"; 
 import PendingPaymentsPage from "./pages/PendingPayments"; 
 import PaymentHistoryPage from "./pages/PaymentHistory"; 
@@ -40,7 +41,7 @@ import ManageAdmins from "./pages/ManageAdmins";
 import AdminChangePassword from "./pages/AdminChangePassword";
 import ManagePlans from "./pages/ManagePlans";
 
-// --- Component Imports ---
+// --- Components ---
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
 import RequireAuth from "./components/RequireAuth"; 
@@ -48,62 +49,74 @@ import SessionExpiredModal from "./components/SessionExpiredModal";
 
 import "./index.css";
 
-// Separate the navigation logic into a wrapper to use hooks like useNavigate
 const AppContent = () => {
-  const { isAuthenticated, user } = useSelector((state) => state.auth); 
+  const { isAuthenticated, user, loading } = useSelector((state) => state.auth); 
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   // --- Session Expired Listener ---
-  // This ensures that if the refresh token fails (authService catches it),
-  // the app cleans up the state and sends the user to login.
-// Inside AppContent component in App.js
-useEffect(() => {
-  const handleSessionExpired = () => {
-    // 1. Clear Redux state so RequireAuth triggers redirect
-    dispatch(sessionExpired());
-    
-    // 2. Redirect to login with a state flag to show the modal/alert
-    navigate("/login", { 
-      replace: true, 
-      state: { reason: "session_expired" } 
-    });
-  };
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      dispatch(sessionExpired());
+      navigate("/login", { replace: true, state: { reason: "session_expired" } });
+    };
+    window.addEventListener("sessionExpired", handleSessionExpired);
+    return () => window.removeEventListener("sessionExpired", handleSessionExpired);
+  }, [dispatch, navigate]);
 
-  window.addEventListener("sessionExpired", handleSessionExpired);
-  return () => window.removeEventListener("sessionExpired", handleSessionExpired);
-}, [dispatch, navigate]);
+  // --- Initialize Session on Page Load ---
+  useEffect(() => {
+    const bootApp = async () => {
+      dispatch(setLoading(true));
+      const hasSession = await initializeSession(); // calls /auth/session
+      if (hasSession) {
+        try {
+          const userData = await getCurrentUser();
+          dispatch(setCredentials({ user: userData, token: true }));
+        } catch {
+          dispatch(sessionExpired());
+        }
+      } else {
+        dispatch(setLoading(false));
+      }
+    };
+    bootApp();
+  }, [dispatch]);
 
+  // --- Determine Redirect Path based on User Status ---
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
-
-    if (!user.isPhoneVerified) return "/verify";
+    if (!user.phoneVerified) return "/verify";
     if (user.planStatus === "WAITING") return "/waiting";
     if (user.planStatus !== "ACTIVE") return "/plan";
-
     return "/dashboard";
   };
 
-  const RootRedirect = () => {
-    if (!isAuthenticated) return <Navigate to="/login" replace />;
-    return <Navigate to={getRedirectPath(user)} replace />;
-  };
+  // --- Loading Screen ---
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <p className="mt-4 text-gray-600 font-medium">Initialisation de la session...</p>
+      </div>
+    );
+  }
 
-  const CatchAllRedirect = () => {
-    if (!isAuthenticated) return <Navigate to="/login" replace />; 
-    return <Navigate to={getRedirectPath(user)} replace />;
-  };
+  const RootRedirect = () => (!isAuthenticated ? <Navigate to="/login" replace /> : <Navigate to={getRedirectPath(user)} replace />);
+  const CatchAllRedirect = () => (!isAuthenticated ? <Navigate to="/login" replace /> : <Navigate to={getRedirectPath(user)} replace />);
 
   return (
     <div className="app-container">
       <SessionExpiredModal />
+
       <Routes>
+        {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
-        {/* Dentist Routes */}
+        {/* Dentist Protected Routes */}
         <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
           <Route path="/verify" element={<VerificationPage />} />
           <Route path="/plan" element={<PlanPage />} />
@@ -132,10 +145,10 @@ useEffect(() => {
           </Route>
         </Route>
 
-        {/* Admin Routes */}
+        {/* Admin Protected Routes */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
-          <Route path="/admin-dashboard" element={<DentistsPage />} />
+            <Route path="/admin-dashboard" element={<DentistsPage />} />
             <Route path="/dentists" element={<DentistsPage />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
             <Route path="/payment-history" element={<PaymentHistoryPage />} />
@@ -148,6 +161,7 @@ useEffect(() => {
           </Route>
         </Route>
 
+        {/* Redirects */}
         <Route index element={<RootRedirect />} />
         <Route path="*" element={<CatchAllRedirect />} />
       </Routes>
@@ -155,13 +169,10 @@ useEffect(() => {
   );
 };
 
-// Router must wrap AppContent so useNavigate is available
-function App() {
+export default function App() {
   return (
     <Router>
       <AppContent />
     </Router>
   );
 }
-
-export default App;

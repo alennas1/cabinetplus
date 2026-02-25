@@ -21,6 +21,7 @@ export default function Ordonnance() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredMeds, setFilteredMeds] = useState([]);
   const [showConfirm, setShowConfirm] = useState(false);
+const ordId = Number(ordonnanceId); // convert to number
 
   const isEditMode = ordonnanceId && ordonnanceId !== "create";
 
@@ -40,8 +41,7 @@ export default function Ordonnance() {
  // Inside your useEffect for Loading Prescription
 useEffect(() => {
   if (isEditMode) {
-    const token = localStorage.getItem("token");
-    getPrescriptionById(ordonnanceId, token)
+    getPrescriptionById(ordonnanceId)
       .then((data) => {
         setRxId(data.rxId);
         const normalizedMeds = data.medications.map((m) => ({
@@ -65,12 +65,11 @@ useEffect(() => {
 }, [isEditMode, ordonnanceId]);
   // Load Patient & Medication Options
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    getPatientById(patientId, token)
+    getPatientById(patientId)
       .then((data) => setPatient(data))
       .catch((err) => console.error("Error fetching patient:", err));
 
-    getMedications(token)
+    getMedications()
       .then((data) => setMedOptions(data))
       .catch((err) => console.error("Error fetching medications:", err));
   }, [patientId]);

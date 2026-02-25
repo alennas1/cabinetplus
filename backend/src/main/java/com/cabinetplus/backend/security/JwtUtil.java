@@ -3,6 +3,7 @@ package com.cabinetplus.backend.security;
 import java.security.Key;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -22,19 +23,15 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtUtil {
 
-    // ✅ Injected from application.properties
-    // This key must stay the same across server restarts
     @Value("${jwt.secret}")
-private String secretKey;
+    private String secretKey;
 
-@Value("${jwt.access.expiration-ms}")
-private long accessExpirationMs;
+    @Value("${jwt.access.expiration-ms}")
+    private long accessExpirationMs;
 
-@Value("${jwt.refresh.expiration-ms}")
-private long refreshExpirationMs;
-    /**
-     * Helper to decode the Base64 secret into a HMAC Key object
-     */
+    @Value("${jwt.refresh.expiration-ms}")
+    private long refreshExpirationMs;
+
     private Key getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
@@ -48,15 +45,16 @@ private long refreshExpirationMs;
                 .setSubject(user.getUsername())
                 .claim("role", user.getRole().name())
                 .claim("isPhoneVerified", user.isPhoneVerified())
-                .claim("planStatus", 
-                       user.getRole() == UserRole.ADMIN 
-                       ? "ACTIVE" 
+                .claim("planStatus",
+                       user.getRole() == UserRole.ADMIN
+                       ? "ACTIVE"
                        : (user.getPlanStatus() != null ? user.getPlanStatus().name() : "PENDING"))
                 .claim("planId", user.getPlan() != null ? user.getPlan().getId() : null)
-                // Added plan code as per your logic
                 .claim("plan", user.getPlan() != null ? Map.of("code", user.getPlan().getCode()) : null)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessExpirationMs))
+                // Assign a JWT ID for traceability (optional for access token)
+                .setId(UUID.randomUUID().toString())
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -67,6 +65,7 @@ private long refreshExpirationMs;
     public String generateRefreshToken(String username, long customExpirationMs) {
         return Jwts.builder()
                 .setSubject(username)
+                .setId(UUID.randomUUID().toString()) // jti for DB mapping
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + customExpirationMs))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -92,15 +91,17 @@ private long refreshExpirationMs;
         return (String) parseClaims(token).getBody().get("planStatus");
     }
 
+    public String extractJti(String token) {
+        return parseClaims(token).getBody().getId();
+    }
+
     public boolean validateToken(String token) {
         try {
             parseClaims(token);
             return true;
         } catch (ExpiredJwtException e) {
-            // Token is expired
             return false;
         } catch (JwtException | IllegalArgumentException e) {
-            // Token is malformed or signature is invalid
             return false;
         }
     }
@@ -111,4 +112,4 @@ private long refreshExpirationMs;
                 .build()
                 .parseClaimsJws(token);
     }
-}
+} 

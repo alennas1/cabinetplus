@@ -210,49 +210,42 @@ const navigate = useNavigate();
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
-          {currentEmployees.map((emp) => (
-            <tr key={emp.id}>
-              <td>{emp.firstName || "—"}</td>
-              <td>{emp.lastName || "—"}</td>
-              <td>{emp.phone || "—"}</td>
-<td>
-  <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
-    {emp.status === "ACTIVE"
-      ? "Actif"
-      : emp.status === "INACTIVE"
-      ? "Inactif"
-      : emp.status === "ON_LEAVE"
-      ? "En congé"
-      : "—"}
-  </span>
-</td>              <td className="actions-cell">
-<button
-  className="action-btn view"
-  onClick={() => navigate(`/employees/${emp.id}`)}
-  title="Voir / Modifier"
->
-  <Eye size={16} />
-</button>
-                <button
-                  className="action-btn delete"
-                  onClick={() => handleDelete(emp.id)}
-                  title="Supprimer"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </td>
-            </tr>
-          ))}
+       <tbody>
+  {currentEmployees.map((emp) => (
+    <tr key={emp.id}>
+      <td>{emp.firstName || "—"}</td>
+      <td>{emp.lastName || "—"}</td>
+      <td>{emp.phone || "—"}</td>
+      <td>
+        <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
+          {emp.status === "ACTIVE"
+            ? "Actif"
+            : emp.status === "INACTIVE"
+            ? "Inactif"
+            : emp.status === "ON_LEAVE"
+            ? "En congé"
+            : "—"}
+        </span>
+      </td>
+      <td className="actions-cell">
+        <button className="action-btn view" onClick={() => navigate(`/employees/${emp.id}`)} title="Voir / Modifier">
+          <Eye size={16} />
+        </button>
+        <button className="action-btn delete" onClick={() => handleDelete(emp.id)} title="Supprimer">
+          <Trash2 size={16} />
+        </button>
+      </td>
+    </tr>
+  ))}
 
-          {filteredEmployees.length === 0 && (
-            <tr>
-              <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>
-                Aucun employé trouvé
-              </td>
-            </tr>
-          )}
-        </tbody>
+  {filteredEmployees.length === 0 && (
+    <tr>
+      <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
+        Aucun employé trouvé
+      </td>
+    </tr>
+  )}
+</tbody>
       </table>
 
       {/* Pagination */}

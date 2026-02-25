@@ -15,7 +15,6 @@ import PageHeader from "../components/PageHeader";
 import "./Appointments.css";
 
 export default function Appointments() {
-  const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
   const [appointments, setAppointments] = useState([]);
@@ -69,7 +68,7 @@ export default function Appointments() {
   useEffect(() => {
     const fetchPatients = async () => {
       try {
-        const data = await getPatients(token);
+const data = await getPatients();
         setPatients(data);
       } catch (err) {
         console.error("Error fetching patients:", err);
@@ -77,13 +76,13 @@ export default function Appointments() {
       }
     };
     fetchPatients();
-  }, [token]);
+  }, []);
 
   // Fetch appointments
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
-        const data = await getAppointments(token);
+        const data = await getAppointments();
         setAppointments(data);
       } catch (err) {
         console.error("Error fetching appointments:", err);
@@ -91,7 +90,7 @@ export default function Appointments() {
       }
     };
     fetchAppointments();
-  }, [token]);
+  }, []);
 
   const handlePatientSearch = (query) => {
     setPatientSearch(query);
@@ -202,7 +201,7 @@ export default function Appointments() {
     if (!completeAppt) return;
     try {
       const payload = { ...completeAppt, status: "COMPLETED" };
-      const updated = await updateAppointment(completeAppt.id, payload, token);
+      const updated = await updateAppointment(completeAppt.id, payload);
       setAppointments((prev) =>
         prev.map((a) => (a.id === updated.id ? updated : a))
       );
@@ -223,7 +222,7 @@ const handleSubmit = async (e) => {
 
     // Create new patient if needed
     if (isNewPatient) {
-      const newP = await createPatient(newPatient, token);
+      const newP = await createPatient(newPatient);
       patientId = newP.id;
     }
 
@@ -269,10 +268,10 @@ const handleSubmit = async (e) => {
     };
 
     // Call API
-    await createAppointment(payload, token);
+    await createAppointment(payload);
 
     // Refresh appointments after creation
-    const updated = await getAppointments(token);
+    const updated = await getAppointments();
     setAppointments(updated);
 
     toast.success("Rendez-vous ajouté !");
@@ -298,7 +297,7 @@ const handleSubmit = async (e) => {
 
   const confirmDeleteAppointment = async () => {
     try {
-      await deleteAppointment(confirmDelete, token);
+      await deleteAppointment(confirmDelete);
       setAppointments((prev) => prev.filter((a) => a.id !== confirmDelete));
       toast.success("Rendez-vous supprimé ");
     } catch (err) {

@@ -1,7 +1,7 @@
 // src/services/itemService.js
 import axios from "axios";
 
-const API_URL = "https://cabinetplus-production.up.railway.app/api/items";
+const API_URL = "http://localhost:8080/api/items";
 
 // Get all items (inventory)
 export const getInventoryItems = async (token) => {

@@ -1,60 +1,42 @@
-import axios from "axios";
+import api from "./authService";
 
-const API_URL = "https://cabinetplus-production.up.railway.app/api/appointments";
+const API_URL = "/api/appointments";
 
-export const getAppointments = async (token) => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getAppointments = async () => {
+  const response = await api.get(API_URL);
   return response.data;
 };
 
-export const getAppointmentById = async (id, token) => {
-  const response = await axios.get(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getAppointmentById = async (id) => {
+  const response = await api.get(`${API_URL}/${id}`);
   return response.data;
 };
 
-export const createAppointment = async (appointmentData, token) => {
-  const response = await axios.post(API_URL, appointmentData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const createAppointment = async (appointmentData) => {
+  const response = await api.post(API_URL, appointmentData);
   return response.data;
 };
 
-export const updateAppointment = async (id, appointmentData, token) => {
-  const response = await axios.put(`${API_URL}/${id}`, appointmentData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const updateAppointment = async (id, appointmentData) => {
+  const response = await api.put(`${API_URL}/${id}`, appointmentData);
   return response.data;
 };
 
-export const deleteAppointment = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const deleteAppointment = async (id) => {
+  await api.delete(`${API_URL}/${id}`);
 };
 
-export const getAppointmentsByPatient = async (patientId, token) => {
-  const response = await axios.get(`${API_URL}/patient/${patientId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getAppointmentsByPatient = async (patientId) => {
+  const response = await api.get(`${API_URL}/patient/${patientId}`);
   return response.data;
 };
 
-export const getAppointmentsByPractitioner = async (practitionerId, token) => {
-  const response = await axios.get(`${API_URL}/practitioner/${practitionerId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getAppointmentsByPractitioner = async (practitionerId) => {
+  const response = await api.get(`${API_URL}/practitioner/${practitionerId}`);
   return response.data;
 };
 
-// ------------------- New statistics endpoints -------------------
-
-export const getCompletedAppointmentsStats = async (token) => {
-  const response = await axios.get(`${API_URL}/stats/completed-today`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data; // { completedToday: X, completedWithNewPatientsToday: Y }
+export const getCompletedAppointmentsStats = async () => {
+  const response = await api.get(`${API_URL}/stats/completed-today`);
+  return response.data;
 };

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { register, login } from "../services/authService";
+import { register, login, getCurrentUser } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { loginSuccess } from "../store/authSlice";
-import { jwtDecode } from "jwt-decode";
+import { setCredentials } from "../store/authSlice"; // <-- updated
 import "./Register.css";
 
 const RegisterPage = () => {
@@ -13,7 +12,7 @@ const RegisterPage = () => {
     role: "DENTIST",
     firstname: "",
     lastname: "",
-    phoneNumber: "", // Email removed
+    phoneNumber: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -41,55 +40,47 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
+      // 1. Register user
       await register(formData);
+
+      // 2. Login immediately after registration
       const { accessToken } = await login(formData.username, formData.password);
-      
-      const userClaims = jwtDecode(accessToken);
-      const { 
-        isPhoneVerified, // isEmailVerified removed
-        planStatus, 
-        plan, 
-        role,
-      } = userClaims;
-      
-      // Verification now only depends on Phone
-      const isVerified = isPhoneVerified;
 
-      dispatch(loginSuccess(accessToken));
+      // 3. Fetch current user info
+      const currentUser = await getCurrentUser();
 
-      if (role === "ADMIN") {
+      // 4. Update Redux store
+      dispatch(setCredentials({ token: accessToken, user: currentUser }));
+
+      // 5. Redirect based on role/status
+      if (currentUser.role === "ADMIN") {
         navigate("/admin-dashboard", { replace: true });
         return;
       }
-      
-      if (!isVerified) {
+      if (!currentUser.isPhoneVerified) {
         navigate("/verify", { replace: true });
         return;
       }
-      
-      switch (planStatus) {
+      switch (currentUser.planStatus) {
         case "ACTIVE":
-          if (plan && ["FREE_TRIAL", "BASIC", "PRO"].includes(plan.code.toUpperCase())) {
+          const planCode = currentUser.plan?.code?.toUpperCase();
+          if (planCode && ["FREE_TRIAL", "BASIC", "PRO"].includes(planCode)) {
             navigate("/dashboard", { replace: true });
           } else {
             navigate("/plan", { replace: true });
           }
           break;
-        case "PENDING":
         case "WAITING":
-        case "INACTIVE":
         default:
           navigate("/plan", { replace: true });
-          break;
       }
-      
     } catch (error) {
       if (error.response && error.response.data) {
         const errorData = error.response.data;
-        if (typeof errorData === 'object' && errorData !== null) {
-             setErrors(error.response.data);
+        if (typeof errorData === "object" && errorData !== null) {
+          setErrors(errorData);
         } else {
-             alert(errorData.message || "Erreur inconnue lors de l'inscription");
+          alert(errorData.message || "Erreur inconnue lors de l'inscription");
         }
       } else {
         alert("Erreur inconnue lors de l'inscription");

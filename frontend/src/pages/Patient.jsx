@@ -29,7 +29,6 @@ import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText,
 
 const Patient = () => {
   const { id } = useParams();
-  const token = useSelector(state => state.auth.token);
   const navigate = useNavigate();
 
   // --- STATES ---
@@ -47,7 +46,7 @@ const handleCompleteAppointment = async (a) => {
     const updatedAppointment = await updateAppointment(a.id, { 
       ...a, 
       status: "COMPLETED" 
-    }, token);
+    }, );
 
     setAppointments(appointments.map(ap => 
       ap.id === updatedAppointment.id ? updatedAppointment : ap
@@ -69,7 +68,7 @@ const publicDownloadUrl = `http://${MY_IP}:8080/api/public/pdf/${id}?t=${qrTimes
 const handleDownloadPdf = async () => {
   setIsDownloading(true);
   try {
-    await downloadPatientFiche(id, token, patient.lastname);
+    await downloadPatientFiche(id, patient.lastname);
   } catch (err) {
     console.error(err);
   } finally {
@@ -81,7 +80,7 @@ const [ordonnances, setOrdonnances] = useState([]);
 useEffect(() => {
   const fetchData = async () => {
     try {
-      const ordos = await getPrescriptionsByPatient(id, token);
+      const ordos = await getPrescriptionsByPatient(id);
       setOrdonnances(ordos);
     } catch (err) {
       console.error(err);
@@ -89,7 +88,7 @@ useEffect(() => {
     }
   };
   fetchData();
-}, [id, token]);
+}, [id]);
 
 
   const [treatments, setTreatments] = useState([]);
@@ -166,7 +165,7 @@ const handleSubmit = async (e) => {
   e.preventDefault();
   try {
     if (isEditing) {
-      const updated = await updatePatient(patient.id, formData, token);
+      const updated = await updatePatient(patient.id, formData);
       setPatient(updated);
       toast.success("Patient mis à jour !");
     } else {
@@ -183,7 +182,7 @@ const handleSubmit = async (e) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const patientData = await getPatientById(id, token);
+        const patientData = await getPatientById(id);
         setPatient(patientData);
         setFormData({
           firstname: patientData.firstname || "",
@@ -193,16 +192,16 @@ const handleSubmit = async (e) => {
           phone: patientData.phone || "",
         });
 
-        const treatmentsData = await getTreatmentsByPatient(id, token);
+        const treatmentsData = await getTreatmentsByPatient(id);
         setTreatments(treatmentsData);
 
-        const catalog = await getTreatmentCatalog(token);
+        const catalog = await getTreatmentCatalog();
         setTreatmentCatalog(catalog);
 
-        const paymentsData = await getPaymentsByPatient(id, token);
+        const paymentsData = await getPaymentsByPatient(id);
         setPayments(paymentsData);
 
-        const appointmentsData = await getAppointmentsByPatient(id, token);
+        const appointmentsData = await getAppointmentsByPatient(id);
         setAppointments(appointmentsData);
 
       } catch (err) {
@@ -213,7 +212,7 @@ const handleSubmit = async (e) => {
       }
     };
     fetchData();
-  }, [id, token]);
+  }, [id]);
 
   // --- STATS ---
   const totalFacture = treatments.reduce((sum, t) => sum + (t.price || 0), 0);
@@ -248,7 +247,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       };
       console.log("📤 Update Treatment Payload:", payload);
 
-      savedTreatment = await updateTreatment(treatmentForm.id, payload, token);
+      savedTreatment = await updateTreatment(treatmentForm.id, payload);
       console.log("📥 Updated Treatment Response:", savedTreatment);
 
       // Attach full catalog object
@@ -270,7 +269,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       };
       console.log("📤 Create Treatment Payload:", payload);
 
-      savedTreatment = await createTreatment(payload, token);
+      savedTreatment = await createTreatment(payload);
       console.log("📥 Created Treatment Response:", savedTreatment);
 
       // Attach full catalog object
@@ -293,7 +292,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       };
       console.log("📤 Auto-Payment Payload:", paymentPayload);
 
-      const newPayment = await createPayment(paymentPayload, token);
+      const newPayment = await createPayment(paymentPayload);
       console.log("📥 Auto-Payment Response:", newPayment);
 
       setPayments([newPayment, ...payments]);
@@ -338,7 +337,7 @@ const handleDeleteTreatment = (t) => {
   setConfirmMessage("Voulez-vous supprimer ce traitement ?");
   setOnConfirmAction(() => async () => {
     try {
-      await deleteTreatment(t.id, token);
+      await deleteTreatment(t.id);
       setTreatments(treatments.filter(tr => tr.id !== t.id));
       toast.success("Traitement supprimé !");
     } catch (err) {
@@ -376,7 +375,7 @@ setTreatmentForm({
         amount: Number(paymentForm.amount),
         method: paymentForm.method,
         date: new Date().toISOString(),
-      }, token);
+      });
 console.log(newPayment)
 setPayments([newPayment, ...payments]);
       toast.success("Paiement ajouté !");
@@ -392,7 +391,7 @@ const handleDeletePayment = (p) => {
   setConfirmMessage("Voulez-vous supprimer ce paiement ?");
   setOnConfirmAction(() => async () => {
     try {
-      await deletePayment(p.id, token);
+      await deletePayment(p.id);
       setPayments(payments.filter(pay => pay.id !== p.id));
       toast.success("Paiement supprimé !");
     } catch (err) {
@@ -464,7 +463,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
         status: "SCHEDULED",
       };
 
-      savedAppointment = await updateAppointment(appointmentForm.id, payload, token);
+      savedAppointment = await updateAppointment(appointmentForm.id, payload);
       setAppointments(
         appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a)
       );
@@ -478,7 +477,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
         notes: appointmentForm.notes
       };
 
-      savedAppointment = await createAppointment(payload, token);
+      savedAppointment = await createAppointment(payload);
       setAppointments([savedAppointment, ...appointments]);
       toast.success("Rendez-vous ajouté avec succès !");
     }
@@ -525,7 +524,7 @@ const handleDeleteAppointment = (a) => {
   setConfirmMessage("Voulez-vous supprimer ce rendez-vous ?");
   setOnConfirmAction(() => async () => {
     try {
-      await deleteAppointment(a.id, token);
+      await deleteAppointment(a.id);
       setAppointments(appointments.filter(ap => ap.id !== a.id));
       toast.success("Rendez-vous supprimé !");
     } catch (err) {

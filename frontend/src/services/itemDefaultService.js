@@ -1,7 +1,7 @@
 // src/services/itemDefaultService.js
 import axios from "axios";
 
-const API_URL = "https://cabinetplus-production.up.railway.app/api/item-defaults";
+const API_URL = "http://localhost:8080/api/item-defaults";
 
 export const getItemDefaults = async (token) => {
   const response = await axios.get(API_URL, {

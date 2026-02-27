@@ -8,6 +8,7 @@ import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -46,11 +47,11 @@ public class Treatment {
     private String notes;
 
     // 👇 store selected teeth as integers
-    @ElementCollection
-    @CollectionTable(
-        name = "treatment_teeth",
-        joinColumns = @JoinColumn(name = "treatment_id")
-    )
-    @Column(name = "tooth_number")
-    private List<Integer> teeth = new ArrayList<>();
+    @ElementCollection(fetch = FetchType.EAGER)
+@CollectionTable(
+    name = "treatment_teeth",
+    joinColumns = @JoinColumn(name = "treatment_id")
+)
+@Column(name = "tooth_number")
+private List<Integer> teeth = new ArrayList<>();
 }

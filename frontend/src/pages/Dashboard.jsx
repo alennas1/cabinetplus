@@ -1,15 +1,16 @@
+// src/pages/DashboardUpdated.js
 import React, { useState, useEffect } from "react";
-import { Eye, AlertTriangle, ChevronLeft, ChevronRight } from "react-feather";
+import { Eye, ChevronLeft, ChevronRight } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import { getFinanceCards } from "../services/financeService";
 import { getCompletedAppointmentsStats, getAppointments } from "../services/appointmentService";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom"; // <-- Added
+import { useNavigate } from "react-router-dom";
 import "react-toastify/dist/ReactToastify.css";
 import "./Finance.css";
 
 export default function DashboardUpdated() {
-  const navigate = useNavigate(); // <-- Added
+  const navigate = useNavigate();
 
   // --- Revenue & Net Revenue state ---
   const [revenueData, setRevenueData] = useState({
@@ -50,9 +51,7 @@ export default function DashboardUpdated() {
   const fetchCompletedAppointmentsStats = async () => {
     setLoadingStats(true);
     try {
-      const token = localStorage.getItem("token");
-      const data = await getCompletedAppointmentsStats(token);
-
+      const data = await getCompletedAppointmentsStats(); // token handled by service
       setCompletedStats({
         completedToday: data.completed?.today || 0,
         completedWithNewPatientsToday: data.newPatients?.today || 0,
@@ -75,8 +74,7 @@ export default function DashboardUpdated() {
 
   const fetchAppointments = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const data = await getAppointments(token);
+      const data = await getAppointments(); // token handled by service
       setAppointments(data);
     } catch (err) {
       console.error("Error fetching appointments:", err);
@@ -85,18 +83,14 @@ export default function DashboardUpdated() {
   };
 
   const filterTodayAppointments = () => {
-    const baseDate = new Date();
-    const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 8, 0, 0);
-    const dayEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 18, 0, 0);
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 8, 0, 0);
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 18, 0, 0);
 
     const filtered = appointments
       .filter((a) => {
         const apptStart = new Date(a.dateTimeStart);
-        return (
-          apptStart >= dayStart &&
-          apptStart <= dayEnd &&
-          a.status === "SCHEDULED" // Only scheduled appointments
-        );
+        return apptStart >= start && apptStart <= end && a.status === "SCHEDULED";
       })
       .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
 
@@ -160,7 +154,6 @@ export default function DashboardUpdated() {
     { name: "Cotons", qty: 2 },
     { name: "Bandelettes", qty: 5 },
   ];
-
   const [stockPage, setStockPage] = useState(0);
 
   const pagedPatients = todayAppointments.slice(patientPage * pageSize, (patientPage + 1) * pageSize);
@@ -212,74 +205,49 @@ export default function DashboardUpdated() {
               </div>
             </div>
 
-           <div style={{ marginTop: 14, flex: 1 }}>
-  {pagedPatients.length === 0 ? (
-    <div
-      style={{
-        textAlign: "center",
-        padding: "40px 0",
-        color: "#777",
-        fontSize: 14,
-      }}
-    >
-      Aucun patient pour aujourd’hui
-    </div>
-  ) : (
-    pagedPatients.map((a, idx) => (
-      <div
-        key={idx}
-        className="finance-row"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          padding: "12px 0",
-          borderBottom: idx < pagedPatients.length - 1 ? "1px solid #f1f1f1" : "none",
-        }}
-      >
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div
-            style={{
-              width: 64,
-              textAlign: "center",
-              padding: "6px 8px",
-              borderRadius: 8,
-              background: "#fafafa",
-            }}
-          >
-            {new Date(a.dateTimeStart).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600 }}>
-              {`${a.patient.firstname} ${a.patient.lastname}`}
-            </div>
-            <div style={{ fontSize: 13, color: "#666" }}>
-              {a.notes || "Aucune note"}
+            <div style={{ marginTop: 14, flex: 1 }}>
+              {pagedPatients.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: "#777", fontSize: 14 }}>
+                  Aucun patient pour aujourd’hui
+                </div>
+              ) : (
+                pagedPatients.map((a, idx) => (
+                  <div
+                    key={idx}
+                    className="finance-row"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "12px 0",
+                      borderBottom: idx < pagedPatients.length - 1 ? "1px solid #f1f1f1" : "none",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <div style={{ width: 64, textAlign: "center", padding: "6px 8px", borderRadius: 8, background: "#fafafa" }}>
+                        {new Date(a.dateTimeStart).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{`${a.patient.firstname} ${a.patient.lastname}`}</div>
+                        <div style={{ fontSize: 13, color: "#666" }}>{a.notes || "Aucune note"}</div>
+                      </div>
+                    </div>
+
+                    <button
+                      className="action-btn view"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/patients/${a.patient.id}`);
+                      }}
+                      title="Voir le patient"
+                    >
+                      <Eye size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
-
-        <button
-          className="action-btn view"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/patients/${a.patient.id}`);
-          }}
-          title="Voir le patient"
-        >
-          <Eye size={16} />
-        </button>
-      </div>
-    ))
-  )}
-</div>
-
-          </div>
-        </div>
-
-        
       </div>
     </div>
   );

@@ -9,7 +9,6 @@ import "./Patient.css"; // reuse existing styles
 
 const Employee = () => {
   const { id } = useParams();
-  const token = localStorage.getItem("token");
 
   const [employee, setEmployee] = useState(null);
   const [activeTab, setActiveTab] = useState("profile");
@@ -23,7 +22,7 @@ const Employee = () => {
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
-        const data = await getEmployeeById(id, token);
+        const data = await getEmployeeById(id);
         setEmployee(data);
         setFormData(data);
         setWorkingHours(data.workingHours || []);
@@ -32,20 +31,20 @@ const Employee = () => {
       }
     };
     fetchEmployee();
-  }, [id, token]);
+  }, [id]);
 
   // Fetch employee expenses
   useEffect(() => {
     const fetchExpenses = async () => {
       try {
-        const data = await getExpensesByEmployee(id, token);
+        const data = await getExpensesByEmployee(id);
         setExpenses(data);
       } catch (err) {
         console.error("Failed to fetch expenses:", err);
       }
     };
     fetchExpenses();
-  }, [id, token]);
+  }, [id]);
 
   const formatDate = (dateStr) =>
     dateStr
@@ -117,7 +116,30 @@ const Employee = () => {
   };
 
   if (!employee) return <p className="loading">Chargement...</p>;
+// ---- Calculate monthly totals ----
+const monthlyTotals = expenses.reduce((acc, expense) => {
+  if (!expense.date) return acc;
 
+  const date = new Date(expense.date);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const key = `${year}-${month}`;
+
+  if (!acc[key]) {
+    acc[key] = 0;
+  }
+
+  acc[key] += Number(expense.amount) || 0;
+
+  return acc;
+}, {});
+const formatMonth = (yearMonth) => {
+  const [year, month] = yearMonth.split("-");
+  return new Date(year, month - 1).toLocaleDateString("fr-FR", {
+    month: "long",
+    year: "numeric",
+  });
+};
   const formatPhoneNumber = (phone) => {
     if (!phone) return "";
     return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
@@ -158,7 +180,7 @@ const Employee = () => {
         salary: formData.salary ? Number(formData.salary) : null,
         status: formData.status ? formData.status.toUpperCase() : "INACTIVE",
       };
-      const updated = await updateEmployee(id, payload, token);
+      const updated = await updateEmployee(id, payload);
       setEmployee({ ...updated, workingHours });
       setIsModalOpen(false);
     } catch (err) {
@@ -171,7 +193,7 @@ const Employee = () => {
     try {
       for (let h of workingHours) {
         if (h.id) {
-          await updateWorkingHour(h.id, h, token);
+          await updateWorkingHour(h.id, h);
         }
       }
       setEmployee({ ...employee, workingHours });
@@ -304,33 +326,67 @@ const Employee = () => {
       )}
 
       {activeTab === "paie" && (
-        <table className="treatment-table">
-          <thead>
-            <tr>
-              <th>Nom</th>
-              <th>Montant</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.length > 0 ? (
-              expenses.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.title}</td>
-                  <td>{e.amount} DA</td>
-                  <td>{formatDate(e.date)}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="3" style={{ textAlign: "center", color: "#888" }}>
-                  Aucun paiement trouvé
-                </td>
+  <div>
+
+    {/* --- Monthly Summary --- */}
+    <h3 style={{ marginBottom: "10px" }}>Total par mois</h3>
+    <table className="treatment-table" style={{ marginBottom: "25px" }}>
+      <thead>
+        <tr>
+          <th>Mois</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {Object.keys(monthlyTotals).length > 0 ? (
+          Object.entries(monthlyTotals)
+            .sort((a, b) => b[0].localeCompare(a[0]))
+            .map(([month, total]) => (
+              <tr key={month}>
+                <td>{formatMonth(month)}</td>
+                <td style={{ fontWeight: "bold" }}>{total} DA</td>
               </tr>
-            )}
-          </tbody>
-        </table>
-      )}
+            ))
+        ) : (
+          <tr>
+            <td colSpan="2" style={{ textAlign: "center", color: "#888" }}>
+              Aucun versement
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+
+    {/* --- Detailed Payments --- */}
+    <h3 style={{ marginBottom: "10px" }}>Détails des versements</h3>
+    <table className="treatment-table">
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Montant</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {expenses.length > 0 ? (
+          expenses.map((e) => (
+            <tr key={e.id}>
+              <td>{e.title}</td>
+              <td>{e.amount} DA</td>
+              <td>{formatDate(e.date)}</td>
+            </tr>
+          ))
+        ) : (
+          <tr>
+            <td colSpan="3" style={{ textAlign: "center", color: "#888" }}>
+              Aucun paiement trouvé
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+)}
 
       {/* --- PROFILE EDIT MODAL --- */}
       {isModalOpen && (

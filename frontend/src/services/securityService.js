@@ -1,14 +1,11 @@
-import axios from "axios";
+// src/services/authPasswordService.js
+import api from "./authService"; // axios instance with interceptors
 
-export const updatePassword = async (data, token) => {
-  const response = await axios.put(
-    "http://localhost:8080/api/users/me/password",
-    data,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
+/**
+ * Update current user's password
+ * @param {Object} data - { oldPassword, newPassword }
+ */
+export const updatePassword = async (data) => {
+  const response = await api.put("/api/users/me/password", data);
   return response.data;
 };

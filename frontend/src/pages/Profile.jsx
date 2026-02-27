@@ -26,7 +26,6 @@ const fieldIcons = {
 };
 
 const Profile = () => {
-  const token = useSelector((state) => state.auth.token);
   const [profile, setProfile] = useState({ profession: "Dentiste" });
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
@@ -39,7 +38,7 @@ const Profile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await getUserProfile(token);
+        const data = await getUserProfile();
         setProfile({ ...data, profession: "Dentiste" });
       } catch (err) {
         console.error(err);
@@ -47,7 +46,7 @@ const Profile = () => {
       }
     };
     fetchProfile();
-  }, [token]);
+  }, []);
 
   const handleEdit = (field) => {
     setEditingField(field);
@@ -81,7 +80,7 @@ const Profile = () => {
       }
 
       const updatedProfile = { ...profile, [field]: valueToSave };
-      await updateUserProfile(updatedProfile, token);
+      await updateUserProfile(updatedProfile);
       setProfile(updatedProfile);
       setEditingField(null);
       toast.success(`${fieldLabels[field]} mis à jour avec succès`);

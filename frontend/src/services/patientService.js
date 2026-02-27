@@ -31,7 +31,7 @@ export const deletePatient = async (id) => {
 
 // ----------------- Download Patient Fiche (PDF) -----------------
 export const downloadPatientFiche = async (id) => {
-  const response = await api.get(`/api/patients/${id}/fiche`, {
+  const response = await api.get(`/api/patients/${id}/fiche-pdf`, {
     responseType: "blob",
   });
 

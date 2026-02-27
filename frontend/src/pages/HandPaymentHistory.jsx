@@ -1,22 +1,22 @@
+// src/pages/PaymentHistoryPage.js
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
-import { Clock, CheckCircle, XCircle, Calendar, CreditCard, ChevronLeft } from "react-feather";
 import { useNavigate } from "react-router-dom";
+import { Clock, CheckCircle, XCircle, Calendar, CreditCard, ChevronLeft } from "react-feather";
 import { getMyHandPayments } from "../services/handPaymentService";
 import PageHeader from "../components/PageHeader";
 import "./PaymentHistory.css";
 
 const PaymentHistoryPage = () => {
   const navigate = useNavigate();
-  const token = useSelector((state) => state.auth.token);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const data = await getMyHandPayments(token);
-        // Trier par date décroissante (plus récent en premier)
+        // No token needed because handPaymentService uses authService instance
+        const data = await getMyHandPayments();
+        // Sort by paymentDate descending (most recent first)
         setPayments(data.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate)));
       } catch (err) {
         console.error("Erreur lors de la récupération de l'historique:", err);
@@ -24,17 +24,30 @@ const PaymentHistoryPage = () => {
         setLoading(false);
       }
     };
-    if (token) fetchHistory();
-  }, [token]);
+
+    fetchHistory();
+  }, []);
 
   const getStatusBadge = (status) => {
     switch (status) {
       case "CONFIRMED":
-        return <span className="status-badge success"><CheckCircle size={14} /> Confirmé</span>;
+        return (
+          <span className="status-badge success">
+            <CheckCircle size={14} /> Confirmé
+          </span>
+        );
       case "PENDING":
-        return <span className="status-badge warning"><Clock size={14} /> En attente</span>;
+        return (
+          <span className="status-badge warning">
+            <Clock size={14} /> En attente
+          </span>
+        );
       case "REJECTED":
-        return <span className="status-badge danger"><XCircle size={14} /> Rejeté</span>;
+        return (
+          <span className="status-badge danger">
+            <XCircle size={14} /> Rejeté
+          </span>
+        );
       default:
         return <span className="status-badge">{status}</span>;
     }
@@ -48,8 +61,8 @@ const PaymentHistoryPage = () => {
         <ChevronLeft size={18} /> Retour aux paramètres
       </button>
 
-      <PageHeader 
-        title="Historique des paiements" 
+      <PageHeader
+        title="Historique des paiements"
         subtitle="Suivez l'état de vos abonnements et transactions manuelles."
         align="left"
       />
@@ -67,9 +80,16 @@ const PaymentHistoryPage = () => {
                 <div className="plan-info">
                   <h3>Plan {payment.planName}</h3>
                   <div className="payment-meta">
-                    <span><Calendar size={14} /> {new Date(payment.paymentDate).toLocaleDateString('fr-FR')}</span>
+                    <span>
+                      <Calendar size={14} />{" "}
+                      {new Date(payment.paymentDate).toLocaleDateString("fr-FR")}
+                    </span>
                     <span className="billing-type">
-                      {payment.amount > 0 ? (payment.amount > 5000 ? "Facturation Annuelle" : "Facturation Mensuelle") : "Essai Gratuit"}
+                      {payment.amount > 0
+                        ? payment.amount > 5000
+                          ? "Facturation Annuelle"
+                          : "Facturation Mensuelle"
+                        : "Essai Gratuit"}
                     </span>
                   </div>
                 </div>
@@ -78,7 +98,7 @@ const PaymentHistoryPage = () => {
                   {getStatusBadge(payment.status)}
                 </div>
               </div>
-              
+
               {payment.notes && (
                 <div className="payment-notes">
                   <strong>Note :</strong> {payment.notes}

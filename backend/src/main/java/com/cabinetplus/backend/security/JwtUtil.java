@@ -112,4 +112,15 @@ public class JwtUtil {
                 .build()
                 .parseClaimsJws(token);
     }
+    // In JwtUtil.java
+public boolean validateRefreshToken(String token) {
+    try {
+        parseClaims(token); // same as access token validation
+        return true;
+    } catch (ExpiredJwtException e) {
+        return false; // refresh token expired
+    } catch (JwtException | IllegalArgumentException e) {
+        return false;
+    }
+}
 } 

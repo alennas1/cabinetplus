@@ -1,35 +1,36 @@
 // src/services/itemService.js
-import axios from "axios";
+import api from "./authService"; // axios instance with interceptors
 
-const API_URL = "http://localhost:8080/api/items";
+const BASE_URL = "/api/items";
 
-// Get all items (inventory)
-export const getInventoryItems = async (token) => {
-  const res = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.data;
+/**
+ * Get all items (inventory)
+ */
+export const getInventoryItems = async () => {
+  const response = await api.get(BASE_URL);
+  return response.data;
 };
 
-// Create a new inventory item
-export const createInventoryItem = async (itemData, token) => {
-  const res = await axios.post(API_URL, itemData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.data;
+/**
+ * Create a new inventory item
+ */
+export const createInventoryItem = async (itemData) => {
+  const response = await api.post(BASE_URL, itemData);
+  return response.data;
 };
 
-// Update an inventory item
-export const updateInventoryItem = async (id, itemData, token) => {
-  const res = await axios.put(`${API_URL}/${id}`, itemData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.data;
+/**
+ * Update an inventory item by ID
+ */
+export const updateInventoryItem = async (id, itemData) => {
+  const response = await api.put(`${BASE_URL}/${id}`, itemData);
+  return response.data;
 };
 
-// Delete an inventory item
-export const deleteInventoryItem = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Delete an inventory item by ID
+ */
+export const deleteInventoryItem = async (id) => {
+  const response = await api.delete(`${BASE_URL}/${id}`);
+  return response.data;
 };

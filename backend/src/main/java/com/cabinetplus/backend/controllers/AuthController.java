@@ -3,6 +3,7 @@ package com.cabinetplus.backend.controllers;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -15,9 +16,8 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.RequestParam;
 import com.cabinetplus.backend.dto.RegisterRequest;
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.UserRole;
@@ -40,6 +40,12 @@ public class AuthController {
     private final RefreshTokenRepository refreshRepo;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${jwt.access.expiration-ms}")
+    private long accessTokenMs;
+
+    @Value("${jwt.refresh.expiration-ms}")
+    private long refreshTokenMs;
+
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
                           UserRepository userRepo, RefreshTokenRepository refreshRepo,
                           PasswordEncoder passwordEncoder) {
@@ -51,14 +57,13 @@ public class AuthController {
     }
 
     // ---------------- COOKIE HELPER ----------------
-    private void addRefreshCookie(HttpServletResponse response, String refreshToken, long maxAge) {
-        // Local dev settings
+    private void addRefreshCookie(HttpServletResponse response, String refreshToken, long maxAgeSeconds) {
         ResponseCookie cookie = ResponseCookie.from("refresh_token", refreshToken)
-                .httpOnly(false)   // true in production
-                .secure(false)     // true in production
-                .sameSite("Lax")   // works on localhost
+                .httpOnly(true)   // secure in production
+                .secure(false)
+                .sameSite("Lax")
                 .path("/")
-                .maxAge(maxAge)
+                .maxAge(maxAgeSeconds)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
@@ -80,12 +85,12 @@ public class AuthController {
 
             RefreshToken refreshToken = new RefreshToken();
             refreshToken.setUser(user);
-            refreshToken.setToken(jwtUtil.generateRefreshToken(username));
+            refreshToken.setToken(jwtUtil.generateRefreshToken(username, refreshTokenMs));
             refreshToken.setCreatedAt(LocalDateTime.now());
-            refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(7 * 24 * 60 * 60));
+            refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
             refreshRepo.save(refreshToken);
 
-            addRefreshCookie(response, refreshToken.getToken(), 7 * 24 * 60 * 60);
+            addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
 
             return ResponseEntity.ok(Map.of("accessToken", accessToken));
 
@@ -116,12 +121,12 @@ public class AuthController {
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(saved);
-        refreshToken.setToken(jwtUtil.generateRefreshToken(saved.getUsername()));
+        refreshToken.setToken(jwtUtil.generateRefreshToken(saved.getUsername(), refreshTokenMs));
         refreshToken.setCreatedAt(LocalDateTime.now());
-        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(7 * 24 * 60 * 60));
+        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
         refreshRepo.save(refreshToken);
 
-        addRefreshCookie(response, refreshToken.getToken(), 7 * 24 * 60 * 60);
+        addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
 
         UserDto dto = new UserDto(
                 saved.getId(),
@@ -135,37 +140,6 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("user", dto, "accessToken", accessToken));
     }
 
-    // ---------------- REFRESH ----------------
-    @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(@CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
-                                     HttpServletResponse response) {
-        if (refreshTokenCookie == null) {
-            return ResponseEntity.ok(Map.of("accessToken", ""));
-        }
-
-        return refreshRepo.findByTokenWithUser(refreshTokenCookie) // eager fetch
-                .map(tokenEntity -> {
-                    User user = tokenEntity.getUser();
-                    if (tokenEntity.isRevoked() || tokenEntity.getExpiresAt().isBefore(LocalDateTime.now()) || user == null) {
-                        return ResponseEntity.ok(Map.of("accessToken", ""));
-                    }
-
-                    String newAccessToken = jwtUtil.generateAccessToken(user);
-                    String newRefreshToken = jwtUtil.generateRefreshToken(user.getUsername());
-
-                    // Rotate refresh token
-                    tokenEntity.setToken(newRefreshToken);
-                    tokenEntity.setCreatedAt(LocalDateTime.now());
-                    tokenEntity.setExpiresAt(LocalDateTime.now().plusSeconds(7 * 24 * 60 * 60));
-                    refreshRepo.save(tokenEntity);
-
-                    addRefreshCookie(response, newRefreshToken, 7 * 24 * 60 * 60);
-
-                    return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
-                })
-                .orElseGet(() -> ResponseEntity.ok(Map.of("accessToken", "")));
-    }
-
     // ---------------- SESSION ----------------
     @PostMapping("/session")
     public ResponseEntity<?> session(@CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
@@ -177,21 +151,15 @@ public class AuthController {
         return refreshRepo.findByTokenWithUser(refreshTokenCookie)
                 .map(tokenEntity -> {
                     User user = tokenEntity.getUser();
-                    if (tokenEntity.isRevoked() || tokenEntity.getExpiresAt().isBefore(LocalDateTime.now()) || user == null) {
+                    boolean expiredJwt = !jwtUtil.validateRefreshToken(tokenEntity.getToken());
+
+                    if (tokenEntity.isRevoked() || tokenEntity.getExpiresAt().isBefore(LocalDateTime.now())
+                            || user == null || expiredJwt) {
                         return ResponseEntity.ok(Map.of("accessToken", ""));
                     }
 
+                    // Only generate new access token, no refresh token rotation
                     String newAccessToken = jwtUtil.generateAccessToken(user);
-                    String newRefreshToken = jwtUtil.generateRefreshToken(user.getUsername());
-
-                    // Rotate refresh token
-                    tokenEntity.setToken(newRefreshToken);
-                    tokenEntity.setCreatedAt(LocalDateTime.now());
-                    tokenEntity.setExpiresAt(LocalDateTime.now().plusSeconds(7 * 24 * 60 * 60));
-                    refreshRepo.save(tokenEntity);
-
-                    addRefreshCookie(response, newRefreshToken, 7 * 24 * 60 * 60);
-
                     return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
                 })
                 .orElseGet(() -> ResponseEntity.ok(Map.of("accessToken", "")));
@@ -201,7 +169,6 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
                                        HttpServletResponse response) {
-
         if (refreshTokenCookie != null) {
             refreshRepo.findByToken(refreshTokenCookie).ifPresent(tokenEntity -> {
                 tokenEntity.setRevoked(true);
@@ -211,7 +178,7 @@ public class AuthController {
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
-                .secure(false) // localhost dev
+                .secure(false)
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(0)

@@ -7,7 +7,6 @@ import { updatePassword } from "../services/securityService";
 import "./Security.css";
 
 const Security = () => {
-  const token = useSelector((state) => state.auth.token);
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -25,7 +24,7 @@ const Security = () => {
     }
 
     try {
-      await updatePassword({ oldPassword, newPassword }, token);
+      await updatePassword({ oldPassword, newPassword });
       toast.success("Mot de passe mis à jour avec succès");
       setOldPassword("");
       setNewPassword("");

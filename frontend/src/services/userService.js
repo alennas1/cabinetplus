@@ -1,94 +1,88 @@
-const API_BASE = "http://localhost:8080/api/users";
+// src/services/userService.js
+import api from "./authService"; // axios instance with interceptors
 
-// ==========================
-// HELPER
-// ==========================
-const handleResponse = async (res) => {
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(errText || "API request failed");
-  }
-  return res.status === 204 ? null : res.json();
+const BASE_URL = "/api/users";
+
+/**
+ * ==========================
+ * CURRENT USER ENDPOINTS
+ * ==========================
+ */
+
+/** Get current user's profile */
+export const getUserProfile = async () => {
+  const response = await api.get(`${BASE_URL}/me`);
+  return response.data;
 };
 
-// ==========================
-// CURRENT USER ENDPOINTS
-// ==========================
-export const getUserProfile = (token) =>
-  fetch(`${API_BASE}/me`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-  }).then(handleResponse);
-
-export const updateUserProfile = (data, token) =>
-  fetch(`${API_BASE}/me`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(data),
-  }).then(handleResponse);
-
-export const updateUserPassword = (passwords, token) =>
-  fetch(`${API_BASE}/me/password`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(passwords),
-  }).then(handleResponse);
-
-
-export const verifyPhone = (token) =>
-  fetch(`${API_BASE}/me/verify-phone`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-  }).then(handleResponse);
-
-export const selectPlan = (planId, token) =>
-  fetch(`${API_BASE}/me/plan`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ planId }),
-  }).then(handleResponse);
-
-// ==========================
-// ADMIN ENDPOINTS
-// ==========================
-export const getAllUsers = (token) =>
-  fetch(`${API_BASE}`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
-    .then(handleResponse);
-
-export const getAllDentists = (token) =>
-  fetch(`${API_BASE}/dentists`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
-    .then(handleResponse);
-
-export const getAllAdmins = (token) =>
-  fetch(`${API_BASE}/admins`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
-    .then(handleResponse);
-
-export const createAdmin = (data, token) =>
-  fetch(`${API_BASE}/admin/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(data),
-  }).then(handleResponse);
-
-export const deleteAdmin = async (id, token) => {
-  const res = await fetch(`${API_BASE}/admin/delete/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || "Failed to delete admin");
-  }
-
-  // no need to parse JSON
-  return true;
+/** Update current user's profile */
+export const updateUserProfile = async (data) => {
+  const response = await api.put(`${BASE_URL}/me`, data);
+  return response.data;
 };
-// ==========================
-// EXPIRING USERS
-// ==========================
-export const getUsersExpiringInDays = (days, token) =>
-  fetch(`${API_BASE}/expiring-in/${days}`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
-    .then(handleResponse);
 
-    
+/** Update current user's password */
+export const updateUserPassword = async (passwords) => {
+  const response = await api.put(`${BASE_URL}/me/password`, passwords);
+  return response.data;
+};
+
+/** Verify phone number for current user */
+export const verifyPhone = async () => {
+  const response = await api.put(`${BASE_URL}/me/verify-phone`);
+  return response.data;
+};
+
+/** Select a plan for the current user */
+export const selectPlan = async (planId) => {
+  const response = await api.put(`${BASE_URL}/me/plan`, { planId });
+  return response.data;
+};
+
+/**
+ * ==========================
+ * ADMIN ENDPOINTS
+ * ==========================
+ */
+
+/** Get all users */
+export const getAllUsers = async () => {
+  const response = await api.get(BASE_URL);
+  return response.data;
+};
+
+/** Get all dentists */
+export const getAllDentists = async () => {
+  const response = await api.get(`${BASE_URL}/dentists`);
+  return response.data;
+};
+
+/** Get all admins */
+export const getAllAdmins = async () => {
+  const response = await api.get(`${BASE_URL}/admins`);
+  return response.data;
+};
+
+/** Create a new admin */
+export const createAdmin = async (data) => {
+  const response = await api.post(`${BASE_URL}/admin/create`, data);
+  return response.data;
+};
+
+/** Delete an admin by ID */
+export const deleteAdmin = async (id) => {
+  const response = await api.delete(`${BASE_URL}/admin/delete/${id}`);
+  return response.data; // if backend returns 204, this will be null
+};
+
+/**
+ * ==========================
+ * EXPIRING USERS
+ * ==========================
+ */
+
+/** Get users whose plans expire in X days */
+export const getUsersExpiringInDays = async (days) => {
+  const response = await api.get(`${BASE_URL}/expiring-in/${days}`);
+  return response.data;
+};

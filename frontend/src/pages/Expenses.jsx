@@ -22,7 +22,6 @@ const EXPENSE_CATEGORIES = {
 };
 
 const Expenses = () => {
-  const token = useSelector((state) => state.auth.token);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +62,7 @@ const Expenses = () => {
   const fetchExpenses = async () => {
     try {
       setLoading(true);
-      const data = await getExpenses(token);
+      const data = await getExpenses();
       setExpenses(data);
     } catch (err) {
       console.error(err);
@@ -100,7 +99,7 @@ const Expenses = () => {
       if (value === "SALARY") {
         setLoadingEmployees(true);
         try {
-          const data = await getEmployees(token);
+          const data = await getEmployees();
           setEmployees(data);
         } catch (err) {
           console.error(err);
@@ -120,11 +119,11 @@ const Expenses = () => {
     e.preventDefault();
     try {
       if (isEditing) {
-        const updated = await updateExpense(editingExpense.id, formData, token);
+        const updated = await updateExpense(editingExpense.id, formData);
         setExpenses(expenses.map((e) => (e.id === updated.id ? updated : e)));
         toast.success("Dépense mise à jour");
       } else {
-        const newExpense = await createExpense(formData, token);
+        const newExpense = await createExpense(formData);
         setExpenses([...expenses, newExpense]);
         toast.success("Dépense ajoutée");
       }
@@ -154,7 +153,7 @@ const Expenses = () => {
 
   const confirmDeleteExpense = async () => {
     try {
-      await deleteExpense(confirmDelete, token);
+      await deleteExpense(confirmDelete);
       setExpenses(expenses.filter((e) => e.id !== confirmDelete));
       toast.success("Dépense supprimée");
     } catch (err) {

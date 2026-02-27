@@ -14,7 +14,6 @@ import {
 import "./Patients.css";
 
 const Inventory = () => {
-  const token = useSelector((state) => state.auth.token);
 
   const [itemDefaults, setItemDefaults] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -51,7 +50,7 @@ const Inventory = () => {
 
   const fetchItemDefaults = async () => {
     try {
-      const data = await getItemDefaults(token);
+      const data = await getItemDefaults();
       setItemDefaults(data);
     } catch (err) {
       console.error(err);
@@ -62,7 +61,7 @@ const Inventory = () => {
   const fetchInventoryItems = async () => {
     try {
       setLoading(true);
-      const data = await getInventoryItems(token);
+      const data = await getInventoryItems();
       setInventoryItems(data);
     } catch (err) {
       console.error(err);
@@ -113,12 +112,12 @@ const Inventory = () => {
       const itemDefault = itemDefaults.find(d => d.id === Number(formData.itemDefaultId));
 
       if (editingItem) {
-        newItem = await updateInventoryItem(editingItem.id, payload, token);
+        newItem = await updateInventoryItem(editingItem.id, payload);
         const updatedItem = { ...newItem, itemDefaultName: itemDefault?.name };
         setInventoryItems(prev => prev.map(i => i.id === editingItem.id ? updatedItem : i));
         toast.success("Article mis à jour avec succès");
       } else {
-        newItem = await createInventoryItem(payload, token);
+        newItem = await createInventoryItem(payload);
         const addedItem = { ...newItem, itemDefaultName: itemDefault?.name };
         setInventoryItems(prev => [...prev, addedItem]);
         toast.success("Article ajouté à l'inventaire");
@@ -158,7 +157,7 @@ const Inventory = () => {
 
   const confirmDeleteItem = async () => {
     try {
-      await deleteInventoryItem(confirmDelete, token);
+      await deleteInventoryItem(confirmDelete);
       setInventoryItems(prev => prev.filter(i => i.id !== confirmDelete));
       toast.success("Article supprimé avec succès");
     } catch (err) {

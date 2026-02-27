@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "r
 import { useSelector, useDispatch } from "react-redux";
 import { initializeSession, getCurrentUser } from "./services/authService";
 import { setCredentials, sessionExpired, setLoading } from "./store/authSlice";
-
+import LoadingLogo from "./components/LoadingLogo"; // <-- adjust the path if needed
 // --- Pages ---
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -65,23 +65,25 @@ const AppContent = () => {
   }, [dispatch, navigate]);
 
   // --- Initialize Session on Page Load ---
-  useEffect(() => {
-    const bootApp = async () => {
-      dispatch(setLoading(true));
-      const hasSession = await initializeSession(); // calls /auth/session
+ useEffect(() => {
+  const bootApp = async () => {
+    dispatch(setLoading(true));
+
+    try {
+      const hasSession = await initializeSession(); // refreshes token if refresh cookie is valid
       if (hasSession) {
-        try {
-          const userData = await getCurrentUser();
-          dispatch(setCredentials({ user: userData, token: true }));
-        } catch {
-          dispatch(sessionExpired());
-        }
+        const userData = await getCurrentUser();
+        dispatch(setCredentials({ user: userData, token: true })); // now token is valid
       } else {
-        dispatch(setLoading(false));
+        dispatch(sessionExpired());
       }
-    };
-    bootApp();
-  }, [dispatch]);
+    } catch {
+      dispatch(sessionExpired());
+    }
+  };
+
+  bootApp();
+}, [dispatch]);
 
   // --- Determine Redirect Path based on User Status ---
   const getRedirectPath = (user) => {
@@ -95,13 +97,8 @@ const AppContent = () => {
 
   // --- Loading Screen ---
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        <p className="mt-4 text-gray-600 font-medium">Initialisation de la session...</p>
-      </div>
-    );
-  }
+  return <LoadingLogo />;
+}
 
   const RootRedirect = () => (!isAuthenticated ? <Navigate to="/login" replace /> : <Navigate to={getRedirectPath(user)} replace />);
   const CatchAllRedirect = () => (!isAuthenticated ? <Navigate to="/login" replace /> : <Navigate to={getRedirectPath(user)} replace />);

@@ -1,38 +1,44 @@
 // src/services/itemDefaultService.js
-import axios from "axios";
+import api from "./authService"; // axios instance with interceptors
 
-const API_URL = "http://localhost:8080/api/item-defaults";
+const BASE_URL = "/api/item-defaults";
 
-export const getItemDefaults = async (token) => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Get all item defaults
+ */
+export const getItemDefaults = async () => {
+  const response = await api.get(BASE_URL);
   return response.data;
 };
 
-export const getItemDefaultById = async (id, token) => {
-  const response = await axios.get(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Get an item default by ID
+ */
+export const getItemDefaultById = async (id) => {
+  const response = await api.get(`${BASE_URL}/${id}`);
   return response.data;
 };
 
-export const createItemDefault = async (itemDefaultData, token) => {
-  const response = await axios.post(API_URL, itemDefaultData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Create a new item default
+ */
+export const createItemDefault = async (itemDefaultData) => {
+  const response = await api.post(BASE_URL, itemDefaultData);
   return response.data;
 };
 
-export const updateItemDefault = async (id, itemDefaultData, token) => {
-  const response = await axios.put(`${API_URL}/${id}`, itemDefaultData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Update an item default by ID
+ */
+export const updateItemDefault = async (id, itemDefaultData) => {
+  const response = await api.put(`${BASE_URL}/${id}`, itemDefaultData);
   return response.data;
 };
 
-export const deleteItemDefault = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Delete an item default by ID
+ */
+export const deleteItemDefault = async (id) => {
+  const response = await api.delete(`${BASE_URL}/${id}`);
+  return response.data;
 };

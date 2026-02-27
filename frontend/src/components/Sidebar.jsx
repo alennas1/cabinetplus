@@ -13,19 +13,29 @@ import {
   Package,
   UserCheck,
 } from "react-feather";
-import { logout } from "../store/authSlice";
+
+import { logout as logoutRedux } from "../store/authSlice";
+import { logout as logoutApi } from "../services/authService";
+
 import "./Sidebar.css";
 
 const Sidebar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    // 1. Clear Redux state & Browser Storage (Local + Session)
-    dispatch(logout()); 
-    
-    // 2. Redirect to Login and wipe history stack
-    navigate("/login", { replace: true });
+  const handleLogout = async () => {
+    try {
+      // 1️⃣ Call backend to revoke refresh token + clear cookie
+      await logoutApi();
+    } catch (error) {
+      console.error("Logout API failed:", error);
+    } finally {
+      // 2️⃣ Clear Redux auth state
+      dispatch(logoutRedux());
+
+      // 3️⃣ Redirect to login and wipe history stack
+      navigate("/login", { replace: true });
+    }
   };
 
   return (
@@ -41,18 +51,21 @@ const Sidebar = () => {
 
         {/* --- General Group --- */}
         <li className="sidebar-group-title admin">Général</li>
+
         <li>
           <Link to="/dashboard">
             <Home size={20} />
             <span className="link-text">Tableau de bord</span>
           </Link>
         </li>
+
         <li>
           <Link to="/patients">
             <Users size={20} />
             <span className="link-text">Patients</span>
           </Link>
         </li>
+
         <li>
           <Link to="/appointments">
             <Calendar size={20} />
@@ -69,24 +82,28 @@ const Sidebar = () => {
             <span className="link-text">Employés</span>
           </Link>
         </li>
+
         <li className="admin-link">
           <Link to="/finance">
             <BarChart2 size={20} />
             <span className="link-text">Finances</span>
           </Link>
         </li>
+
         <li className="admin-link">
           <Link to="/inventory">
             <Package size={20} />
             <span className="link-text">Inventaire</span>
           </Link>
         </li>
+
         <li className="admin-link">
           <Link to="/expenses">
             <CreditCard size={20} />
             <span className="link-text">Dépenses</span>
           </Link>
         </li>
+
         <li className="admin-link">
           <Link to="/settings">
             <Settings size={20} />
@@ -95,7 +112,7 @@ const Sidebar = () => {
         </li>
       </ul>
 
-      {/* Déconnexion */}
+      {/* --- Logout --- */}
       <div className="sidebar-logout">
         <button onClick={handleLogout} className="logout-btn">
           <LogOut size={20} />

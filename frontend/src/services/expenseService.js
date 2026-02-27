@@ -1,44 +1,44 @@
 // src/services/expenseService.js
-import axios from "axios";
+import api from "./authService"; // axios instance with interceptors
 
-const API_URL = "http://localhost:8080/api/expenses"; // Adjust if your backend runs elsewhere
+const BASE_URL = "/api/expenses";
 
-// Get all expenses
-export const getExpenses = async (token) => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Get all expenses
+ */
+export const getExpenses = async () => {
+  const response = await api.get(BASE_URL);
   return response.data;
 };
 
-// Create new expense
-export const createExpense = async (expenseData, token) => {
-  const response = await axios.post(API_URL, expenseData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Create a new expense
+ */
+export const createExpense = async (expenseData) => {
+  const response = await api.post(BASE_URL, expenseData);
   return response.data;
 };
 
-// Update expense
-export const updateExpense = async (id, expenseData, token) => {
-  const response = await axios.put(`${API_URL}/${id}`, expenseData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Update an expense by ID
+ */
+export const updateExpense = async (id, expenseData) => {
+  const response = await api.put(`${BASE_URL}/${id}`, expenseData);
   return response.data;
 };
 
-// Delete expense
-export const deleteExpense = async (id, token) => {
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-};
-
-// Get expenses by employee
-export const getExpensesByEmployee = async (employeeId, token) => {
-  const response = await axios.get(`${API_URL}/employee/${employeeId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+/**
+ * Delete an expense by ID
+ */
+export const deleteExpense = async (id) => {
+  const response = await api.delete(`${BASE_URL}/${id}`);
   return response.data;
 };
 
+/**
+ * Get expenses by employee ID
+ */
+export const getExpensesByEmployee = async (employeeId) => {
+  const response = await api.get(`${BASE_URL}/employee/${employeeId}`);
+  return response.data;
+};

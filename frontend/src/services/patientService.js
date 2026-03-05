@@ -31,15 +31,36 @@ export const deletePatient = async (id) => {
 
 // ----------------- Download Patient Fiche (PDF) -----------------
 export const downloadPatientFiche = async (id) => {
-  const response = await api.get(`/api/patients/${id}/fiche-pdf`, {
-    responseType: "blob",
-  });
+  try {
+    const response = await api.get(`/api/patients/${id}/fiche-pdf`, {
+      responseType: "blob", // Necessary for binary files
+    });
 
-  const url = window.URL.createObjectURL(new Blob([response.data]));
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", `patient_${id}_fiche.pdf`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+    // 1. Get the header from the response
+    const contentDisposition = response.headers['content-disposition'];
+    let fileName = "fiche_patient.pdf"; // Fallback name
+
+    if (contentDisposition) {
+      // Regex to extract filename between quotes
+      const fileNameMatch = contentDisposition.match(/filename="(.+?)"/);
+      if (fileNameMatch && fileNameMatch[1]) {
+        fileName = fileNameMatch[1];
+      }
+    }
+
+    // 2. Trigger the browser download
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName); // This sets the actual filename
+    document.body.appendChild(link);
+    link.click();
+
+    // 3. Clean up
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Download failed", error);
+    throw error;
+  }
 };

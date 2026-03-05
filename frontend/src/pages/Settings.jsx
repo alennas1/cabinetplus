@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { User, Lock, Package, Settings as Gear, FileText, Box, CreditCard } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
-
+import {Activity, Clipboard } from "react-feather";
 const Settings = () => {
   const navigate = useNavigate();
 
@@ -35,8 +35,14 @@ const Settings = () => {
       title: "Catalogues",
       options: [
         { title: "Catalogue des médicaments", desc: "Gérer la liste des médicaments disponibles", icon: <Box />, path: "/settings/medications" },
-        { title: "Catalogue des traitements", desc: "Ajouter, modifier ou supprimer les traitements proposés", icon: <FileText />, path: "/settings/treatments" },
+        { title: "Catalogue des traitements", desc: "Ajouter, modifier ou supprimer les traitements proposés", icon: < Clipboard />, path: "/settings/treatments" },
         { title: "Catalogue des articles", desc: "Ajouter, modifier ou supprimer les articles disponibles", icon: <Package />, path: "/settings/items" },
+         { 
+      title: "Catalogue des justifications", 
+      desc: "Ajouter, modifier ou supprimer les justifications disponibles", 
+      icon: <  FileText/>,   // You can change icon if needed
+      path: "/settings/justifications" 
+    },
       ],
     },
     {

@@ -873,6 +873,111 @@
  margin-top: -10px; /* Adjust spacing after input */
  margin-bottom: 10px; /* Space before next label */
 }
+.placeholders-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.placeholder-btn {
+  background-color: #e6f0ff;
+  color: #007bff;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.placeholder-btn:hover {
+  background-color: #007bff;
+  color: #fff;
+}
+
+/* Optional: make placeholders inside textarea appear blue (optional, just text) */
+#content-textarea {
+  font-family: inherit;
+  font-size: 14px;
+  min-height: 120px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+  resize: vertical;
+}
+/* Editable div */
+.editable-div {
+  min-height: 100px;
+  border: 1px solid #ccc;
+  padding: 8px;
+  border-radius: 5px;
+  overflow-y: auto;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Placeholder spans only for inserted placeholders */
+.placeholder-in-text {
+  font-weight: bold;
+  color: #007bff; /* blue */
+}
+
+
+
+
+/* Specific styling for justification items to look like settings cards */
+.justification-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.justification-item-card {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: 1px solid #e5e7eb;
+  text-align: left;
+  width: 100%;
+}
+
+.justification-item-card:hover {
+  border-color: #3498db;
+  background: #f0f7fc;
+}
+
+.justification-item-icon {
+  width: 32px;
+  height: 32px;
+  color: #3498db;
+  margin-right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.justification-item-text h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+.justification-item-text p {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 2px 0 0 0;
+}
+/* You can also highlight placeholders in textarea using CSS if you want */
 
 /* --- If you need specific modal header styling (optional) --- */
 /* (The main modal styles should be copied from the original file) */

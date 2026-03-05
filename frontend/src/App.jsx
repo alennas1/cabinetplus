@@ -29,7 +29,7 @@ import VerificationPage from "./pages/VerificationPage";
 import PlanPage from "./pages/PlanPage"; 
 import WaitingPage from "./pages/WaitingPage"; 
 import HandPaymentHistory from "./pages/HandPaymentHistory";
-
+import JustificationContent from "./pages/JustificationContent";
 // --- Admin Pages ---
 import DentistsPage from "./pages/Dentists"; 
 import PendingPaymentsPage from "./pages/PendingPayments"; 
@@ -40,7 +40,7 @@ import AdminFinance from "./pages/AdminFinance";
 import ManageAdmins from "./pages/ManageAdmins";
 import AdminChangePassword from "./pages/AdminChangePassword";
 import ManagePlans from "./pages/ManagePlans";
-
+import Justification from "./pages/Justification";
 // --- Components ---
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
@@ -127,6 +127,7 @@ const AppContent = () => {
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/medications" element={<Medications />} />
             <Route path="/settings/treatments" element={<TreatmentCatalog />} />
+            <Route path="/settings/justifications" element={<JustificationContent />} />
             <Route path="/settings/items" element={<Items />} />
             <Route path="/settings/preferences" element={<Preference />} />
             <Route path="/settings/profile" element={<Profile />} />
@@ -137,8 +138,10 @@ const AppContent = () => {
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
             <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
+<Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/employees/:id" element={<EmployeeDetails />} />
+            
           </Route>
         </Route>
 

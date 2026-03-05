@@ -23,9 +23,15 @@ import { getTreatments as getTreatmentCatalog } from "../services/treatmentCatal
 
 import { getPrescriptionsByPatient,deletePrescription } from "../services/prescriptionService"; // make sure you have this
 
+import { getJustificationTemplates } from "../services/justificationContentService";
+import { 
+  getJustificationsByPatient, 
+  deleteJustification,
+  downloadJustificationPdf
+} from "../services/justificationService";
 
 import "./Patient.css";
-import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download } from "react-feather";
+import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer } from "react-feather";
 
 const Patient = () => {
   const { id } = useParams();
@@ -39,6 +45,9 @@ const Patient = () => {
   COMPLETED: "Terminé",
   CANCELLED: "Annulé",
 };
+const [showPatientModal, setShowPatientModal] = useState(false); // for Add/Edit Patient
+const [showJustificationModal, setShowJustificationModal] = useState(false); // for Justification modal
+const [justificationTypes, setJustificationTypes] = useState([]); // list of justification templates
 
 const [activeTab, setActiveTab] = useState("treatments"); // default tab
 const handleCompleteAppointment = async (a) => {
@@ -75,7 +84,15 @@ const handleDownloadPdf = async () => {
     setIsDownloading(false);
   }
 };
-
+const handlePrintJustification = async (justificationId, title) => {
+  try {
+    toast.info("Génération du PDF...");
+    await downloadJustificationPdf(justificationId, title || "Justificatif");
+  } catch (error) {
+    console.error("Error printing justification:", error);
+    toast.error("Erreur lors de la génération du PDF");
+  }
+};
 const [ordonnances, setOrdonnances] = useState([]);
 useEffect(() => {
   const fetchData = async () => {
@@ -89,7 +106,39 @@ useEffect(() => {
   };
   fetchData();
 }, [id]);
+const [justifications, setJustifications] = useState([]);
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      // ... existing fetch calls (patientData, treatments, etc.)
+      
+      const justificationsData = await getJustificationsByPatient(id);
+      setJustifications(justificationsData);
 
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors du chargement des données");
+    } finally {
+      setLoading(false);
+    }
+  };
+  fetchData();
+}, [id]);
+
+const handleDeleteJustification = (j) => {
+  setConfirmMessage("Voulez-vous supprimer ce justificatif ?");
+  setOnConfirmAction(() => async () => {
+    try {
+      await deleteJustification(j.id);
+      setJustifications(justifications.filter(item => item.id !== j.id));
+      toast.success("Justificatif supprimé !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la suppression");
+    }
+  });
+  setShowConfirm(true);
+};
 
   const [treatments, setTreatments] = useState([]);
   const [treatmentCatalog, setTreatmentCatalog] = useState([]);
@@ -129,7 +178,18 @@ const [formData, setFormData] = useState({
   sex: "",
   phone: "",
 });
+const openJustificationModal = async () => {
+  setShowJustificationModal(true);
+  try {
+    const data = await getJustificationTemplates(); // fetch templates (ALL TYPES + CUSTOM TYPES)
+    setJustificationTypes(data);
+  } catch (err) {
+    console.error(err);
+    toast.error("Impossible de charger les types de justification");
+  }
+};
 
+const closeJustificationModal = () => setShowJustificationModal(false);
 // --- HELPERS ---
 const formatDate = (dateStr) =>
   dateStr
@@ -657,11 +717,20 @@ const handleDeleteAppointment = (a) => {
       >
        <Calendar size={16} /> Rendez-vous
       </button>
+      
 <button
   className={activeTab === "prescriptions" ? "tab-btn active" : "tab-btn"}
   onClick={() => setActiveTab("prescriptions")}
 >
   <FileText size={16} /> Ordonnances
+</button>
+
+
+<button
+  className={activeTab === "justifications" ? "tab-btn active" : "tab-btn"}
+  onClick={() => setActiveTab("justifications")}
+>
+  <FileText size={16} /> Justificatifs
 </button>
 </div>
 
@@ -842,7 +911,53 @@ const handleDeleteAppointment = (a) => {
   </>
 )}
 
-
+{activeTab === "justifications" && (
+  <>
+    <div className="button-container">
+      <button className="btn-primary-app" onClick={openJustificationModal}>
+        <Plus size={16} /> Ajouter
+      </button>
+    </div>
+    <table className="treatment-table">
+      <thead>
+        <tr>
+          <th>Titre</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {justifications.map((j) => (
+          <tr key={j.id}>
+            <td>{j.title || "Sans titre"}</td>
+            <td>{formatDate(j.createdAt || j.date)}</td>
+            <td className="actions-cell">
+              <button
+                className="action-btn view" 
+              onClick={() => handlePrintJustification(j.id, j.title)}
+              title="Imprimer"
+              >
+                <Printer size={16} />
+              </button>
+              <button
+                className="action-btn delete"
+                onClick={() => handleDeleteJustification(j)}
+                title="Supprimer"
+              >
+                <Trash2 size={16} />
+              </button>
+            </td>
+          </tr>
+        ))}
+        {justifications.length === 0 && (
+          <tr>
+            <td colSpan="3" style={{ textAlign: "center" }}>Aucun justificatif généré</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </>
+)}
 
 {showQrModal && (
         <div className="modal-overlay" onClick={() => setShowQrModal(false)}>
@@ -961,8 +1076,56 @@ const handleDeleteAppointment = (a) => {
     </div>
   </div>
 )}
+{showJustificationModal && (
+  <div className="modal-overlay" onClick={closeJustificationModal}>
+    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div className="settings-text">
+          <h2 style={{ margin: 0 }}>Sélectionner un document</h2>
+          <p style={{ fontSize: '14px', color: '#6b7280', margin: '4px 0 0 0' }}>Choisissez le modèle à générer pour ce patient</p>
+        </div>
+        <X size={20} onClick={closeJustificationModal} style={{ cursor: 'pointer', color: '#6b7280' }} />
+      </div>
 
+      <div className="settings-options" style={{ marginTop: '0' }}>
+        {justificationTypes.map((t) => (
+          <div
+            key={t.id}
+            className="settings-card"
+            role="button"
+            onClick={() => {
+              closeJustificationModal();
+              navigate(`/patients/${patient.id}/justification/${t.id}`);
+            }}
+          >
+            <div className="settings-icon">
+              <FileText size={20} />
+            </div>
+            <div className="settings-text">
+              <h2 style={{ fontSize: '15px', fontWeight: '600', margin: 0 }}>
+                {t.title || "Modèle sans titre"}
+              </h2>
+            </div>
+          </div>
+        ))}
 
+        {justificationTypes.length === 0 && (
+          <p style={{ textAlign: "center", color: "#888", padding: "20px" }}>
+            Aucun modèle enregistré.
+          </p>
+        )}
+      </div>
+
+      <button
+        className="btn-cancel"
+        style={{ width: "100%", marginTop: "20px", border: 'none', background: '#f3f4f6' }}
+        onClick={closeJustificationModal}
+      >
+        Annuler
+      </button>
+    </div>
+  </div>
+)}
 
       {/* --- MODALS --- */}
       {/* Treatment Modal */}

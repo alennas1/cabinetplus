@@ -112,114 +112,134 @@ public class PatientController {
     // ==========================================
     // MEDICAL FICHE PDF GENERATION
     // ==========================================
-    @GetMapping("/{id}/fiche-pdf")
-    public void generatePatientFiche(@PathVariable Long id, HttpServletResponse response) throws Exception {
-        Patient patient = patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found"));
-        List<Treatment> treatments = treatmentRepository.findByPatientId(id);
-        List<Appointment> appointments = appointmentRepository.findByPatientId(id);
-        List<Prescription> prescriptions = prescriptionRepository.findByPatientId(id);
-        List<Payment> payments = paymentRepository.findByPatientId(id);
+  @GetMapping("/{id}/fiche-pdf")
+public void generatePatientFiche(@PathVariable Long id, HttpServletResponse response) throws Exception {
+    // 1. Fetch Data
+    Patient patient = patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found"));
+    List<Treatment> treatments = treatmentRepository.findByPatientId(id);
+    List<Appointment> appointments = appointmentRepository.findByPatientId(id);
+    List<Payment> payments = paymentRepository.findByPatientId(id);
 
-        response.setContentType("application/pdf");
-        response.setHeader("Content-Disposition", "inline; filename=fiche_" + patient.getLastname() + ".pdf");
+   String lastname = patient.getLastname().replaceAll("\\s+", "_").toUpperCase();
+    String firstname = patient.getFirstname().replaceAll("\\s+", "_");
+    String todayDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd_MM_yyyy"));
 
-        com.lowagie.text.Document document = new com.lowagie.text.Document(PageSize.A4, 50, 50, 60, 60);
-        PdfWriter.getInstance(document, response.getOutputStream());
-        document.open();
+    // Format: lastname_firstname_fiche_patient_todaydate.pdf
+    String fileName = String.format("%s_%s_fiche_patient_%s.pdf", lastname, firstname, todayDate);
 
-        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
-        Font sectionHeaderFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
-        Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
-        Font bodyFontBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9);
-        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    response.setContentType("application/pdf");
+    // CRITICAL: Use "attachment" and wrap filename in quotes
+    response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+    // CRITICAL for React/Axios: Allow the frontend to see this header
+    response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+    // 3. Initialize PDF (Crucial: Store the writer in a variable)
+    com.lowagie.text.Document document = new com.lowagie.text.Document(PageSize.A4, 50, 50, 60, 60);
+    PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream()); // Variable 'writer' created
+    document.open();
 
-        // Header
-        Paragraph mainTitle = new Paragraph("FICHE CLINIQUE D PATIENT", titleFont);
-        mainTitle.setAlignment(Element.ALIGN_CENTER);
-        mainTitle.setSpacingAfter(25);
-        document.add(mainTitle);
+    // 4. Styles
+    Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+    Font sectionHeaderFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
+    Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
+    Font bodyFontBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9);
+    DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        PdfPTable patientInfo = new PdfPTable(2);
-        patientInfo.setWidthPercentage(100);
-        addKeyValueRow(patientInfo, "PATIENT:", patient.getFirstname() + " " + patient.getLastname().toUpperCase(), bodyFontBold, bodyFont);
-        addKeyValueRow(patientInfo, "ÂGE:", patient.getAge() + " ans", bodyFontBold, bodyFont);
-        addKeyValueRow(patientInfo, "TÉLÉPHONE:", (patient.getPhone() != null ? patient.getPhone() : "N/A"), bodyFontBold, bodyFont);
-        addKeyValueRow(patientInfo, "DATE:", LocalDateTime.now().format(dtf), bodyFontBold, bodyFont);
-        document.add(patientInfo);
+    // 5. Header
+    Paragraph mainTitle = new Paragraph("Fiche de soins", titleFont);
+    mainTitle.setAlignment(Element.ALIGN_CENTER);
+    mainTitle.setSpacingAfter(25);
+    document.add(mainTitle);
 
-        document.add(new Paragraph(" "));
-        document.add(new LineSeparator(0.5f, 100, java.awt.Color.BLACK, Element.ALIGN_CENTER, -2));
-        document.add(new Paragraph(" "));
+    PdfPTable patientInfo = new PdfPTable(2);
+    patientInfo.setWidthPercentage(100);
+    addKeyValueRow(patientInfo, "PATIENT:", patient.getFirstname() + " " + patient.getLastname().toUpperCase(), bodyFontBold, bodyFont);
+    addKeyValueRow(patientInfo, "ÂGE:", patient.getAge() + " ans", bodyFontBold, bodyFont);
+    addKeyValueRow(patientInfo, "TÉLÉPHONE:", (patient.getPhone() != null ? patient.getPhone() : "N/A"), bodyFontBold, bodyFont);
+    addKeyValueRow(patientInfo, "DATE DU RAPPORT:", LocalDateTime.now().format(dtf), bodyFontBold, bodyFont);
+    document.add(patientInfo);
 
-        // Treatments Table
-        document.add(new Paragraph("HISTORIQUE DES TRAITEMENTS", sectionHeaderFont));
-        PdfPTable tTable = new PdfPTable(new float[]{2, 5, 2});
-        tTable.setWidthPercentage(100);
-        tTable.setSpacingBefore(10);
-        addCleanHeader(tTable, bodyFontBold, new String[]{"DATE", "TRAITEMENT", "PRIX"});
-        for (Treatment t : treatments) {
-            addCleanRow(tTable, bodyFont, new String[]{t.getDate() != null ? t.getDate().format(dtf) : "-", t.getTreatmentCatalog().getName(), t.getPrice() + " DZD"});
-        }
-        document.add(tTable);
-        document.add(new Paragraph(" "));
+    document.add(new Paragraph(" "));
+    document.add(new LineSeparator(0.5f, 100, java.awt.Color.BLACK, Element.ALIGN_CENTER, -2));
+    document.add(new Paragraph(" "));
 
-        // Appointments Table (Updated with French translation)
-        document.add(new Paragraph("RENDEZ-VOUS", sectionHeaderFont));
-        PdfPTable aTable = new PdfPTable(new float[]{3, 3, 4});
-        aTable.setWidthPercentage(100);
-        aTable.setSpacingBefore(10);
-        addCleanHeader(aTable, bodyFontBold, new String[]{"DATE & HEURE", "STATUT", "NOTES"});
-        for (Appointment a : appointments) {
-            addCleanRow(aTable, bodyFont, new String[]{
-                a.getDateTimeStart().format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")), 
-                translateStatus(a.getStatus().toString()), 
-                a.getNotes() != null ? a.getNotes() : "-"
-            });
-        }
-        document.add(aTable);
-        document.add(new Paragraph(" "));
-
-        // Payments Table (Updated with French translation)
-        document.add(new Paragraph("PAIEMENTS", sectionHeaderFont));
-        PdfPTable pTable = new PdfPTable(new float[]{3, 4, 3});
-        pTable.setWidthPercentage(100);
-        pTable.setSpacingBefore(10);
-        addCleanHeader(pTable, bodyFontBold, new String[]{"DATE", "MÉTHODE", "MONTANT"});
-        for (Payment pay : payments) {
-            addCleanRow(pTable, bodyFont, new String[]{
-                pay.getDate().format(dtf), 
-                translatePaymentMethod(pay.getMethod().toString()), 
-                pay.getAmount() + " DZD"
-            });
-        }
-        document.add(pTable);
-
-        // --- FINAL SUMMARY BLOCK ---
-        double totalTreatments = treatments.stream().mapToDouble(Treatment::getPrice).sum();
-        double totalPaid = payments.stream().mapToDouble(Payment::getAmount).sum();
-        double balance = totalTreatments - totalPaid;
-
-        document.add(new Paragraph(" "));
-        PdfPTable totalTable = new PdfPTable(2);
-        totalTable.setWidthPercentage(40);
-        totalTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
-
-        addKeyValueRow(totalTable, "TOTAL TRAITEMENTS:", totalTreatments + " DZD", bodyFont, bodyFont);
-        addKeyValueRow(totalTable, "TOTAL PAYÉ:", totalPaid + " DZD", bodyFont, bodyFont);
-        
-        PdfPCell sKey = new PdfPCell(new Phrase("SOLDE RESTANT:", bodyFontBold));
-        sKey.setBorder(Rectangle.TOP);
-        sKey.setPaddingTop(5);
-        totalTable.addCell(sKey);
-
-        PdfPCell sVal = new PdfPCell(new Phrase(balance + " DZD", bodyFontBold));
-        sVal.setBorder(Rectangle.TOP);
-        sVal.setPaddingTop(5);
-        totalTable.addCell(sVal);
-
-        document.add(totalTable);
-        document.close();
+    // 6. Treatments Table
+    document.add(new Paragraph("HISTORIQUE DES TRAITEMENTS", sectionHeaderFont));
+    PdfPTable tTable = new PdfPTable(new float[]{2, 5, 2});
+    tTable.setWidthPercentage(100);
+    tTable.setSpacingBefore(10);
+    addCleanHeader(tTable, bodyFontBold, new String[]{"DATE", "TRAITEMENT", "PRIX"});
+    for (Treatment t : treatments) {
+        addCleanRow(tTable, bodyFont, new String[]{t.getDate() != null ? t.getDate().format(dtf) : "-", t.getTreatmentCatalog().getName(), t.getPrice() + " DZD"});
     }
+    document.add(tTable);
+    document.add(new Paragraph(" "));
+
+    // 7. Appointments Table
+    document.add(new Paragraph("RENDEZ-VOUS", sectionHeaderFont));
+    PdfPTable aTable = new PdfPTable(new float[]{3, 3, 4});
+    aTable.setWidthPercentage(100);
+    aTable.setSpacingBefore(10);
+    addCleanHeader(aTable, bodyFontBold, new String[]{"DATE & HEURE", "STATUT", "NOTES"});
+    for (Appointment a : appointments) {
+        addCleanRow(aTable, bodyFont, new String[]{
+            a.getDateTimeStart().format(DateTimeFormatter.ofPattern("dd/MM/yy HH:mm")), 
+            translateStatus(a.getStatus().toString()), 
+            a.getNotes() != null ? a.getNotes() : "-"
+        });
+    }
+    document.add(aTable);
+    document.add(new Paragraph(" "));
+
+    // 8. Payments Table
+    document.add(new Paragraph("PAIEMENTS", sectionHeaderFont));
+    PdfPTable pTable = new PdfPTable(new float[]{3, 4, 3});
+    pTable.setWidthPercentage(100);
+    pTable.setSpacingBefore(10);
+    addCleanHeader(pTable, bodyFontBold, new String[]{"DATE", "MÉTHODE", "MONTANT"});
+    for (Payment pay : payments) {
+        addCleanRow(pTable, bodyFont, new String[]{
+            pay.getDate().format(dtf), 
+            translatePaymentMethod(pay.getMethod().toString()), 
+            pay.getAmount() + " DZD"
+        });
+    }
+    document.add(pTable);
+
+    // 9. Summary Table
+    double totalTreatments = treatments.stream().mapToDouble(Treatment::getPrice).sum();
+    double totalPaid = payments.stream().mapToDouble(Payment::getAmount).sum();
+    double balance = totalTreatments - totalPaid;
+
+    document.add(new Paragraph(" "));
+    PdfPTable totalTable = new PdfPTable(2);
+    totalTable.setWidthPercentage(40);
+    totalTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
+    addKeyValueRow(totalTable, "TOTAL TRAITEMENTS:", totalTreatments + " DZD", bodyFont, bodyFont);
+    addKeyValueRow(totalTable, "TOTAL PAYÉ:", totalPaid + " DZD", bodyFont, bodyFont);
+    
+    PdfPCell sKey = new PdfPCell(new Phrase("SOLDE RESTANT:", bodyFontBold));
+    sKey.setBorder(Rectangle.TOP);
+    sKey.setPaddingTop(5);
+    totalTable.addCell(sKey);
+
+    PdfPCell sVal = new PdfPCell(new Phrase(balance + " DZD", bodyFontBold));
+    sVal.setBorder(Rectangle.TOP);
+    sVal.setPaddingTop(5);
+    totalTable.addCell(sVal);
+    document.add(totalTable);
+
+    // 10. Signature (Using the fixed writer variable)
+    PdfPTable sigTable = new PdfPTable(1);
+    sigTable.setTotalWidth(180);
+    PdfPCell sCell = new PdfPCell(new Phrase("Signature & Cachet\n\n\n___________________", bodyFont));
+    sCell.setBorder(Rectangle.NO_BORDER);
+    sCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+    sigTable.addCell(sCell);
+
+    sigTable.writeSelectedRows(0, -1, document.right() - 180, document.bottom() + 100, writer.getDirectContent());
+
+    document.close();
+}
 
     // Helper method to translate Appointment Status
     private String translateStatus(String status) {

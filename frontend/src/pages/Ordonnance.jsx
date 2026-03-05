@@ -210,14 +210,27 @@ useEffect(() => {
         </button>
 
         <header className="flex items-start justify-between mb-6 mt-4 border-b pb-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-800">Ordonnance / Prescription</h1>
-          </div>
-          <div className="text-right">
-            {isEditMode && rxId && <p className="text-sm text-gray-600">Ref: <span className="font-medium">{rxId}</span></p>}
-            <p className="text-sm text-gray-600">Date: <span className="font-medium">{new Date().toLocaleDateString()}</span></p>
-          </div>
-        </header>
+  <div>
+    <h1 className="text-2xl font-semibold text-gray-800">Ordonnance</h1>
+    {/* Subtext added below */}
+    <p className="text-sm text-gray-500 mt-1">
+      {isEditMode 
+        ? "Modification d'une prescription existante." 
+        : "Rédaction d'une nouvelle prescription médicale."}
+    </p>
+  </div>
+  
+  <div className="text-right">
+    {isEditMode && rxId && (
+      <p className="text-sm text-gray-600">
+        Ref: <span className="font-medium">#{rxId}</span>
+      </p>
+    )}
+    <p className="text-sm text-gray-600">
+      Date: <span className="font-medium">{new Date().toLocaleDateString('fr-DZ')}</span>
+    </p>
+  </div>
+</header>
 
         <section className="grid grid-cols-12 gap-4 items-center mb-6">
           <div className="col-span-8 flex items-center gap-4">

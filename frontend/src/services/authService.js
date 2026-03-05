@@ -1,6 +1,7 @@
 import axios from "axios";
 
 const API_URL = "http://localhost:8080";
+let isLoggingOut = false;
 
 const api = axios.create({
   baseURL: API_URL,
@@ -33,12 +34,14 @@ export const setAccessToken = (token, expiresInMs = DEFAULT_ACCESS_TOKEN_MS) => 
         setAccessToken(data.accessToken, expiresInMs);
       } else {
         clearAccessToken();
-        window.dispatchEvent(new Event("sessionExpired"));
-      }
+if (!isLoggingOut) {
+  window.dispatchEvent(new Event("sessionExpired"));
+}      }
     } catch {
       clearAccessToken();
-      window.dispatchEvent(new Event("sessionExpired"));
-    }
+if (!isLoggingOut) {
+  window.dispatchEvent(new Event("sessionExpired"));
+}    }
   }, refreshDelay);
 };
 
@@ -124,6 +127,7 @@ export const register = async (userData) => {
 };
 
 export const logout = async () => {
+  isLoggingOut = true;
   await api.post("/auth/logout");
   clearAccessToken();
 };

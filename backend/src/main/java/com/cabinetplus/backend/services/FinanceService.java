@@ -17,13 +17,14 @@ import com.cabinetplus.backend.dto.FinanceCardsResponseDTO.ValueComparisonDTO;
 import com.cabinetplus.backend.dto.FinanceGraphResponseDTO;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.Item;
+import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.ExpenseRepository;
 import com.cabinetplus.backend.repositories.ItemRepository;
 import com.cabinetplus.backend.repositories.PaymentRepository;
 import com.cabinetplus.backend.repositories.TreatmentRepository;
-
+import com.cabinetplus.backend.repositories.ProthesisRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -34,6 +35,7 @@ public class FinanceService {
     private final PaymentRepository paymentRepository;
     private final ItemRepository itemRepository;
     private final ExpenseRepository expenseRepository;
+    private final ProthesisRepository prothesisRepository;
 
     // ==============================
     // ===== GRAPH DATA ============
@@ -177,17 +179,21 @@ public class FinanceService {
     }
 
     // ==== Revenue (current) ====
-    double revenueduCurr = treatmentRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
-    double revenueCurr   = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
-    double enattenteCurr = revenueduCurr - revenueCurr;
-    double revenuenetCurr = revenueCurr - getTotalExpenses(dentist, start, end);
+   // ==== Revenue (current) ====
+double revenueduCurr = treatmentRepository.sumPriceByDentist(dentist, start, end).orElse(0.0)
+                     + getProthesisRevenue(dentist, start, end); // includes prothesis revenue
 
-    // ==== Revenue (previous) ====
-    double revenueduPrev = treatmentRepository.sumPriceByDentist(dentist, prevStart, prevEnd).orElse(0.0);
-    double revenuePrev   = paymentRepository.sumAmountByDentist(dentist, prevStart, prevEnd).orElse(0.0);
-    double enattentePrev = revenueduPrev - revenuePrev;
-    double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevEnd);
+double revenueCurr   = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
+double enattenteCurr = revenueduCurr - revenueCurr;
+double revenuenetCurr = revenueCurr - getTotalExpenses(dentist, start, end);
 
+// ==== Revenue (previous) ====
+double revenueduPrev = treatmentRepository.sumPriceByDentist(dentist, prevStart, prevEnd).orElse(0.0)
+                     + getProthesisRevenue(dentist, prevStart, prevEnd); // includes prothesis revenue
+
+double revenuePrev   = paymentRepository.sumAmountByDentist(dentist, prevStart, prevEnd).orElse(0.0);
+double enattentePrev = revenueduPrev - revenuePrev;
+double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevEnd);
    FinanceCardsResponseDTO.RevenueDTO revenueDTO =
         new FinanceCardsResponseDTO.RevenueDTO(
                 toValueComparison(revenueduCurr, revenueduPrev),
@@ -229,50 +235,56 @@ public class FinanceService {
     // ===== HELPERS ===============
     // ==============================
     private double getTotalExpenses(User dentist, LocalDateTime start, LocalDateTime end) {
-        double totalItemExpenses = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
-        double totalOtherExpenses = expenseRepository.sumAmountByDentist(dentist, start.toLocalDate(), end.toLocalDate()).orElse(0.0);
-        return totalItemExpenses + totalOtherExpenses;
+    double totalItemExpenses = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
+    double totalOtherExpenses = expenseRepository.sumAmountByDentist(dentist, start.toLocalDate(), end.toLocalDate()).orElse(0.0);
+    double totalLabCosts = getProthesisLabCosts(dentist, start, end); // <-- added
+    return totalItemExpenses + totalOtherExpenses + totalLabCosts;
+}
+
+ private Map<String, String> computeRevenueTypes(User dentist, String timeframe) {
+    LocalDateTime start;
+    LocalDateTime end;
+    LocalDate today = LocalDate.now();
+
+    switch (timeframe.toLowerCase()) {
+        case "daily":
+            start = today.minusDays(6).atStartOfDay();
+            end = today.atTime(23, 59, 59);
+            break;
+        case "monthly":
+            start = today.minusMonths(5).withDayOfMonth(1).atStartOfDay();
+            end = today.withDayOfMonth(today.lengthOfMonth()).atTime(23, 59, 59);
+            break;
+        case "yearly":
+            start = today.minusYears(5).withDayOfYear(1).atStartOfDay();
+            end = today.withDayOfYear(today.lengthOfYear()).atTime(23, 59, 59);
+            break;
+        default:
+            throw new IllegalArgumentException("Invalid timeframe: " + timeframe);
     }
 
-    private Map<String, String> computeRevenueTypes(User dentist, String timeframe) {
-        LocalDateTime start;
-        LocalDateTime end;
-        LocalDate today = LocalDate.now();
+    // Existing treatment totals
+    List<Treatment> treatments = treatmentRepository.findByDentistAndDateBetween(dentist, start, end);
+    Map<String, Double> totalsByCatalog = treatments.stream()
+            .collect(Collectors.groupingBy(
+                    t -> t.getTreatmentCatalog().getName(),
+                    Collectors.summingDouble(Treatment::getPrice)
+            ));
 
-        switch (timeframe.toLowerCase()) {
-            case "daily":
-                start = today.minusDays(6).atStartOfDay();
-                end = today.atTime(23, 59, 59);
-                break;
-            case "monthly":
-                start = today.minusMonths(5).withDayOfMonth(1).atStartOfDay();
-                end = today.withDayOfMonth(today.lengthOfMonth()).atTime(23, 59, 59);
-                break;
-            case "yearly":
-                start = today.minusYears(5).withDayOfYear(1).atStartOfDay();
-                end = today.withDayOfYear(today.lengthOfYear()).atTime(23, 59, 59);
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid timeframe: " + timeframe);
-        }
-
-        List<Treatment> treatments = treatmentRepository.findByDentistAndDateBetween(dentist, start, end);
-
-        Map<String, Double> totalsByCatalog = treatments.stream()
-                .collect(Collectors.groupingBy(
-                        t -> t.getTreatmentCatalog().getName(),
-                        Collectors.summingDouble(Treatment::getPrice)
-                ));
-
-        double total = totalsByCatalog.values().stream().mapToDouble(Double::doubleValue).sum();
-
-        return totalsByCatalog.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> total == 0 ? "0%" : String.format("%.2f%%", (e.getValue() / total) * 100)
-                ));
+    // Add Prothesis totals
+    double prothesisTotal = getProthesisRevenue(dentist, start, end);
+    if (prothesisTotal > 0) {
+        totalsByCatalog.put("Prothesis", prothesisTotal);
     }
 
+    double total = totalsByCatalog.values().stream().mapToDouble(Double::doubleValue).sum();
+
+    return totalsByCatalog.entrySet().stream()
+            .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> total == 0 ? "0%" : String.format("%.2f%%", (e.getValue() / total) * 100)
+            ));
+}
     private Map<String, String> computeExpenseTypes(User dentist, String timeframe) {
         LocalDateTime start;
         LocalDateTime end;
@@ -316,4 +328,33 @@ public class FinanceService {
                         e -> total == 0 ? "0%" : String.format("%.2f%%", (e.getValue() / total) * 100)
                 ));
     }
+    // Total revenue from protheses (finalPrice)
+private double getProthesisRevenue(User dentist, LocalDateTime start, LocalDateTime end) {
+    List<Prothesis> protheses = prothesisRepository.findByPractitioner(dentist)
+        .stream()
+        .filter(p -> p.getDateCreated() != null 
+                     && !p.getDateCreated().isBefore(start) 
+                     && !p.getDateCreated().isAfter(end))
+        .toList();
+
+    return protheses.stream()
+        .mapToDouble(p -> p.getFinalPrice() != null ? p.getFinalPrice() : 0.0)
+        .sum();
+}
+
+// Total lab costs (expenses)
+private double getProthesisLabCosts(User dentist, LocalDateTime start, LocalDateTime end) {
+    List<Prothesis> protheses = prothesisRepository.findByPractitioner(dentist)
+        .stream()
+        .filter(p -> p.getDateCreated() != null 
+                     && !p.getDateCreated().isBefore(start) 
+                     && !p.getDateCreated().isAfter(end))
+        .toList();
+
+    return protheses.stream()
+        .mapToDouble(p -> p.getLabCost() != null ? p.getLabCost() : 0.0)
+        .sum();
+}
+
+    
 }

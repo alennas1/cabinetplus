@@ -1,0 +1,54 @@
+.tooth-graph-container {
+  position: relative;
+  display: inline-block;
+  background: white;
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.tooth-path {
+  stroke: #2c3e50;
+  stroke-width: 12;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+/* Professional Tooltip Box */
+.tooth-tooltip {
+  position: fixed;
+  background-color: #ffffff;
+  color: #1e293b;
+  min-width: 220px;
+  border-radius: 10px;
+  z-index: 10000;
+  pointer-events: none;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  font-family: inherit;
+  animation: tooltipAppear 0.2s ease-out;
+}
+
+.tooth-tooltip-header {
+  background-color: #3498db;
+  color: white;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.tooth-tooltip-body {
+  padding: 12px 14px;
+  white-space: pre-line;
+  line-height: 1.6;
+  font-size: 13px;
+  color: #475569;
+}
+
+@keyframes tooltipAppear {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}

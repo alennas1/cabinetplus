@@ -1,9 +1,20 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Lock, Package, Settings as Gear, FileText, Box, CreditCard } from "react-feather";
+import { 
+  User, 
+  Lock, 
+  Package, 
+  Settings as Gear, 
+  FileText, 
+  Box, 
+  CreditCard, 
+  Clipboard,
+  Layers, 
+  Tool 
+} from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
-import {Activity, Clipboard } from "react-feather";
+
 const Settings = () => {
   const navigate = useNavigate();
 
@@ -13,7 +24,7 @@ const Settings = () => {
       options: [
         { 
           title: "Profil", 
-          desc: "Modifier votre nom et informations personnelles", // Removed 'email'
+          desc: "Modifier votre nom et informations personnelles", 
           icon: <User />, 
           path: "/settings/profile" 
         },
@@ -34,21 +45,53 @@ const Settings = () => {
     {
       title: "Catalogues",
       options: [
-        { title: "Catalogue des médicaments", desc: "Gérer la liste des médicaments disponibles", icon: <Box />, path: "/settings/medications" },
-        { title: "Catalogue des traitements", desc: "Ajouter, modifier ou supprimer les traitements proposés", icon: < Clipboard />, path: "/settings/treatments" },
-        { title: "Catalogue des articles", desc: "Ajouter, modifier ou supprimer les articles disponibles", icon: <Package />, path: "/settings/items" },
-         { 
-      title: "Catalogue des justifications", 
-      desc: "Ajouter, modifier ou supprimer les justifications disponibles", 
-      icon: <  FileText/>,   // You can change icon if needed
-      path: "/settings/justifications" 
-    },
+        { 
+          title: "Catalogue des médicaments", 
+          desc: "Gérer la liste des médicaments disponibles", 
+          icon: <Box />, 
+          path: "/settings/medications" 
+        },
+        { 
+          title: "Catalogue des traitements", 
+          desc: "Ajouter, modifier ou supprimer les traitements proposés", 
+          icon: <Clipboard />, 
+          path: "/settings/treatments" 
+        },
+        { 
+          title: "Catalogue des articles", 
+          desc: "Ajouter, modifier ou supprimer les articles disponibles", 
+          icon: <Package />, 
+          path: "/settings/items" 
+        },
+        { 
+          title: "Catalogue des justifications", 
+          desc: "Gérer les modèles de documents et certificats", 
+          icon: <FileText />, 
+          path: "/settings/justifications" 
+        },
+        { 
+          title: "Catalogue des prothèses", 
+          desc: "Définir les types de prothèses (Couronnes, Bridges, etc.)", 
+          icon: <Layers />, 
+          path: "/settings/prosthetics" 
+        },
+        { 
+          title: "Matériaux & Composants", 
+          desc: "Gérer les matériaux utilisés (Zircone, Céramique, Résine)", 
+          icon: <Tool />, 
+          path: "/settings/materials" 
+        },
       ],
     },
     {
       title: "Préférences",
       options: [
-        { title: "Préférences", desc: "Personnaliser l'application selon vos besoins", icon: <Gear />, path: "/settings/preferences" },
+        { 
+          title: "Configuration", 
+          desc: "Personnaliser l'application selon vos besoins", 
+          icon: <Gear />, 
+          path: "/settings/preferences" 
+        },
       ],
     },
   ];
@@ -72,6 +115,7 @@ const Settings = () => {
                 role="button"
                 tabIndex={0}
                 onClick={() => navigate(option.path)}
+                onKeyDown={(e) => e.key === 'Enter' && navigate(option.path)}
               >
                 <div className="settings-icon">{option.icon}</div>
                 <div className="settings-text">

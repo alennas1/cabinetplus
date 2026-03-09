@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Check, Eye } from "react-feather";
+import { X, Plus, Trash2, Check, Eye } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -29,6 +29,9 @@ export default function Appointments() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [completeAppt, setCompleteAppt] = useState(null);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+
+  const [cancelAppt, setCancelAppt] = useState(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState("today");
   const [customDate, setCustomDate] = useState("");
@@ -196,6 +199,10 @@ const data = await getPatients();
     setCompleteAppt(appt);
     setShowCompleteConfirm(true);
   };
+  const handleMarkCancelled = (appt) => {
+    setCancelAppt(appt);
+    setShowCancelConfirm(true);
+  };
 
   const confirmCompleteAppointment = async () => {
     if (!completeAppt) return;
@@ -212,6 +219,24 @@ const data = await getPatients();
     } finally {
       setShowCompleteConfirm(false);
       setCompleteAppt(null);
+    }
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!cancelAppt) return;
+    try {
+      const payload = { ...cancelAppt, status: "CANCELLED" };
+      const updated = await updateAppointment(cancelAppt.id, payload);
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === updated.id ? updated : a))
+      );
+      toast.success("Rendez-vous annulé ");
+    } catch (err) {
+      console.error("Error marking cancelled:", err);
+      toast.error("Erreur lors du changement d'état ");
+    } finally {
+      setShowCancelConfirm(false);
+      setCancelAppt(null);
     }
   };
 
@@ -398,13 +423,17 @@ const handleSubmit = async (e) => {
         {/* Slots */}
         <div className="appointments-slots">
           {slots.map((slot, idx) => (
-            <div
-              key={idx}
-              className={`slot ${slot.appointments.length ? "SCHEDULED" : "empty"} ${
-                slot.appointments.some(a => a.status === "COMPLETED") ? "COMPLETED" : ""
-              }`}
-              onClick={() => handleSlotClick(slot)}
-            >
+           <div
+  key={idx}
+  className={`slot ${
+    slot.appointments.length ? "SCHEDULED" : "empty"
+  } ${
+    slot.appointments.some(a => a.status === "COMPLETED") ? "COMPLETED" : ""
+  } ${
+    slot.appointments.some(a => a.status === "CANCELLED") ? "CANCELLED" : ""
+  }`}
+  onClick={() => handleSlotClick(slot)}
+>
               <div className="slot-time">{formatTime(slot.start)} - {formatTime(slot.end)}</div>
               {slot.appointments.length ? (
                 slot.appointments.map((appt) => (
@@ -439,6 +468,15 @@ const handleSubmit = async (e) => {
                         onClick={(e) => { e.stopPropagation(); handleDeleteClick(appt.id); }}
                       >
                         <Trash2 size={16} />
+                      </button>
+                    )}
+
+                     {appt.status === "SCHEDULED" && (
+                      <button
+                        className="action-btn cancel"
+                        onClick={(e) => { e.stopPropagation(); handleMarkCancelled(appt); }}
+                      >
+                        <X size={16} />
                       </button>
                     )}
                   </div>
@@ -562,6 +600,20 @@ const handleSubmit = async (e) => {
               <div className="modal-actions">
                 <button onClick={() => setShowCompleteConfirm(false)} className="btn-cancel">Annuler</button>
                 <button onClick={confirmCompleteAppointment} className="btn-primary2">Confirmer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Cancel */}
+        {showCancelConfirm && cancelAppt && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h2>Annuler le rendez-vous ?</h2>
+              <p>Êtes-vous sûr de vouloir annuler le rendez-vous de {getPatientName(cancelAppt)} ?</p>
+              <div className="modal-actions">
+                <button onClick={() => setShowCancelConfirm(false)} className="btn-cancel">Annuler</button>
+                <button onClick={confirmCancelAppointment} className="btn-primary2">Confirmer</button>
               </div>
             </div>
           </div>

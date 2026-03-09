@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Eye, Trash2, Search } from "react-feather";
+import { Plus, Eye, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
@@ -16,7 +16,7 @@ import "./Patients.css"; // reuse same CSS as Patients
 
 const Employees = () => {
   const token = useSelector((state) => state.auth.token);
-const navigate = useNavigate();
+  const navigate = useNavigate();
 
   const [employees, setEmployees] = useState([]);
 
@@ -47,6 +47,10 @@ const navigate = useNavigate();
   });
   const [isEditing, setIsEditing] = useState(false);
   const [formStep, setFormStep] = useState(1);
+
+  // Delete Confirmation State
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [empIdToDelete, setEmpIdToDelete] = useState(null);
 
   // Load employees
   useEffect(() => {
@@ -99,8 +103,6 @@ const navigate = useNavigate();
       contractType: formData.contractType,
     };
 
-    console.log("📦 Final cleaned payload:", cleanedPayload);
-
     try {
       if (isEditing) {
         const updated = await updateEmployee(formData.id, cleanedPayload, token);
@@ -129,15 +131,23 @@ const navigate = useNavigate();
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Supprimer cet employé ?")) return;
+  // Delete Handlers
+  const handleDeleteClick = (id) => {
+    setEmpIdToDelete(id);
+    setShowConfirm(true);
+  };
+
+  const confirmDelete = async () => {
     try {
-      await deleteEmployee(id, token);
-      setEmployees(employees.filter((emp) => emp.id !== id));
+      await deleteEmployee(empIdToDelete, token);
+      setEmployees(employees.filter((emp) => emp.id !== empIdToDelete));
       toast.success("Employé supprimé");
     } catch (err) {
       console.error("Erreur suppression:", err);
       toast.error("Erreur lors de la suppression");
+    } finally {
+      setShowConfirm(false);
+      setEmpIdToDelete(null);
     }
   };
 
@@ -210,42 +220,42 @@ const navigate = useNavigate();
             <th>Actions</th>
           </tr>
         </thead>
-       <tbody>
-  {currentEmployees.map((emp) => (
-    <tr key={emp.id}>
-      <td>{emp.firstName || "—"}</td>
-      <td>{emp.lastName || "—"}</td>
-      <td>{emp.phone || "—"}</td>
-      <td>
-        <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
-          {emp.status === "ACTIVE"
-            ? "Actif"
-            : emp.status === "INACTIVE"
-            ? "Inactif"
-            : emp.status === "ON_LEAVE"
-            ? "En congé"
-            : "—"}
-        </span>
-      </td>
-      <td className="actions-cell">
-        <button className="action-btn view" onClick={() => navigate(`/employees/${emp.id}`)} title="Voir / Modifier">
-          <Eye size={16} />
-        </button>
-        <button className="action-btn delete" onClick={() => handleDelete(emp.id)} title="Supprimer">
-          <Trash2 size={16} />
-        </button>
-      </td>
-    </tr>
-  ))}
+        <tbody>
+          {currentEmployees.map((emp) => (
+            <tr key={emp.id}>
+              <td>{emp.firstName || "—"}</td>
+              <td>{emp.lastName || "—"}</td>
+              <td>{emp.phone || "—"}</td>
+              <td>
+                <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
+                  {emp.status === "ACTIVE"
+                    ? "Actif"
+                    : emp.status === "INACTIVE"
+                      ? "Inactif"
+                      : emp.status === "ON_LEAVE"
+                        ? "En congé"
+                        : "—"}
+                </span>
+              </td>
+              <td className="actions-cell">
+                <button className="action-btn view" onClick={() => navigate(`/employees/${emp.id}`)} title="Voir / Modifier">
+                  <Eye size={16} />
+                </button>
+                <button className="action-btn delete" onClick={() => handleDeleteClick(emp.id)} title="Supprimer">
+                  <Trash2 size={16} />
+                </button>
+              </td>
+            </tr>
+          ))}
 
-  {filteredEmployees.length === 0 && (
-    <tr>
-      <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
-        Aucun employé trouvé
-      </td>
-    </tr>
-  )}
-</tbody>
+          {filteredEmployees.length === 0 && (
+            <tr>
+              <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
+                Aucun employé trouvé
+              </td>
+            </tr>
+          )}
+        </tbody>
       </table>
 
       {/* Pagination */}
@@ -279,9 +289,12 @@ const navigate = useNavigate();
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>
-              {isEditing ? "Voir / Modifier Employé" : "Ajouter Employé"}
-            </h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h2>
+                {isEditing ? "Voir / Modifier Employé" : "Ajouter Employé"}
+              </h2>
+              <X onClick={() => setShowModal(false)} style={{ cursor: 'pointer' }} />
+            </div>
 
             <form onSubmit={handleSubmit} className="modal-form">
               {formStep === 1 && (
@@ -317,32 +330,31 @@ const navigate = useNavigate();
                     onChange={handleChange}
                   />
                   <div className="form-field">
-                   <span className="field-label">Sexe</span>
-                <div className="radio-group">
-                  <label className="radio-option">
-  <input
-    type="radio"
-    name="gender"
-    value="Homme"
-    checked={formData.gender === "Homme"}
-    onChange={handleChange}
-    required
-  />
-  <span>Homme</span>
-</label>
-<label className="radio-option">
-  <input
-    type="radio"
-    name="gender"
-    value="Femme"
-    checked={formData.gender === "Femme"}
-    onChange={handleChange}
-    required
-  />
-  <span>Femme</span>
-</label>
-
-                </div>
+                    <span className="field-label">Sexe</span>
+                    <div className="radio-group">
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="gender"
+                          value="Homme"
+                          checked={formData.gender === "Homme"}
+                          onChange={handleChange}
+                          required
+                        />
+                        <span>Homme</span>
+                      </label>
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="gender"
+                          value="Femme"
+                          checked={formData.gender === "Femme"}
+                          onChange={handleChange}
+                          required
+                        />
+                        <span>Femme</span>
+                      </label>
+                    </div>
                   </div>
                 </>
               )}
@@ -452,6 +464,30 @@ const navigate = useNavigate();
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Internal Delete Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
+          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Supprimer l'employé ?</h2>
+            <p className="text-gray-600 mb-6">Voulez-vous vraiment supprimer cet employé ? Cette action est irréversible.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                Supprimer
+              </button>
+            </div>
           </div>
         </div>
       )}

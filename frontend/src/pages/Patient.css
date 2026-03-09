@@ -382,7 +382,17 @@
   border-color: #10b981;
   color: #065f46;
 }
+.action-btn.cancel {
+  border-color: #f87171; /* Rouge clair */
+  background: #fef2f2;    /* Fond rosé très pâle */
+  color: #dc2626;        /* Texte rouge foncé */
+}
 
+.action-btn.cancel:hover {
+  background: #fee2e2;    /* Fond rosé un peu plus prononcé */
+  border-color: #ef4444;  /* Bordure rouge vive */
+  color: #991b1b;        /* Texte rouge sombre */
+}
 .action-btn:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
@@ -487,6 +497,46 @@
   border: 1px solid #fde68a;
 }
 
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+
+.status-chip.scheduled,
+.status-chip.pending {
+  background-color: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.status-chip.sent_to_lab {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.status-chip.completed,
+.status-chip.received,
+.status-chip.fitted {
+  background-color: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.status-chip.cancelled {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+
 /* Overlay */
 .modal-overlay {
   position: fixed;
@@ -576,4 +626,109 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+/* Document selection overlay */
+.doc-selector-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* Added semi-transparent backdrop */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+/* Document selection content box */
+.doc-selector-container {
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Header */
+.doc-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.doc-selector-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #111827;
+}
+
+.doc-selector-title p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+/* Close icon */
+.doc-selector-close {
+  cursor: pointer;
+  color: #6b7280;
+  transition: color 0.2s;
+}
+
+.doc-selector-close:hover {
+  color: #1f2937;
+}
+
+/* List container */
+.doc-list-wrapper {
+  margin-top: 0;
+}
+
+/* Individual document card */
+.doc-option-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.doc-option-card:hover {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+}
+
+/* Card content layout */
+.doc-option-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-option-info h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: #374151;
+}
+
+.doc-option-info p {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+/* Empty state */
+.doc-empty-state {
+  text-align: center;
+  color: #888;
+  padding: 20px;
+  font-style: italic;
 }

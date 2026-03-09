@@ -122,7 +122,7 @@ const monthsList = Array.from({ length: 12 }).map((_, i) => {
     }
 
     const data = await getFinanceCards(selectedFilter, startDate, endDate);
-    console.log("✅ Cards API response:", data);
+    
     setCards(data);
   } catch (error) {
     console.error("fetchCards error:", error);
@@ -147,7 +147,7 @@ const [timeframeDropdownOpen, setTimeframeDropdownOpen] = useState(false);
   setLoadingGraph(true);
   try {
     const data = await getFinanceGraph(tf);
-    console.log("✅ Graph API response:", data);
+    
     setGraph(data);
   } catch (error) {
     console.error("❌ fetchGraph error:", error);

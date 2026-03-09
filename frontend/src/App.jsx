@@ -15,6 +15,8 @@ import Unauthorized from "./pages/Unauthorized";
 import Patient from "./pages/Patient";
 import Medications from "./pages/Medications";
 import TreatmentCatalog from "./pages/Treatments";
+import ProstheticsSettings from "./pages/ProstheticsSettings";
+import MaterialsSettings from "./pages/MaterialsSettings";
 import Preference from "./pages/Preference";
 import Profile from "./pages/Profile";
 import Security from "./pages/Security";
@@ -30,6 +32,7 @@ import PlanPage from "./pages/PlanPage";
 import WaitingPage from "./pages/WaitingPage"; 
 import HandPaymentHistory from "./pages/HandPaymentHistory";
 import JustificationContent from "./pages/JustificationContent";
+import GestionCabinet from "./pages/GestionCabinet";
 // --- Admin Pages ---
 import DentistsPage from "./pages/Dentists"; 
 import PendingPaymentsPage from "./pages/PendingPayments"; 
@@ -41,6 +44,9 @@ import ManageAdmins from "./pages/ManageAdmins";
 import AdminChangePassword from "./pages/AdminChangePassword";
 import ManagePlans from "./pages/ManagePlans";
 import Justification from "./pages/Justification";
+
+import Devis from "./pages/Devis"; 
+import Laboratory from "./pages/Laboratory";
 // --- Components ---
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
@@ -121,6 +127,9 @@ const AppContent = () => {
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/devis" element={<Devis />} />
+            <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
+            <Route path="/gestion-cabinet" element={<GestionCabinet />} />
             <Route path="/patients" element={<Patients />} />
             <Route path="/patients/:id" element={<Patient />} />
             <Route path="/appointments" element={<Appointments />} />
@@ -128,19 +137,21 @@ const AppContent = () => {
             <Route path="/settings/medications" element={<Medications />} />
             <Route path="/settings/treatments" element={<TreatmentCatalog />} />
             <Route path="/settings/justifications" element={<JustificationContent />} />
+            <Route path="/settings/prosthetics" element={<ProstheticsSettings />} />
+            <Route path="/settings/materials" element={<MaterialsSettings />} />
             <Route path="/settings/items" element={<Items />} />
             <Route path="/settings/preferences" element={<Preference />} />
             <Route path="/settings/profile" element={<Profile />} />
             <Route path="/settings/security" element={<Security />} />
             <Route path="/settings/payments" element={<HandPaymentHistory />} />
-            <Route path="/finance" element={<Finance />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/gestion-cabinet/finance" element={<Finance />} />
+            <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
+            <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
             <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
             <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
 <Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
-            <Route path="/employees" element={<Employees />} />
-            <Route path="/employees/:id" element={<EmployeeDetails />} />
+            <Route path="/gestion-cabinet/employees" element={<Employees />} />
+            <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
             
           </Route>
         </Route>

@@ -29,19 +29,19 @@ public class PrescriptionMedicationController {
 
     // ===================== GET =====================
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
     public List<PrescriptionMedication> getAllPrescriptionMedications() {
         return prescriptionMedicationService.findAll();
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
     public Optional<PrescriptionMedication> getPrescriptionMedicationById(@PathVariable Long id) {
         return prescriptionMedicationService.findById(id);
     }
 
     @GetMapping("/prescription/{prescriptionId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
     public List<PrescriptionMedication> getByPrescription(@PathVariable Long prescriptionId) {
         Prescription prescription = new Prescription();
         prescription.setId(prescriptionId);
@@ -50,14 +50,14 @@ public class PrescriptionMedicationController {
 
     // ===================== POST =====================
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
     public PrescriptionMedication createPrescriptionMedication(@RequestBody PrescriptionMedication med) {
         return prescriptionMedicationService.save(med);
     }
 
     // ===================== PUT =====================
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
     public PrescriptionMedication updatePrescriptionMedication(@PathVariable Long id, @RequestBody PrescriptionMedication med) {
         med.setId(id);
         return prescriptionMedicationService.save(med);
@@ -65,7 +65,7 @@ public class PrescriptionMedicationController {
 
     // ===================== DELETE =====================
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
     public void deletePrescriptionMedication(@PathVariable Long id) {
         prescriptionMedicationService.delete(id);
     }

@@ -107,7 +107,7 @@ const Inventory = () => {
         createdAt: new Date().toISOString(),
 
       };
-      console.log(payload)
+      
       let newItem;
       const itemDefault = itemDefaults.find(d => d.id === Number(formData.itemDefaultId));
 

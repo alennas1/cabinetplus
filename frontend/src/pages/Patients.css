@@ -977,6 +977,80 @@
   color: #6b7280;
   margin: 2px 0 0 0;
 }
+.catalog-search {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.catalog-search:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52,152,219,0.2);
+}
+
+.catalog-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: #f9fafb;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.catalog-item:hover {
+  border-color: #3498db;
+  background: #f0f7fd;
+}
+
+.catalog-plus {
+  color: #3498db;
+}
+.total-box {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(52, 152, 219, 0.1);
+  border: 1px solid #3498db;
+  border-radius: 8px;
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  color: #000;
+  font-size: 16px;
+}
+
+.input-standard {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+    background-color: #fff;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    outline: none;
+    height: 38px; /* Standardized with your buttons */
+    width: 280px;  /* Fixed width for header alignment */
+    margin: 0;
+}
+
+.input-standard:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+.header-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
 /* You can also highlight placeholders in textarea using CSS if you want */
 
 /* --- If you need specific modal header styling (optional) --- */

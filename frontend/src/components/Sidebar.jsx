@@ -5,13 +5,11 @@ import {
   Home,
   Users,
   Calendar,
-  CreditCard,
-  Settings,
   LogOut,
   PlusSquare,
-  BarChart2,
-  Package,
-  UserCheck,
+  FileText,
+  Settings,
+  Briefcase // Using Briefcase as a collective icon for 'Gestion'
 } from "react-feather";
 
 import { logout as logoutRedux } from "../store/authSlice";
@@ -25,15 +23,11 @@ const Sidebar = () => {
 
   const handleLogout = async () => {
     try {
-      // 1️⃣ Call backend to revoke refresh token + clear cookie
       await logoutApi();
     } catch (error) {
       console.error("Logout API failed:", error);
     } finally {
-      // 2️⃣ Clear Redux auth state
       dispatch(logoutRedux());
-
-      // 3️⃣ Redirect to login and wipe history stack
       navigate("/login", { replace: true });
     }
   };
@@ -77,30 +71,17 @@ const Sidebar = () => {
         <li className="sidebar-group-title admin">Administration</li>
 
         <li className="admin-link">
-          <Link to="/employees">
-            <UserCheck size={20} />
-            <span className="link-text">Employés</span>
+          <Link to="/devis">
+            <FileText size={20} />
+            <span className="link-text">Devis</span>
           </Link>
         </li>
 
+        {/* Combined Gestion Cabinet Link */}
         <li className="admin-link">
-          <Link to="/finance">
-            <BarChart2 size={20} />
-            <span className="link-text">Finances</span>
-          </Link>
-        </li>
-
-        <li className="admin-link">
-          <Link to="/inventory">
-            <Package size={20} />
-            <span className="link-text">Inventaire</span>
-          </Link>
-        </li>
-
-        <li className="admin-link">
-          <Link to="/expenses">
-            <CreditCard size={20} />
-            <span className="link-text">Dépenses</span>
+          <Link to="/gestion-cabinet">
+            <Briefcase size={20} />
+            <span className="link-text">Gestion Cabinet</span>
           </Link>
         </li>
 

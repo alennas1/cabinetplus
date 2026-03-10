@@ -14,6 +14,7 @@ import {
   Unlock
 } from "react-feather";
 import { toast } from "react-toastify";
+import { getApiErrorMessage } from "../utils/error";
 
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
@@ -115,7 +116,7 @@ const Sidebar = () => {
       toast.success("Gestion cabinet verrouillée");
       setShowPinModal(false);
     } catch (err) {
-      toast.error(err?.response?.data?.error || "Impossible d'activer le PIN");
+      toast.error(getApiErrorMessage(err, "Impossible d'activer le PIN"));
     } finally {
       setPinSubmitting(false);
     }
@@ -134,7 +135,7 @@ const Sidebar = () => {
       toast.success("Verrou retiré");
       setShowPinModal(false);
     } catch (err) {
-      toast.error(err?.response?.data?.error || "Impossible de retirer le verrou");
+      toast.error(getApiErrorMessage(err, "Impossible de retirer le verrou"));
     } finally {
       setPinSubmitting(false);
     }
@@ -155,7 +156,7 @@ const Sidebar = () => {
       toast.success("PIN modifié");
       setShowPinModal(false);
     } catch (err) {
-      toast.error(err?.response?.data?.error || "Impossible de modifier le PIN");
+      toast.error(getApiErrorMessage(err, "Impossible de modifier le PIN"));
     } finally {
       setPinSubmitting(false);
     }

@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setCredentials } from "../store/authSlice";
 import { login, getCurrentUser } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
+import { getApiErrorMessage } from "../utils/error";
 import "./Login.css";
 
 const LoginPage = () => {
@@ -77,7 +78,7 @@ const LoginPage = () => {
       // 5. Redirect based on role / status
       handleRedirect(currentUser);
     } catch (err) {
-      setError(err.response?.data?.error || "Identifiants invalides");
+      setError(getApiErrorMessage(err, "Identifiants invalides"));
     } finally {
       setLoading(false);
     }

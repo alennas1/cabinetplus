@@ -5,9 +5,10 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record DeviseRequest(
-    @NotBlank(message = "Title is required")
+    @NotBlank(message = "Le titre est obligatoire")
     String title,
     
-    @NotEmpty(message = "Devise must have at least one item")
+    @NotEmpty(message = "Le devis doit contenir au moins un element")
     List<DeviseItemRequest> items
 ) {}
+

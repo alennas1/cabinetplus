@@ -54,7 +54,7 @@ public class ProthesisCatalogController {
     }
 
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName()).orElseThrow(() -> new RuntimeException("User not found"));
+        return userService.findByUsername(principal.getName()).orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
     private ProthesisCatalogResponse mapToResponse(ProthesisCatalog c) {

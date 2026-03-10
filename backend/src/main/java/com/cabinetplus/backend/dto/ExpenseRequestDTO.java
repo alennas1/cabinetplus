@@ -14,19 +14,21 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ExpenseRequestDTO {
 
-    @NotNull(message = "Title is required")
+    @NotNull(message = "Le titre est obligatoire")
     private String title;
 
-    @NotNull(message = "Amount is required")
+    @NotNull(message = "Le montant est obligatoire")
     private Double amount;
 
-    @NotNull(message = "Category is required")
+    @NotNull(message = "La categorie est obligatoire")
     private ExpenseCategory category;
 
     private LocalDate date;
 
     private String description;
 
-    // 👇 Added (optional except for SALARY)
+    // ðŸ‘‡ Added (optional except for SALARY)
     private Long employeeId;
 }
+
+

@@ -5,7 +5,10 @@ import com.cabinetplus.backend.models.EmployeeWorkingHours;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.EmployeeWorkingHoursRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
 import java.util.List;
@@ -28,30 +31,30 @@ public class EmployeeWorkingHoursService {
 
     public List<EmployeeWorkingHours> getByEmployee(Long employeeId, User dentist) {
         Employee employee = employeeRepository.findByIdAndDentist(employeeId, dentist)
-                .orElseThrow(() -> new RuntimeException("Employee not found or not yours"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable ou non autorise"));
         return repository.findByEmployee(employee);
     }
 
     public List<EmployeeWorkingHours> getByEmployeeAndDay(Long employeeId, DayOfWeek day, User dentist) {
         Employee employee = employeeRepository.findByIdAndDentist(employeeId, dentist)
-                .orElseThrow(() -> new RuntimeException("Employee not found or not yours"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable ou non autorise"));
         return repository.findByEmployeeIdAndDayOfWeek(employeeId, day);
     }
 
     public EmployeeWorkingHours save(EmployeeWorkingHours hours, User dentist) {
         // check employee ownership
         Employee employee = employeeRepository.findByIdAndDentist(hours.getEmployee().getId(), dentist)
-                .orElseThrow(() -> new RuntimeException("Employee not found or not yours"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable ou non autorise"));
         hours.setEmployee(employee);
         return repository.save(hours);
     }
 
     public EmployeeWorkingHours update(Long id, EmployeeWorkingHours hours, User dentist) {
         EmployeeWorkingHours existing = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Working hours not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Horaires introuvables"));
 
         if (!existing.getEmployee().getDentist().equals(dentist)) {
-            throw new RuntimeException("Unauthorized");
+            throw new AccessDeniedException("Acces refuse");
         }
 
         hours.setId(id);
@@ -61,10 +64,10 @@ public class EmployeeWorkingHoursService {
 
     public void delete(Long id, User dentist) {
         EmployeeWorkingHours existing = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Working hours not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Horaires introuvables"));
 
         if (!existing.getEmployee().getDentist().equals(dentist)) {
-            throw new RuntimeException("Unauthorized");
+            throw new AccessDeniedException("Acces refuse");
         }
 
         repository.delete(existing);

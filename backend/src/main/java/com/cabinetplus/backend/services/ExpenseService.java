@@ -3,7 +3,10 @@ package com.cabinetplus.backend.services;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.ExpenseRequestDTO;
 import com.cabinetplus.backend.dto.ExpenseResponseDTO;
@@ -49,24 +52,24 @@ public class ExpenseService {
                     validateExpense(expense);
                     return expenseRepository.save(expense);
                 })
-                .orElseThrow(() -> new RuntimeException("Expense not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Depense introuvable"));
     }
 
     // Delete expense
     public void deleteExpense(Long id, User user) {
         Expense expense = expenseRepository.findByIdAndCreatedBy(id, user)
-                .orElseThrow(() -> new RuntimeException("Expense not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Depense introuvable"));
         expenseRepository.delete(expense);
     }
 
     // Get all expenses for a specific employee, only for the dentist
 public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
     Employee employee = employeeRepository.findById(employeeId)
-            .orElseThrow(() -> new RuntimeException("Employee not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable"));
 
     // Ensure the employee belongs to this dentist
     if (!employee.getDentist().getId().equals(dentist.getId())) {
-        throw new RuntimeException("You are not authorized to view this employee's expenses");
+        throw new AccessDeniedException("Vous n'etes pas autorise a voir les depenses de cet employe");
     }
 
     return expenseRepository.findByEmployeeAndCreatedBy(employee, dentist);
@@ -96,7 +99,7 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
 
         if (dto.getEmployeeId() != null) {
             Employee employee = employeeRepository.findById(dto.getEmployeeId())
-                    .orElseThrow(() -> new RuntimeException("Employee not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable"));
             expense.setEmployee(employee);
         } else {
             expense.setEmployee(null);
@@ -105,7 +108,7 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
 
     private void validateExpense(Expense expense) {
         if (expense.getCategory() == ExpenseCategory.SALARY && expense.getEmployee() == null) {
-            throw new IllegalArgumentException("Employee must be specified for SALARY expenses");
+            throw new IllegalArgumentException("Un employe doit etre selectionne pour une depense SALARY");
         }
     }
 }

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.enums.UserPlanStatus;
@@ -80,7 +81,7 @@ public class UserService {
     // Only super-admin can delete another admin
     public void deleteUser(User currentUser, User targetUser) {
         if (targetUser.getRole() == UserRole.ADMIN && !currentUser.isCanDeleteAdmin()) {
-            throw new RuntimeException("You cannot delete an admin account");
+            throw new AccessDeniedException("Vous ne pouvez pas supprimer un compte admin");
         }
         userRepository.delete(targetUser);
     }
@@ -88,7 +89,7 @@ public class UserService {
     // Create admin: only super-admin can create another super-admin
     public User createAdmin(User currentUser, User newAdmin) {
         if (newAdmin.isCanDeleteAdmin() && !currentUser.isCanDeleteAdmin()) {
-            throw new RuntimeException("Only super-admin can create another super-admin");
+            throw new AccessDeniedException("Seul le super-admin peut creer un autre super-admin");
         }
 
         newAdmin.setRole(UserRole.ADMIN);

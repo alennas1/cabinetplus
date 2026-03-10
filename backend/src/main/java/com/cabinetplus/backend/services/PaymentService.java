@@ -28,12 +28,12 @@ public class PaymentService {
     @Transactional
     public PaymentResponse create(PaymentRequest request) {
         Patient patient = patientRepository.findById(request.patientId())
-                .orElseThrow(() -> new IllegalArgumentException("Patient not found: " + request.patientId()));
+                .orElseThrow(() -> new IllegalArgumentException("Patient introuvable: " + request.patientId()));
 
         User receivedBy = null;
         if (request.receivedByUserId() != null) {
             receivedBy = userRepository.findById(request.receivedByUserId())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + request.receivedByUserId()));
+                    .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable: " + request.receivedByUserId()));
         }
 
         LocalDateTime when = request.date() != null ? request.date() : LocalDateTime.now();
@@ -66,3 +66,4 @@ public class PaymentService {
         paymentRepository.deleteById(paymentId);
     }
 }
+

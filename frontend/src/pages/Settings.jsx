@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   User, 
   Lock, 
+  Activity,
   Package, 
   Settings as Gear, 
   FileText, 
@@ -39,6 +40,12 @@ const Settings = () => {
           desc: "Consulter vos factures et l'état de vos abonnements", 
           icon: <CreditCard />, 
           path: "/settings/payments"
+        },
+        {
+          title: "Journal d activite",
+          desc: "Voir vos actions de securite et authentification",
+          icon: <Activity />,
+          path: "/settings/audit-logs"
         },
       ],
     },

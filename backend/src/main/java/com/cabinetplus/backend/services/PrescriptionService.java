@@ -5,7 +5,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.PrescriptionMedicationDTO;
 import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
@@ -37,7 +40,7 @@ public class PrescriptionService {
     @Transactional
     public Prescription createPrescription(PrescriptionRequestDTO dto, User practitioner) {
         Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
 
         Prescription prescription = new Prescription();
         prescription.setDate(LocalDateTime.now());
@@ -55,7 +58,7 @@ public class PrescriptionService {
 
     private PrescriptionMedication mapToPrescriptionMedication(PrescriptionMedicationDTO medDto, Prescription prescription) {
         Medication medication = medicationRepository.findById(medDto.getMedicationId())
-                .orElseThrow(() -> new RuntimeException("Medication not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medicament introuvable"));
 
         PrescriptionMedication pm = new PrescriptionMedication();
         pm.setPrescription(prescription);
@@ -74,10 +77,10 @@ public class PrescriptionService {
 
     public Prescription getPrescriptionEntity(Long id, User practitioner) {
         Prescription prescription = prescriptionRepository.findByIdWithMedications(id)
-                .orElseThrow(() -> new RuntimeException("Prescription not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
 
         if (!prescription.getPractitioner().getId().equals(practitioner.getId())) {
-            throw new RuntimeException("Not authorized to access this prescription");
+            throw new AccessDeniedException("Acces refuse a cette ordonnance");
         }
         return prescription;
     }
@@ -117,7 +120,9 @@ public class PrescriptionService {
     }
 
     public void deletePrescription(Long id) {
-        if (!prescriptionRepository.existsById(id)) throw new RuntimeException("Prescription not found");
+        if (!prescriptionRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable");
+        }
         prescriptionRepository.deleteById(id);
     }
 
@@ -133,7 +138,7 @@ public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User
     // 2. Update basic fields
     prescription.setNotes(dto.getNotes());
     Patient patient = patientRepository.findById(dto.getPatientId())
-            .orElseThrow(() -> new RuntimeException("Patient not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
     prescription.setPatient(patient);
 
     // 3. Identify which items to KEEP vs. which to DELETE

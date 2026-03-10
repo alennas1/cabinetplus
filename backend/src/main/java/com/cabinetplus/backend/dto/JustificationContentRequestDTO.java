@@ -9,10 +9,11 @@ public class JustificationContentRequestDTO {
 
 
 
-    @NotBlank(message = "Title is required")
+    @NotBlank(message = "Le titre est obligatoire")
     private String title;
 
 
-    @NotBlank(message = "Content is required")
+    @NotBlank(message = "Le contenu est obligatoire")
     private String content;
 }
+

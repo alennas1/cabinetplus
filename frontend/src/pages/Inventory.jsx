@@ -11,6 +11,7 @@ import {
   deleteInventoryItem,
   getInventoryItems,
 } from "../services/itemService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
 
 const Inventory = () => {
@@ -162,7 +163,7 @@ const Inventory = () => {
       toast.success("Article supprimé avec succès");
     } catch (err) {
       console.error(err.response?.data || err);
-      toast.error("Erreur lors de la suppression de l'article");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression de l'article"));
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

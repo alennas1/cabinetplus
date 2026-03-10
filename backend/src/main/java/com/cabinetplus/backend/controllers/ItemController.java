@@ -34,7 +34,7 @@ public class ItemController {
     @GetMapping
     public ResponseEntity<List<ItemDTO>> getAll(Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         List<ItemDTO> dtos = itemService.getItemsForDentist(dentist)
                 .stream()
                 .map(itemService::toDTO)
@@ -45,7 +45,7 @@ public class ItemController {
     @GetMapping("/{id}")
     public ResponseEntity<ItemDTO> getById(@PathVariable Long id, Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return itemService.getItemByIdForDentist(id, dentist)
                 .map(itemService::toDTO)
                 .map(ResponseEntity::ok)
@@ -55,7 +55,7 @@ public class ItemController {
     @PostMapping
 public ResponseEntity<ItemDTO> create(@RequestBody CreateItemDTO dto, Principal principal) {
     User dentist = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     
     Item saved = itemService.createItemFromDTO(dto, dentist);
     return ResponseEntity.ok(itemService.toDTO(saved));
@@ -66,11 +66,11 @@ public ResponseEntity<ItemDTO> update(@PathVariable Long id,
                                       @RequestBody UpdateItemDTO dto,
                                       Principal principal) {
     User dentist = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
     // fetch existing item
     Item existingItem = itemService.getItemByIdForDentist(id, dentist)
-            .orElseThrow(() -> new RuntimeException("Item not found"));
+            .orElseThrow(() -> new RuntimeException("Article introuvable"));
 
     // update only editable fields
     existingItem.setQuantity(dto.getQuantity());
@@ -85,13 +85,15 @@ existingItem.setExpiryDate(dto.getExpiryDate());
     @DeleteMapping("/{id}")
 public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
     User dentist = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
     // Option 1: hard delete
     itemService.getItemByIdForDentist(id, dentist)
-            .orElseThrow(() -> new RuntimeException("Item not found"));
+            .orElseThrow(() -> new RuntimeException("Article introuvable"));
 
     itemService.deleteItem(id, dentist);
     return ResponseEntity.noContent().build();
 }
 }
+
+

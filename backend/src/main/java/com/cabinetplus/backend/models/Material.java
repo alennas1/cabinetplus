@@ -16,7 +16,7 @@ public class Material {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Material name is required")
+    @NotBlank(message = "Le nom du materiau est obligatoire")
     @Column(nullable = false)
     private String name;
 
@@ -24,3 +24,4 @@ public class Material {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 }
+

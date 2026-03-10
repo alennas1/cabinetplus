@@ -14,6 +14,7 @@ import {
   updateProthetics,
 } from "../services/prostheticsService";
 import { getAllLaboratories } from "../services/laboratoryService";
+import { getApiErrorMessage } from "../utils/error";
 
 import "./Patients.css";
 import "./Finance.css";
@@ -177,7 +178,7 @@ const Prosthetics = () => {
       toast.success("Travail supprimé");
       await loadData();
     } catch (err) {
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
       setShowConfirmDelete(false);
       setProthesisToDelete(null);

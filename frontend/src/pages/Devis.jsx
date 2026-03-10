@@ -4,6 +4,7 @@ import { Plus, Trash2, Download, X, Search, FileText } from 'react-feather';
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import { getApiErrorMessage } from "../utils/error";
 
 import { getDevises, createDevise, deleteDevise, downloadDevisePdf } from '../services/deviseService';
 import { getTreatments } from '../services/treatmentCatalogueService';
@@ -101,7 +102,7 @@ const Devise = () => {
             setDevises(devises.filter(d => d.id !== deviseIdToDelete));
             toast.success("Devis supprimé");
         } catch (err) {
-            toast.error("Erreur lors de la suppression");
+            toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
         } finally {
             setShowConfirm(false);
             setDeviseIdToDelete(null);

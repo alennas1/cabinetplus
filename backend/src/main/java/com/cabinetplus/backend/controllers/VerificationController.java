@@ -40,7 +40,7 @@ public class VerificationController {
 
         String formattedNumber = formatPhoneNumber(user.getPhoneNumber());
         if (formattedNumber == null || formattedNumber.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Numéro de téléphone invalide ou manquant."));
+            return ResponseEntity.badRequest().body(Map.of("error", "Numéro de téléphone invalide ou manquant."));
         }
 
         try {
@@ -56,7 +56,7 @@ public class VerificationController {
         } catch (Exception e) {
             logger.error("Error sending SMS OTP: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("message", "Erreur service SMS: " + e.getMessage()));
+                    .body(Map.of("error", "Service SMS indisponible"));
         }
     }
 
@@ -79,7 +79,7 @@ public class VerificationController {
             return ResponseEntity.ok(Map.of("verified", true));
         }
 
-        return ResponseEntity.badRequest().body(Map.of("message", "Code SMS invalide"));
+        return ResponseEntity.badRequest().body(Map.of("error", "Code SMS invalide"));
     }
 
     // ------------------- SIMULATE PHONE VERIFICATION (LOCAL DEV) -------------------
@@ -88,15 +88,15 @@ public class VerificationController {
         String remoteAddr = request.getRemoteAddr();
         if (!"127.0.0.1".equals(remoteAddr) && !"0:0:0:0:0:0:0:1".equals(remoteAddr)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("message", "Simulation allowed only from localhost"));
+                    .body(Map.of("error", "Simulation autorisee uniquement depuis localhost"));
         }
 
         if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("message", "Session expired"));
+                .body(Map.of("error", "Session expired"));
 
         User user = userRepo.findByUsername(principal.getName()).orElse(null);
         if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("message", "User not found"));
+                .body(Map.of("error", "Utilisateur introuvable"));
 
         user.setPhoneVerified(true);
         user.setPhoneOtp(null);
@@ -104,7 +104,7 @@ public class VerificationController {
         userRepo.save(user);
 
         return ResponseEntity.ok(Map.of(
-            "message", "Phone verification simulated successfully",
+            "message", "Verification du telephone simulee avec succes",
             "user", user
         ));
     }
@@ -131,6 +131,6 @@ public class VerificationController {
 
     private ResponseEntity<?> unauthorizedResponse() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("message", "Session expirée. Veuillez vous reconnecter."));
+                .body(Map.of("error", "Session expirée. Veuillez vous reconnecter."));
     }
 }

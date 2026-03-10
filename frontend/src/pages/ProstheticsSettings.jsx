@@ -10,6 +10,7 @@ import {
     deleteProstheticCatalogue 
 } from "../services/prostheticsCatalogueService";
 import { getAllMaterials } from "../services/materialService";
+import { getApiErrorMessage } from "../utils/error";
 
 import "./Patients.css"; // Using shared CSS
 
@@ -85,7 +86,7 @@ const ProstheticsSettings = () => {
             setProsthetics(prosthetics.filter(p => p.id !== itemIdToDelete));
             toast.success("Prothèse supprimée");
         } catch (err) {
-            toast.error("Erreur lors de la suppression");
+            toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
         } finally {
             setShowConfirm(false);
             setItemIdToDelete(null);

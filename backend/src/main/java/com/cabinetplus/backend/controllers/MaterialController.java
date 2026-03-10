@@ -62,10 +62,10 @@ public class MaterialController {
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
 
-    // 🔹 Helpers
+    // ðŸ”¹ Helpers
     private User getCurrentUser(Principal principal) {
         return userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
     private MaterialResponse mapToResponse(Material m) {

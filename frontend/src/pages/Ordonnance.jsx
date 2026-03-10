@@ -7,6 +7,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { getPatientById } from "../services/patientService";
+import { getApiErrorMessage } from "../utils/error";
 
 export default function Ordonnance() {
   const navigate = useNavigate();
@@ -165,7 +166,7 @@ useEffect(() => {
     setTimeout(() => navigate(`/patients/${patient?.id || patientId}`), 2000);
   } catch (error) {
     console.error(error);
-    toast.error(`Erreur: ${error.response?.data?.message || "Erreur de communication"}`);
+    toast.error(`Erreur: ${getApiErrorMessage(error, "Erreur de communication")}`);
   }
 }
 
@@ -198,7 +199,7 @@ useEffect(() => {
       }
       setTimeout(() => navigate(`/patients/${patient?.id || patientId}`), 1500);
     } catch (error) {
-      toast.error(`Erreur: ${error.response?.data?.message || "Erreur serveur"}`);
+      toast.error(`Erreur: ${getApiErrorMessage(error, "Erreur serveur")}`);
     }
   }
 

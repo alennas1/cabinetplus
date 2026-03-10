@@ -12,6 +12,7 @@ import {
 } from "../services/appointmentService";
 import { createPatient, getPatients } from "../services/patientService";
 import PageHeader from "../components/PageHeader";
+import { getApiErrorMessage } from "../utils/error";
 import "./Appointments.css";
 
 export default function Appointments() {
@@ -365,7 +366,7 @@ const data = await getPatients();
     if (err.response && err.response.status === 409) {
       toast.error("Impossible de créer le rendez-vous : il chevauche un autre rendez-vous !");
     } else {
-      toast.error("Erreur lors de l'enregistrement du rendez-vous");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement du rendez-vous"));
     }
   }
 };
@@ -384,7 +385,7 @@ const data = await getPatients();
       toast.success("Rendez-vous supprimé ");
     } catch (err) {
       console.error("Error deleting appointment:", err);
-      toast.error("Erreur lors de la suppression ");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression "));
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

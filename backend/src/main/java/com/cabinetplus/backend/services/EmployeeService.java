@@ -78,7 +78,7 @@ public class EmployeeService {
     // --- Update ---
     public EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO dto, User dentist) {
         Employee existing = employeeRepository.findByIdAndDentist(id, dentist)
-                .orElseThrow(() -> new RuntimeException("Employee not found with id " + id));
+                .orElseThrow(() -> new RuntimeException("Employe introuvable with id " + id));
 
         existing.setFirstName(dto.getFirstName());
         existing.setLastName(dto.getLastName());
@@ -149,7 +149,7 @@ public class EmployeeService {
     // --- Delete ---
     public void deleteEmployee(Long id, User dentist) {
         Employee existing = employeeRepository.findByIdAndDentist(id, dentist)
-                .orElseThrow(() -> new RuntimeException("Employee not found with id " + id));
+                .orElseThrow(() -> new RuntimeException("Employe introuvable with id " + id));
 
         employeeRepository.delete(existing);
     }
@@ -181,3 +181,4 @@ public class EmployeeService {
                 .build();
     }
 }
+

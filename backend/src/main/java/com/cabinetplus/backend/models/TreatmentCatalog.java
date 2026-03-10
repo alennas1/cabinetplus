@@ -26,21 +26,23 @@ public class TreatmentCatalog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Name is required")
+    @NotBlank(message = "Le nom est obligatoire")
     @Column(nullable = false)
     private String name;
 
     private String description;
 
-    @NotNull(message = "Default price is required")
-    @Positive(message = "Default price must be greater than 0")
+    @NotNull(message = "Le prix par defaut est obligatoire")
+    @Positive(message = "Le prix par defaut doit etre superieur a 0")
     @Column(nullable = false)
     private Double defaultPrice;
 
     private boolean isFlatFee = false;
 
-    // 🔹 Makes the catalog private to a dentist/user
+    // ðŸ”¹ Makes the catalog private to a dentist/user
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 }
+
+

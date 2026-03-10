@@ -23,7 +23,7 @@ public class ItemDefaultController {
     @GetMapping
     public ResponseEntity<List<ItemDefaultDTO>> getAll(Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         List<ItemDefaultDTO> dtos = itemDefaultService.getDefaultsForDentist(dentist)
                 .stream()
                 .map(itemDefaultService::toDTO)
@@ -34,7 +34,7 @@ public class ItemDefaultController {
     @GetMapping("/{id}")
     public ResponseEntity<ItemDefaultDTO> getById(@PathVariable Long id, Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return itemDefaultService.getDefaultByIdForDentist(id, dentist)
                 .map(itemDefaultService::toDTO)
                 .map(ResponseEntity::ok)
@@ -44,7 +44,7 @@ public class ItemDefaultController {
     @PostMapping
     public ResponseEntity<ItemDefaultDTO> create(@RequestBody ItemDefault itemDefault, Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         itemDefault.setCreatedBy(dentist);
         ItemDefault saved = itemDefaultService.createDefault(itemDefault, dentist);
         return ResponseEntity.ok(itemDefaultService.toDTO(saved));
@@ -55,7 +55,7 @@ public class ItemDefaultController {
                                                  @RequestBody ItemDefault updated,
                                                  Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         ItemDefault saved = itemDefaultService.updateDefault(id, updated, dentist);
         return ResponseEntity.ok(itemDefaultService.toDTO(saved));
     }
@@ -63,8 +63,9 @@ public class ItemDefaultController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         itemDefaultService.deleteDefault(id, dentist);
         return ResponseEntity.noContent().build();
     }
 }
+

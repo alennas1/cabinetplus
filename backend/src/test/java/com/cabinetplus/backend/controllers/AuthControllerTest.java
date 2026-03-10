@@ -1,0 +1,118 @@
+package com.cabinetplus.backend.controllers;
+
+import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.RefreshTokenRepository;
+import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.security.JwtUtil;
+import com.cabinetplus.backend.services.AuditService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+
+import java.util.Optional;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+class AuthControllerTest {
+
+    private MockMvc mockMvc;
+    private AuthenticationManager authenticationManager;
+    private UserRepository userRepository;
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @BeforeEach
+    void setUp() {
+        authenticationManager = mock(AuthenticationManager.class);
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        userRepository = mock(UserRepository.class);
+        refreshTokenRepository = mock(RefreshTokenRepository.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        AuditService auditService = mock(AuditService.class);
+
+        AuthController controller = new AuthController(
+                authenticationManager,
+                jwtUtil,
+                userRepository,
+                refreshTokenRepository,
+                passwordEncoder,
+                auditService
+        );
+
+        ReflectionTestUtils.setField(controller, "accessTokenMs", 60000L);
+        ReflectionTestUtils.setField(controller, "refreshTokenMs", 86400000L);
+
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(controller)
+                .setMessageConverters(new MappingJackson2HttpMessageConverter())
+                .setValidator(validator)
+                .build();
+    }
+
+    @Test
+    void loginWithInvalidCredentialsReturns401AndErrorKey() throws Exception {
+        when(authenticationManager.authenticate(any()))
+                .thenThrow(new BadCredentialsException("bad credentials"));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"bad\",\"password\":\"bad\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("Nom d'utilisateur ou mot de passe invalide"));
+    }
+
+    @Test
+    void registerWithDuplicateUsernameReturns400AndErrorKey() throws Exception {
+        User existing = new User();
+        existing.setUsername("already");
+        existing.setRole(UserRole.DENTIST);
+        when(userRepository.findByUsername("already")).thenReturn(Optional.of(existing));
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                                {
+                                  "username":"already",
+                                  "password":"123456",
+                                  "firstname":"A",
+                                  "lastname":"B",
+                                  "phoneNumber":"0550000000",
+                                  "role":"DENTIST"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Ce nom d'utilisateur est deja utilise"));
+    }
+
+    @Test
+    void sessionWithoutCookieReturnsEmptyAccessToken() throws Exception {
+        mockMvc.perform(post("/auth/session"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value(""));
+    }
+
+    @Test
+    void sessionWithUnknownCookieReturnsEmptyAccessToken() throws Exception {
+        when(refreshTokenRepository.findByTokenWithUser(anyString())).thenReturn(Optional.empty());
+        mockMvc.perform(post("/auth/session").cookie(new jakarta.servlet.http.Cookie("refresh_token", "unknown")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value(""));
+    }
+}

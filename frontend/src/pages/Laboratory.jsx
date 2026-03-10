@@ -11,6 +11,7 @@ import {
   updateLaboratory,
   deleteLaboratory,
 } from "../services/laboratoryService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
 
 const Laboratories = () => {
@@ -113,7 +114,7 @@ const Laboratories = () => {
         err?.response?.status === 409
           ? "Impossible de supprimer un laboratoire lié à des paiements ou prothèses"
           : "Erreur lors de la suppression";
-      toast.error(message);
+      toast.error(getApiErrorMessage(err, message));
     } finally {
       setShowConfirm(false);
       setLabIdToDelete(null);

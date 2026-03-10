@@ -5,6 +5,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router-dom";
+import { getApiErrorMessage } from "../utils/error";
 
 import {
   getEmployees,
@@ -144,7 +145,7 @@ const Employees = () => {
       toast.success("Employé supprimé");
     } catch (err) {
       console.error("Erreur suppression:", err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
       setShowConfirm(false);
       setEmpIdToDelete(null);

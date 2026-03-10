@@ -37,7 +37,7 @@ public class ItemDefaultService {
                     def.setDefaultPrice(updated.getDefaultPrice());
                     def.setDescription(updated.getDescription());
                     return itemDefaultRepository.save(def);
-                }).orElseThrow(() -> new RuntimeException("ItemDefault not found"));
+                }).orElseThrow(() -> new RuntimeException("Article par defaut introuvable"));
     }
 
     public void deleteDefault(Long id, User dentist) {
@@ -56,3 +56,4 @@ public class ItemDefaultService {
 }
 
 }
+

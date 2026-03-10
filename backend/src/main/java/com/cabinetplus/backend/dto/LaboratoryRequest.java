@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
  * DTO for creating or updating a Laboratory partner.
  */
 public record LaboratoryRequest(
-    @NotBlank(message = "Lab name is required") 
+    @NotBlank(message = "Le nom du laboratoire est obligatoire") 
     String name,
     
     String contactPerson,
@@ -15,3 +15,4 @@ public record LaboratoryRequest(
     
     String address
 ) {}
+

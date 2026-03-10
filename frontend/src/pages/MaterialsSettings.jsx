@@ -4,6 +4,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import { getAllMaterials, createMaterial, deleteMaterial } from "../services/materialService";
+import { getApiErrorMessage } from "../utils/error";
 
 import "./Patients.css"; // Using shared CSS for consistent styling
 
@@ -63,7 +64,7 @@ const MaterialsSettings = () => {
             setMaterials(materials.filter((m) => m.id !== materialIdToDelete));
             toast.success("Matériau supprimé");
         } catch (err) {
-            toast.error("Erreur lors de la suppression.");
+            toast.error(getApiErrorMessage(err, "Erreur lors de la suppression."));
         } finally {
             setShowConfirm(false);
             setMaterialIdToDelete(null);

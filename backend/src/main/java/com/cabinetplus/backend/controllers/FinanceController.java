@@ -40,7 +40,7 @@ public class FinanceController {
             @RequestParam String timeframe // daily | monthly | yearly
     ) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         FinanceGraphResponseDTO graphData = financeService.getFinanceGraph(dentist, timeframe);
         return ResponseEntity.ok(graphData);
@@ -63,7 +63,7 @@ public class FinanceController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         FinanceCardsResponseDTO cardsData = financeService.getFinanceCards(dentist, timeframe, startDate, endDate);
         return ResponseEntity.ok(cardsData);

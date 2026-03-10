@@ -8,17 +8,19 @@ import lombok.Data;
 
 @Data
 public class MedicationRequest {
-    @NotBlank(message = "Name is required")
+    @NotBlank(message = "Le nom est obligatoire")
     private String name;
 
-    @NotBlank(message = "genericName is required")
+    @NotBlank(message = "Le nom generique est obligatoire")
     private String genericName;
 
-    @NotNull(message = "Dosage form is required")
+    @NotNull(message = "La forme galenique est obligatoire")
     private DosageForm dosageForm;
 
-    @NotBlank(message = "Strength is required (e.g., 500mg, 10ml)")
+    @NotBlank(message = "Le dosage est obligatoire (ex: 500mg, 10ml)")
     private String strength;
 
     private String description;
 }
+
+

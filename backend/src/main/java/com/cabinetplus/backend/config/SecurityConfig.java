@@ -21,15 +21,23 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.cabinetplus.backend.security.CustomUserDetailsService;
 import com.cabinetplus.backend.security.JwtAuthenticationFilter;
+import com.cabinetplus.backend.security.RequestTracingFilter;
+import com.cabinetplus.backend.services.AuditService;
 
 @Configuration
 public class SecurityConfig {
 //asd
     private final JwtAuthenticationFilter jwtFilter;
+    private final RequestTracingFilter requestTracingFilter;
     private final CustomUserDetailsService userDetailsService;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtFilter, CustomUserDetailsService userDetailsService) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtFilter,
+            RequestTracingFilter requestTracingFilter,
+            CustomUserDetailsService userDetailsService
+    ) {
         this.jwtFilter = jwtFilter;
+        this.requestTracingFilter = requestTracingFilter;
         this.userDetailsService = userDetailsService;
     }
 
@@ -71,6 +79,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(requestTracingFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
@@ -117,6 +126,7 @@ public class SecurityConfig {
             "Authorization", 
             "Content-Type", 
             "X-Requested-With", 
+            "X-Request-Id",
             "Accept", 
             "Origin", 
             "Access-Control-Request-Method", 
@@ -124,7 +134,7 @@ public class SecurityConfig {
         ));
         
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Set-Cookie"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Set-Cookie", AuditService.REQUEST_ID_HEADER));
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

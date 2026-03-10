@@ -33,7 +33,7 @@ public class ExpenseController {
     @GetMapping
     public ResponseEntity<List<ExpenseResponseDTO>> getAll(Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         List<ExpenseResponseDTO> dtos = expenseService.getExpensesForUser(user)
                 .stream()
@@ -46,7 +46,7 @@ public class ExpenseController {
     @GetMapping("/{id}")
     public ResponseEntity<ExpenseResponseDTO> getById(@PathVariable Long id, Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         return expenseService.getExpenseByIdForUser(id, user)
                 .map(expenseService::toDTO)
@@ -57,7 +57,7 @@ public class ExpenseController {
     @PostMapping
     public ResponseEntity<ExpenseResponseDTO> create(@RequestBody ExpenseRequestDTO dto, Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         Expense expense = expenseService.createExpense(dto, user);
         return ResponseEntity.ok(expenseService.toDTO(expense));
@@ -68,7 +68,7 @@ public class ExpenseController {
                                                      @RequestBody ExpenseRequestDTO dto,
                                                      Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         Expense expense = expenseService.updateExpense(id, dto, user);
         return ResponseEntity.ok(expenseService.toDTO(expense));
@@ -77,7 +77,7 @@ public class ExpenseController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         expenseService.deleteExpense(id, user);
         return ResponseEntity.noContent().build();
@@ -89,7 +89,7 @@ public ResponseEntity<List<ExpenseResponseDTO>> getByEmployee(
         Principal principal) {
 
     User dentist = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
     List<ExpenseResponseDTO> dtos = expenseService
             .getExpensesByEmployee(employeeId, dentist) // service method we discussed
@@ -100,3 +100,4 @@ public ResponseEntity<List<ExpenseResponseDTO>> getByEmployee(
     return ResponseEntity.ok(dtos);
 }
 }
+

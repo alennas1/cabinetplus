@@ -11,6 +11,7 @@ import {
   deleteExpense,
 } from "../services/expenseService";
 import { getEmployees } from "../services/employeeService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -158,7 +159,7 @@ const Expenses = () => {
       toast.success("Dépense supprimée");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

@@ -40,7 +40,7 @@ public class JustificationController {
 
     private User getCurrentUser(Principal principal) {
         return userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
     private static JustificationDTO mapToDTO(Justification j) {
@@ -73,7 +73,7 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
     User currentUser = getCurrentUser(principal);
 
     Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found"));
+            .orElseThrow(() -> new RuntimeException("Patient introuvable"));
 
     List<Justification> list =
             justificationService.findByPatientAndPractitioner(patient, currentUser);
@@ -92,7 +92,7 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
 
         User currentUser = getCurrentUser(principal);
         Patient patient = patientRepository.findById(request.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
 
         Justification justification = new Justification();
         justification.setPatient(patient);
@@ -144,7 +144,7 @@ public void generateJustificationPdf(
 
     User practitioner = getCurrentUser(principal);
     Justification justification = justificationService.findByIdAndPractitioner(id, practitioner)
-            .orElseThrow(() -> new RuntimeException("Justification not found"));
+            .orElseThrow(() -> new RuntimeException("Justificatif introuvable"));
 
     // Set response headers
     response.setContentType("application/pdf");
@@ -168,7 +168,7 @@ public void generateJustificationPdf(
     Font italicFont = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 10, java.awt.Color.GRAY);
 
     // Header
-    String clinicName = practitioner.getClinicName() != null ? practitioner.getClinicName() : "CABINET MÉDICAL";
+    String clinicName = practitioner.getClinicName() != null ? practitioner.getClinicName() : "CABINET MÃ‰DICAL";
     document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
     document.add(new Paragraph("Dr. " + practitioner.getFirstname() + " " + practitioner.getLastname(), subTitleFont));
 
@@ -182,7 +182,7 @@ public void generateJustificationPdf(
         rawPhone = rawPhone.replaceFirst("(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})", "$1 $2 $3 $4 $5");
     }
     if (!rawPhone.isEmpty()) {
-        document.add(new Paragraph("Tél: " + rawPhone, normalFont));
+        document.add(new Paragraph("TÃ©l: " + rawPhone, normalFont));
     }
 
     document.add(new Paragraph(" "));
@@ -218,7 +218,7 @@ public void generateJustificationPdf(
         // Fallback to Enum name only if title is null
         displayTitle = justification.getTitle().replace("_", " ");
     } else {
-        displayTitle = "JUSTIFICATION MÉDICALE";
+        displayTitle = "JUSTIFICATION MÃ‰DICALE";
     }
 
     Paragraph titleParagraph = new Paragraph(displayTitle.toUpperCase(), titleFont);
@@ -245,3 +245,4 @@ public void generateJustificationPdf(
     document.close();
 }
 }
+

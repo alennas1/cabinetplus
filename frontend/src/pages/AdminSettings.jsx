@@ -1,7 +1,7 @@
 // AdminSettings.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Lock, Package } from "react-feather";
+import { User, Lock, Package, Shield } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import "./Settings.css"; // same CSS as Settings.jsx
 
@@ -29,6 +29,12 @@ const AdminSettings = () => {
           desc: "Créer, modifier ou supprimer les abonnements",
           icon: <Package />,
           path: "/admin/manage-plans",
+        },
+        {
+          title: "Journal securite admin",
+          desc: "Voir seulement les logs admin autorises (pas les donnees privees dentiste)",
+          icon: <Shield />,
+          path: "/admin/audit-logs",
         },
       ],
     },

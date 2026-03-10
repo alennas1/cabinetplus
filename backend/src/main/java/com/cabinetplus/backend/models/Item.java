@@ -32,11 +32,11 @@ public class Item {
     @JoinColumn(name = "item_default_id", nullable = false)
     private ItemDefault itemDefault;
 
-    @NotNull(message = "Quantity is required")
+    @NotNull(message = "La quantite est obligatoire")
     @Column(nullable = false)
     private Integer quantity;
 
-    @NotNull(message = "Unit price is required")
+    @NotNull(message = "Le prix unitaire est obligatoire")
     @Column(nullable = false)
     private Double unitPrice; // user enters this
 
@@ -65,3 +65,5 @@ public class Item {
         }
     }
 }
+
+

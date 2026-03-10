@@ -1,0 +1,110 @@
+package com.cabinetplus.backend.controllers;
+
+import com.cabinetplus.backend.enums.UserPlanStatus;
+import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
+import com.cabinetplus.backend.models.Plan;
+import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.security.JwtUtil;
+import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.PlanService;
+import com.cabinetplus.backend.services.UserService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+
+import java.util.Optional;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+class UserControllerTest {
+
+    private MockMvc mockMvc;
+    private UserService userService;
+    private PlanService planService;
+
+    @BeforeEach
+    void setUp() {
+        userService = mock(UserService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        planService = mock(PlanService.class);
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        AuditService auditService = mock(AuditService.class);
+
+        UserController controller = new UserController(userService, passwordEncoder, planService, jwtUtil, auditService);
+
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter())
+                .setValidator(validator)
+                .build();
+    }
+
+    @Test
+    void getUserByIdWhenMissingReturns404Contract() throws Exception {
+        when(userService.findById(404L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/users/404"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
+                .andExpect(jsonPath("$.path").value("/api/users/404"));
+    }
+
+    @Test
+    void activatePlanWhenUserHasNoPlanReturns400Contract() throws Exception {
+        User user = new User();
+        user.setId(5L);
+        user.setPlan(null);
+        when(userService.findById(5L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(put("/api/users/admin/activate-plan/5")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Cet utilisateur n'a pas choisi de plan"))
+                .andExpect(jsonPath("$.path").value("/api/users/admin/activate-plan/5"));
+    }
+
+    @Test
+    void deactivatePlanWhenUserMissingReturns404Contract() throws Exception {
+        when(userService.findById(11L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(put("/api/users/admin/deactivate-plan/11")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
+                .andExpect(jsonPath("$.path").value("/api/users/admin/deactivate-plan/11"));
+    }
+
+    @Test
+    void activatePlanSuccessSetsActiveStatus() throws Exception {
+        Plan plan = new Plan();
+        plan.setDurationDays(30);
+
+        User user = new User();
+        user.setId(9L);
+        user.setPlan(plan);
+        when(userService.findById(9L)).thenReturn(Optional.of(user));
+        when(userService.save(user)).thenReturn(user);
+
+        mockMvc.perform(put("/api/users/admin/activate-plan/9")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planStatus").value(UserPlanStatus.ACTIVE.name()));
+    }
+}

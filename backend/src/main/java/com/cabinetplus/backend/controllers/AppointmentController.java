@@ -47,7 +47,7 @@ public class AppointmentController {
     public List<Appointment> getAllAppointments(Principal principal) {
         String username = principal.getName();
         User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         return appointmentService.findByPractitioner(currentUser);
     }
@@ -61,7 +61,7 @@ public class AppointmentController {
     public AppointmentResponse createAppointment(@RequestBody AppointmentRequest request, Principal principal) {
         String username = principal.getName();
         User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         // Overlap check
         List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
@@ -72,8 +72,7 @@ public class AppointmentController {
                 .collect(Collectors.toList());
 
         if (!overlapping.isEmpty()) {
-            // Retourner 409 CONFLICT
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment overlaps with existing appointments");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce rendez-vous chevauche un autre rendez-vous");
         }
 
         // Build appointment
@@ -83,7 +82,7 @@ public class AppointmentController {
         appointment.setStatus(request.status());
 
         PatientDto patientDto = patientService.findById(request.patientId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
         Patient patientEntity = new Patient();
         patientEntity.setId(patientDto.id());
         appointment.setPatient(patientEntity);
@@ -109,7 +108,7 @@ public class AppointmentController {
     public Appointment updateAppointment(@PathVariable Long id, @RequestBody Appointment updatedAppointment, Principal principal) {
         String username = principal.getName();
         User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         // Overlap check (ignore current appointment)
         List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
@@ -121,8 +120,7 @@ public class AppointmentController {
                 .collect(Collectors.toList());
 
         if (!overlapping.isEmpty()) {
-            // Retourner 409 CONFLICT
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Appointment overlaps with existing appointments");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce rendez-vous chevauche un autre rendez-vous");
         }
 
         updatedAppointment.setId(id);
@@ -154,7 +152,7 @@ public class AppointmentController {
 public Map<String, Object> getComparisonStats(Principal principal) {
 
     User user = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
     LocalDate today = LocalDate.now();
     LocalDate yesterday = today.minusDays(1);

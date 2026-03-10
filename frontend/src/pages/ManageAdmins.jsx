@@ -5,6 +5,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import { getAllAdmins, createAdmin, deleteAdmin } from "../services/userService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
 
 const ManageAdmins = () => {
@@ -26,8 +27,7 @@ const ManageAdmins = () => {
   const [isEditing, setIsEditing] = useState(false);
 
   const getErrorMessage = (err) => {
-    if (err.response?.data?.error) return err.response.data.error;
-    return err.message || "Erreur inconnue";
+    return getApiErrorMessage(err, "Erreur inconnue");
   };
 
   useEffect(() => {

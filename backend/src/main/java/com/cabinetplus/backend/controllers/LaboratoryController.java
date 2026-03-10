@@ -67,7 +67,7 @@ public class LaboratoryController {
                                                          Principal principal) {
         User user = getCurrentUser(principal);
         Laboratory laboratory = service.findByIdAndUser(id, user)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratory not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
         service.addPayment(id, dto, user);
         return ResponseEntity.ok(mapToResponse(laboratory));
     }
@@ -94,14 +94,14 @@ public class LaboratoryController {
         }
 
         if (!service.deleteByUser(id, user)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Laboratory cannot be deleted because it has related payments or prosthetics");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Suppression impossible: ce laboratoire est lie a des paiements ou protheses");
         }
 
         return ResponseEntity.noContent().build();
     }
 
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName()).orElseThrow(() -> new RuntimeException("User not found"));
+        return userService.findByUsername(principal.getName()).orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
     private LaboratoryResponse mapToResponse(Laboratory l) {

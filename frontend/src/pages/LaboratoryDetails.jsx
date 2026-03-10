@@ -22,6 +22,7 @@ import {
   getLaboratoryById,
   updateLaboratory,
 } from "../services/laboratoryService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patient.css";
 import "./Profile.css";
 import "./Finance.css";
@@ -384,7 +385,7 @@ const LaboratoryDetails = () => {
       toast.success("Paiement supprimé");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression du paiement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression du paiement"));
     }
   };
 

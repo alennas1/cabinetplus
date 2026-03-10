@@ -116,7 +116,7 @@ public class FinanceService {
             break;
 
         default:
-            throw new IllegalArgumentException("Invalid timeframe: " + timeframe);
+            throw new IllegalArgumentException("Periode invalide: " + timeframe);
     }
 
     revenueTypes = computeRevenueTypes(dentist, timeframe);
@@ -175,7 +175,7 @@ public class FinanceService {
             break;
 
         default:
-            throw new IllegalArgumentException("Invalid timeframe: " + timeframe);
+            throw new IllegalArgumentException("Periode invalide: " + timeframe);
     }
 
     // ==== Revenue (current) ====
@@ -260,7 +260,7 @@ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevE
             end = today.withDayOfYear(today.lengthOfYear()).atTime(23, 59, 59);
             break;
         default:
-            throw new IllegalArgumentException("Invalid timeframe: " + timeframe);
+            throw new IllegalArgumentException("Periode invalide: " + timeframe);
     }
 
     // Existing treatment totals
@@ -304,7 +304,7 @@ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevE
                 end = today.withDayOfYear(today.lengthOfYear()).atTime(23, 59, 59);
                 break;
             default:
-                throw new IllegalArgumentException("Invalid timeframe: " + timeframe);
+                throw new IllegalArgumentException("Periode invalide: " + timeframe);
         }
 
         Map<String, Double> totals = new HashMap<>();

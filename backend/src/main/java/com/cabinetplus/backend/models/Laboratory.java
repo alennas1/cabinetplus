@@ -17,7 +17,7 @@ public class Laboratory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Laboratory name is required")
+    @NotBlank(message = "Le nom du laboratoire est obligatoire")
     @Column(nullable = false)
     private String name;
 
@@ -31,3 +31,4 @@ public class Laboratory {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 }
+

@@ -74,10 +74,10 @@ public ResponseEntity<DeviseResponse> getById(@PathVariable Long id, Principal p
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
 
-    // 🔹 Helpers (Consistent with your MaterialController)
+    // ðŸ”¹ Helpers (Consistent with your MaterialController)
     private User getCurrentUser(Principal principal) {
         return userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
     private DeviseResponse mapToResponse(Devise d) {
@@ -117,7 +117,7 @@ public void generateDevisePdf(
     // Assuming you add a findById method in service that checks the practitioner
     Devise devise = deviseService.findById(id)
             .filter(d -> d.getPractitioner().equals(practitioner))
-            .orElseThrow(() -> new RuntimeException("Devise not found"));
+            .orElseThrow(() -> new RuntimeException("Devis introuvable"));
 
     response.setContentType("application/pdf");
     String fileNameTitle = (devise.getTitle() != null) 
@@ -172,7 +172,7 @@ public void generateDevisePdf(
     table.setSpacingBefore(10);
 
     // Table Headers
-    String[] headers = {"Désignation", "Qté", "Prix Unitaire", "Total"};
+    String[] headers = {"DÃ©signation", "QtÃ©", "Prix Unitaire", "Total"};
     for (String columnHeader : headers) {
         PdfPCell cell = new PdfPCell(new Phrase(columnHeader, boldFont));
         cell.setBackgroundColor(java.awt.Color.LIGHT_GRAY);
@@ -202,7 +202,7 @@ public void generateDevisePdf(
     document.add(table);
 
     // Total Section
-    Paragraph totalP = new Paragraph("\nTOTAL GÉNÉRAL: " + String.format("%,.2f DZD", devise.getTotalAmount()), subTitleFont);
+    Paragraph totalP = new Paragraph("\nTOTAL GÃ‰NÃ‰RAL: " + String.format("%,.2f DZD", devise.getTotalAmount()), subTitleFont);
     totalP.setAlignment(Element.ALIGN_RIGHT);
     document.add(totalP);
 
@@ -219,3 +219,4 @@ public void generateDevisePdf(
 }
 
   }
+

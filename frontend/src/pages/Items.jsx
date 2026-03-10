@@ -10,6 +10,7 @@ import {
   updateItemDefault,
   deleteItemDefault,
 } from "../services/itemDefaultService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css"; // Using the same Patients.css
 
 const ITEM_CATEGORIES = {
@@ -135,7 +136,7 @@ const Items = () => {
       toast.success("Article supprimé");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

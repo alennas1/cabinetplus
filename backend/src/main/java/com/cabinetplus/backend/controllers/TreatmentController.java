@@ -26,7 +26,7 @@ public class TreatmentController {
 
     private User getCurrentUser(Principal principal) {
         return userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
     // Get all treatments for current user
@@ -85,3 +85,4 @@ public class TreatmentController {
         return ResponseEntity.ok(treatments);
     }
 }
+

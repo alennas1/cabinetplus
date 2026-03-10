@@ -17,6 +17,7 @@ import {
   updatePlanAdmin,
   deactivatePlanAdmin
 } from '../services/adminPlanService';
+import { getApiErrorMessage } from '../utils/error';
 
 import './Patients.css'; 
 
@@ -212,7 +213,7 @@ const ManagePlans = () => {
       closeModal();
       fetchPlans();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Erreur de soumission.");
+      toast.error(getApiErrorMessage(err, "Erreur de soumission."));
     }
   };
 

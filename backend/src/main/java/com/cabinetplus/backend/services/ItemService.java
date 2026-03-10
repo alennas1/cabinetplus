@@ -40,7 +40,7 @@ public class ItemService {
 
     public Item createItemFromDTO(CreateItemDTO dto, User dentist) {
     ItemDefault def = itemDefaultRepository.findById(dto.getItemDefaultId())
-                     .orElseThrow(() -> new RuntimeException("ItemDefault not found"));
+                     .orElseThrow(() -> new RuntimeException("Article par defaut introuvable"));
     Item item = new Item();
     item.setItemDefault(def);
     item.setQuantity(dto.getQuantity());
@@ -61,14 +61,14 @@ public class ItemService {
                     item.setPrice(updated.getPrice());
                     item.setExpiryDate(updated.getExpiryDate());
                     return itemRepository.save(item);
-                }).orElseThrow(() -> new RuntimeException("Item not found"));
+                }).orElseThrow(() -> new RuntimeException("Article introuvable"));
     }
 
     // Delete item
    public void deleteItem(Long id, User dentist) {
     // optional: verify the item belongs to this dentist
     Item item = getItemByIdForDentist(id, dentist)
-            .orElseThrow(() -> new RuntimeException("Item not found"));
+            .orElseThrow(() -> new RuntimeException("Article introuvable"));
     itemRepository.delete(item);
 }
 
@@ -90,3 +90,4 @@ public class ItemService {
 
     
 }
+

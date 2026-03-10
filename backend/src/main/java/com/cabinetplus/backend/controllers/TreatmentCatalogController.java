@@ -105,10 +105,10 @@ public class TreatmentCatalogController {
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
 
-    // 🔹 Helpers
+    // ðŸ”¹ Helpers
     private User getCurrentUser(Principal principal) {
         return userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
     private TreatmentCatalogResponse mapToResponse(TreatmentCatalog c) {
@@ -121,3 +121,4 @@ public class TreatmentCatalogController {
         );
     }
 }
+

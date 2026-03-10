@@ -20,12 +20,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.cabinetplus.backend.dto.RegisterRequest;
 import com.cabinetplus.backend.dto.UserDto;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.RefreshToken;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
+import com.cabinetplus.backend.services.AuditService;
 
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -39,6 +41,7 @@ public class AuthController {
     private final UserRepository userRepo;
     private final RefreshTokenRepository refreshRepo;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
 
     @Value("${jwt.access.expiration-ms}")
     private long accessTokenMs;
@@ -48,12 +51,13 @@ public class AuthController {
 
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
                           UserRepository userRepo, RefreshTokenRepository refreshRepo,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder, AuditService auditService) {
         this.authManager = authManager;
         this.jwtUtil = jwtUtil;
         this.userRepo = userRepo;
         this.refreshRepo = refreshRepo;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
     }
 
     // ---------------- COOKIE HELPER ----------------
@@ -71,15 +75,14 @@ public class AuthController {
     // ---------------- LOGIN ----------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
+        String username = body.get("username");
+        String password = body.get("password");
         try {
-            String username = body.get("username");
-            String password = body.get("password");
-
             Authentication auth = authManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, password));
 
             User user = userRepo.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
             String accessToken = jwtUtil.generateAccessToken(user);
 
@@ -91,11 +94,22 @@ public class AuthController {
             refreshRepo.save(refreshToken);
 
             addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
+            auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGIN, "SESSION", null, "Connexion reussie");
 
             return ResponseEntity.ok(Map.of("accessToken", accessToken));
 
         } catch (AuthenticationException e) {
-            return ResponseEntity.status(401).body(Map.of("error", "Invalid username/password"));
+            userRepo.findByUsername(username).ifPresentOrElse(
+                    user -> auditService.logFailureAsUser(
+                            user,
+                            AuditEventType.AUTH_LOGIN,
+                            "SESSION",
+                            String.valueOf(user.getId()),
+                            "Identifiants invalides"
+                    ),
+                    () -> auditService.logFailure(AuditEventType.AUTH_LOGIN, "SESSION", username, "Identifiants invalides")
+            );
+            return ResponseEntity.status(401).body(Map.of("error", "Nom d'utilisateur ou mot de passe invalide"));
         }
     }
 
@@ -103,7 +117,8 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse response) {
         if (userRepo.findByUsername(request.username()).isPresent()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Username already exists"));
+            auditService.logFailure(AuditEventType.AUTH_REGISTER, "USER", request.username(), "Nom d'utilisateur deja utilise");
+            return ResponseEntity.badRequest().body(Map.of("error", "Ce nom d'utilisateur est deja utilise"));
         }
 
         User user = new User();
@@ -127,6 +142,7 @@ public class AuthController {
         refreshRepo.save(refreshToken);
 
         addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
+        auditService.logSuccessAsUser(saved, AuditEventType.AUTH_REGISTER, "USER", String.valueOf(saved.getId()), "Inscription reussie");
 
         UserDto dto = new UserDto(
                 saved.getId(),
@@ -173,6 +189,15 @@ public class AuthController {
             refreshRepo.findByToken(refreshTokenCookie).ifPresent(tokenEntity -> {
                 tokenEntity.setRevoked(true);
                 refreshRepo.save(tokenEntity);
+                if (tokenEntity.getUser() != null) {
+                    auditService.logSuccessAsUser(
+                            tokenEntity.getUser(),
+                            AuditEventType.AUTH_LOGOUT,
+                            "SESSION",
+                            String.valueOf(tokenEntity.getId()),
+                            "Deconnexion reussie"
+                    );
+                }
             });
         }
 
@@ -192,9 +217,10 @@ public class AuthController {
     @PostMapping("/logout-all")
     public ResponseEntity<Void> logoutAll(@RequestParam Long userId,
                                           HttpServletResponse response) {
-        userRepo.findById(userId).ifPresent(user -> {
+        userRepo.findById(userId).ifPresentOrElse(user -> {
             refreshRepo.deleteAllByUser(user);
-        });
+            auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGOUT_ALL, "USER", String.valueOf(userId), "Deconnexion de tous les appareils");
+        }, () -> auditService.logFailure(AuditEventType.AUTH_LOGOUT_ALL, "USER", String.valueOf(userId), "Utilisateur introuvable"));
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)

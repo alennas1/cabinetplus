@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,14 +16,17 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.UserDto;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.PlanService;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.UserService;
 
 import jakarta.servlet.http.Cookie;
@@ -35,12 +40,20 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
     private final PlanService planService;
     private final JwtUtil jwtUtil;
+    private final AuditService auditService;
 
-    public UserController(UserService userService, PasswordEncoder passwordEncoder, PlanService planService, JwtUtil jwtUtil) {
+    public UserController(
+            UserService userService,
+            PasswordEncoder passwordEncoder,
+            PlanService planService,
+            JwtUtil jwtUtil,
+            AuditService auditService
+    ) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.planService = planService;
         this.jwtUtil = jwtUtil;
+        this.auditService = auditService;
     }
 
     // ===============================
@@ -59,7 +72,7 @@ public class UserController {
     @GetMapping("/admins")
     public List<User> getAllAdmins(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
         User currentUser = userService.findByUsername(current.getUsername())
-                .orElseThrow(() -> new RuntimeException("Current user not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
         return userService.getAllAdmins(currentUser);
     }
 
@@ -71,7 +84,7 @@ public class UserController {
     @GetMapping("/{id}")
     public User getUserById(@PathVariable Long id) {
         return userService.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
     }
 
     @PostMapping
@@ -93,16 +106,24 @@ public class UserController {
                            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
 
         User currentUser = userService.findByUsername(current.getUsername())
-                .orElseThrow(() -> new RuntimeException("Current user not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
 
         User targetUser = userService.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (targetUser.getRole() == UserRole.ADMIN && !currentUser.isCanDeleteAdmin()) {
-            throw new RuntimeException("You cannot delete another admin account");
+            auditService.logFailureAsUser(
+                    currentUser,
+                    AuditEventType.USER_DELETE,
+                    "USER",
+                    String.valueOf(id),
+                    "Suppression refusee: droits insuffisants"
+            );
+            throw new AccessDeniedException("Vous ne pouvez pas supprimer un autre compte admin");
         }
 
         userService.delete(id);
+        auditService.logSuccessAsUser(currentUser, AuditEventType.USER_DELETE, "USER", String.valueOf(id), "Suppression utilisateur reussie");
     }
 
     // ===============================
@@ -111,14 +132,14 @@ public class UserController {
     @GetMapping("/me")
     public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
         return userService.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
     }
 
     @PutMapping("/me")
     public User updateCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                   @RequestBody Map<String, Object> updates) {
         User user = userService.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (updates.containsKey("firstname")) user.setFirstname((String) updates.get("firstname"));
         if (updates.containsKey("lastname")) user.setLastname((String) updates.get("lastname"));
@@ -136,17 +157,19 @@ public class UserController {
     public User updatePassword(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                @RequestBody Map<String, String> passwords) {
         User user = userService.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         String oldPassword = passwords.get("oldPassword");
         String newPassword = passwords.get("newPassword");
 
         if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
-            throw new RuntimeException("Ancien mot de passe incorrect");
+            throw new AccessDeniedException("Ancien mot de passe incorrect");
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
-        return userService.save(user);
+        User saved = userService.save(user);
+        auditService.logSuccessAsUser(saved, AuditEventType.USER_PASSWORD_CHANGE, "USER", String.valueOf(saved.getId()), "Mot de passe modifie");
+        return saved;
     }
 
     @PostMapping("/me/verify-password")
@@ -155,15 +178,15 @@ public class UserController {
             @RequestBody Map<String, String> payload) {
 
         User user = userService.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         String password = payload.get("password");
         if (password == null || password.isBlank()) {
-            throw new RuntimeException("Mot de passe requis");
+            throw new IllegalArgumentException("Mot de passe requis");
         }
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            throw new RuntimeException("Mot de passe incorrect");
+            throw new AccessDeniedException("Mot de passe incorrect");
         }
 
         return Map.of("valid", true);
@@ -177,7 +200,7 @@ public class UserController {
     @PutMapping("/me/verify-phone")
 public User verifyPhone(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
     User user = userService.findByUsername(userDetails.getUsername())
-        .orElseThrow(() -> new RuntimeException("User not found"));
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
     user.setPhoneVerified(true); // <--- Sets the phone verification status
     return userService.save(user);
@@ -191,14 +214,14 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                            @RequestBody Map<String, String> planData) {
 
         User user = userService.findByUsername(userDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (!planData.containsKey("planId")) {
-            throw new RuntimeException("planId is required");
+            throw new IllegalArgumentException("planId est obligatoire");
         }
 
         Plan plan = planService.findById(Long.parseLong(planData.get("planId")))
-                .orElseThrow(() -> new RuntimeException("Plan not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plan introuvable"));
 
         user.setPlan(plan);
         user.setPlanStatus(UserPlanStatus.WAITING);
@@ -218,10 +241,10 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     @PutMapping("/admin/activate-plan/{userId}")
     public User activatePlan(@PathVariable Long userId) {
         User user = userService.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (user.getPlan() == null) {
-            throw new RuntimeException("User has not selected a plan");
+            throw new IllegalArgumentException("Cet utilisateur n'a pas choisi de plan");
         }
 
         user.setPlanStatus(UserPlanStatus.ACTIVE);
@@ -234,7 +257,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     @PutMapping("/admin/deactivate-plan/{userId}")
     public User deactivatePlan(@PathVariable Long userId) {
         User user = userService.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         user.setPlanStatus(UserPlanStatus.INACTIVE);
         user.setExpirationDate(null);
@@ -251,11 +274,11 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
             HttpServletResponse response) {
 
         User currentUser = userService.findByUsername(currentDetails.getUsername())
-                .orElseThrow(() -> new RuntimeException("Current user not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
 
-        // Only super-admin can create another super-admin
+        // Seul le super-admin peut creer un autre super-admin
         if (newAdmin.isCanDeleteAdmin() && !currentUser.isCanDeleteAdmin()) {
-            throw new RuntimeException("Only super-admin can create another super-admin");
+            throw new AccessDeniedException("Seul le super-admin peut creer un autre super-admin");
         }
 
         if (newAdmin.getPasswordHash() == null || newAdmin.getPasswordHash().isBlank()) {
@@ -268,6 +291,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         newAdmin.setPhoneVerified(false);
 
         User saved = userService.createAdmin(currentUser, newAdmin);
+        auditService.logSuccessAsUser(currentUser, AuditEventType.USER_ADMIN_CREATE, "USER", String.valueOf(saved.getId()), "Creation d'un compte admin");
 
         // Generate JWT immediately
         String accessToken = jwtUtil.generateAccessToken(saved);
@@ -296,3 +320,4 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         );
     }
 }
+

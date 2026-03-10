@@ -3,7 +3,9 @@ package com.cabinetplus.backend.services;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.JustificationContentRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,7 +28,7 @@ public class JustificationContentService {
         // Optional: prevent duplicate titles per practitioner
         repository.findByTitleAndPractitioner(content.getTitle(), practitioner)
                 .ifPresent(existing -> {
-                    throw new RuntimeException("A template with this title already exists");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Un modele avec ce titre existe deja");
                 });
 
         return repository.save(content);
@@ -72,7 +74,7 @@ public class JustificationContentService {
                         repository.findByTitleAndPractitioner(updatedContent.getTitle(), practitioner)
                                 .filter(c -> !c.getId().equals(id))
                                 .ifPresent(c -> {
-                                    throw new RuntimeException("A template with this title already exists");
+                                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Un modele avec ce titre existe deja");
                                 });
 
                         existing.setTitle(updatedContent.getTitle());
@@ -84,6 +86,6 @@ public class JustificationContentService {
 
                     return repository.save(existing);
                 })
-                .orElseThrow(() -> new RuntimeException("Template not found or not authorized"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Modele introuvable ou non autorise"));
     }
 }

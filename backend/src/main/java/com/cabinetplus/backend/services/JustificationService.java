@@ -71,15 +71,15 @@ public class JustificationService {
         return justificationRepository.findByPatientAndPractitioner(patient, practitioner);
     }
 
-    // 🔵 GENERATE FROM JUSTIFICATION CONTENT (ID-BASED)
+    // ðŸ”µ GENERATE FROM JUSTIFICATION CONTENT (ID-BASED)
     public String generateFromContent(Long patientId, Long templateId, User practitioner) {
 
         Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
 
         JustificationContent contentEntity = contentRepository.findById(templateId)
                 .filter(c -> c.getPractitioner().getId().equals(practitioner.getId()))
-                .orElseThrow(() -> new RuntimeException("Template not found"));
+                .orElseThrow(() -> new RuntimeException("Modele introuvable"));
 
         String content = contentEntity.getContent();
         if (content == null) return "";
@@ -114,3 +114,4 @@ values.put("{{todayDate}}", LocalDate.now().format(DateTimeFormatter.ofPattern("
         return value != null ? value : "";
     }
 }
+

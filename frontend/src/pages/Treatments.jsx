@@ -11,6 +11,7 @@ import {
   updateTreatment,
   deleteTreatment,
 } from "../services/treatmentCatalogueService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
 
 const Treatments = () => {
@@ -142,7 +143,7 @@ const Treatments = () => {
       toast.success("Traitement supprimé");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

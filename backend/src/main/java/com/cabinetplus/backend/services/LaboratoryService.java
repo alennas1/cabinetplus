@@ -86,7 +86,7 @@ public class LaboratoryService {
 
     public LaboratoryPayment addPayment(Long laboratoryId, LaboratoryPaymentRequest request, User user) {
         Laboratory laboratory = findByIdAndUser(laboratoryId, user)
-            .orElseThrow(() -> new RuntimeException("Laboratory not found"));
+            .orElseThrow(() -> new RuntimeException("Laboratoire introuvable"));
 
         LaboratoryPayment payment = new LaboratoryPayment();
         payment.setLaboratory(laboratory);
@@ -108,3 +108,4 @@ public class LaboratoryService {
             .orElse(false);
     }
 }
+

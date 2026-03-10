@@ -30,16 +30,16 @@ public class Expense {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull(message = "Title is required")
+    @NotNull(message = "Le titre est obligatoire")
     @Column(nullable = false)
     private String title;
 
-    @NotNull(message = "Amount is required")
+    @NotNull(message = "Le montant est obligatoire")
     @Column(nullable = false)
     private Double amount;
 
     @Enumerated(EnumType.STRING)
-    @NotNull(message = "Category is required")
+    @NotNull(message = "La categorie est obligatoire")
     @Column(nullable = false)
     private ExpenseCategory category;
 
@@ -52,8 +52,10 @@ public class Expense {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
-    // 👇 Added relation with Employee (optional)
+    // ðŸ‘‡ Added relation with Employee (optional)
     @ManyToOne(optional = true)
     @JoinColumn(name = "employee_id")
     private Employee employee;
 }
+
+

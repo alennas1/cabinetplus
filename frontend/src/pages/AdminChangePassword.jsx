@@ -4,6 +4,7 @@ import PageHeader from "../components/PageHeader";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { updatePassword } from "../services/securityService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Security.css";
 
 const Security = () => {
@@ -32,10 +33,7 @@ const Security = () => {
       setConfirmPassword("");
     } catch (err) {
       console.error(err);
-      toast.error(
-        err.response?.data?.message ||
-          "Erreur lors de la mise à jour du mot de passe"
-      );
+      toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du mot de passe"));
     }
   };
 

@@ -3,8 +3,10 @@ package com.cabinetplus.backend.services;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.HandPaymentResponseDTO;
 import com.cabinetplus.backend.enums.PaymentStatus;
@@ -119,10 +121,10 @@ public List<HandPaymentResponseDTO> getAllPayments() {
    @Transactional
 public HandPayment confirmPayment(Long paymentId) {
     HandPayment payment = handPaymentRepository.findById(paymentId)
-            .orElseThrow(() -> new RuntimeException("Payment not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Paiement introuvable"));
 
     if (payment.getStatus() != PaymentStatus.PENDING) {
-        throw new RuntimeException("Payment is already processed");
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce paiement est deja traite");
     }
 
     // 1. Confirm the payment status
@@ -168,10 +170,10 @@ public HandPayment confirmPayment(Long paymentId) {
     @Transactional
     public HandPayment rejectPayment(Long paymentId) {
         HandPayment payment = handPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new RuntimeException("Payment not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Paiement introuvable"));
 
         if (payment.getStatus() != PaymentStatus.PENDING) {
-            throw new RuntimeException("Payment is already processed");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce paiement est deja traite");
         }
 
         payment.setStatus(PaymentStatus.REJECTED);

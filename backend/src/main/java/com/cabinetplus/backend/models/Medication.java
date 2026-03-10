@@ -27,21 +27,21 @@ public class Medication {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Name is required")
+    @NotBlank(message = "Le nom est obligatoire")
     @Column(nullable = false)
     private String name;
 
 
-    @NotBlank(message = "genericName is required")
+    @NotBlank(message = "Le nom generique est obligatoire")
     @Column(nullable = false)
     private String genericName;
 
-    @NotNull(message = "Dosage form is required")
+    @NotNull(message = "La forme galenique est obligatoire")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DosageForm dosageForm;
 
-    @NotBlank(message = "Strength is required (e.g., 500mg, 10ml)")
+    @NotBlank(message = "Le dosage est obligatoire (ex: 500mg, 10ml)")
     @Column(nullable = false)
     private String strength;
 
@@ -59,3 +59,5 @@ public class Medication {
         OINTMENT
     }
 }
+
+

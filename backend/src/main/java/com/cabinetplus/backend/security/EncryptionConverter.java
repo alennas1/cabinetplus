@@ -28,7 +28,7 @@ public class EncryptionConverter implements AttributeConverter<String, String> {
             cipher.init(Cipher.ENCRYPT_MODE, secretKey);
             return Base64.getEncoder().encodeToString(cipher.doFinal(attribute.getBytes()));
         } catch (Exception e) {
-            throw new RuntimeException("Error encrypting data", e);
+            throw new IllegalStateException("Error encrypting data", e);
         }
     }
 
@@ -40,7 +40,7 @@ public class EncryptionConverter implements AttributeConverter<String, String> {
             cipher.init(Cipher.DECRYPT_MODE, secretKey);
             return new String(cipher.doFinal(Base64.getDecoder().decode(dbData)));
         } catch (Exception e) {
-            throw new RuntimeException("Error decrypting data", e);
+            throw new IllegalStateException("Error decrypting data", e);
         }
     }
 }

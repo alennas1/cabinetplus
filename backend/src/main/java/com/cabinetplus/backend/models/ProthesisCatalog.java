@@ -18,7 +18,7 @@ public class ProthesisCatalog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Prothesis name is required")
+    @NotBlank(message = "Le nom de la prothese est obligatoire")
     private String name;
 
     @ManyToOne
@@ -34,3 +34,4 @@ public class ProthesisCatalog {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 }
+

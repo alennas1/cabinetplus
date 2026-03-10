@@ -35,6 +35,7 @@ import {
   getProtheticsByPatient, createProthetics, updateProthetics, deleteProthetics, updateProtheticsStatus
 } from "../services/prostheticsService";
 import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patient.css";
 import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer } from "react-feather";
 
@@ -144,7 +145,7 @@ const handleCancelAppointment = async (a) => {
     toast.info("Rendez-vous annulé");
   } catch (err) {
     console.error(err);
-    toast.error("Erreur lors de l'annulation du rendez-vous");
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du rendez-vous"));
   }
 };
 const handleCompleteAppointment = async (a) => {
@@ -160,7 +161,7 @@ const handleCompleteAppointment = async (a) => {
     toast.success("Rendez-vous terminé !");
   } catch (err) {
     console.error(err);
-    toast.error("Erreur lors de la mise à jour du rendez-vous");
+    toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du rendez-vous"));
   }
 };
 const handleQuickPrintJustification = async (template) => {
@@ -189,7 +190,7 @@ const handleQuickPrintJustification = async (template) => {
     setShowJustificationModal(false);
   } catch (error) {
     console.error("Quick print error:", error);
-    toast.error("Erreur lors de l'impression rapide");
+    toast.error(getApiErrorMessage(error, "Erreur lors de l'impression rapide"));
   }
 };
 
@@ -215,7 +216,7 @@ const handlePrintJustification = async (justificationId, title) => {
     await downloadJustificationPdf(justificationId, title || "Justificatif");
   } catch (error) {
     console.error("Error printing justification:", error);
-    toast.error("Erreur lors de la génération du PDF");
+    toast.error(getApiErrorMessage(error, "Erreur lors de la génération du PDF"));
   }
 };
 const [ordonnances, setOrdonnances] = useState([]);
@@ -226,7 +227,7 @@ useEffect(() => {
       setOrdonnances(ordos);
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors du chargement des ordonnances");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des ordonnances"));
     }
   };
   fetchData();
@@ -273,7 +274,7 @@ useEffect(() => {
 
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors du chargement des données");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
     } finally {
       setLoading(false);
     }
@@ -290,7 +291,7 @@ const handleDeleteJustification = (j) => {
       toast.success("Justificatif supprimé !");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     }
   });
   setShowConfirm(true);
@@ -364,7 +365,7 @@ useEffect(() => {
     setProtheses(normalizeProtheses(updatedProtheses));
     setShowProthesisModal(false);
   } catch (err) {
-    toast.error("Erreur lors de l'enregistrement");
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
   }
 };
 
@@ -394,7 +395,7 @@ const handleDeleteProthetics = (prothesis) => {
       setShowConfirm(false); 
     } catch (err) {
       console.error("Delete Error:", err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     }
   });
 
@@ -415,7 +416,7 @@ const handleCycleProthesisStatus = async (p) => {
     toast.success(`Statut mis a jour: ${prothesisStatusLabels[nextStatus] || nextStatus}`);
   } catch (err) {
     console.error(err);
-    toast.error("Erreur lors de la mise a jour du statut");
+    toast.error(getApiErrorMessage(err, "Erreur lors de la mise a jour du statut"));
   }
 };
  const [isEditingTreatment, setIsEditingTreatment] = useState(false);
@@ -457,7 +458,7 @@ const openJustificationModal = async () => {
     setJustificationTypes(data);
   } catch (err) {
     console.error(err);
-    toast.error("Impossible de charger les types de justification");
+    toast.error(getApiErrorMessage(err, "Impossible de charger les types de justification"));
   }
 };
 
@@ -520,7 +521,7 @@ const handleSubmit = async (e) => {
     setShowModal(false);
   } catch (err) {
     console.error(err);
-    toast.error("Erreur lors de la mise à jour du patient");
+    toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du patient"));
   }
 };
 
@@ -552,7 +553,7 @@ const handleSubmit = async (e) => {
 
       } catch (err) {
         console.error(err);
-        toast.error("Erreur lors du chargemesnt des données");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargemesnt des données"));
       } finally {
         setLoading(false);
       }
@@ -675,7 +676,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
     setIsEditingTreatment(false);
   } catch (err) {
     console.error("❌ Error in handleCreateOrUpdateTreatment:", err);
-    toast.error("Erreur lors de l'enregistrement du traitement");
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement du traitement"));
   }
 };
 
@@ -706,7 +707,7 @@ const handleDeleteTreatment = (t) => {
       toast.success("Traitement supprimé !");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression du traitement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression du traitement"));
     }
   });
   setShowConfirm(true);
@@ -747,7 +748,7 @@ setPayments([newPayment, ...payments]);
       setPaymentForm({ amount: "", method: "CASH" });
     } catch (err) {
       console.error(err.response?.data || err);
-      toast.error("Erreur lors de l'ajout du versement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout du versement"));
     }
   };
 
@@ -760,7 +761,7 @@ const handleDeletePayment = (p) => {
       toast.success("Versement supprimé !");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression du versement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression du versement"));
     }
   });
   setShowConfirm(true);
@@ -859,10 +860,10 @@ const handleCreateOrUpdateAppointment = async (e) => {
       } else if (err.response.status === 400) {
         toast.error("Informations invalides : vérifiez la date, l'heure ou les champs saisis.");
       } else {
-        toast.error("Une erreur est survenue lors de l'enregistrement du rendez-vous.");
+        toast.error(getApiErrorMessage(err, "Une erreur est survenue lors de l'enregistrement du rendez-vous."));
       }
     } else {
-      toast.error("Impossible de contacter le serveur. Vérifiez votre connexion internet.");
+      toast.error(getApiErrorMessage(err, "Impossible de contacter le serveur. Vérifiez votre connexion internet."));
     }
   }
 };
@@ -878,7 +879,7 @@ const handleDeletePrescription = (o) => {
       toast.success("Ordonnance supprimée !");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression de l'ordonnance");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression de l'ordonnance"));
     }
   });
   setShowConfirm(true);
@@ -893,7 +894,7 @@ const handleDeleteAppointment = (a) => {
       toast.success("Rendez-vous supprimé !");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression du rendez-vous");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression du rendez-vous"));
     }
   });
   setShowConfirm(true);

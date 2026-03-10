@@ -28,7 +28,7 @@ public class EmployeeController {
             Principal principal) {
 
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         EmployeeResponseDTO employeeResponse = employeeService.saveEmployee(dto, dentist);
         return ResponseEntity.ok(employeeResponse);
@@ -41,7 +41,7 @@ public class EmployeeController {
             Principal principal) {
 
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         return ResponseEntity.ok(employeeService.updateEmployee(id, dto, dentist));
     }
@@ -49,7 +49,7 @@ public class EmployeeController {
     @GetMapping
     public ResponseEntity<List<EmployeeResponseDTO>> getAllEmployees(Principal principal) {
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         return ResponseEntity.ok(employeeService.getAllEmployeesForDentist(dentist));
     }
@@ -60,7 +60,7 @@ public class EmployeeController {
             Principal principal) {
 
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         return employeeService.getEmployeeByIdForDentist(id, dentist)
                 .map(ResponseEntity::ok)
@@ -73,9 +73,10 @@ public class EmployeeController {
             Principal principal) {
 
         User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
         employeeService.deleteEmployee(id, dentist);
         return ResponseEntity.noContent().build();
     }
 }
+

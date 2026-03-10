@@ -31,9 +31,9 @@ public class ProthesisService {
     @Transactional
     public Prothesis create(ProthesisRequest dto, User user) {
         Patient patient = patientRepository.findById(dto.patientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
         ProthesisCatalog catalog = catalogRepository.findById(dto.catalogId())
-                .orElseThrow(() -> new RuntimeException("Catalog item not found"));
+                .orElseThrow(() -> new RuntimeException("Element du catalogue introuvable"));
 
         Prothesis p = new Prothesis();
         p.setPatient(patient);
@@ -62,11 +62,11 @@ public class ProthesisService {
     public Prothesis update(Long id, ProthesisRequest dto, User user) {
         Prothesis p = repository.findById(id)
                 .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothesis not found or access denied"));
+                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
 
         if (dto.catalogId() != null) {
             ProthesisCatalog catalog = catalogRepository.findById(dto.catalogId())
-                    .orElseThrow(() -> new RuntimeException("Catalog item not found"));
+                    .orElseThrow(() -> new RuntimeException("Element du catalogue introuvable"));
             p.setProthesisCatalog(catalog);
         }
 
@@ -95,13 +95,13 @@ public class ProthesisService {
     public Prothesis assignToLab(Long id, LabAssignmentRequest dto, User user) {
         Prothesis p = repository.findById(id)
                 .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothesis not found or access denied"));
+                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
         
         Laboratory lab = user.getRole() == UserRole.ADMIN
                 ? labRepository.findById(dto.laboratoryId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratory not found"))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"))
                 : labRepository.findByIdAndCreatedBy(dto.laboratoryId(), user)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratory not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
 
         p.setLaboratory(lab);
         p.setLabCost(dto.labCost()); // Cost in DZD
@@ -115,7 +115,7 @@ public class ProthesisService {
     public Prothesis updateStatus(Long id, String newStatus, User user) {
         Prothesis p = repository.findById(id)
                 .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothesis not found or access denied"));
+                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
 
         String statusUpper = newStatus.toUpperCase();
         p.setStatus(statusUpper);
@@ -146,7 +146,7 @@ public List<Prothesis> findByPatientAndPractitioner(Long patientId, User user) {
     public void delete(Long id, User user) {
         Prothesis p = repository.findById(id)
                 .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothesis not found or access denied"));
+                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
         repository.delete(p);
     }
 }

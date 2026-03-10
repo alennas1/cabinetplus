@@ -11,6 +11,7 @@ import {
   updateMedication,
   deleteMedication,
 } from "../services/medicationService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
 
 const DOSAGE_FORMS = {
@@ -141,7 +142,7 @@ const Medications = () => {
       toast.success("Médicament supprimé");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

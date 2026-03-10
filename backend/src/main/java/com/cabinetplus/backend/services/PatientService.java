@@ -29,7 +29,7 @@ public class PatientService {
     // Update patient safely
     public PatientDto update(Long id, Patient updatedPatient) {
         Patient existing = patientRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
 
         existing.setFirstname(updatedPatient.getFirstname());
         existing.setLastname(updatedPatient.getLastname());
@@ -75,7 +75,8 @@ public class PatientService {
 
     public PatientDto findByIdAndUser(Long id, User user) {
     Patient patient = patientRepository.findByIdAndCreatedBy(id, user)
-            .orElseThrow(() -> new RuntimeException("Patient not found"));
+            .orElseThrow(() -> new RuntimeException("Patient introuvable"));
     return toDto(patient);  // use your existing mapping method
 }
 }
+

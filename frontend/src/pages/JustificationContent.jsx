@@ -9,6 +9,7 @@ import {
   updateJustificationTemplate,
   deleteJustificationTemplate,
 } from "../services/justificationContentService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
 
 const PLACEHOLDERS = [
@@ -168,7 +169,7 @@ const JustificationContentPage = () => {
       setTemplates((prev) => prev.filter((t) => t.id !== confirmDelete));
       toast.success("Modèle supprimé");
     } catch (err) {
-      toast.error("Erreur lors de la suppression");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
       setShowConfirm(false);
       setConfirmDelete(null);

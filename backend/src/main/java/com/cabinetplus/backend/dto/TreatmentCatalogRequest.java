@@ -11,16 +11,18 @@ import lombok.Data;
 @Data
 public class TreatmentCatalogRequest {
 
-    @NotBlank(message = "Name is required")
+    @NotBlank(message = "Le nom est obligatoire")
     private String name;
 
     private String description;
 
-    @NotNull(message = "Default price is required")
-    @Positive(message = "Default price must be greater than 0")
+    @NotNull(message = "Le prix par defaut est obligatoire")
+    @Positive(message = "Le prix par defaut doit etre superieur a 0")
     private Double defaultPrice;
 
     @JsonProperty("isFlatFee")
     @JsonAlias("flatFee")
     private boolean isFlatFee = false;
 }
+
+

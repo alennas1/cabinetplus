@@ -76,7 +76,7 @@ public class PatientController {
     public List<PatientDto> getAllPatients(Principal principal) {
         String username = principal.getName();
         User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return patientService.findByCreatedBy(currentUser);
     }
 
@@ -89,7 +89,7 @@ public class PatientController {
     public PatientDto createPatient(@RequestBody Patient patient, Principal principal) {
         String username = principal.getName();
         User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         patient.setCreatedBy(currentUser);
         patient.setCreatedAt(LocalDateTime.now());
         return patientService.saveAndConvert(patient);
@@ -112,7 +112,7 @@ public class PatientController {
 public void generatePatientFiche(@PathVariable Long id, HttpServletResponse response) throws Exception {
     // 1. Fetch Data
     Patient patient = patientRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Patient not found"));
+            .orElseThrow(() -> new RuntimeException("Patient introuvable"));
     List<Treatment> treatments = treatmentRepository.findByPatientId(id);
     List<Appointment> appointments = appointmentRepository.findByPatientId(id);
     List<Payment> payments = paymentRepository.findByPatientId(id);
@@ -149,8 +149,8 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     PdfPTable patientInfo = new PdfPTable(2);
     patientInfo.setWidthPercentage(100);
     addKeyValueRow(patientInfo, "PATIENT:", patient.getFirstname() + " " + patient.getLastname().toUpperCase(), bodyFontBold, bodyFont);
-    addKeyValueRow(patientInfo, "ÂGE:", patient.getAge() + " ans", bodyFontBold, bodyFont);
-    addKeyValueRow(patientInfo, "TÉLÉPHONE:", (patient.getPhone() != null ? patient.getPhone() : "N/A"), bodyFontBold, bodyFont);
+    addKeyValueRow(patientInfo, "Ã‚GE:", patient.getAge() + " ans", bodyFontBold, bodyFont);
+    addKeyValueRow(patientInfo, "TÃ‰LÃ‰PHONE:", (patient.getPhone() != null ? patient.getPhone() : "N/A"), bodyFontBold, bodyFont);
     addKeyValueRow(patientInfo, "DATE DU RAPPORT:", LocalDateTime.now().format(dtf), bodyFontBold, bodyFont);
     document.add(patientInfo);
 
@@ -196,14 +196,14 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
 
     // 7. Protheses Table
     if (!protheses.isEmpty()) {
-        document.add(new Paragraph("HISTORIQUE DES PROTHÈSES", sectionHeaderFont));
+        document.add(new Paragraph("HISTORIQUE DES PROTHÃˆSES", sectionHeaderFont));
         
         PdfPTable prTable = new PdfPTable(new float[]{2, 4, 2}); // 3 columns now
         prTable.setWidthPercentage(100);
         prTable.setSpacingBefore(10);
         prTable.setSplitRows(true);
         prTable.setHeaderRows(1);
-        addCleanHeader(prTable, bodyFontBold, new String[]{"DATE", "PROTHÈSE", "MONTANT"});
+        addCleanHeader(prTable, bodyFontBold, new String[]{"DATE", "PROTHÃˆSE", "MONTANT"});
         for (Prothesis p : protheses) {
             addCleanRow(prTable, bodyFont, new String[]{
                     p.getDateCreated() != null ? p.getDateCreated().format(dtf) : "-",
@@ -222,7 +222,7 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     pTable.setSpacingBefore(10);
     pTable.setSplitRows(true);
     pTable.setHeaderRows(1);
-    addCleanHeader(pTable, bodyFontBold, new String[]{"DATE", "MÉTHODE", "MONTANT"});
+    addCleanHeader(pTable, bodyFontBold, new String[]{"DATE", "MÃ‰THODE", "MONTANT"});
     for (Payment pay : payments) {
         addCleanRow(pTable, bodyFont, new String[]{
                 pay.getDate().format(dtf),
@@ -243,8 +243,8 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     totalTable.setWidthPercentage(40);
     totalTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
     addKeyValueRow(totalTable, "TOTAL TRAITEMENTS:", totalTreatments + " DZD", bodyFont, bodyFont);
-    addKeyValueRow(totalTable, "TOTAL PROTHÈSES:", totalProthesis + " DZD", bodyFont, bodyFont);
-    addKeyValueRow(totalTable, "TOTAL PAYÉ:", totalPaid + " DZD", bodyFont, bodyFont);
+    addKeyValueRow(totalTable, "TOTAL PROTHÃˆSES:", totalProthesis + " DZD", bodyFont, bodyFont);
+    addKeyValueRow(totalTable, "TOTAL PAYÃ‰:", totalPaid + " DZD", bodyFont, bodyFont);
 
     PdfPCell sKey = new PdfPCell(new Phrase("SOLDE RESTANT:", bodyFontBold));
     sKey.setBorder(Rectangle.TOP);
@@ -268,9 +268,9 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     private String translateStatus(String status) {
         if (status == null) return "-";
         return switch (status) {
-            case "SCHEDULED" -> "Planifié";
-            case "COMPLETED" -> "Terminé";
-            case "CANCELLED" -> "Annulé";
+            case "SCHEDULED" -> "PlanifiÃ©";
+            case "COMPLETED" -> "TerminÃ©";
+            case "CANCELLED" -> "AnnulÃ©";
             default -> status;
         };
     }
@@ -279,10 +279,10 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     private String translatePaymentMethod(String method) {
         if (method == null) return "-";
         return switch (method) {
-            case "CASH" -> "Espèces";
+            case "CASH" -> "EspÃ¨ces";
             case "CARD" -> "Carte";
             case "BANK_TRANSFER" -> "Virement";
-            case "CHECK" -> "Chèque";
+            case "CHECK" -> "ChÃ¨que";
             default -> method;
         };
     }

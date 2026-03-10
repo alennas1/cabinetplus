@@ -37,10 +37,10 @@ public class DeviseService {
             // Handle polymorphic selection
             if (itemDto.treatmentCatalogId() != null) {
                 item.setTreatmentCatalog(treatmentCatalogRepository.findById(itemDto.treatmentCatalogId())
-                        .orElseThrow(() -> new RuntimeException("Treatment not found")));
+                        .orElseThrow(() -> new RuntimeException("Traitement introuvable")));
             } else if (itemDto.prothesisCatalogId() != null) {
                 item.setProthesisCatalog(prothesisCatalogRepository.findById(itemDto.prothesisCatalogId())
-                        .orElseThrow(() -> new RuntimeException("Prothesis not found")));
+                        .orElseThrow(() -> new RuntimeException("Prothese introuvable")));
             }
 
             return item;

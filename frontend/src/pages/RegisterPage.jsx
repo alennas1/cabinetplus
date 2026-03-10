@@ -3,6 +3,7 @@ import { register, login, getCurrentUser } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { setCredentials } from "../store/authSlice"; // <-- updated
+import { getApiErrorMessage } from "../utils/error";
 import "./Register.css";
 
 const RegisterPage = () => {
@@ -80,10 +81,10 @@ const RegisterPage = () => {
         if (typeof errorData === "object" && errorData !== null) {
           setErrors(errorData);
         } else {
-          alert(errorData.message || "Erreur inconnue lors de l'inscription");
+          alert(getApiErrorMessage(error, "Erreur inconnue lors de l'inscription"));
         }
       } else {
-        alert("Erreur inconnue lors de l'inscription");
+        alert(getApiErrorMessage(error, "Erreur inconnue lors de l'inscription"));
       }
     } finally {
       setLoading(false);

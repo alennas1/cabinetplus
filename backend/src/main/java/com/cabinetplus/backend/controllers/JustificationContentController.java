@@ -29,7 +29,7 @@ public class JustificationContentController {
 
     private User getPractitioner(Principal principal) {
         return userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Practitioner not found"));
+                .orElseThrow(() -> new RuntimeException("Praticien introuvable"));
     }
 
     // =========================

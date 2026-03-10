@@ -4,6 +4,7 @@ import PageHeader from "../components/PageHeader";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { updatePassword, verifyPassword } from "../services/securityService";
+import { getApiErrorMessage } from "../utils/error";
 import {
   changeGestionCabinetPin,
   disableGestionCabinetPin,
@@ -62,10 +63,7 @@ const Security = () => {
       setConfirmPassword("");
     } catch (err) {
       console.error(err);
-      toast.error(
-        err.response?.data?.message ||
-          "Erreur lors de la mise à jour du mot de passe"
-      );
+      toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du mot de passe"));
     }
   };
 
@@ -100,7 +98,7 @@ const Security = () => {
       toast.success("Sécurisation activée");
     } catch (err) {
       console.error(err);
-      toast.error(err?.response?.data?.error || "Impossible d'activer la sécurisation");
+      toast.error(getApiErrorMessage(err, "Impossible d'activer la sécurisation"));
     }
   };
 
@@ -120,7 +118,7 @@ const Security = () => {
       toast.success("PIN mis à jour");
     } catch (err) {
       console.error(err);
-      toast.error(err?.response?.data?.error || "Impossible de modifier le PIN");
+      toast.error(getApiErrorMessage(err, "Impossible de modifier le PIN"));
     }
   };
 
@@ -139,7 +137,7 @@ const Security = () => {
       toast.success("Sécurisation désactivée");
     } catch (err) {
       console.error(err);
-      toast.error(err?.response?.data?.error || "Impossible de désactiver la sécurisation");
+      toast.error(getApiErrorMessage(err, "Impossible de désactiver la sécurisation"));
     }
   };
 

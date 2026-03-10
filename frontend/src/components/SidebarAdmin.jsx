@@ -2,17 +2,15 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import {
-  Home,
-  User, // Nouveau: Utilisé pour 'Dentistes'
-  Users, // Utilisé pour 'Employés' ou 'Utilisateurs'
-  DollarSign, // Nouveau: Pour les paiements
-  Clock, // Nouveau: Pour les paiements en attente / plans expirants
-  List, // Nouveau: Pour l'historique des paiements
+  User,
+  Clock,
+  List,
   Settings,
   LogOut,
   PlusSquare,
   BarChart2,
-  PieChart ,
+  PieChart,
+  Shield,
 } from "react-feather";
 import { logout } from "../store/authSlice";
 import "./Sidebar.css";
@@ -29,7 +27,6 @@ const SidebarAdmin = () => {
   return (
     <div className="sidebar">
       <ul className="sidebar-links">
-        {/* --- Brand --- */}
         <li className="brand">
           <Link to="/admin-dashboard">
             <PlusSquare size={20} />
@@ -37,60 +34,59 @@ const SidebarAdmin = () => {
           </Link>
         </li>
 
-        {/* --- Général Group --- */}
-        <li className="sidebar-group-title">Général</li>
+        <li className="sidebar-group-title">General</li>
         <li>
-          {/* Remplacé /patients par /dentists pour l'Admin */}
           <Link to="/dentists">
-            <User size={20} /> 
+            <User size={20} />
             <span className="link-text">Dentistes</span>
           </Link>
         </li>
-      
 
-        {/* --- Facturation & Abonnements Group --- */}
         <li className="sidebar-group-title">Facturation</li>
-        
         <li>
           <Link to="/pending-payments">
-            <Clock size={20} /> 
+            <Clock size={20} />
             <span className="link-text">Paiements en attente</span>
           </Link>
         </li>
         <li>
           <Link to="/payment-history">
-            <List size={20} /> 
+            <List size={20} />
             <span className="link-text">Paiements</span>
           </Link>
         </li>
         <li>
           <Link to="/expiring-plans">
-            <PieChart size={20} /> 
+            <PieChart size={20} />
             <span className="link-text">Plans expirants</span>
           </Link>
         </li>
         <li>
-  <Link to="/finance-admin">
-    <BarChart2  size={20} /> 
-    <span className="link-text">Finance</span>
-  </Link>
-</li>
-        {/* --- Système Group --- */}
-        <li className="sidebar-group-title">Système</li>
-        
+          <Link to="/finance-admin">
+            <BarChart2 size={20} />
+            <span className="link-text">Finance</span>
+          </Link>
+        </li>
+
+        <li className="sidebar-group-title">Systeme</li>
         <li>
           <Link to="/settings-admin">
             <Settings size={20} />
-            <span className="link-text">Paramètres</span>
+            <span className="link-text">Parametres</span>
+          </Link>
+        </li>
+        <li>
+          <Link to="/admin/audit-logs">
+            <Shield size={20} />
+            <span className="link-text">Journal admin</span>
           </Link>
         </li>
       </ul>
 
-      {/* Déconnexion */}
       <div className="sidebar-logout">
         <button onClick={handleLogout} className="logout-btn">
           <LogOut size={20} />
-          <span className="link-text">Se déconnecter</span>
+          <span className="link-text">Se deconnecter</span>
         </button>
       </div>
     </div>

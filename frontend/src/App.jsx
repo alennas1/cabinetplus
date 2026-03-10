@@ -23,6 +23,7 @@ import MaterialsSettings from "./pages/MaterialsSettings";
 import Preference from "./pages/Preference";
 import Profile from "./pages/Profile";
 import Security from "./pages/Security";
+import AuditLogs from "./pages/AuditLogs";
 import Finance from "./pages/Finance";
 import Expenses from "./pages/Expenses";
 import Ordonnance from "./pages/Ordonnance";
@@ -46,6 +47,7 @@ import AdminFinance from "./pages/AdminFinance";
 import ManageAdmins from "./pages/ManageAdmins";
 import AdminChangePassword from "./pages/AdminChangePassword";
 import ManagePlans from "./pages/ManagePlans";
+import AdminAuditLogs from "./pages/AdminAuditLogs";
 import Justification from "./pages/Justification";
 
 import Devis from "./pages/Devis"; 
@@ -169,6 +171,7 @@ const AppContent = () => {
             <Route path="/settings/preferences" element={<Preference />} />
             <Route path="/settings/profile" element={<Profile />} />
             <Route path="/settings/security" element={<Security />} />
+            <Route path="/settings/audit-logs" element={<AuditLogs />} />
             <Route path="/settings/payments" element={<HandPaymentHistory />} />
             <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
             <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
@@ -190,6 +193,7 @@ const AppContent = () => {
             <Route path="/admin/manage-admins" element={<ManageAdmins />} />
             <Route path="/admin/change-password" element={<AdminChangePassword />} />
             <Route path="/admin/manage-plans" element={<ManagePlans />} />
+            <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
           </Route>/gestion-cabinet
         </Route>
 

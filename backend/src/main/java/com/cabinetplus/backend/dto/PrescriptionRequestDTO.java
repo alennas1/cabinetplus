@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PrescriptionRequestDTO {
 
-    @NotNull(message = "Patient ID is required") // ✅ CORRECT: @NotNull is for Numbers/Longs
+    @NotNull(message = "L'identifiant du patient est obligatoire") // âœ… CORRECT: @NotNull is for Numbers/Longs
 private Long patientId;
 
     // Optional: allow server to set or keep existing date
@@ -22,7 +22,8 @@ private Long patientId;
 
     private String notes;
 
-    @NotEmpty(message = "At least one medication must be provided")
+    @NotEmpty(message = "Au moins un medicament est obligatoire")
     @Valid
     private List<PrescriptionMedicationDTO> medications;
 }
+

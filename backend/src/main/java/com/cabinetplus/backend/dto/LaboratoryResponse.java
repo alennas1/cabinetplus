@@ -1,5 +1,7 @@
 package com.cabinetplus.backend.dto;
 
+import java.util.List;
+
 /**
  * DTO for returning Laboratory details to the frontend.
  */
@@ -8,5 +10,11 @@ public record LaboratoryResponse(
     String name,
     String contactPerson,
     String phoneNumber,
-    String address
+    String address,
+    Double totalOwed,
+    Double totalPaid,
+    Double remainingToPay,
+    List<LaboratoryPaymentResponse> payments,
+    List<LaboratoryBillingSummaryResponse> billingHistory,
+    List<LaboratoryBillingEntryResponse> billingEntries
 ) {}

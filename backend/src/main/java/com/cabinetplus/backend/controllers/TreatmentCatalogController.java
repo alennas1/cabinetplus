@@ -68,6 +68,7 @@ public class TreatmentCatalogController {
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setDefaultPrice(dto.getDefaultPrice());
+        entity.setFlatFee(dto.isFlatFee());
         entity.setCreatedBy(currentUser);
 
         TreatmentCatalog saved = treatmentCatalogService.save(entity);
@@ -86,6 +87,7 @@ public class TreatmentCatalogController {
         toUpdate.setName(dto.getName());
         toUpdate.setDescription(dto.getDescription());
         toUpdate.setDefaultPrice(dto.getDefaultPrice());
+        toUpdate.setFlatFee(dto.isFlatFee());
         toUpdate.setCreatedBy(currentUser);
 
         return treatmentCatalogService.update(id, toUpdate, currentUser)
@@ -114,7 +116,8 @@ public class TreatmentCatalogController {
                 c.getId(),
                 c.getName(),
                 c.getDescription(),
-                c.getDefaultPrice()
+                c.getDefaultPrice(),
+                c.isFlatFee()
         );
     }
 }

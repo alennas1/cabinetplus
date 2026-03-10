@@ -102,6 +102,17 @@ html, body {
   transition: background 0.25s ease, padding 0.35s ease;
 }
 
+.sidebar .gc-lock-btn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.sidebar:hover .gc-lock-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .sidebar-links li a svg {
   flex-shrink: 0;
   width: 20px;

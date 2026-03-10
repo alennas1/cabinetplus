@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { initializeSession, getCurrentUser } from "./services/authService";
 import { setCredentials, sessionExpired, setLoading } from "./store/authSlice";
 import LoadingLogo from "./components/LoadingLogo"; // <-- adjust the path if needed
@@ -16,6 +18,7 @@ import Patient from "./pages/Patient";
 import Medications from "./pages/Medications";
 import TreatmentCatalog from "./pages/Treatments";
 import ProstheticsSettings from "./pages/ProstheticsSettings";
+import Prosthetics from "./pages/Prosthetics";
 import MaterialsSettings from "./pages/MaterialsSettings";
 import Preference from "./pages/Preference";
 import Profile from "./pages/Profile";
@@ -47,10 +50,12 @@ import Justification from "./pages/Justification";
 
 import Devis from "./pages/Devis"; 
 import Laboratory from "./pages/Laboratory";
+import LaboratoryDetails from "./pages/LaboratoryDetails";
 // --- Components ---
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
 import RequireAuth from "./components/RequireAuth"; 
+import GestionCabinetPinGuard from "./components/GestionCabinetPinGuard";
 import SessionExpiredModal from "./components/SessionExpiredModal";
 
 import "./index.css";
@@ -112,6 +117,15 @@ const AppContent = () => {
   return (
     <div className="app-container">
       <SessionExpiredModal />
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3000}
+        pauseOnHover={false}
+        pauseOnFocusLoss={false}
+        closeOnClick
+        theme="light"
+        style={{ zIndex: 100000 }}
+      />
 
       <Routes>
         {/* Public Routes */}
@@ -128,8 +142,19 @@ const AppContent = () => {
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/devis" element={<Devis />} />
-            <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
-            <Route path="/gestion-cabinet" element={<GestionCabinet />} />
+
+            <Route element={<GestionCabinetPinGuard />}>
+              <Route path="/gestion-cabinet" element={<GestionCabinet />} />
+              <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
+              <Route path="/gestion-cabinet/laboratories/:id" element={<LaboratoryDetails />} />
+              <Route path="/gestion-cabinet/finance" element={<Finance />} />
+              <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
+              <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
+              <Route path="/gestion-cabinet/prosthetics-tracking" element={<Prosthetics />} />
+              <Route path="/gestion-cabinet/employees" element={<Employees />} />
+              <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
+            </Route>
+
             <Route path="/patients" element={<Patients />} />
             <Route path="/patients/:id" element={<Patient />} />
             <Route path="/appointments" element={<Appointments />} />
@@ -138,20 +163,16 @@ const AppContent = () => {
             <Route path="/settings/treatments" element={<TreatmentCatalog />} />
             <Route path="/settings/justifications" element={<JustificationContent />} />
             <Route path="/settings/prosthetics" element={<ProstheticsSettings />} />
+
             <Route path="/settings/materials" element={<MaterialsSettings />} />
             <Route path="/settings/items" element={<Items />} />
             <Route path="/settings/preferences" element={<Preference />} />
             <Route path="/settings/profile" element={<Profile />} />
             <Route path="/settings/security" element={<Security />} />
             <Route path="/settings/payments" element={<HandPaymentHistory />} />
-            <Route path="/gestion-cabinet/finance" element={<Finance />} />
-            <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
-            <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
             <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
             <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
-<Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
-            <Route path="/gestion-cabinet/employees" element={<Employees />} />
-            <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
+            <Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
             
           </Route>
         </Route>
@@ -169,7 +190,7 @@ const AppContent = () => {
             <Route path="/admin/manage-admins" element={<ManageAdmins />} />
             <Route path="/admin/change-password" element={<AdminChangePassword />} />
             <Route path="/admin/manage-plans" element={<ManagePlans />} />
-          </Route>
+          </Route>/gestion-cabinet
         </Route>
 
         {/* Redirects */}

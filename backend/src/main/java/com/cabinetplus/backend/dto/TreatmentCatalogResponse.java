@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -11,4 +12,6 @@ public class TreatmentCatalogResponse {
     private String name;
     private String description;
     private Double defaultPrice;
+    @JsonProperty("isFlatFee")
+    private boolean isFlatFee;
 }

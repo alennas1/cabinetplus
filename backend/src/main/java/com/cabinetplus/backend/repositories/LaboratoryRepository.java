@@ -11,6 +11,8 @@ public interface LaboratoryRepository extends JpaRepository<Laboratory, Long> {
     
     // Find labs created by a specific dentist
     List<Laboratory> findByCreatedBy(User user);
+
+    java.util.Optional<Laboratory> findByIdAndCreatedBy(Long id, User user);
     
     // Search for a lab by name (useful for dropdowns)
     List<Laboratory> findByNameContainingIgnoreCase(String name);

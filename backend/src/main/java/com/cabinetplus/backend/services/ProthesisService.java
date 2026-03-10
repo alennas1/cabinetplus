@@ -6,7 +6,9 @@ import com.cabinetplus.backend.dto.*;
 import com.cabinetplus.backend.enums.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -95,8 +97,11 @@ public class ProthesisService {
                 .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
                 .orElseThrow(() -> new RuntimeException("Prothesis not found or access denied"));
         
-        Laboratory lab = labRepository.findById(dto.laboratoryId())
-                .orElseThrow(() -> new RuntimeException("Laboratory not found"));
+        Laboratory lab = user.getRole() == UserRole.ADMIN
+                ? labRepository.findById(dto.laboratoryId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratory not found"))
+                : labRepository.findByIdAndCreatedBy(dto.laboratoryId(), user)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratory not found"));
 
         p.setLaboratory(lab);
         p.setLabCost(dto.labCost()); // Cost in DZD

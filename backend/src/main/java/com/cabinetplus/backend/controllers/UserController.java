@@ -149,6 +149,26 @@ public class UserController {
         return userService.save(user);
     }
 
+    @PostMapping("/me/verify-password")
+    public Map<String, Object> verifyPassword(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+            @RequestBody Map<String, String> payload) {
+
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String password = payload.get("password");
+        if (password == null || password.isBlank()) {
+            throw new RuntimeException("Mot de passe requis");
+        }
+
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            throw new RuntimeException("Mot de passe incorrect");
+        }
+
+        return Map.of("valid", true);
+    }
+
     // ===============================
     // EMAIL + PHONE VERIFICATION
     // ===============================

@@ -1,29 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Edit2, Trash2, Search, X } from "react-feather";
+import { useNavigate } from "react-router-dom";
+import { Plus, Edit2, Trash2, Search, X, Eye } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
-
 import {
   getAllLaboratories,
   createLaboratory,
   updateLaboratory,
   deleteLaboratory,
 } from "../services/laboratoryService";
-import "./Patients.css"; 
+import "./Patients.css";
 
 const Laboratories = () => {
   const token = useSelector((state) => state.auth.token);
+  const navigate = useNavigate();
   const [laboratories, setLaboratories] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Pagination & Search
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [search, setSearch] = useState("");
-
-  // Form Modal State
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -33,28 +30,29 @@ const Laboratories = () => {
     phoneNumber: "",
     address: "",
   });
-
-  // Integrated Delete Modal State
   const [showConfirm, setShowConfirm] = useState(false);
   const [labIdToDelete, setLabIdToDelete] = useState(null);
 
   useEffect(() => {
+    const fetchLabs = async () => {
+      try {
+        setLoading(true);
+        const data = await getAllLaboratories();
+        setLaboratories(data);
+      } catch (err) {
+        toast.error("Erreur lors du chargement des données");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchLabs();
   }, [token]);
 
-  const fetchLabs = async () => {
-    try {
-      const data = await getAllLaboratories(); 
-      setLaboratories(data);
-    } catch (err) {
-      toast.error("Erreur lors du chargement des données");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredLabs = laboratories.filter((l) =>
-    `${l.name} ${l.contactPerson} ${l.phoneNumber}`.toLowerCase().includes(search.toLowerCase())
+  const filteredLabs = laboratories.filter((lab) =>
+    `${lab.name} ${lab.contactPerson} ${lab.phoneNumber} ${lab.address}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
   );
 
   const currentLabs = filteredLabs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -74,11 +72,11 @@ const Laboratories = () => {
     try {
       if (isEditing) {
         const updated = await updateLaboratory(formData.id, formData);
-        setLaboratories(laboratories.map((l) => (l.id === updated.id ? updated : l)));
+        setLaboratories(laboratories.map((lab) => (lab.id === updated.id ? updated : lab)));
         toast.success("Laboratoire mis à jour");
       } else {
-        const newLab = await createLaboratory(formData);
-        setLaboratories([...laboratories, newLab]);
+        const created = await createLaboratory(formData);
+        setLaboratories([...laboratories, created]);
         toast.success("Laboratoire ajouté");
       }
       setShowModal(false);
@@ -100,7 +98,6 @@ const Laboratories = () => {
     setShowModal(true);
   };
 
-  // Internal Delete Logic
   const handleDeleteClick = (id) => {
     setLabIdToDelete(id);
     setShowConfirm(true);
@@ -109,10 +106,14 @@ const Laboratories = () => {
   const confirmDelete = async () => {
     try {
       await deleteLaboratory(labIdToDelete);
-      setLaboratories(laboratories.filter((l) => l.id !== labIdToDelete));
+      setLaboratories(laboratories.filter((lab) => lab.id !== labIdToDelete));
       toast.success("Laboratoire supprimé");
     } catch (err) {
-      toast.error("Erreur lors de la suppression");
+      const message =
+        err?.response?.status === 409
+          ? "Impossible de supprimer un laboratoire lié à des paiements ou prothèses"
+          : "Erreur lors de la suppression";
+      toast.error(message);
     } finally {
       setShowConfirm(false);
       setLabIdToDelete(null);
@@ -136,7 +137,13 @@ const Laboratories = () => {
           </div>
         </div>
         <div className="controls-right">
-          <button className="btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+          >
             <Plus size={16} /> Ajouter un laboratoire
           </button>
         </div>
@@ -153,47 +160,84 @@ const Laboratories = () => {
           </tr>
         </thead>
         <tbody>
-          {currentLabs.map((lab) => (
-            <tr key={lab.id}>
-              <td style={{ fontWeight: "bold" }}>{lab.name}</td>
-              <td>{lab.contactPerson || "—"}</td>
-              <td>{lab.phoneNumber || "—"}</td>
-              <td>{lab.address || "—"}</td>
-              <td className="actions-cell" style={{ textAlign: "right" }}>
-                <button className="action-btn edit" onClick={() => handleEdit(lab)} title="Modifier">
-                  <Edit2 size={16} />
-                </button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(lab.id)} title="Supprimer">
-                  <Trash2 size={16} />
-                </button>
+          {loading ? (
+            <tr>
+              <td colSpan={5} style={{ textAlign: "center", padding: "40px" }}>
+                Chargement...
               </td>
             </tr>
-          ))}
+          ) : currentLabs.length === 0 ? (
+            <tr>
+              <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "#888" }}>
+                Aucun laboratoire trouvé
+              </td>
+            </tr>
+          ) : (
+            currentLabs.map((lab) => (
+              <tr key={lab.id}>
+                <td style={{ fontWeight: "bold" }}>{lab.name}</td>
+                <td>{lab.contactPerson || "—"}</td>
+                <td>{lab.phoneNumber || "—"}</td>
+                <td>{lab.address || "—"}</td>
+                <td className="actions-cell" style={{ textAlign: "right" }}>
+                  <button
+                    className="action-btn view"
+                    onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.id}`)}
+                    title="Voir"
+                  >
+                    <Eye size={16} />
+                  </button>
+                  <button className="action-btn edit" onClick={() => handleEdit(lab)} title="Modifier">
+                    <Edit2 size={16} />
+                  </button>
+                  <button className="action-btn delete" onClick={() => handleDeleteClick(lab.id)} title="Supprimer">
+                    <Trash2 size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>← Précédent</button>
+          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
+            ← Précédent
+          </button>
           {[...Array(totalPages)].map((_, i) => (
-            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
+            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
+              {i + 1}
+            </button>
           ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant →</button>
+          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
+            Suivant →
+          </button>
         </div>
       )}
 
-      {/* Main Form Modal (Stacked) */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); resetForm(); }}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowModal(false);
+            resetForm();
+          }}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
               <h2>{isEditing ? "Modifier Laboratoire" : "Nouveau Laboratoire"}</h2>
-              <X onClick={() => { setShowModal(false); resetForm(); }} style={{ cursor: 'pointer' }} />
+              <X
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                style={{ cursor: "pointer" }}
+              />
             </div>
 
             <form onSubmit={handleSubmit} className="modal-form">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
                 <div className="field-group">
                   <span className="field-label">Nom du Laboratoire *</span>
                   <input type="text" name="name" value={formData.name} onChange={handleChange} required />
@@ -213,20 +257,32 @@ const Laboratories = () => {
               </div>
 
               <div className="modal-actions" style={{ marginTop: "2rem" }}>
-                <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Enregistrer"}</button>
-                <button type="button" className="btn-cancel" onClick={() => { setShowModal(false); resetForm(); }}>Annuler</button>
+                <button type="submit" className="btn-primary2">
+                  {isEditing ? "Mettre à jour" : "Enregistrer"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetForm();
+                  }}
+                >
+                  Annuler
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Internal Delete Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
             <h2 className="text-lg font-semibold text-gray-800 mb-2">Supprimer le laboratoire ?</h2>
-            <p className="text-gray-600 mb-6">Voulez-vous vraiment supprimer ce partenaire ? Cette action est irréversible.</p>
+            <p className="text-gray-600 mb-6">
+              Voulez-vous vraiment supprimer ce partenaire ? Cette action est irréversible.
+            </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
@@ -245,7 +301,7 @@ const Laboratories = () => {
         </div>
       )}
 
-      <ToastContainer position="bottom-right" autoClose={3000} />
+      <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
     </div>
   );
 };

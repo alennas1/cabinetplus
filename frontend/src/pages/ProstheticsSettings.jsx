@@ -157,10 +157,9 @@ const ProstheticsSettings = () => {
                             </td>
                             <td>{p.defaultPrice?.toLocaleString()} DA</td>
                             <td>
-                                {p.isFlatFee ? 
-                                    <span style={{color: '#16a34a', fontSize: '0.85rem'}}>Prix Global</span> : 
-                                    <span style={{color: '#666', fontSize: '0.85rem'}}>À l'unité</span>
-                                }
+                                <span className={`type-pill ${p.isFlatFee ? "flat" : "unit"}`}>
+                                    {p.isFlatFee ? "Forfait" : "Unitaire"}
+                                </span>
                             </td>
                             <td className="actions-cell" style={{ textAlign: 'right' }}>
                                 <button className="action-btn delete" onClick={() => handleDeleteClick(p.id)} title="Supprimer">
@@ -227,28 +226,23 @@ const ProstheticsSettings = () => {
                                 required 
                             />
 
-                           <span className="field-label" style={{ marginTop: '10px', display: 'block' }}>Type de facturation</span>
-<div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-    {/* Option: À l'unité */}
-    <label className={`chip-toggle ${!formData.isFlatFee ? "active" : ""}`}>
-        <input
-            type="checkbox"
-            checked={!formData.isFlatFee}
-            onChange={() => setFormData({ ...formData, isFlatFee: false })}
-        />
-        À l'unité
-    </label>
-
-    {/* Option: Prix Global */}
-    <label className={`chip-toggle ${formData.isFlatFee ? "active" : ""}`}>
-        <input
-            type="checkbox"
-            checked={formData.isFlatFee}
-            onChange={() => setFormData({ ...formData, isFlatFee: true })}
-        />
-        Prix Global
-    </label>
-</div>
+                            <span className="field-label" style={{ marginTop: '10px', display: 'block' }}>Type</span>
+                            <div className="type-toggle">
+                                <button
+                                    type="button"
+                                    className={`type-toggle-btn unit ${!formData.isFlatFee ? "active unit" : ""}`}
+                                    onClick={() => setFormData({ ...formData, isFlatFee: false })}
+                                >
+                                    Unitaire
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`type-toggle-btn flat ${formData.isFlatFee ? "active flat" : ""}`}
+                                    onClick={() => setFormData({ ...formData, isFlatFee: true })}
+                                >
+                                    Forfait
+                                </button>
+                            </div>
 
                             <div className="modal-actions" style={{ marginTop: '30px' }}>
                                 <button type="submit" className="btn-primary2">Enregistrer</button>

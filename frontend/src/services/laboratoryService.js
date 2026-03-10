@@ -10,6 +10,11 @@ export const getAllLaboratories = async () => {
   return response.data;
 };
 
+export const getLaboratoryById = async (id) => {
+  const response = await api.get(`${BASE_URL}/${id}`);
+  return response.data;
+};
+
 /**
  * Create a new laboratory partner
  * @param {Object} lab - { name, contactPerson, phoneNumber, address }
@@ -34,5 +39,15 @@ export const updateLaboratory = async (id, lab) => {
  */
 export const deleteLaboratory = async (id) => {
   const response = await api.delete(`${BASE_URL}/${id}`);
+  return response.data;
+};
+
+export const addLaboratoryPayment = async (id, payment) => {
+  const response = await api.post(`${BASE_URL}/${id}/payments`, payment);
+  return response.data;
+};
+
+export const deleteLaboratoryPayment = async (labId, paymentId) => {
+  const response = await api.delete(`${BASE_URL}/${labId}/payments/${paymentId}`);
   return response.data;
 };

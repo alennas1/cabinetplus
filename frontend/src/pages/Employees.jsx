@@ -238,7 +238,7 @@ const Employees = () => {
                 </span>
               </td>
               <td className="actions-cell">
-                <button className="action-btn view" onClick={() => navigate(`/employees/${emp.id}`)} title="Voir / Modifier">
+                <button className="action-btn view" onClick={() => navigate(`/gestion-cabinet/employees/${emp.id}`)} title="Voir / Modifier">
                   <Eye size={16} />
                 </button>
                 <button className="action-btn delete" onClick={() => handleDeleteClick(emp.id)} title="Supprimer">

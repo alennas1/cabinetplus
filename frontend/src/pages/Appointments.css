@@ -38,6 +38,7 @@ html, body {
   display: flex;
   align-items: center; /* vertical alignment */
   gap: 8px;            /* spacing between Today / Tomorrow / Datepicker */
+  flex-wrap: wrap;
 }
 
 .appointments-controls button.btn-primary {
@@ -73,6 +74,190 @@ html, body {
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid #ccc;
+}
+
+/* =========================
+   Week view
+========================= */
+.week-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #e5e7eb;
+}
+
+.week-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+}
+
+.week-nav-btn:hover {
+  background: #f9fafb;
+}
+
+.week-nav-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.week-grid {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: auto;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+}
+
+.week-grid-header {
+  display: grid;
+  grid-template-columns: 70px repeat(7, minmax(120px, 1fr));
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 2;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.week-time-header {
+  padding: 10px 8px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #ffffff;
+}
+
+.week-day-header {
+  padding: 10px 8px;
+  font-weight: 700;
+  font-size: 12px;
+  color: #111827;
+  text-transform: capitalize;
+  border-left: 1px solid #f3f4f6;
+  white-space: nowrap;
+  background: #ffffff;
+}
+
+.week-day-header.today {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.week-day-header.weekend {
+  background: #fcfcfd;
+  color: #374151;
+}
+
+.week-grid-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.week-row {
+  display: grid;
+  grid-template-columns: 70px repeat(7, minmax(120px, 1fr));
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.week-time-cell {
+  padding: 8px 8px;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 600;
+  background: #fafafa;
+  border-right: 1px solid #f3f4f6;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.week-cell {
+  min-height: 40px; /* narrower slots */
+  padding: 6px 6px;
+  border-left: 1px solid #f3f4f6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.week-cell.empty:hover {
+  background: #f9fafb;
+}
+
+.week-cell.occupied {
+  cursor: default;
+}
+
+.week-cell.today {
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
+.week-cell.weekend {
+  background: #fcfcfd;
+}
+
+.week-appt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.week-cell .status-chip {
+  font-size: 0.78rem;
+  padding: 3px 8px;
+}
+
+.week-cell .action-btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.week-cell.SCHEDULED {
+  background: #fff8e1;
+}
+
+.week-cell.COMPLETED {
+  background: #e8f5e9;
+}
+
+.week-cell.CANCELLED {
+  background: #ffebee;
+}
+
+.week-cell.continuation {
+  opacity: 0.92;
+}
+
+.week-continued {
+  height: 6px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.18);
+}
+
+.week-row:nth-child(even) .week-cell.empty {
+  background: #ffffff;
+}
+
+.week-row:nth-child(odd) .week-cell.empty {
+  background: #fbfdff;
 }
 
 

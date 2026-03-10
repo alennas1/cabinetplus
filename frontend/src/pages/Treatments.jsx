@@ -34,6 +34,7 @@ const Treatments = () => {
     name: "",
     description: "",
     defaultPrice: "",
+    isFlatFee: false,
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -81,7 +82,10 @@ const Treatments = () => {
 
 
   const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
+    });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -105,7 +109,7 @@ const Treatments = () => {
       }
 
       setShowModal(false);
-      setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "" });
+      setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "", isFlatFee: false });
       setIsEditing(false);
     } catch (err) {
       console.error("Error saving treatment:", err);
@@ -120,6 +124,7 @@ const Treatments = () => {
       name: treatment.name || "",
       description: treatment.description || "",
       defaultPrice: treatment.defaultPrice || "",
+      isFlatFee: !!treatment.isFlatFee,
     });
     setIsEditing(true);
     setShowModal(true);
@@ -191,7 +196,7 @@ const Treatments = () => {
           <button
             className="btn-primary"
             onClick={() => {
-              setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "" });
+              setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "", isFlatFee: false });
               setIsEditing(false);
               setShowModal(true);
             }}
@@ -208,6 +213,7 @@ const Treatments = () => {
             <th>Nom</th>
             <th>Description</th>
             <th>Prix</th>
+            <th>Type</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -217,6 +223,9 @@ const Treatments = () => {
               <td>{t.name || "—"}</td>
               <td>{t.description || "—"}</td>
               <td>{t.defaultPrice ? `${t.defaultPrice} DA` : "—"}</td>
+              <td>
+                <span className={`type-pill ${t.isFlatFee ? "flat" : "unit"}`}>{t.isFlatFee ? "Forfait" : "Unitaire"}</span>
+              </td>
               <td className="actions-cell">
                 <button className="action-btn view" onClick={() => setViewTreatment(t)} title="Voir"><Eye size={16} /></button>
                 <button className="action-btn edit" onClick={() => handleEdit(t)} title="Modifier"><Edit2 size={16} /></button>
@@ -226,7 +235,7 @@ const Treatments = () => {
           ))}
           {filteredTreatments.length === 0 && (
             <tr>
-              <td colSpan="4" style={{ textAlign: "center", color: "#888" }}>Aucun traitement trouvé</td>
+              <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun traitement trouvé</td>
             </tr>
           )}
         </tbody>
@@ -260,6 +269,24 @@ const Treatments = () => {
               <span className="field-label">Prix (DA)</span>
               <input type="number" name="defaultPrice" value={formData.defaultPrice || ""} onChange={handleChange} min="0" step="0.01" required />
 
+              <span className="field-label" style={{ marginTop: "8px", display: "block" }}>Type</span>
+              <div className="type-toggle">
+                <button
+                  type="button"
+                  className={`type-toggle-btn unit ${!formData.isFlatFee ? "active unit" : ""}`}
+                  onClick={() => setFormData((prev) => ({ ...prev, isFlatFee: false }))}
+                >
+                  Unitaire
+                </button>
+                <button
+                  type="button"
+                  className={`type-toggle-btn flat ${formData.isFlatFee ? "active flat" : ""}`}
+                  onClick={() => setFormData((prev) => ({ ...prev, isFlatFee: true }))}
+                >
+                  Forfait
+                </button>
+              </div>
+
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
@@ -291,6 +318,10 @@ const Treatments = () => {
             <div className="view-field"><strong>Nom:</strong> {viewTreatment.name || "—"}</div>
             <div className="view-field"><strong>Description:</strong> {viewTreatment.description || "—"}</div>
             <div className="view-field"><strong>Prix:</strong> {viewTreatment.defaultPrice ? `${viewTreatment.defaultPrice} DA` : "—"}</div>
+            <div className="view-field">
+              <strong>Type:</strong>{" "}
+              <span className={`type-pill ${viewTreatment.isFlatFee ? "flat" : "unit"}`}>{viewTreatment.isFlatFee ? "Forfait" : "Unitaire"}</span>
+            </div>
             <button className="btn-cancel" style={{ marginTop: "15px" }} onClick={() => setViewTreatment(null)}>Fermer</button>
           </div>
         </div>

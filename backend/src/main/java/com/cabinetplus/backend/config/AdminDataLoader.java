@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.cabinetplus.backend.enums.UserPlanStatus;
@@ -18,6 +19,7 @@ import com.cabinetplus.backend.repositories.UserRepository;
 public class AdminDataLoader {
 
     @Bean
+    @Order(1)
     CommandLineRunner initDatabase(UserRepository userRepo, PlanRepository planRepo, PasswordEncoder encoder) {
         return args -> {
             // ---------------- Create admin ----------------

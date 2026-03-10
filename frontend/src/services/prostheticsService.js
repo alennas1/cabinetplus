@@ -43,3 +43,23 @@ export const deleteProthetics = async (id) => {
   const response = await api.delete(`${BASE_URL}/${id}`);
   return response.data;
 };
+
+/**
+ * Get all protheses (optional status filter)
+ */
+export const getAllProthetics = async (status = null) => {
+  const response = await api.get(BASE_URL, {
+    params: status ? { status } : {},
+  });
+  return response.data;
+};
+
+/**
+ * Assign to laboratory
+ * @param {number} id - Prothesis ID
+ * @param {Object} assignmentData - { laboratoryId, labCost }
+ */
+export const assignProtheticsToLab = async (id, assignmentData) => {
+  const response = await api.put(`${BASE_URL}/${id}/assign-lab`, assignmentData);
+  return response.data;
+};

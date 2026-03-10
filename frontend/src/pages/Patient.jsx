@@ -250,6 +250,7 @@ useEffect(() => {
     }
   }
 }, [prothesisForm.teeth]); // Triggered whenever the teeth array changes
+
 const [justifications, setJustifications] = useState([]);
 useEffect(() => {
   const fetchData = async () => {
@@ -298,20 +299,34 @@ const handleDeleteJustification = (j) => {
   const [treatments, setTreatments] = useState([]);
   const [treatmentCatalog, setTreatmentCatalog] = useState([]);
   const [showTreatmentModal, setShowTreatmentModal] = useState(false);
-const [treatmentForm, setTreatmentForm] = useState({ 
-  id: null, 
-  treatmentCatalogId: null, 
-  price: "", 
-  notes: "", 
-  teeth: [],   // <-- new field
-  date: "",
-  paid: false,
-});
+ const [treatmentForm, setTreatmentForm] = useState({ 
+   id: null, 
+   treatmentCatalogId: null, 
+   price: "", 
+   notes: "", 
+   teeth: [],   // <-- new field
+   date: "",
+   paid: false,
+ });
 
+useEffect(() => {
+  if (treatmentForm.treatmentCatalogId) {
+    const selected = treatmentCatalog.find((t) => t.id === Number(treatmentForm.treatmentCatalogId));
+    if (selected && !selected.isFlatFee) {
+      const toothCount = treatmentForm.teeth.length;
+      const newPrice = selected.defaultPrice * (toothCount || 1);
+      setTreatmentForm((prev) => ({
+        ...prev,
+        price: newPrice,
+      }));
+    }
+  }
+}, [treatmentForm.teeth, treatmentForm.treatmentCatalogId, treatmentCatalog]); // recalculates for unit-price treatments
 
-const handleSaveProthesis = async (e) => {
-  e.preventDefault();
-  try {
+ 
+ const handleSaveProthesis = async (e) => {
+   e.preventDefault();
+   try {
     // 1. Prepare the payload
     const payload = {
       patientId: Number(id),
@@ -561,19 +576,26 @@ const totalPaiement = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 
 // Remaining balance
 const totalReste = totalFacture - totalPaiement;
 
-const handleTreatmentChange = (e) => {
-  const { name, value, type, checked } = e.target;
+ const handleTreatmentChange = (e) => {
+   const { name, value, type, checked } = e.target;
+ 
+   if (name === "treatmentCatalogId") {
+     const numericValue = Number(value);
+     const selected = treatmentCatalog.find(t => t.id === numericValue);
 
-  if (name === "treatmentCatalogId") {
-    const numericValue = Number(value);
-    const selected = treatmentCatalog.find(t => t.id === numericValue);
-    setTreatmentForm({ ...treatmentForm, treatmentCatalogId: numericValue, price: selected?.defaultPrice || "" });
-  } else if (type === "checkbox") {
-    setTreatmentForm({ ...treatmentForm, [name]: checked });
-  } else {
-    setTreatmentForm({ ...treatmentForm, [name]: value });
-  }
-};
+     if (selected) {
+       const multiplier = selected.isFlatFee ? 1 : (treatmentForm.teeth.length || 1);
+       const calculatedPrice = selected.defaultPrice * multiplier;
+       setTreatmentForm({ ...treatmentForm, treatmentCatalogId: numericValue, price: calculatedPrice });
+     } else {
+       setTreatmentForm({ ...treatmentForm, treatmentCatalogId: numericValue, price: "" });
+     }
+   } else if (type === "checkbox") {
+     setTreatmentForm({ ...treatmentForm, [name]: checked });
+   } else {
+     setTreatmentForm({ ...treatmentForm, [name]: value });
+   }
+ };
 
 
 const handleCreateOrUpdateTreatment = async (e) => {

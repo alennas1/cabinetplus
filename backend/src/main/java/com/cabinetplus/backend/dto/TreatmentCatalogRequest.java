@@ -1,5 +1,7 @@
 package com.cabinetplus.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -17,4 +19,8 @@ public class TreatmentCatalogRequest {
     @NotNull(message = "Default price is required")
     @Positive(message = "Default price must be greater than 0")
     private Double defaultPrice;
+
+    @JsonProperty("isFlatFee")
+    @JsonAlias("flatFee")
+    private boolean isFlatFee = false;
 }

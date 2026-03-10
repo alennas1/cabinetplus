@@ -69,4 +69,12 @@ public class User {
 
 private String phoneOtp;
 private LocalDateTime phoneOtpExpires;
+
+    // --- Gestion Cabinet PIN (optional) ---
+    private boolean gestionCabinetPinEnabled = false;
+
+    @Column(length = 100)
+    private String gestionCabinetPinHash;
+
+    private LocalDateTime gestionCabinetPinUpdatedAt;
 }

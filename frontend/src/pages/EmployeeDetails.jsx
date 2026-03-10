@@ -1,7 +1,7 @@
 // src/pages/Employee.jsx
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { Edit2, Calendar, User, CreditCard, X } from "react-feather";
+import { useNavigate, useParams } from "react-router-dom";
+import { Edit2, Calendar, User, CreditCard, X, ArrowLeft } from "react-feather";
 import { getEmployeeById, updateEmployee } from "../services/employeeService";
 import { getExpensesByEmployee } from "../services/expenseService";
 import { updateWorkingHour } from "../services/workingHoursService";
@@ -9,6 +9,7 @@ import "./Patient.css"; // reuse existing styles
 
 const Employee = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [employee, setEmployee] = useState(null);
   const [activeTab, setActiveTab] = useState("profile");
@@ -205,6 +206,12 @@ const formatMonth = (yearMonth) => {
 
   return (
     <div className="patient-container">
+      <div style={{ marginBottom: "16px" }}>
+        <button className="btn-secondary-app" onClick={() => navigate("/gestion-cabinet/employees")}>
+          <ArrowLeft size={16} /> Retour
+        </button>
+      </div>
+
       {/* --- EMPLOYEE HEADER --- */}
       <div className="patient-top">
         <div className="patient-info-left">

@@ -3,6 +3,10 @@ package com.cabinetplus.backend.repositories;
 import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.dto.LaboratoryBillingEntryResponse;
+import com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -25,7 +29,56 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     // Filter by both the dentist and the current workflow state
     List<Prothesis> findByPractitionerAndStatus(User practitioner, String status);
 
-// In ProthesisRepository.java
-List<Prothesis> findByPatientIdAndPractitioner(Long patientId, User practitioner);
-List<Prothesis> findByPatientId(Long patientId);
+    List<Prothesis> findByPatientIdAndPractitioner(Long patientId, User practitioner);
+
+    List<Prothesis> findByPatientId(Long patientId);
+
+    @Query("""
+        select coalesce(sum(p.labCost), 0)
+        from Prothesis p
+        where p.practitioner = :practitioner
+          and p.laboratory.id = :laboratoryId
+          and p.labCost is not null
+    """)
+    Double sumLabCostByPractitionerAndLaboratory(@Param("practitioner") User practitioner,
+                                                 @Param("laboratoryId") Long laboratoryId);
+
+    long countByLaboratoryIdAndPractitioner(Long laboratoryId, User practitioner);
+
+    @Query("""
+        select new com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse(
+            year(coalesce(p.sentToLabDate, p.dateCreated)),
+            month(coalesce(p.sentToLabDate, p.dateCreated)),
+            coalesce(sum(p.labCost), 0)
+        )
+        from Prothesis p
+        where p.practitioner = :practitioner
+          and p.laboratory.id = :laboratoryId
+          and p.labCost is not null
+        group by year(coalesce(p.sentToLabDate, p.dateCreated)), month(coalesce(p.sentToLabDate, p.dateCreated))
+        order by year(coalesce(p.sentToLabDate, p.dateCreated)) desc, month(coalesce(p.sentToLabDate, p.dateCreated)) desc
+    """)
+    List<LaboratoryBillingSummaryResponse> getMonthlyBillingByPractitionerAndLaboratory(
+        @Param("practitioner") User practitioner,
+        @Param("laboratoryId") Long laboratoryId
+    );
+
+    @Query("""
+        select new com.cabinetplus.backend.dto.LaboratoryBillingEntryResponse(
+            p.id,
+            concat(p.patient.firstname, ' ', p.patient.lastname),
+            p.prothesisCatalog.name,
+            p.labCost,
+            coalesce(p.sentToLabDate, p.dateCreated)
+        )
+        from Prothesis p
+        where p.practitioner = :practitioner
+          and p.laboratory.id = :laboratoryId
+          and p.labCost is not null
+        order by coalesce(p.sentToLabDate, p.dateCreated) desc
+    """)
+    List<LaboratoryBillingEntryResponse> getBillingEntriesByPractitionerAndLaboratory(
+        @Param("practitioner") User practitioner,
+        @Param("laboratoryId") Long laboratoryId
+    );
 }

@@ -80,30 +80,28 @@ public class ProtheticsController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
-    private ProthesisResponse mapToResponse(Prothesis p) {
-        // Using lowercase 'firstname' as per your manual fix
-        String patientFullName = p.getPatient().getFirstname() + " " + p.getPatient().getLastname();
-        
-        String materialName = (p.getProthesisCatalog().getMaterial() != null) 
-                ? p.getProthesisCatalog().getMaterial().getName() 
-                : "N/A";
+  private ProthesisResponse mapToResponse(Prothesis p) {
+    String patientFullName = p.getPatient().getFirstname() + " " + p.getPatient().getLastname();
+    
+    return new ProthesisResponse(
+        p.getId(),
+        p.getProthesisCatalog().getId(),
+        p.getPatient().getId(),
+        patientFullName,
+        p.getProthesisCatalog().getName(),
+        (p.getProthesisCatalog().getMaterial() != null) ? p.getProthesisCatalog().getMaterial().getName() : "N/A",
+        p.getTeeth(),
+        p.getFinalPrice(),
+        p.getLabCost(),
+        p.getNotes(),
+        p.getStatus(),
+        p.getLaboratory() != null ? p.getLaboratory().getName() : "Not Sent",
+        p.getDateCreated(),
+        p.getSentToLabDate(),
+        p.getActualReturnDate()
+    );
+}
 
-        return new ProthesisResponse(
-            p.getId(),
-            p.getProthesisCatalog().getId(),
-            patientFullName,
-            p.getProthesisCatalog().getName(),
-            materialName,
-            p.getTeeth(),
-            p.getFinalPrice(),
-            p.getNotes(),
-            p.getStatus(),
-            p.getLaboratory() != null ? p.getLaboratory().getName() : "Not Sent",
-            p.getDateCreated()
-        );
-    }
-
-    // In ProtheticsController.java
 @GetMapping("/patient/{patientId}")
 public ResponseEntity<List<ProthesisResponse>> getByPatient(
         @PathVariable Long patientId, 

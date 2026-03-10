@@ -1051,6 +1051,71 @@
     gap: 10px;
     align-items: center;
 }
+
+/* =========================
+   FlatFee / Unit pills
+========================= */
+.type-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.type-pill.unit {
+  background: #eef2ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+
+.type-pill.flat {
+  background: #ecfdf5;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.type-toggle {
+  display: inline-flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.type-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.type-toggle-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.type-toggle-btn.active.unit {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+
+.type-toggle-btn.active.flat {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
 /* You can also highlight placeholders in textarea using CSS if you want */
 
 /* --- If you need specific modal header styling (optional) --- */

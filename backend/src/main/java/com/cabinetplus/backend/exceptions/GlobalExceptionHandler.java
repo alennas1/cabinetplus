@@ -1,6 +1,8 @@
 package com.cabinetplus.backend.exceptions;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -18,6 +21,7 @@ import java.util.regex.Pattern;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final Pattern TABLE_NAME_PATTERN = Pattern.compile("on table \"([^\"]+)\"");
     private static final Pattern CONSTRAINT_NAME_PATTERN = Pattern.compile("constraint \"([^\"]+)\"");
 
@@ -83,6 +87,14 @@ public class GlobalExceptionHandler {
         return buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.BAD_REQUEST, "La taille maximale par fichier est de 25 MB", request.getRequestURI());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(HttpServletRequest request) {
         return buildError(HttpStatus.FORBIDDEN, "Acces refuse", request.getRequestURI());
@@ -90,12 +102,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex, HttpServletRequest request) {
+        logger.error("Runtime exception on {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         HttpStatus status = resolveRuntimeStatus(ex.getMessage());
         return buildError(status, ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleUnhandled(Exception ex, HttpServletRequest request) {
+        logger.error("Unhandled exception on {}", request.getRequestURI(), ex);
         return buildError(HttpStatus.INTERNAL_SERVER_ERROR, "Une erreur interne est survenue", request.getRequestURI());
     }
 
@@ -208,6 +222,12 @@ public class GlobalExceptionHandler {
         if (n.contains("payment is already processed")) return "Ce paiement est deja traite";
         if (n.contains("username already exists")) return "Ce nom d'utilisateur est deja utilise";
         if (n.contains("email already exists")) return "Cet email est deja utilise";
+        if (n.contains("limite de patients atteinte")) return "Limite de patients atteinte pour votre plan";
+        if (n.contains("limite de dentistes atteinte")) return "Limite de dentistes atteinte pour votre plan";
+        if (n.contains("limite d'employes atteinte")) return "Limite d'employes atteinte pour votre plan";
+        if (n.contains("limite de stockage atteinte")) return "Limite de stockage atteinte pour votre plan";
+        if (n.contains("aucun plan attribue")) return "Aucun plan attribue au cabinet";
+        if (n.contains("plan du cabinet est inactif")) return "Le plan du cabinet est inactif";
         if (n.contains("data integrity violation")) {
             return "Operation impossible: cet element est lie a d'autres donnees";
         }

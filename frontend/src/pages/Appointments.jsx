@@ -12,6 +12,7 @@ import {
 } from "../services/appointmentService";
 import { createPatient, getPatients } from "../services/patientService";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getApiErrorMessage } from "../utils/error";
 import "./Appointments.css";
 
@@ -20,6 +21,7 @@ export default function Appointments() {
 
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchResults, setSearchResults] = useState([]);
   const [patientSearch, setPatientSearch] = useState("");
 
@@ -72,32 +74,24 @@ export default function Appointments() {
     setNewPatient({ ...newPatient, sex: e.target.value });
   };
 
-  // Fetch patients
   useEffect(() => {
-    const fetchPatients = async () => {
+    const loadData = async () => {
       try {
-const data = await getPatients();
-        setPatients(data);
+        setLoading(true);
+        const [patientsData, appointmentsData] = await Promise.all([
+          getPatients(),
+          getAppointments(),
+        ]);
+        setPatients(patientsData);
+        setAppointments(appointmentsData);
       } catch (err) {
-        console.error("Error fetching patients:", err);
-        toast.error("Erreur lors du chargement des patients ");
+        console.error("Error fetching appointments page data:", err);
+        toast.error("Erreur lors du chargement des rendez-vous");
+      } finally {
+        setLoading(false);
       }
     };
-    fetchPatients();
-  }, []);
-
-  // Fetch appointments
-  useEffect(() => {
-    const fetchAppointments = async () => {
-      try {
-        const data = await getAppointments();
-        setAppointments(data);
-      } catch (err) {
-        console.error("Error fetching appointments:", err);
-        toast.error("Erreur lors du chargement ");
-      }
-    };
-    fetchAppointments();
+    loadData();
   }, []);
 
   const handlePatientSearch = (query) => {
@@ -214,6 +208,16 @@ const data = await getPatients();
     const end = addDays(start, 6);
     const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
     return `Du ${fmt(start)} au ${fmt(end)}`;
+  };
+
+  const getSelectedDayBaseDate = () => {
+    if (selectedDate === "today") return startOfDay(new Date());
+    if (selectedDate === "tomorrow") return startOfDay(addDays(new Date(), 1));
+    if (selectedDate === "custom" && customDate) {
+      const [year, month, day] = customDate.split("-");
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+    return startOfDay(new Date());
   };
 
 
@@ -485,6 +489,44 @@ const data = await getPatients();
     return patient ? `${patient.firstname} ${patient.lastname}` : "Inconnu";
   };
 
+  const appointmentNumbersForSelectedDay = React.useMemo(() => {
+    const selectedDay = getSelectedDayBaseDate();
+    const selectedDayAppointments = appointments
+      .filter((appt) => isSameDay(new Date(appt.dateTimeStart), selectedDay))
+      .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
+
+    return selectedDayAppointments.reduce((map, appt, index) => {
+      map[appt.id] = index + 1;
+      return map;
+    }, {});
+  }, [appointments, selectedDate, customDate]);
+
+  const appointmentNumbersByWeekDay = React.useMemo(() => {
+    return weekDays.reduce((map, day) => {
+      const key = toDateKey(day);
+      const sortedAppointments = [...(appointmentsByDay[key] || [])].sort(
+        (a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart)
+      );
+
+      map[key] = sortedAppointments.reduce((dayMap, appt, index) => {
+        dayMap[appt.id] = index + 1;
+        return dayMap;
+      }, {});
+
+      return map;
+    }, {});
+  }, [appointmentsByDay, weekDays]);
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Rendez-vous"
+        subtitle="Chargement du planning du cabinet"
+        variant="schedule"
+      />
+    );
+  }
+
   return (
     <div className="appointments-page">
       <div className="appointments-container">
@@ -565,7 +607,12 @@ const data = await getPatients();
                 {slot.appointments.length ? (
                   slot.appointments.map((appt) => (
                     <div key={appt.id} className="appointment-row">
-                      <div className="slot-patient">{getPatientName(appt)}</div>
+                      <div className="slot-patient">
+                        <span className="appointment-number">
+                          {appointmentNumbersForSelectedDay[appt.id] ?? "-"}
+                        </span>
+                        <span>{getPatientName(appt)}</span>
+                      </div>
                       <span className={`status-chip ${appt.status}`}>{statusLabels[appt.status] || appt.status}</span>
 
                       {(appt.patient?.id || appt.patientId) && (
@@ -681,6 +728,9 @@ const data = await getPatients();
                         >
                           {startAppt && (
                             <div className="week-appt">
+                              <span className="appointment-number">
+                                {appointmentNumbersByWeekDay[key]?.[startAppt.id] ?? "-"}
+                              </span>
                               <span className={`status-chip ${startAppt.status}`}>{statusLabels[startAppt.status] || startAppt.status}</span>
 
                               {(startAppt.patient?.id || startAppt.patientId) && (

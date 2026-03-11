@@ -2,6 +2,8 @@ package com.cabinetplus.backend.dto;
 
 import java.time.LocalDate;
 
+import com.cabinetplus.backend.enums.ClinicAccessRole;
+
 import lombok.Data;
 
 @Data
@@ -22,4 +24,8 @@ public class EmployeeRequestDTO {
     private EmployeeStatus status;
     private Double salary;
     private String contractType;
+
+    private String username;
+    private String password;
+    private ClinicAccessRole accessRole;
 }

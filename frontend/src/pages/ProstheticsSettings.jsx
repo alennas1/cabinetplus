@@ -3,6 +3,7 @@ import { Plus, Trash2, Search, X, Edit2 } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 
 import {
   getAllProstheticsCatalogue,
@@ -148,6 +149,16 @@ const ProstheticsSettings = () => {
   const currentItems = filteredProsthetics.slice(indexOfFirst, indexOfLast);
   const totalPages = Math.ceil(filteredProsthetics.length / itemsPerPage);
 
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Catalogue des protheses"
+        subtitle="Chargement des protheses et materiaux"
+        variant="table"
+      />
+    );
+  }
+
   return (
     <div className="patients-container">
       <PageHeader
@@ -187,14 +198,7 @@ const ProstheticsSettings = () => {
           </tr>
         </thead>
         <tbody>
-          {loading ? (
-            <tr>
-              <td colSpan={6} style={{ textAlign: "center", padding: "40px" }}>
-                Chargement...
-              </td>
-            </tr>
-          ) : (
-            currentItems.map((p) => (
+          {currentItems.map((p) => (
               <tr key={p.id}>
                 <td style={{ fontWeight: "500" }}>{p.name}</td>
                 <td>
@@ -216,8 +220,7 @@ const ProstheticsSettings = () => {
                   </button>
                 </td>
               </tr>
-            ))
-          )}
+            ))}
         </tbody>
       </table>
 

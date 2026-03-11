@@ -29,6 +29,31 @@ public class DatabaseSchemaPatches {
                         "ALTER TABLE users " +
                                 "ADD COLUMN IF NOT EXISTS gestion_cabinet_pin_updated_at timestamp"
                 );
+                jdbcTemplate.execute(
+                        "ALTER TABLE users " +
+                                "ADD COLUMN IF NOT EXISTS clinic_access_role varchar(40)"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE users " +
+                                "ADD COLUMN IF NOT EXISTS owner_dentist_id bigint"
+                );
+                jdbcTemplate.execute(
+                        "UPDATE users SET clinic_access_role = 'DENTIST' " +
+                                "WHERE role = 'DENTIST' AND (clinic_access_role IS NULL OR clinic_access_role = '')"
+                );
+                jdbcTemplate.execute(
+                        "UPDATE users u " +
+                                "SET owner_dentist_id = e.dentist_id " +
+                                "FROM employees e " +
+                                "WHERE u.id = e.user_id " +
+                                "AND u.role = 'DENTIST' " +
+                                "AND u.owner_dentist_id IS NULL"
+                );
+                jdbcTemplate.execute(
+                        "UPDATE users SET clinic_access_role = 'RECEPTION' " +
+                                "WHERE role = 'DENTIST' AND owner_dentist_id IS NOT NULL " +
+                                "AND (clinic_access_role IS NULL OR clinic_access_role = '' OR clinic_access_role = 'DENTIST')"
+                );
 
                 jdbcTemplate.execute(
                         "ALTER TABLE treatment_catalog " +
@@ -43,6 +68,30 @@ public class DatabaseSchemaPatches {
                 jdbcTemplate.execute(
                         "ALTER TABLE protheses " +
                                 "ADD COLUMN IF NOT EXISTS code varchar(120)"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE employees " +
+                                "ADD COLUMN IF NOT EXISTS user_id bigint"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE documents " +
+                                "ADD COLUMN IF NOT EXISTS file_size_bytes bigint NOT NULL DEFAULT 0"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ADD COLUMN IF NOT EXISTS max_dentists integer NOT NULL DEFAULT 1"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ADD COLUMN IF NOT EXISTS max_employees integer NOT NULL DEFAULT 0"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ADD COLUMN IF NOT EXISTS max_patients integer NOT NULL DEFAULT 0"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ADD COLUMN IF NOT EXISTS max_storage_gb double precision NOT NULL DEFAULT 0"
                 );
 
                 jdbcTemplate.execute(
@@ -92,6 +141,25 @@ public class DatabaseSchemaPatches {
             } catch (Exception e) {
                 // Best-effort patch for existing databases; startup should proceed.
                 logger.warn("Schema patch skipped: {}", e.getMessage());
+            }
+        };
+    }
+
+    @Bean
+    @Order(1)
+    CommandLineRunner ensurePlanStorageColumnSupportsDecimals(JdbcTemplate jdbcTemplate) {
+        return args -> {
+            try {
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ADD COLUMN IF NOT EXISTS max_storage_gb double precision NOT NULL DEFAULT 0"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ALTER COLUMN max_storage_gb TYPE double precision USING max_storage_gb::double precision"
+                );
+            } catch (Exception e) {
+                logger.warn("Plan storage column patch skipped: {}", e.getMessage());
             }
         };
     }

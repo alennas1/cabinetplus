@@ -12,16 +12,24 @@ import {
   PieChart,
   Shield,
 } from "react-feather";
-import { logout } from "../store/authSlice";
+
+import { logout as logoutRedux } from "../store/authSlice";
+import { logout as logoutApi } from "../services/authService";
 import "./Sidebar.css";
 
 const SidebarAdmin = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate("/login");
+ const handleLogout = async () => {
+    try {
+      await logoutApi();
+    } catch (error) {
+      console.error("Logout API failed:", error);
+    } finally {
+      dispatch(logoutRedux());
+      navigate("/login", { replace: true });
+    }
   };
 
   return (

@@ -60,15 +60,17 @@ const AllPayments = () => {
     rejected: "Rejeté",
   };
 
-  const filteredPayments = payments.filter((p) => {
-    const matchesSearch =
-      !search ||
-      p.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      p.planName.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus =
-      !statusFilter || p.paymentStatus.toLowerCase() === statusFilter.toLowerCase();
-    return matchesSearch && matchesStatus;
-  });
+  const filteredPayments = payments
+    .filter((p) => {
+      const matchesSearch =
+        !search ||
+        p.fullName.toLowerCase().includes(search.toLowerCase()) ||
+        p.planName.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus =
+        !statusFilter || p.paymentStatus.toLowerCase() === statusFilter.toLowerCase();
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0));
 
   const indexOfLast = currentPage * paymentsPerPage;
   const indexOfFirst = indexOfLast - paymentsPerPage;

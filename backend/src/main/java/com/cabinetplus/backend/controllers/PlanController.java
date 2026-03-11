@@ -52,6 +52,10 @@ public class PlanController {
             plan.setMonthlyPrice(updatedPlan.getMonthlyPrice());
             plan.setYearlyMonthlyPrice(updatedPlan.getYearlyMonthlyPrice());
             plan.setDurationDays(updatedPlan.getDurationDays());
+            plan.setMaxDentists(updatedPlan.getMaxDentists());
+            plan.setMaxEmployees(updatedPlan.getMaxEmployees());
+            plan.setMaxPatients(updatedPlan.getMaxPatients());
+            plan.setMaxStorageGb(updatedPlan.getMaxStorageGb());
             plan.setActive(updatedPlan.isActive());
             return ResponseEntity.ok(planService.save(plan));
         }).orElse(ResponseEntity.notFound().build());

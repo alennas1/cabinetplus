@@ -271,3 +271,68 @@
 .finance-row:hover {
   background: #f9fcff;
 }
+
+.dashboard-skeleton {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #eef3f8 0%, #f7f9fc 48%, #e9eff6 100%);
+  background-size: 200% 100%;
+  animation: dashboardSkeletonShimmer 1.35s ease-in-out infinite;
+}
+
+.dashboard-skeleton-title {
+  width: 56%;
+  height: 14px;
+  margin-bottom: 14px;
+}
+
+.dashboard-skeleton-value {
+  width: 42%;
+  height: 34px;
+}
+
+.dashboard-skeleton-pill {
+  width: 88px;
+  height: 26px;
+  border-radius: 999px;
+}
+
+.dashboard-skeleton-time {
+  width: 64px;
+  height: 34px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.dashboard-skeleton-line {
+  width: 72%;
+  height: 12px;
+}
+
+.dashboard-skeleton-line-strong {
+  width: 48%;
+  height: 14px;
+}
+
+.dashboard-skeleton-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.finance-skeleton-card,
+.finance-skeleton-row {
+  pointer-events: none;
+}
+
+@keyframes dashboardSkeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

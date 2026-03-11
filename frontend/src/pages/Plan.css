@@ -38,6 +38,35 @@
     margin-bottom: 50px;
 }
 
+.plan-usage-panel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.plan-usage-card {
+    background: #ffffff;
+    border: 1px solid #dbe4f0;
+    border-radius: 18px;
+    padding: 18px;
+    text-align: left;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.plan-usage-card span {
+    display: block;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.plan-usage-card strong {
+    display: block;
+    margin-top: 6px;
+    color: #0f172a;
+    font-size: 1.15rem;
+}
+
 .switch {
     position: relative;
     display: inline-block;
@@ -185,6 +214,15 @@
     flex-shrink: 0;
 }
 
+.plan-feature-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
 /* Buttons */
 .plan-btn {
     width: 100%;
@@ -245,4 +283,16 @@
     font-weight: 700;
     margin-top: 20px;
     cursor: pointer;
+}
+
+@media (max-width: 960px) {
+    .plan-usage-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .plan-usage-panel {
+        grid-template-columns: 1fr;
+    }
 }

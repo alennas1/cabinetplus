@@ -59,22 +59,24 @@ const AdminAuditLogs = () => {
 
   const filteredLogs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return logs.filter((log) => {
-      if (statusFilter !== "ALL" && log.status !== statusFilter) return false;
-      if (!normalizedQuery) return true;
+    return logs
+      .filter((log) => {
+        if (statusFilter !== "ALL" && log.status !== statusFilter) return false;
+        if (!normalizedQuery) return true;
 
-      const eventLabel = (EVENT_LABELS[log.eventType] || log.eventType || "").toLowerCase();
-      const message = (log.message || "").toLowerCase();
-      const ipAddress = (log.ipAddress || "").toLowerCase();
-      const location = (log.location || "").toLowerCase();
+        const eventLabel = (EVENT_LABELS[log.eventType] || log.eventType || "").toLowerCase();
+        const message = (log.message || "").toLowerCase();
+        const ipAddress = (log.ipAddress || "").toLowerCase();
+        const location = (log.location || "").toLowerCase();
 
-      return (
-        eventLabel.includes(normalizedQuery) ||
-        message.includes(normalizedQuery) ||
-        ipAddress.includes(normalizedQuery) ||
-        location.includes(normalizedQuery)
-      );
-    });
+        return (
+          eventLabel.includes(normalizedQuery) ||
+          message.includes(normalizedQuery) ||
+          ipAddress.includes(normalizedQuery) ||
+          location.includes(normalizedQuery)
+        );
+      })
+      .sort((a, b) => new Date(b.occurredAt || 0) - new Date(a.occurredAt || 0));
   }, [logs, query, statusFilter]);
 
   return (

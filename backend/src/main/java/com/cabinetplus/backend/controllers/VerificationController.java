@@ -9,7 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
@@ -33,14 +36,23 @@ public class VerificationController {
 
     // ------------------- SEND PHONE OTP -------------------
     @PostMapping("/phone/send")
-    public ResponseEntity<?> sendPhoneOtp(Principal principal) {
+    public ResponseEntity<?> sendPhoneOtp(Principal principal, HttpServletRequest request) {
         logger.info("Request received: /api/verify/phone/send");
         User user = getUser(principal);
         if (user == null) return unauthorizedResponse();
 
+        // Local testing shortcut: no real OTP/SMS required.
+        if (isLocalRequest(request)) {
+            user.setPhoneVerified(true);
+            user.setPhoneOtp(null);
+            user.setPhoneOtpExpires(null);
+            userRepo.save(user);
+            return ResponseEntity.ok(Map.of("verified", true, "message", "Telephone verifie en mode local"));
+        }
+
         String formattedNumber = formatPhoneNumber(user.getPhoneNumber());
         if (formattedNumber == null || formattedNumber.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Numéro de téléphone invalide ou manquant."));
+            return ResponseEntity.badRequest().body(Map.of("error", "Numero de telephone invalide ou manquant."));
         }
 
         try {
@@ -52,7 +64,7 @@ public class VerificationController {
             logger.info("Attempting to send SMS OTP to: {}", formattedNumber);
             otpService.sendSmsOtp(formattedNumber, otp);
 
-            return ResponseEntity.ok(Map.of("message", "Code SMS envoyé au " + formattedNumber));
+            return ResponseEntity.ok(Map.of("message", "Code SMS envoye au " + formattedNumber));
         } catch (Exception e) {
             logger.error("Error sending SMS OTP: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -85,8 +97,7 @@ public class VerificationController {
     // ------------------- SIMULATE PHONE VERIFICATION (LOCAL DEV) -------------------
     @PostMapping("/phone/simulate")
     public ResponseEntity<?> simulatePhoneVerification(Principal principal, HttpServletRequest request) {
-        String remoteAddr = request.getRemoteAddr();
-        if (!"127.0.0.1".equals(remoteAddr) && !"0:0:0:0:0:0:0:1".equals(remoteAddr)) {
+        if (!isLocalRequest(request)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Simulation autorisee uniquement depuis localhost"));
         }
@@ -121,6 +132,13 @@ public class VerificationController {
         return null;
     }
 
+    private boolean isLocalRequest(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+        return "127.0.0.1".equals(remoteAddr)
+                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
+                || "::1".equals(remoteAddr);
+    }
+
     private User getUser(Principal principal) {
         if (principal == null) {
             logger.warn("Principal is null - user not authenticated");
@@ -131,6 +149,6 @@ public class VerificationController {
 
     private ResponseEntity<?> unauthorizedResponse() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "Session expirée. Veuillez vous reconnecter."));
+                .body(Map.of("error", "Session expiree. Veuillez vous reconnecter."));
     }
 }

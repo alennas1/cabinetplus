@@ -101,8 +101,10 @@ public void generatePrescriptionPdf(@PathVariable Long id, Principal principal, 
     Font genericFont = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 10, new java.awt.Color(70, 70, 70));
 
     // 1. DYNAMIC HEADER
-    String clinicName = (practitioner.getClinicName() != null) ? practitioner.getClinicName() : "CABINET MÃ‰DICAL";
-    document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
+    String clinicName = practitioner.getClinicName();
+    if (clinicName != null && !clinicName.isBlank()) {
+        document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
+    }
     document.add(new Paragraph("Dr. " + practitioner.getFirstname() + " " + practitioner.getLastname(), subTitleFont));
     
     if (practitioner.getAddress() != null) {
@@ -116,7 +118,7 @@ public void generatePrescriptionPdf(@PathVariable Long id, Principal principal, 
     }
     
     if (!formattedPhone.isEmpty()) {
-        document.add(new Paragraph("TÃ©l: " + formattedPhone, normalFont));
+        document.add(new Paragraph("Tel: " + formattedPhone, normalFont));
     }
     
     document.add(new Paragraph(" "));
@@ -213,3 +215,4 @@ public void generatePrescriptionPdf(@PathVariable Long id, Principal principal, 
                 .orElseThrow(() -> new RuntimeException("Praticien introuvable"));
     }
 }
+

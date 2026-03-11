@@ -172,6 +172,15 @@ html, body {
   color: #444;
 }
 
+.sidebar-links li a.active::before {
+  transform: scaleY(1);
+}
+
+.sidebar-links li a.active {
+  background: #f9f9f9;
+  color: #444;
+}
+
 /* --- Logout button --- */
 .sidebar-logout {
   margin-top: auto;
@@ -264,6 +273,7 @@ html, body {
   background: #eaeaea;
   margin: 12px 0;
 }
+
 .sidebar-group-title {
   font-size: 12px;
   font-weight: 600;
@@ -289,12 +299,12 @@ html, body {
 
 /* Administration group titles */
 .sidebar-group-title.admin {
-  color: #2c3e50;     /* subtle dark gray */
+  color: #3498db;  /* same as general */
 }
 
 /* Optional: left border accent on hover for admin links */
 .sidebar-links li.admin-link a::before {
-  background: #2c3e50; 
+  background: #3498db;
 }
 
 .sidebar-bottom {

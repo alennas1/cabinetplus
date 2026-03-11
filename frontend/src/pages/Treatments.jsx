@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getTreatments,
   createTreatment,
@@ -18,6 +19,7 @@ const Treatments = () => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
   const [treatments, setTreatments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [viewTreatment, setViewTreatment] = useState(null);
 
@@ -46,12 +48,15 @@ const Treatments = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const data = await getTreatments(token);
         setTreatments(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching treatments:", err);
         toast.error("Erreur lors du chargement des traitements");
         setTreatments([]);
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -156,6 +161,16 @@ const Treatments = () => {
   const currentTreatments = filteredTreatments.slice(indexOfFirst, indexOfLast);
   const totalPages = Math.ceil(filteredTreatments.length / treatmentsPerPage);
 
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Traitements"
+        subtitle="Chargement du catalogue des traitements"
+        variant="table"
+      />
+    );
+  }
+
   return (
     <div className="patients-container">
       <PageHeader title="Traitements" subtitle="Liste des traitements" align="left" />
@@ -220,7 +235,7 @@ const Treatments = () => {
         </thead>
         <tbody>
           {currentTreatments.map((t) => (
-            <tr key={t.id}>
+            <tr key={t.id} onClick={() => setViewTreatment(t)} style={{ cursor: "pointer" }}>
               <td>{t.name || "—"}</td>
               <td>{t.description || "—"}</td>
               <td>{t.defaultPrice ? `${t.defaultPrice} DA` : "—"}</td>
@@ -228,9 +243,18 @@ const Treatments = () => {
                 <span className={`type-pill ${t.isFlatFee ? "flat" : "unit"}`}>{t.isFlatFee ? "Forfait" : "Unitaire"}</span>
               </td>
               <td className="actions-cell">
-                <button className="action-btn view" onClick={() => setViewTreatment(t)} title="Voir"><Eye size={16} /></button>
-                <button className="action-btn edit" onClick={() => handleEdit(t)} title="Modifier"><Edit2 size={16} /></button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(t.id)} title="Supprimer"><Trash2 size={16} /></button>
+                <button className="action-btn view" onClick={(e) => {
+                  e.stopPropagation();
+                  setViewTreatment(t);
+                }} title="Voir"><Eye size={16} /></button>
+                <button className="action-btn edit" onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(t);
+                }} title="Modifier"><Edit2 size={16} /></button>
+                <button className="action-btn delete" onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteClick(t.id);
+                }} title="Supprimer"><Trash2 size={16} /></button>
               </td>
             </tr>
           ))}

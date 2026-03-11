@@ -23,8 +23,7 @@ public class EmployeeWorkingHoursController {
     // --- Get All for dentist ---
     @GetMapping
     public ResponseEntity<List<EmployeeWorkingHours>> getAll(Principal principal) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return ResponseEntity.ok(workingHoursService.getAllForDentist(dentist));
     }
@@ -35,8 +34,7 @@ public class EmployeeWorkingHoursController {
             @PathVariable Long employeeId,
             Principal principal
     ) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return ResponseEntity.ok(workingHoursService.getByEmployee(employeeId, dentist));
     }
@@ -48,8 +46,7 @@ public class EmployeeWorkingHoursController {
             @PathVariable DayOfWeek day,
             Principal principal
     ) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return ResponseEntity.ok(workingHoursService.getByEmployeeAndDay(employeeId, day, dentist));
     }
@@ -60,8 +57,7 @@ public class EmployeeWorkingHoursController {
             @RequestBody EmployeeWorkingHours hours,
             Principal principal
     ) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return ResponseEntity.ok(workingHoursService.save(hours, dentist));
     }
@@ -73,8 +69,7 @@ public class EmployeeWorkingHoursController {
             @RequestBody EmployeeWorkingHours hours,
             Principal principal
     ) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return ResponseEntity.ok(workingHoursService.update(id, hours, dentist));
     }
@@ -85,11 +80,16 @@ public class EmployeeWorkingHoursController {
             @PathVariable Long id,
             Principal principal
     ) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         workingHoursService.delete(id, dentist);
         return ResponseEntity.noContent().build();
+    }
+
+    private User getClinicUser(Principal principal) {
+        User user = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 }
 

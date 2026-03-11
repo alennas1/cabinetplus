@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -17,6 +17,7 @@ import {
 } from "react-feather";
 import { toast } from "react-toastify";
 import { getApiErrorMessage } from "../utils/error";
+import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
@@ -39,6 +40,12 @@ const Sidebar = () => {
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.username;
+  const clinicRole = getClinicRole(user);
+  const canAccessAdminCore = [CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST].includes(clinicRole);
+  const canAccessDashboard = canAccessAdminCore;
+  const canAccessCatalogues = canAccessAdminCore || clinicRole === CLINIC_ROLES.ASSISTANT;
+  const canAccessProstheses = canAccessCatalogues;
+  const showAdminGroup = canAccessAdminCore || canAccessCatalogues || canAccessProstheses;
 
   const isInGestionCabinet = useMemo(() => location.pathname.startsWith("/gestion-cabinet"), [location.pathname]);
 
@@ -178,6 +185,11 @@ const Sidebar = () => {
     }
   };
 
+  const isActivePath = (path, { exact = false } = {}) => {
+    if (exact) return location.pathname === path;
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
+
   return (
     <div className="sidebar">
       <ul className="sidebar-links">
@@ -192,40 +204,59 @@ const Sidebar = () => {
         {/* --- General Group --- */}
         <li className="sidebar-group-title admin">Général</li>
 
-        <li>
-          <Link to="/dashboard">
+        {canAccessDashboard && <li>
+          <Link
+            to="/dashboard"
+            className={isActivePath("/dashboard", { exact: true }) ? "active" : ""}
+          >
             <Home size={20} />
             <span className="link-text">Tableau de bord</span>
           </Link>
-        </li>
+        </li>}
 
         <li>
-          <Link to="/appointments">
+          <Link
+            to="/appointments"
+            className={isActivePath("/appointments") ? "active" : ""}
+          >
             <Calendar size={20} />
             <span className="link-text">Rendez-vous</span>
           </Link>
         </li>
 
         <li>
-          <Link to="/patients">
+          <Link
+            to="/patients"
+            className={isActivePath("/patients") ? "active" : ""}
+          >
             <Users size={20} />
             <span className="link-text">Patients</span>
           </Link>
         </li>
 
         <li>
-          <Link to="/devis">
+          <Link
+            to="/devis"
+            className={isActivePath("/devis") ? "active" : ""}
+          >
             <FileText size={20} />
             <span className="link-text">Devis</span>
           </Link>
         </li>
 
         {/* --- Administration Group --- */}
-        <li className="sidebar-group-title admin">Administration</li>
+        {showAdminGroup && <li className="sidebar-group-title admin">Administration</li>}
 
-        {/* Combined Gestion Cabinet Link */}
-        <li className="admin-link">
-          <Link to="/gestion-cabinet">
+        {canAccessAdminCore && <li className="admin-link">
+          <Link
+            to="/gestion-cabinet"
+            className={
+              location.pathname.startsWith("/gestion-cabinet") &&
+              !location.pathname.startsWith("/gestion-cabinet/prosthetics-tracking")
+                ? "active"
+                : ""
+            }
+          >
             <Briefcase size={20} />
             <span className="link-text">Gestion Cabinet</span>
             <button
@@ -253,28 +284,37 @@ const Sidebar = () => {
               {pinEnabled ? <Lock size={18} color="#ef4444" /> : <Unlock size={18} color="#22c55e" />}
             </button>
           </Link>
-        </li>
+        </li>}
 
-        <li className="admin-link">
-          <Link to="/catalogue">
+        {canAccessCatalogues && <li className="admin-link">
+          <Link
+            to="/catalogue"
+            className={isActivePath("/catalogue") ? "active" : ""}
+          >
             <BookOpen size={20} />
             <span className="link-text">Catalogues</span>
           </Link>
-        </li>
+        </li>}
 
-        <li className="admin-link">
-          <Link to="/gestion-cabinet/prosthetics-tracking">
+        {canAccessProstheses && <li className="admin-link">
+          <Link
+            to="/gestion-cabinet/prosthetics-tracking"
+            className={isActivePath("/gestion-cabinet/prosthetics-tracking") ? "active" : ""}
+          >
             <Layers size={20} />
             <span className="link-text">Prothèses</span>
           </Link>
-        </li>
+        </li>}
 
-        <li className="admin-link">
-          <Link to="/settings">
+        {canAccessAdminCore && <li className="admin-link">
+          <Link
+            to="/settings"
+            className={isActivePath("/settings") ? "active" : ""}
+          >
             <Settings size={20} />
             <span className="link-text">Paramètres</span>
           </Link>
-        </li>
+        </li>}
       </ul>
 
       {/* --- Logout --- */}
@@ -451,5 +491,8 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
+
+
 
 

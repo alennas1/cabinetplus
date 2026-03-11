@@ -22,6 +22,11 @@ public class AdminDataLoader {
     @Order(1)
     CommandLineRunner initDatabase(UserRepository userRepo, PlanRepository planRepo, PasswordEncoder encoder) {
         return args -> {
+            // ---------------- Ensure default plans exist ----------------
+            ensureDefaultPlan(planRepo, "FREE_TRIAL", "Essai Gratuit", 0, 0, 7, 1, 2, 50, 2.0);
+            ensureDefaultPlan(planRepo, "BASIC", "Basic", 6000, 5000, 30, 2, 8, 500, 10.0);
+            ensureDefaultPlan(planRepo, "PRO", "Pro", 9000, 7500, 30, 5, 25, 2000, 50.0);
+
             // ---------------- Create admin ----------------
             User admin = userRepo.findByUsername("admin").orElseGet(() -> {
                 User u = new User();
@@ -51,11 +56,12 @@ public class AdminDataLoader {
             dentist.setCreatedAt(LocalDateTime.now());
 
             // Assign a valid plan
-            Plan freePlan = planRepo.findByCode("FREE_TRIAL").orElse(null);
-            dentist.setPlan(freePlan);
+            Plan basicPlan = planRepo.findByCode("BASIC").orElse(null);
+            dentist.setPlan(basicPlan);
 
-            // Set expiration date to 2026-01-16
-            dentist.setExpirationDate(LocalDateTime.of(2026, 1, 16, 22, 12, 53, 840748));
+            if (basicPlan != null && basicPlan.getDurationDays() != null) {
+                dentist.setExpirationDate(LocalDateTime.now().plusDays(basicPlan.getDurationDays()));
+            }
 
             // Phone OTP setup
             dentist.setPhoneOtp("393077");
@@ -68,5 +74,35 @@ public class AdminDataLoader {
             userRepo.save(dentist);
             System.out.println(">>> [SUCCESS] Created or updated dentist user: dentist12 / dentist123");
         };
+    }
+
+    private void ensureDefaultPlan(
+            PlanRepository planRepo,
+            String code,
+            String name,
+            int monthlyPrice,
+            int yearlyMonthlyPrice,
+            int durationDays,
+            int maxDentists,
+            int maxEmployees,
+            int maxPatients,
+            double maxStorageGb
+    ) {
+        planRepo.findByCode(code).orElseGet(() -> {
+            Plan plan = new Plan();
+            plan.setCode(code);
+            plan.setName(name);
+            plan.setMonthlyPrice(monthlyPrice);
+            plan.setYearlyMonthlyPrice(yearlyMonthlyPrice);
+            plan.setDurationDays(durationDays);
+            plan.setMaxDentists(maxDentists);
+            plan.setMaxEmployees(maxEmployees);
+            plan.setMaxPatients(maxPatients);
+            plan.setMaxStorageGb(maxStorageGb);
+            plan.setActive(true);
+            Plan saved = planRepo.save(plan);
+            System.out.println(">>> [SUCCESS] Created default plan: " + saved.getCode());
+            return saved;
+        });
     }
 }

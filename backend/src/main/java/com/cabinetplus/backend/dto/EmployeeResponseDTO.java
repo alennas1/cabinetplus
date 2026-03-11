@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.cabinetplus.backend.enums.ClinicAccessRole;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -34,6 +36,10 @@ public class EmployeeResponseDTO {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private Long userId;
+    private String username;
+    private ClinicAccessRole accessRole;
 
     // Add working hours
     private List<EmployeeWorkingHoursDTO> workingHours;

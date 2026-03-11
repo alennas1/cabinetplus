@@ -107,8 +107,9 @@ public class TreatmentCatalogController {
 
     // ðŸ”¹ Helpers
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 
     private TreatmentCatalogResponse mapToResponse(TreatmentCatalog c) {

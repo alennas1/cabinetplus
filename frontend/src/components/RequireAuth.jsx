@@ -1,5 +1,7 @@
 import { useSelector } from "react-redux";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
+import { isPlanActiveForAccess } from "../utils/planAccess";
 
 const RequireAuth = ({ allowedRoles }) => {
   const { token, isAuthenticated, user, loading } = useSelector(
@@ -7,6 +9,13 @@ const RequireAuth = ({ allowedRoles }) => {
   );
   const location = useLocation();
   const currentPath = location.pathname;
+  const redirectByRole = () => {
+    if (user?.role === "ADMIN") return "/admin-dashboard";
+    const clinicRole = getClinicRole(user);
+    return [CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST].includes(clinicRole)
+      ? "/dashboard"
+      : "/appointments";
+  };
 
   // 1️⃣ Loading state (wait until session initializes)
   if (loading || (!user && token)) {
@@ -27,26 +36,26 @@ const RequireAuth = ({ allowedRoles }) => {
 
   // 3️⃣ Role authorization
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to={redirectByRole()} replace />;
   }
 
   // 4️⃣ Dentist setup workflow
-  if (user?.role === "DENTIST") {
+  if (user?.role === "DENTIST" && getClinicRole(user) === CLINIC_ROLES.DENTIST) {
     const isVerified = user.phoneVerified === true;
-    const planCode = user.plan?.code?.toUpperCase();
-    const isPlanActive =
-      user.planStatus === "ACTIVE" &&
-      ["FREE_TRIAL", "BASIC", "PRO"].includes(planCode);
+    const isPlanActive = isPlanActiveForAccess(user);
 
     let targetPath = null;
 
     if (!isVerified) targetPath = "/verify";
-    else if (user.planStatus === "WAITING") targetPath = "/waiting";
+    else if (!isPlanActive && user.planStatus === "WAITING") targetPath = "/waiting";
     else if (!isPlanActive) targetPath = "/plan";
 
     if (targetPath && currentPath !== targetPath) {
       return <Navigate to={targetPath} replace />;
-    } else {
+    }
+
+    // Only force dentists out of setup pages when setup is fully complete.
+    if (!targetPath) {
       const setupPages = ["/verify", "/plan", "/waiting"];
       if (setupPages.includes(currentPath)) {
         return <Navigate to="/dashboard" replace />;

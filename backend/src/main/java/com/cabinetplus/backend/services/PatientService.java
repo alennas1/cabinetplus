@@ -15,13 +15,16 @@ import com.cabinetplus.backend.repositories.PatientRepository;
 public class PatientService {
 
     private final PatientRepository patientRepository;
+    private final PlanLimitService planLimitService;
 
-    public PatientService(PatientRepository patientRepository) {
+    public PatientService(PatientRepository patientRepository, PlanLimitService planLimitService) {
         this.patientRepository = patientRepository;
+        this.planLimitService = planLimitService;
     }
 
     // Save + return DTO
     public PatientDto saveAndConvert(Patient patient) {
+        planLimitService.assertPatientLimitNotReached(patient.getCreatedBy());
         Patient saved = patientRepository.save(patient);
         return toDto(saved);
     }

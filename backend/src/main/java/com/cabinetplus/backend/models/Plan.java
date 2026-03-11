@@ -36,5 +36,17 @@ public class Plan {
     // Duration in days for free trial or default period
     private Integer durationDays;
 
+    @Column(nullable = false)
+    private Integer maxDentists = 1;
+
+    @Column(nullable = false)
+    private Integer maxEmployees = 0;
+
+    @Column(nullable = false)
+    private Integer maxPatients = 0;
+
+    @Column(nullable = false)
+    private Double maxStorageGb = 0.0;
+
     private boolean active = true;
 }

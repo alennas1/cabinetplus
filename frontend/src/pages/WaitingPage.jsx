@@ -2,8 +2,8 @@ import React from "react";
 import { Clock, LogOut } from "react-feather";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { logout } from "../store/authSlice"; // Assuming this is your path
-
+import { logout as logoutApi } from "../services/authService";
+import { logout as logoutRedux } from "../store/authSlice";
 // NOTE: You should create a specific CSS file (e.g., WaitingPage.css)
 // if you want to reuse styles from other components. For this example, 
 // I'll define necessary styles locally.
@@ -13,10 +13,16 @@ const WaitingPage = () => {
     const navigate = useNavigate();
 
     // --- Logout Logic ---
-    const handleLogout = () => {
-        dispatch(logout());
-        navigate("/login");
-    };
+     const handleLogout = async () => {
+        try {
+          await logoutApi();
+        } catch (error) {
+          console.error("Logout API failed:", error);
+        } finally {
+          dispatch(logoutRedux());
+          navigate("/login", { replace: true });
+        }
+      };
 
     return (
         <div style={styles.container}>

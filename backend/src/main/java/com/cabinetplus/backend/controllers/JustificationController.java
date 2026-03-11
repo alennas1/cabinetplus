@@ -168,8 +168,10 @@ public void generateJustificationPdf(
     Font italicFont = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 10, java.awt.Color.GRAY);
 
     // Header
-    String clinicName = practitioner.getClinicName() != null ? practitioner.getClinicName() : "CABINET MÃ‰DICAL";
-    document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
+    String clinicName = practitioner.getClinicName();
+    if (clinicName != null && !clinicName.isBlank()) {
+        document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
+    }
     document.add(new Paragraph("Dr. " + practitioner.getFirstname() + " " + practitioner.getLastname(), subTitleFont));
 
     if (practitioner.getAddress() != null) {
@@ -182,7 +184,7 @@ public void generateJustificationPdf(
         rawPhone = rawPhone.replaceFirst("(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})", "$1 $2 $3 $4 $5");
     }
     if (!rawPhone.isEmpty()) {
-        document.add(new Paragraph("TÃ©l: " + rawPhone, normalFont));
+        document.add(new Paragraph("Tel: " + rawPhone, normalFont));
     }
 
     document.add(new Paragraph(" "));
@@ -218,7 +220,7 @@ public void generateJustificationPdf(
         // Fallback to Enum name only if title is null
         displayTitle = justification.getTitle().replace("_", " ");
     } else {
-        displayTitle = "JUSTIFICATION MÃ‰DICALE";
+        displayTitle = "JUSTIFICATION MEDICALE";
     }
 
     Paragraph titleParagraph = new Paragraph(displayTitle.toUpperCase(), titleFont);
@@ -245,4 +247,5 @@ public void generateJustificationPdf(
     document.close();
 }
 }
+
 

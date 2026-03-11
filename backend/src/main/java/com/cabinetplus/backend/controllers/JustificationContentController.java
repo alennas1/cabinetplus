@@ -28,8 +28,9 @@ public class JustificationContentController {
     }
 
     private User getPractitioner(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Praticien introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 
     // =========================

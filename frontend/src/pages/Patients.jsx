@@ -9,11 +9,13 @@ import { FaMale, FaFemale } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getPatients,
   createPatient,
   updatePatient,
 } from "../services/patientService";
+import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
 
 
@@ -21,6 +23,7 @@ const Patients = () => {
   const token = useSelector((state) => state.auth.token);
 
   const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
 
 
   // Pagination
@@ -104,10 +107,13 @@ const formatPhone = (phone) => {
   useEffect(() => {
     const fetchPatients = async () => {
       try {
+        setLoading(true);
         const data = await getPatients(token);
         setPatients(data);
       } catch (err) {
         console.error("Error fetching patients:", err);
+      } finally {
+        setLoading(false);
       }
     };
     fetchPatients();
@@ -142,15 +148,26 @@ const formatPhone = (phone) => {
     try {
       if (isEditing) {
         const updated = await updatePatient(formData.id, formData, token);
-        setPatients(patients.map((p) => (p.id === updated.id ? updated : p)));
-      toast.success("Patient mis à jour");
-
+        setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+        toast.success("Patient mis a jour");
       } else {
         const newPatient = await createPatient(formData, token);
-        setPatients([...patients, newPatient]);
-          toast.success("Patient ajouté ");
-
+        setPatients((prev) => [...prev, newPatient]);
+        toast.success("Patient ajoute");
+        setShowModal(false);
+        setFormData({
+          id: null,
+          firstname: "",
+          lastname: "",
+          age: "",
+          phone: "",
+          sex: "",
+        });
+        setIsEditing(false);
+        navigate("/patients/" + newPatient.id);
+        return;
       }
+
       setShowModal(false);
       setFormData({
         id: null,
@@ -163,8 +180,7 @@ const formatPhone = (phone) => {
       setIsEditing(false);
     } catch (err) {
       console.error("Error saving patient:", err);
-        toast.error("Erreur lors de l'enregistrement");
-
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     }
   };
 
@@ -183,6 +199,16 @@ const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
 const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
 
 const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Patients"
+        subtitle="Chargement de la liste des patients"
+        variant="table"
+      />
+    );
+  }
 
   return (
   <div className="patients-container">
@@ -354,7 +380,7 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
         </thead>
        <tbody>
   {currentPatients.map((p) => (
-    <tr key={p.id}>
+    <tr key={p.id} onClick={() => navigate(`/patients/${p.id}`)} style={{ cursor: "pointer" }}>
       <td>{p.firstname || "—"}</td>
       <td>{p.lastname || "—"}</td>
       <td>{p.age ?? "N/A"} ans</td>
@@ -372,7 +398,10 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
       <td className="actions-cell">
         <button
           className="action-btn view"
-          onClick={() => navigate(`/patients/${p.id}`)}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/patients/${p.id}`);
+          }}
           title="Voir le patient"
         >
           <Eye size={16} />
@@ -380,7 +409,10 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 
         <button
           className="action-btn edit"
-          onClick={() => handleEdit(p)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleEdit(p);
+          }}
           title="Modifier"
         >
           <Edit2 size={16} />
@@ -543,3 +575,5 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 };
 
 export default Patients;
+
+

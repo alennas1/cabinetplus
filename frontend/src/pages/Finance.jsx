@@ -7,6 +7,7 @@ import { Activity, CreditCard, AlertTriangle } from 'react-feather';
 import { getFinanceCards, getFinanceGraph } from "../services/financeService";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Finance.css";
 
 const Finance = () => {
@@ -351,6 +352,11 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
 
   const { revenueLine, expenseLine, revenuePie, expensePie } = getGraphData();
 
+  const isInitialFinanceLoading =
+    (loadingCards || loadingGraph) &&
+    !cards &&
+    !graph;
+
 
 
 
@@ -520,6 +526,13 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
   };
 
   return (
+    isInitialFinanceLoading ? (
+    <DentistPageSkeleton
+      title="Finances"
+      subtitle="Chargement des indicateurs financiers"
+      variant="plan"
+    />
+    ) : (
     <div className="finance-container">
       <PageHeader 
         title="Finances" 
@@ -805,6 +818,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
         </>
       )}
     </div>
+    )
   );
 };
 

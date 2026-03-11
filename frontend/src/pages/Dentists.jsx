@@ -156,7 +156,7 @@ const Dentists = () => {
             currentDentists.map((d) => {
               const status = (d.planStatus || "PENDING").toUpperCase();
               return (
-                <tr key={d.id}>
+                <tr key={d.id} onClick={() => handleView(d.id)} style={{ cursor: "pointer" }}>
                   <td>{d.firstname}</td>
                   <td>{d.lastname}</td>
                   <td>{d.phoneNumber || "-"}</td>
@@ -181,7 +181,10 @@ const Dentists = () => {
                     <button
                       className="action-btn view"
                       title="View"
-                      onClick={() => handleView(d.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleView(d.id);
+                      }}
                     >
                       <Eye size={16} />
                     </button>

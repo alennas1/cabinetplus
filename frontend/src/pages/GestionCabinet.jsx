@@ -18,14 +18,14 @@ const GestionCabinet = () => {
       title: "Ressources & Partenaires",
       options: [
         {
-          title: "Employes",
-          desc: "Gerer le personnel, les roles et les acces",
+          title: "Employés",
+          desc: "Gérer le personnel, les rôles et les accès",
           icon: <Users />,
           path: "/gestion-cabinet/employees",
         },
         {
           title: "Laboratoires",
-          desc: "Gerer la liste des prothesistes et laboratoires partenaires",
+          desc: "Gérer la liste des prothésistes et laboratoires partenaires",
           icon: <Briefcase />,
           path: "/gestion-cabinet/laboratories",
         },
@@ -41,14 +41,14 @@ const GestionCabinet = () => {
           path: "/gestion-cabinet/finance",
         },
         {
-          title: "Depenses",
+          title: "Dépenses",
           desc: "Suivi des charges fixes et achats du cabinet",
           icon: <CreditCard />,
           path: "/gestion-cabinet/expenses",
         },
         {
           title: "Inventaire",
-          desc: "Gerer le stock de materiel et fournitures",
+          desc: "Gérer le stock de matériel et fournitures",
           icon: <Package />,
           path: "/gestion-cabinet/inventory",
         },
@@ -60,7 +60,7 @@ const GestionCabinet = () => {
     <div className="settings-container">
       <PageHeader
         title="Gestion Cabinet"
-        subtitle="Administrez les ressources et le suivi de votre etablissement :"
+        subtitle="Administrez les ressources et le suivi de votre établissement :"
         align="left"
       />
 

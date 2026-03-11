@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getMedications,
   createMedication,
@@ -29,6 +30,7 @@ const Medications = () => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
   const [medications, setMedications] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [viewMedication, setViewMedication] = useState(null);
 
   const [search, setSearch] = useState("");
@@ -56,12 +58,15 @@ const Medications = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const data = await getMedications(token);
         setMedications(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching medications:", err);
         toast.error("Erreur lors du chargement des médicaments");
         setMedications([]);
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -155,6 +160,16 @@ const Medications = () => {
   const currentMedications = filteredMedications.slice(indexOfFirst, indexOfLast);
   const totalPages = Math.ceil(filteredMedications.length / medicationsPerPage);
 
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Médicaments"
+        subtitle="Chargement de la pharmacie du cabinet"
+        variant="table"
+      />
+    );
+  }
+
   return (
     <div className="patients-container">
       <PageHeader title="Médicaments" subtitle="Gestion de la pharmacie" align="left" />
@@ -225,19 +240,28 @@ const Medications = () => {
         </thead>
         <tbody>
           {currentMedications.map((m) => (
-            <tr key={m.id}>
+            <tr key={m.id} onClick={() => setViewMedication(m)} style={{ cursor: "pointer" }}>
               <td><strong>{m.name || "—"}</strong></td>
               <td>{m.genericName || "—"}</td>
               <td>{DOSAGE_FORMS[m.dosageForm] || m.dosageForm || "—"}</td>
               <td>{m.strength || "—"}</td>
               <td className="actions-cell">
-                <button className="action-btn view" onClick={() => setViewMedication(m)} title="Voir">
+                <button className="action-btn view" onClick={(e) => {
+                  e.stopPropagation();
+                  setViewMedication(m);
+                }} title="Voir">
                   <Eye size={16} />
                 </button>
-                <button className="action-btn edit" onClick={() => handleEdit(m)} title="Modifier">
+                <button className="action-btn edit" onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(m);
+                }} title="Modifier">
                   <Edit2 size={16} />
                 </button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(m.id)} title="Supprimer">
+                <button className="action-btn delete" onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteClick(m.id);
+                }} title="Supprimer">
                   <Trash2 size={16} />
                 </button>
               </td>

@@ -1,25 +1,309 @@
-.auth-form input,
-.auth-form select {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 6px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-}
-
-.form-row {
-  display: flex;
-  gap: 10px;
-}
-
-.form-group {
-  flex: 1;
+.register-page-shell {
+  min-height: 100vh;
+  background: #f2f3f5;
   display: flex;
   flex-direction: column;
+  font-family: "Poppins", "Segoe UI", sans-serif;
 }
 
-.error-text {
-  color: red;
-  font-size: 0.85rem;
-  margin: -4px 0 6px 4px; /* keeps it close to input */
+.register-page-main {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex: 1;
+  padding: 2.2rem 1.1rem;
+}
+
+.register-form-card {
+  width: min(630px, 100%);
+  color: #071524;
+}
+
+.register-brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.register-back-link {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #3f5269;
+  text-decoration: none;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.register-back-chevron {
+  width: 9px;
+  height: 9px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  display: inline-block;
+}
+
+.register-back-link:hover {
+  background: rgba(63, 82, 105, 0.12);
+}
+
+.register-brand-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.register-brand-text {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #12253a;
+}
+
+.register-form-card h1 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.register-intro {
+  margin: 0.65rem 0 1.4rem;
+  max-width: 610px;
+  color: #14263d;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.register-field-group {
+  margin-bottom: 1rem;
+}
+
+.register-field-group label {
+  display: inline-block;
+  margin-bottom: 0.6rem;
+  color: #08192d;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.register-two-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.register-field-group input {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid #ccd3db;
+  border-radius: 16px;
+  background: transparent;
+  color: #111111;
+  caret-color: #111111;
+  font-size: 16px;
+  line-height: 1.2;
+  padding: 0.9rem 1.1rem;
+  box-sizing: border-box;
+  transition: border-color 0.22s ease, background-color 0.22s ease;
+}
+
+.register-field-group input::placeholder {
+  color: #5d6c7b;
+  font-size: 16px;
+}
+
+.register-field-group input:hover {
+  border-color: #5d6c7b;
+}
+
+.register-field-group input:focus {
+  outline: none;
+  border-color: #3498db;
+  border-width: 1px;
+}
+
+.register-field-group input.invalid {
+  border-color: #d64545;
+}
+
+.register-field-group input.invalid:hover,
+.register-field-group input.invalid:focus {
+  border-color: #d64545;
+}
+
+.register-field-group input:disabled {
+  opacity: 0.82;
+  cursor: not-allowed;
+}
+
+.register-password-wrap {
+  position: relative;
+}
+
+.register-password-wrap input {
+  padding-right: 3.5rem;
+}
+
+.register-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.95rem;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #5d6c7b;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.register-password-toggle:hover:not(:disabled) {
+  color: #12253a;
+}
+
+.register-helper-text {
+  margin: 0.75rem 0 0;
+  color: #0f1f33;
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.register-error-message {
+  margin: 0;
+  color: #c62828;
+  font-size: 0.93rem;
+  min-height: 1.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  line-height: 1.2;
+}
+
+.register-error-icon {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border-radius: 50%;
+  background: #d64545;
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.register-error-message.placeholder {
+  visibility: hidden;
+}
+
+.register-submit-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  background: #3498db;
+  color: #ffffff;
+  font-size: 1.02rem;
+  font-weight: 600;
+  padding: 0.78rem 1rem;
+  cursor: pointer;
+  margin-top: 0.22rem;
+  transition: background-color 0.18s ease;
+}
+
+.register-submit-btn:hover:not(:disabled) {
+  background: #2f8fd0;
+}
+
+.register-submit-btn:active:not(:disabled) {
+  background: #2980b9;
+}
+
+.register-submit-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.register-login-btn {
+  width: 100%;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid #3498db;
+  color: #3498db;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.74rem 1rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+  text-decoration: none;
+  margin-top: 1.3rem;
+}
+
+.register-login-btn:hover {
+  background: rgba(52, 152, 219, 0.1);
+}
+
+.login-footer-global {
+  width: 100%;
+  border-top: 1px solid #d7dde8;
+  background: #eef2f7;
+  padding: 0.9rem 1.4rem;
+  text-align: center;
+  color: #66758a;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.login-footer-copy {
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+.login-footer-links {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.login-footer-global a {
+  color: #60738f;
+  text-decoration: none;
+}
+
+.login-footer-global a:hover {
+  color: #3498db;
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .register-page-main {
+    padding: 1.3rem 0.9rem 1.6rem;
+  }
+
+  .register-intro {
+    margin-bottom: 1rem;
+  }
+
+  .register-two-cols {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .register-field-group {
+    margin-bottom: 0.9rem;
+  }
+
+  .register-field-group input {
+    min-height: 56px;
+    border-radius: 16px;
+  }
 }

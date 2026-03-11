@@ -3,6 +3,9 @@ import React from "react";
 import "./ToothGraph.css"; // optional for styles
 
 // keep your organized teeth paths here
+const upperTeeth = [11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28];
+const lowerTeeth = [31, 32, 33, 34, 35, 36, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48];
+
 const paths = [
   { id: "18", d: "M224.383 1903.44C281.867 1908.69 333.705 1922.37 368.618 1953.81C418.46 1979.57 450.259 2006.57 447.629 2035.95C463.582 2080.71 451.166 2113.23 441.821 2147.08L415.267 2202.64C398.471 2234.98 363.761 2256.51 309.467 2266.22C245.55 2276.81 181.628 2289.52 117.834 2253.16C45.2036 2226.06 41.7474 2187.63 34.7708 2149.77C13.3352 2110.94 -1.01687 2064.17 7.48465 1991.83C15.0173 1958.77 24.5906 1916.73 71.4642 1897.52C118.338 1878.31 160.367 1888.27 224.383 1903.44Z" },
   { id: "17", d: "M70.9188 1701.98C50.7602 1674.35 53.3965 1634.14 66.9921 1587.88C118.872 1469.05 212.075 1443.44 357.272 1535.12C402.816 1553.5 438.922 1588.86 462.673 1624.13C486.038 1658.83 507.73 1675.53 496.181 1736.89C469.516 1840.26 423.457 1921.34 292.922 1905.38C241.057 1899.07 195.255 1912.65 129.657 1861.29C104.264 1819.26 55.3313 1822.05 70.9188 1701.98Z" },
@@ -38,54 +41,98 @@ const paths = [
   { id: "31", d: "M1599.36 4333.27C1612.36 4361.81 1621.56 4393.39 1645.26 4413.32C1655.9 4423.97 1665.05 4437.61 1653.23 4493.47C1640.96 4516.74 1619.96 4530.36 1586.95 4530.71C1560.33 4525.71 1537.41 4518.57 1495.55 4522.33C1475.39 4517.46 1457.02 4523.99 1432.54 4491.46C1424.45 4476.1 1411.86 4466.31 1432.34 4415.6L1495.05 4331.82C1512.06 4319.14 1513.93 4299.63 1553.58 4297.18C1584.59 4298.12 1590.4 4316.8 1599.36 4333.27Z" },
 ];// Added renderTooltip and readOnly props to the destructuring
 const ToothGraph = ({ selectedTeeth = [], onChange, renderTooltip, readOnly = false }) => {
-  
+  const normalizedSelection = Array.isArray(selectedTeeth) ? selectedTeeth.map(Number) : [];
+  const [hoveredTeeth, setHoveredTeeth] = React.useState([]);
+
   const toggleTooth = (toothId) => {
     // If readOnly is true (like in the history modal), do nothing on click
     if (readOnly) return;
 
     const id = Number(toothId); 
-    const newSelection = selectedTeeth.includes(id)
-      ? selectedTeeth.filter((t) => t !== id)
-      : [...selectedTeeth, id];
+    const newSelection = normalizedSelection.includes(id)
+      ? normalizedSelection.filter((t) => t !== id)
+      : [...normalizedSelection, id];
 
     onChange(newSelection);
   };
 
-  return (
-    <svg
-      viewBox="0 0 2827 4536"
-      width="250"
-      height="400"
-      xmlns="http://www.w3.org/2000/svg"
-      className="tooth-graph"
-    >
-      {paths.map((tooth) => {
-        const toothId = Number(tooth.id);
-        const isSelected = selectedTeeth.includes(toothId);
-        
-        // Get the tooltip text from the prop we passed in Patient.jsx
-        const tooltipText = renderTooltip ? renderTooltip(toothId) : null;
+  const toggleArch = (archTeeth) => {
+    if (readOnly) return;
 
-        return (
-          <path
-            key={tooth.id}
-            d={tooth.d}
-            stroke="black"
-            strokeWidth="15"
-            strokeLinejoin="round"
-            fill={isSelected ? "#3498db" : "white"}
-            onClick={() => toggleTooth(toothId)}
-            style={{ 
-              cursor: readOnly ? "default" : "pointer", 
-              transition: "fill 0.2s ease" 
-            }}
+    const allSelected = archTeeth.every((toothId) => normalizedSelection.includes(toothId));
+    const nextSelection = allSelected
+      ? normalizedSelection.filter((toothId) => !archTeeth.includes(toothId))
+      : Array.from(new Set([...normalizedSelection, ...archTeeth])).sort((a, b) => a - b);
+
+    onChange(nextSelection);
+  };
+
+  const isToothHovered = (toothId) => hoveredTeeth.includes(toothId);
+
+  return (
+    <div className="tooth-graph-wrapper">
+      {!readOnly && (
+        <div className="tooth-arch-actions">
+          <button
+            type="button"
+            className={`tooth-arch-btn ${upperTeeth.every((id) => normalizedSelection.includes(id)) ? "active" : ""}`}
+            onClick={() => toggleArch(upperTeeth)}
+            onMouseEnter={() => setHoveredTeeth(upperTeeth)}
+            onMouseLeave={() => setHoveredTeeth([])}
           >
-            {/* Native SVG Tooltip: This shows up on hover */}
-            {tooltipText && <title>{tooltipText}</title>}
-          </path>
-        );
-      })}
-    </svg>
+            Haut
+          </button>
+          <button
+            type="button"
+            className={`tooth-arch-btn ${lowerTeeth.every((id) => normalizedSelection.includes(id)) ? "active" : ""}`}
+            onClick={() => toggleArch(lowerTeeth)}
+            onMouseEnter={() => setHoveredTeeth(lowerTeeth)}
+            onMouseLeave={() => setHoveredTeeth([])}
+          >
+            Bas
+          </button>
+        </div>
+      )}
+
+      <svg
+        viewBox="0 0 2827 4536"
+        width="250"
+        height="400"
+        xmlns="http://www.w3.org/2000/svg"
+        className="tooth-graph"
+      >
+        {paths.map((tooth) => {
+          const toothId = Number(tooth.id);
+          const isSelected = normalizedSelection.includes(toothId);
+          const isHovered = isToothHovered(toothId);
+          
+          // Get the tooltip text from the prop we passed in Patient.jsx
+          const tooltipText = renderTooltip ? renderTooltip(toothId) : null;
+
+          return (
+            <path
+              key={tooth.id}
+              d={tooth.d}
+              stroke="black"
+              strokeWidth="15"
+              strokeLinejoin="round"
+              fill={isSelected ? "#3498db" : isHovered ? "#dbeafe" : "white"}
+              onClick={() => toggleTooth(toothId)}
+              onMouseEnter={() => !readOnly && setHoveredTeeth([toothId])}
+              onMouseLeave={() => !readOnly && setHoveredTeeth([])}
+              style={{ 
+                cursor: readOnly ? "default" : "pointer", 
+                transition: "fill 0.2s ease, stroke 0.2s ease",
+                stroke: isHovered && !isSelected ? "#60a5fa" : "black",
+              }}
+            >
+              {/* Native SVG Tooltip: This shows up on hover */}
+              {tooltipText && <title>{tooltipText}</title>}
+            </path>
+          );
+        })}
+      </svg>
+    </div>
   );
 };
 

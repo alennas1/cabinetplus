@@ -23,6 +23,7 @@ import {
   updateLaboratory,
 } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Patient.css";
 import "./Profile.css";
 import "./Finance.css";
@@ -164,12 +165,18 @@ const LaboratoryDetails = () => {
   };
 
   const filteredPayments = useMemo(
-    () => applyDateFilter(laboratory?.payments || [], "paymentDate", paymentFilters),
+    () =>
+      applyDateFilter(laboratory?.payments || [], "paymentDate", paymentFilters).sort(
+        (a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0)
+      ),
     [laboratory, paymentFilters]
   );
 
   const filteredBillingEntries = useMemo(
-    () => applyDateFilter(laboratory?.billingEntries || [], "billingDate", billingFilters),
+    () =>
+      applyDateFilter(laboratory?.billingEntries || [], "billingDate", billingFilters).sort(
+        (a, b) => new Date(b.billingDate || 0) - new Date(a.billingDate || 0)
+      ),
     [laboratory, billingFilters]
   );
 
@@ -391,9 +398,11 @@ const LaboratoryDetails = () => {
 
   if (loading) {
     return (
-      <div className="patient-container">
-        <p className="loading">Chargement...</p>
-      </div>
+      <DentistPageSkeleton
+        title="Laboratoire"
+        subtitle="Chargement du detail laboratoire"
+        variant="table"
+      />
     );
   }
 

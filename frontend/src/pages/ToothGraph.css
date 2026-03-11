@@ -1,3 +1,38 @@
+.tooth-graph-wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.tooth-arch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tooth-arch-btn {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tooth-arch-btn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.tooth-arch-btn.active {
+  background: #3498db;
+  border-color: #3498db;
+  color: #fff;
+}
+
 .tooth-graph-container {
   position: relative;
   display: inline-block;

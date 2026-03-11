@@ -4,6 +4,7 @@ import { Plus, Eye, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
 
@@ -20,6 +21,7 @@ const Employees = () => {
   const navigate = useNavigate();
 
   const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,6 +47,9 @@ const Employees = () => {
     status: "ACTIVE", // default enum
     salary: "",
     contractType: "",
+    username: "",
+    password: "",
+    accessRole: "RECEPTION",
   });
   const [isEditing, setIsEditing] = useState(false);
   const [formStep, setFormStep] = useState(1);
@@ -57,10 +62,13 @@ const Employees = () => {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
+        setLoading(true);
         const data = await getEmployees(token);
         setEmployees(data);
       } catch (err) {
         console.error("Error fetching employees:", err);
+      } finally {
+        setLoading(false);
       }
     };
     fetchEmployees();
@@ -102,6 +110,9 @@ const Employees = () => {
       status: formData.status || "ACTIVE", // must match enum
       salary: formData.salary ? Number(formData.salary) : null,
       contractType: formData.contractType,
+      username: formData.username || null,
+      password: formData.password || null,
+      accessRole: formData.accessRole || "RECEPTION",
     };
 
     try {
@@ -121,7 +132,7 @@ const Employees = () => {
       resetForm();
     } catch (err) {
       console.error("❌ Error saving employee:", err.response?.data || err.message);
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     }
   };
 
@@ -168,9 +179,22 @@ const Employees = () => {
       status: "ACTIVE",
       salary: "",
       contractType: "",
+      username: "",
+      password: "",
+      accessRole: "RECEPTION",
     });
     setIsEditing(false);
   };
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Employes"
+        subtitle="Chargement de l'equipe du cabinet"
+        variant="table"
+      />
+    );
+  }
 
   return (
     <div className="patients-container">
@@ -217,16 +241,18 @@ const Employees = () => {
             <th>Prénom</th>
             <th>Nom</th>
             <th>Téléphone</th>
+            <th>Rôle</th>
             <th>Statut</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {currentEmployees.map((emp) => (
-            <tr key={emp.id}>
+            <tr key={emp.id} onClick={() => navigate(`/gestion-cabinet/employees/${emp.id}`)} style={{ cursor: "pointer" }}>
               <td>{emp.firstName || "—"}</td>
               <td>{emp.lastName || "—"}</td>
               <td>{emp.phone || "—"}</td>
+              <td>{emp.accessRole || "—"}</td>
               <td>
                 <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
                   {emp.status === "ACTIVE"
@@ -239,10 +265,16 @@ const Employees = () => {
                 </span>
               </td>
               <td className="actions-cell">
-                <button className="action-btn view" onClick={() => navigate(`/gestion-cabinet/employees/${emp.id}`)} title="Voir / Modifier">
+                <button className="action-btn view" onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/gestion-cabinet/employees/${emp.id}`);
+                }} title="Voir / Modifier">
                   <Eye size={16} />
                 </button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(emp.id)} title="Supprimer">
+                <button className="action-btn delete" onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteClick(emp.id);
+                }} title="Supprimer">
                   <Trash2 size={16} />
                 </button>
               </td>
@@ -251,7 +283,7 @@ const Employees = () => {
 
           {filteredEmployees.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
+              <td colSpan={6} style={{ textAlign: "center", color: "#888" }}>
                 Aucun employé trouvé
               </td>
             </tr>
@@ -425,7 +457,32 @@ const Employees = () => {
                     <option value="ACTIVE">Actif</option>
                     <option value="INACTIVE">Inactif</option>
                     <option value="ON_LEAVE">En congé</option>
+                  </select>                  <span className="field-label">Rôle d'accès</span>
+                  <select
+                    name="accessRole"
+                    value={formData.accessRole || "RECEPTION"}
+                    onChange={handleChange}
+                  >
+                    <option value="RECEPTION">Reception</option>
+                    <option value="ASSISTANT">Assistant</option>
+                    <option value="PARTNER_DENTIST">Partner Dentist</option>
                   </select>
+                  <span className="field-label">Nom d'utilisateur</span>
+                  <input
+                    type="text"
+                    name="username"
+                    value={formData.username || ""}
+                    onChange={handleChange}
+                    required
+                  />
+                  <span className="field-label">Mot de passe</span>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password || ""}
+                    onChange={handleChange}
+                    required={!isEditing}
+                  />
                 </>
               )}
 
@@ -499,3 +556,7 @@ const Employees = () => {
 };
 
 export default Employees;
+
+
+
+

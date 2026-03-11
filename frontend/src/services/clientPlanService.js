@@ -1,16 +1,13 @@
-import axios from "axios";
+import api from "./authService";
 
-// Updated to the new public-facing client endpoint
-const CLIENT_API_URL = "http://localhost:8080/api/plans";
+const CLIENT_API_URL = "/api/plans";
 
 /**
  * Get all active plans (Client view)
  * Calls GET /api/plan
  */
-export const getAllPlansClient = async (token) => {
-  const response = await axios.get(CLIENT_API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getAllPlansClient = async () => {
+  const response = await api.get(CLIENT_API_URL);
   return response.data;
 };
 
@@ -18,9 +15,7 @@ export const getAllPlansClient = async (token) => {
  * Get a specific plan by ID (Client view)
  * Calls GET /api/plan/{id}
  */
-export const getPlanByIdClient = async (id, token) => {
-  const response = await axios.get(`${CLIENT_API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getPlanByIdClient = async (id) => {
+  const response = await api.get(`${CLIENT_API_URL}/${id}`);
   return response.data;
 };

@@ -53,19 +53,19 @@ const EndingPlans = () => {
     toast.info(`Viewing user with ID: ${id}`);
   };
 
-  const filteredUsers = users.filter((u) => {
-    // Status filter
-    if (filterStatus !== "ALL" && (u.planStatus || "PENDING") !== filterStatus) {
-      return false;
-    }
-    // Search filter
-    if (!search) return true;
-    return (
-      u.firstname.toLowerCase().includes(search.toLowerCase()) ||
-      u.lastname.toLowerCase().includes(search.toLowerCase()) ||
-      (u.phoneNumber && u.phoneNumber.includes(search))
-    );
-  });
+  const filteredUsers = users
+    .filter((u) => {
+      if (filterStatus !== "ALL" && (u.planStatus || "PENDING") !== filterStatus) {
+        return false;
+      }
+      if (!search) return true;
+      return (
+        u.firstname.toLowerCase().includes(search.toLowerCase()) ||
+        u.lastname.toLowerCase().includes(search.toLowerCase()) ||
+        (u.phoneNumber && u.phoneNumber.includes(search))
+      );
+    })
+    .sort((a, b) => new Date(a.expirationDate || 0) - new Date(b.expirationDate || 0));
 
   const indexOfLast = currentPage * usersPerPage;
   const indexOfFirst = indexOfLast - usersPerPage;
@@ -133,7 +133,7 @@ const EndingPlans = () => {
       currentUsers.map((u) => {
         const status = (u.planStatus || "PENDING").toUpperCase();
         return (
-          <tr key={u.id}>
+          <tr key={u.id} onClick={() => handleView(u.id)} style={{ cursor: "pointer" }}>
             <td>{`${u.firstname} ${u.lastname}`}</td>
             <td>{u.phoneNumber || "-"}</td>
             <td>
@@ -154,7 +154,10 @@ const EndingPlans = () => {
             <td>{status === "ACTIVE" && u.plan ? u.plan.name : "-"}</td>
             <td>{u.expirationDate ? new Date(u.expirationDate).toLocaleDateString("fr-FR") : "-"}</td>
             <td className="actions-cell">
-              <button className="action-btn view" title="View" onClick={() => handleView(u.id)}>
+              <button className="action-btn view" title="View" onClick={(e) => {
+                e.stopPropagation();
+                handleView(u.id);
+              }}>
                 <Eye size={16} />
               </button>
             </td>

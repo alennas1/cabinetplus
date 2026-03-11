@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, Eye, Search } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getJustificationTemplates,
   createJustificationTemplate,
@@ -28,6 +29,7 @@ const PLACEHOLDERS = [
 
 const JustificationContentPage = () => {
   const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,10 +56,13 @@ const JustificationContentPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const data = await getJustificationTemplates();
         setTemplates(Array.isArray(data) ? data : []);
       } catch (err) {
         toast.error("Erreur lors du chargement des modèles");
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -176,6 +181,16 @@ const JustificationContentPage = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Modèles de justification"
+        subtitle="Chargement des documents types"
+        variant="table"
+      />
+    );
+  }
+
   return (
     <div className="patients-container">
       <PageHeader title="Modèles de Justification" subtitle="Gérez vos documents types" align="left" />
@@ -209,14 +224,14 @@ const JustificationContentPage = () => {
         </thead>
         <tbody>
           {currentTemplates.map((t) => (
-            <tr key={t.id}>
+            <tr key={t.id} onClick={() => setViewTemplate(t)} style={{ cursor: "pointer" }}>
               <td style={{ fontWeight: "600", color: "#2c3e50" }}>
                 {t.title || "Titre manquant"}
               </td>
               <td className="actions-cell" style={{ textAlign: "right" }}>
-                <button className="action-btn view" title="Voir" onClick={() => setViewTemplate(t)}><Eye size={16} /></button>
-                <button className="action-btn edit" title="Modifier" onClick={() => handleEdit(t)}><Edit2 size={16} /></button>
-                <button className="action-btn delete" title="Supprimer" onClick={() => handleDeleteClick(t.id)}><Trash2 size={16} /></button>
+                <button className="action-btn view" title="Voir" onClick={(e) => { e.stopPropagation(); setViewTemplate(t); }}><Eye size={16} /></button>
+                <button className="action-btn edit" title="Modifier" onClick={(e) => { e.stopPropagation(); handleEdit(t); }}><Edit2 size={16} /></button>
+                <button className="action-btn delete" title="Supprimer" onClick={(e) => { e.stopPropagation(); handleDeleteClick(t.id); }}><Trash2 size={16} /></button>
               </td>
             </tr>
           ))}

@@ -1,5 +1,5 @@
 // src/pages/Patient.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
@@ -35,9 +35,16 @@ import {
   getProtheticsByPatient, createProthetics, updateProthetics, deleteProthetics, updateProtheticsStatus
 } from "../services/prostheticsService";
 import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
+import {
+  deleteDocument,
+  getDocumentBlobUrl,
+  getDocumentsByPatient,
+  uploadPatientDocument,
+} from "../services/documentService";
 import { getApiErrorMessage } from "../utils/error";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Patient.css";
-import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer } from "react-feather";
+import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud } from "react-feather";
 
 const Patient = () => {
   const { id } = useParams();
@@ -61,6 +68,18 @@ const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"];
 const [showPatientModal, setShowPatientModal] = useState(false); // for Add/Edit Patient
 const [showJustificationModal, setShowJustificationModal] = useState(false); // for Justification modal
 const [justificationTypes, setJustificationTypes] = useState([]); // list of justification templates
+const [documents, setDocuments] = useState([]);
+const [showDocumentModal, setShowDocumentModal] = useState(false);
+const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+const [documentForm, setDocumentForm] = useState({
+  title: "",
+  file: null,
+});
+const [isDragOverDocument, setIsDragOverDocument] = useState(false);
+
+const allowedDocumentExtensions = [".pdf", ".jpg", ".jpeg", ".png", ".dcm", ".tiff", ".doc", ".docx"];
+const blockedDocumentExtensions = [".exe", ".js", ".php", ".sh", ".bat", ".msi"];
+const maxDocumentFileSizeBytes = 25 * 1024 * 1024;
 
 const [activeTab, setActiveTab] = useState("treatments"); // default tab
 
@@ -272,6 +291,9 @@ useEffect(() => {
       const justificationsData = await getJustificationsByPatient(id);
       setJustifications(justificationsData);
 
+      const documentsData = await getDocumentsByPatient(id);
+      setDocuments(documentsData);
+
     } catch (err) {
       console.error(err);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
@@ -281,6 +303,106 @@ useEffect(() => {
   };
   fetchData();
 }, [id]);
+
+const resetDocumentForm = () => {
+  setDocumentForm({
+    title: "",
+    file: null,
+  });
+  setIsDragOverDocument(false);
+};
+
+const handleSelectedDocumentFile = (file) => {
+  if (!file) return;
+
+  const extension = `.${file.name.split(".").pop()?.toLowerCase() || ""}`;
+  if (blockedDocumentExtensions.includes(extension) || !allowedDocumentExtensions.includes(extension)) {
+    toast.error("Type de fichier non autorisé");
+    return;
+  }
+  if (file.size > maxDocumentFileSizeBytes) {
+    toast.error("La taille maximale par fichier est de 25 MB");
+    return;
+  }
+
+  setDocumentForm((prev) => ({
+    ...prev,
+    file,
+    title: prev.title || file.name.replace(/\.[^.]+$/, ""),
+  }));
+};
+
+const handleDocumentFileInputChange = (e) => {
+  handleSelectedDocumentFile(e.target.files?.[0] || null);
+};
+
+const handleDocumentDrop = (e) => {
+  e.preventDefault();
+  setIsDragOverDocument(false);
+  handleSelectedDocumentFile(e.dataTransfer.files?.[0] || null);
+};
+
+const handleSaveDocument = async (e) => {
+  e.preventDefault();
+
+  if (!documentForm.file) {
+    toast.error("Veuillez choisir un fichier");
+    return;
+  }
+
+  try {
+    setIsUploadingDocument(true);
+    const savedDocument = await uploadPatientDocument({
+      patientId: Number(id),
+      title: documentForm.title,
+      file: documentForm.file,
+    });
+
+    setDocuments((prev) => [savedDocument, ...prev]);
+    setShowDocumentModal(false);
+    resetDocumentForm();
+    toast.success("Pièce jointe ajoutée");
+  } catch (err) {
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout de la pièce jointe"));
+  } finally {
+    setIsUploadingDocument(false);
+  }
+};
+
+const handleOpenDocument = async (documentItem) => {
+  const previewWindow = window.open("", "_blank", "noopener,noreferrer");
+  try {
+    const blobUrl = await getDocumentBlobUrl(documentItem.id);
+    if (previewWindow) {
+      previewWindow.location.href = blobUrl;
+    } else {
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+    }
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+  } catch (err) {
+    if (previewWindow) {
+      previewWindow.close();
+    }
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Impossible d'ouvrir la pièce jointe"));
+  }
+};
+
+const handleDeleteDocument = (documentItem) => {
+  setConfirmMessage("Voulez-vous supprimer cette pièce jointe ?");
+  setOnConfirmAction(() => async () => {
+    try {
+      await deleteDocument(documentItem.id);
+      setDocuments((prev) => prev.filter((item) => item.id !== documentItem.id));
+      toast.success("Pièce jointe supprimée");
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
+    }
+  });
+  setShowConfirm(true);
+};
 
 const handleDeleteJustification = (j) => {
   setConfirmMessage("Voulez-vous supprimer ce justificatif ?");
@@ -576,6 +698,19 @@ const totalPaiement = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 
 
 // Remaining balance
 const totalReste = totalFacture - totalPaiement;
+
+const sortedPayments = useMemo(
+  () => [...payments].sort((a, b) => new Date(b.date || b.paymentDate || 0) - new Date(a.date || a.paymentDate || 0)),
+  [payments]
+);
+
+const sortedAppointments = useMemo(
+  () =>
+    [...appointments].sort(
+      (a, b) => new Date(b.dateTimeStart || 0) - new Date(a.dateTimeStart || 0)
+    ),
+  [appointments]
+);
 
  const handleTreatmentChange = (e) => {
    const { name, value, type, checked } = e.target;
@@ -900,7 +1035,15 @@ const handleDeleteAppointment = (a) => {
   setShowConfirm(true);
 };
 
-  if (loading) return <p className="loading">Chargement...</p>;
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Patient"
+        subtitle="Chargement du dossier patient"
+        variant="table"
+      />
+    );
+  }
   if (!patient) return <p className="loading">Patient introuvable</p>;
 
   return (
@@ -1060,6 +1203,13 @@ const handleDeleteAppointment = (a) => {
   onClick={() => setActiveTab("justifications")}
 >
   <FileText size={16} /> Justificatifs
+</button>
+
+<button
+  className={activeTab === "documents" ? "tab-btn active" : "tab-btn"}
+  onClick={() => setActiveTab("documents")}
+>
+  <Paperclip size={16} /> Pièces jointes
 </button>
 </div>
 
@@ -1225,7 +1375,7 @@ const handleDeleteAppointment = (a) => {
         </tr>
       </thead>
      <tbody>
-  {payments.map(p => (
+  {sortedPayments.map(p => (
     <tr key={p.id}>
       <td>{p.amount} DA</td>
       <td>{paymentMethodLabels[p.method] || p.method}</td>
@@ -1241,7 +1391,7 @@ const handleDeleteAppointment = (a) => {
       </td>
     </tr>
   ))}
-  {payments.length === 0 && (
+  {sortedPayments.length === 0 && (
     <tr>
       <td colSpan="4" style={{ textAlign: "center" }}>Aucun versement</td>
     </tr>
@@ -1277,7 +1427,7 @@ const handleDeleteAppointment = (a) => {
         </tr>
       </thead>
       <tbody>
-        {appointments.map(a => (
+        {sortedAppointments.map(a => (
           <tr key={a.id}>
             <td>{formatDate(a.dateTimeStart)}</td>
             <td>{a.dateTimeStart ? new Date(a.dateTimeStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</td>
@@ -1385,6 +1535,60 @@ const handleDeleteAppointment = (a) => {
   </>
 )}
 
+{activeTab === "documents" && (
+  <>
+    <div className="button-container">
+      <button
+        className="btn-primary-app"
+        onClick={() => {
+          resetDocumentForm();
+          setShowDocumentModal(true);
+        }}
+      >
+        <Plus size={16} /> Ajouter
+      </button>
+    </div>
+    <table className="treatment-table">
+      <thead>
+        <tr>
+          <th>Titre</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {documents.map((documentItem) => (
+          <tr key={documentItem.id}>
+            <td>{documentItem.title || documentItem.filename || "Sans titre"}</td>
+            <td>{formatDate(documentItem.uploadedAt)}</td>
+            <td className="actions-cell">
+              <button
+                className="action-btn view"
+                onClick={() => handleOpenDocument(documentItem)}
+                title="Voir"
+              >
+                <Eye size={16} />
+              </button>
+              <button
+                className="action-btn delete"
+                onClick={() => handleDeleteDocument(documentItem)}
+                title="Supprimer"
+              >
+                <Trash2 size={16} />
+              </button>
+            </td>
+          </tr>
+        ))}
+        {documents.length === 0 && (
+          <tr>
+            <td colSpan="3" style={{ textAlign: "center" }}>Aucune pièce jointe</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </>
+)}
+
 {showQrModal && (
         <div className="modal-overlay" onClick={() => setShowQrModal(false)}>
           <div className="modal-content" style={{textAlign: 'center'}} onClick={e => e.stopPropagation()}>
@@ -1407,6 +1611,76 @@ const handleDeleteAppointment = (a) => {
           </div>
         </div>
       )}
+{showDocumentModal && (
+  <div className="modal-overlay" onClick={() => {
+    setShowDocumentModal(false);
+    resetDocumentForm();
+  }}>
+    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <h2>Ajouter une pièce jointe</h2>
+      <form className="modal-form" onSubmit={handleSaveDocument}>
+        <label>Titre</label>
+        <input
+          type="text"
+          value={documentForm.title}
+          onChange={(e) => setDocumentForm((prev) => ({ ...prev, title: e.target.value }))}
+          placeholder="Entrez le titre"
+          required
+        />
+
+        <label>Fichier</label>
+        <div
+          className={`document-dropzone ${isDragOverDocument ? "dragover" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOverDocument(true);
+          }}
+          onDragLeave={() => setIsDragOverDocument(false)}
+          onDrop={handleDocumentDrop}
+        >
+          <UploadCloud size={28} />
+          <p>Glissez-déposez votre fichier ici</p>
+          <span>ou</span>
+          <label className="document-import-btn" htmlFor="patient-document-file">
+            Importer
+          </label>
+          <input
+            id="patient-document-file"
+            type="file"
+            accept={allowedDocumentExtensions.join(",")}
+            onChange={handleDocumentFileInputChange}
+            hidden
+          />
+          <small>Types acceptés: pdf, jpg, jpeg, png, dcm, tiff, doc, docx</small>
+          <small>Taille maximale: 25 MB par fichier</small>
+        </div>
+
+        {documentForm.file && (
+          <div className="document-file-summary">
+            <strong>{documentForm.file.name}</strong>
+            <span>{Math.max(1, Math.round(documentForm.file.size / 1024))} KB</span>
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button type="submit" className="btn-primary2" disabled={isUploadingDocument}>
+            {isUploadingDocument ? "Envoi..." : "Enregistrer"}
+          </button>
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={() => {
+              setShowDocumentModal(false);
+              resetDocumentForm();
+            }}
+          >
+            Annuler
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 {showModal && (
   <div
     className="modal-overlay"

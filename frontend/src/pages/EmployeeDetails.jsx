@@ -1,51 +1,37 @@
-// src/pages/Employee.jsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Edit2, Calendar, User, CreditCard, X, ArrowLeft } from "react-feather";
+import {
+  Edit2,
+  Calendar,
+  User,
+  Lock,
+  CreditCard,
+  X,
+  ArrowLeft,
+  Check,
+} from "react-feather";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { getEmployeeById, updateEmployee } from "../services/employeeService";
 import { getExpensesByEmployee } from "../services/expenseService";
 import { updateWorkingHour } from "../services/workingHoursService";
-import "./Patient.css"; // reuse existing styles
+import { getApiErrorMessage } from "../utils/error";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import "./Patient.css";
+import "./Profile.css";
 
-const Employee = () => {
+const EmployeeDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [employee, setEmployee] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
   const [expenses, setExpenses] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false); // profile modal
-  const [isHoursModalOpen, setIsHoursModalOpen] = useState(false); // working hours modal
-  const [formData, setFormData] = useState({});
   const [workingHours, setWorkingHours] = useState([]);
-
-  // Fetch employee
-  useEffect(() => {
-    const fetchEmployee = async () => {
-      try {
-        const data = await getEmployeeById(id);
-        setEmployee(data);
-        setFormData(data);
-        setWorkingHours(data.workingHours || []);
-      } catch (err) {
-        console.error("Failed to fetch employee:", err);
-      }
-    };
-    fetchEmployee();
-  }, [id]);
-
-  // Fetch employee expenses
-  useEffect(() => {
-    const fetchExpenses = async () => {
-      try {
-        const data = await getExpensesByEmployee(id);
-        setExpenses(data);
-      } catch (err) {
-        console.error("Failed to fetch expenses:", err);
-      }
-    };
-    fetchExpenses();
-  }, [id]);
+  const [isHoursModalOpen, setIsHoursModalOpen] = useState(false);
+  const [editingField, setEditingField] = useState(null);
+  const [tempValue, setTempValue] = useState("");
 
   const formatDate = (dateStr) =>
     dateStr
@@ -56,15 +42,12 @@ const Employee = () => {
         })
       : "—";
 
-  const dayOrder = [
-    "SUNDAY",
-    "MONDAY",
-    "TUESDAY",
-    "WEDNESDAY",
-    "THURSDAY",
-    "FRIDAY",
-    "SATURDAY",
-  ];
+  const formatPhoneNumber = (phone) => {
+    if (!phone) return "";
+    const digits = String(phone).replace(/\D/g, "");
+    if (digits.length !== 10) return phone;
+    return digits.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
+  };
 
   const translateStatus = (status) => {
     if (!status) return "—";
@@ -79,6 +62,8 @@ const Employee = () => {
         return status;
     }
   };
+
+  const dayOrder = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
   const translateDay = (day) => {
     if (!day) return "";
@@ -116,93 +101,188 @@ const Employee = () => {
     }
   };
 
-  if (!employee) return <p className="loading">Chargement...</p>;
-// ---- Calculate monthly totals ----
-const monthlyTotals = expenses.reduce((acc, expense) => {
-  if (!expense.date) return acc;
-
-  const date = new Date(expense.date);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const key = `${year}-${month}`;
-
-  if (!acc[key]) {
-    acc[key] = 0;
-  }
-
-  acc[key] += Number(expense.amount) || 0;
-
-  return acc;
-}, {});
-const formatMonth = (yearMonth) => {
-  const [year, month] = yearMonth.split("-");
-  return new Date(year, month - 1).toLocaleDateString("fr-FR", {
-    month: "long",
-    year: "numeric",
+  const toUpdatePayload = (source, passwordValue = null) => ({
+    firstName: source.firstName || "",
+    lastName: source.lastName || "",
+    gender: source.gender || "",
+    dateOfBirth: source.dateOfBirth || null,
+    nationalId: source.nationalId || "",
+    phone: source.phone || "",
+    email: source.email || "",
+    address: source.address || "",
+    hireDate: source.hireDate || null,
+    endDate: source.endDate || null,
+    status: source.status || "ACTIVE",
+    salary: source.salary === "" || source.salary == null ? null : Number(source.salary),
+    contractType: source.contractType || "",
+    username: source.username || null,
+    password: passwordValue,
+    accessRole: source.accessRole || "RECEPTION",
   });
-};
-  const formatPhoneNumber = (phone) => {
-    if (!phone) return "";
-    return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
+
+  useEffect(() => {
+    const fetchEmployee = async () => {
+      try {
+        setLoading(true);
+        const data = await getEmployeeById(id);
+        setEmployee(data);
+        setWorkingHours(data.workingHours || []);
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Erreur chargement employe"));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployee();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchExpenses = async () => {
+      try {
+        const data = await getExpensesByEmployee(id);
+        setExpenses(data);
+      } catch (err) {
+        console.error("Failed to fetch expenses:", err);
+      }
+    };
+    fetchExpenses();
+  }, [id]);
+
+  const monthlyTotals = expenses.reduce((acc, expense) => {
+    if (!expense.date) return acc;
+    const date = new Date(expense.date);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const key = `${year}-${month}`;
+    if (!acc[key]) acc[key] = 0;
+    acc[key] += Number(expense.amount) || 0;
+    return acc;
+  }, {});
+
+  const formatMonth = (yearMonth) => {
+    const [year, month] = yearMonth.split("-");
+    return new Date(year, month - 1).toLocaleDateString("fr-FR", {
+      month: "long",
+      year: "numeric",
+    });
   };
 
-  // Handle profile input changes
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const startEdit = (field) => {
+    setEditingField(field);
+    if (field === "password") {
+      setTempValue("");
+      return;
+    }
+    setTempValue(employee?.[field] == null ? "" : String(employee[field]));
   };
 
-  // Handle working hours changes (by id, not index)
-  const handleWorkingHourChange = (id, field, value) => {
-    const updated = workingHours.map((h) =>
-      h.id === id ? { ...h, [field]: value } : h
-    );
-    setWorkingHours(updated);
+  const cancelEdit = () => {
+    setEditingField(null);
+    setTempValue("");
   };
 
-  // Toggle rest day (set times to null)
-  const handleRestDayToggle = (id, checked) => {
-    const updated = workingHours.map((h) =>
-      h.id === id
-        ? {
-            ...h,
-            startTime: checked ? null : "",
-            endTime: checked ? null : "",
-          }
-        : h
-    );
-    setWorkingHours(updated);
-  };
+  const saveField = async (field) => {
+    if (!employee) return;
 
-  // Save employee changes (profile)
-  const handleSave = async () => {
+    let nextValue = tempValue;
+    if (field === "salary") {
+      nextValue = tempValue === "" ? null : Number(tempValue);
+    }
+    if (["dateOfBirth", "hireDate", "endDate"].includes(field)) {
+      nextValue = tempValue || null;
+    }
+
+    const draft = { ...employee, [field]: nextValue };
+    const passwordValue = field === "password" ? tempValue : null;
     try {
-      const payload = {
-        ...formData,
-        salary: formData.salary ? Number(formData.salary) : null,
-        status: formData.status ? formData.status.toUpperCase() : "INACTIVE",
-      };
-      const updated = await updateEmployee(id, payload);
-      setEmployee({ ...updated, workingHours });
-      setIsModalOpen(false);
+      const updated = await updateEmployee(id, toUpdatePayload(draft, passwordValue));
+      setEmployee(updated);
+      if (updated.workingHours) setWorkingHours(updated.workingHours);
+      setEditingField(null);
+      setTempValue("");
+      toast.success("Champ mis a jour");
     } catch (err) {
-      console.error("Update failed:", err);
+      toast.error(getApiErrorMessage(err, "Erreur de mise a jour"));
     }
   };
 
-  // Save working hours
+  const handleWorkingHourChange = (rowId, field, value) => {
+    setWorkingHours((prev) => prev.map((h) => (h.id === rowId ? { ...h, [field]: value } : h)));
+  };
+
+  const handleRestDayToggle = (rowId, checked) => {
+    setWorkingHours((prev) =>
+      prev.map((h) =>
+        h.id === rowId
+          ? { ...h, startTime: checked ? null : "", endTime: checked ? null : "" }
+          : h
+      )
+    );
+  };
+
   const handleSaveWorkingHours = async () => {
     try {
-      for (let h of workingHours) {
-        if (h.id) {
-          await updateWorkingHour(h.id, h);
-        }
+      for (const h of workingHours) {
+        if (h.id) await updateWorkingHour(h.id, h);
       }
-      setEmployee({ ...employee, workingHours });
+      setEmployee((prev) => ({ ...prev, workingHours }));
       setIsHoursModalOpen(false);
+      toast.success("Horaires mis a jour");
     } catch (err) {
-      console.error("Update working hours failed:", err);
+      toast.error(getApiErrorMessage(err, "Erreur mise a jour horaires"));
     }
   };
+
+  const renderEditableField = (field, label, type = "text", options = null, displayValue = null) => (
+    <div className="profile-field" key={field}>
+      <div className="field-label">{label}:</div>
+
+      {editingField === field ? (
+        <>
+          {options ? (
+            <select value={tempValue} onChange={(e) => setTempValue(e.target.value)}>
+              {options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={type}
+              value={tempValue}
+              onChange={(e) => setTempValue(e.target.value)}
+            />
+          )}
+          <Check size={18} className="icon action confirm" onClick={() => saveField(field)} />
+          <X size={18} className="icon action cancel" onClick={cancelEdit} />
+        </>
+      ) : (
+        <>
+          <div className="field-value">
+            {displayValue != null
+              ? displayValue
+              : employee?.[field] == null || employee?.[field] === ""
+              ? "—"
+              : String(employee[field])}
+          </div>
+          <Edit2 size={18} className="icon action edit" onClick={() => startEdit(field)} />
+        </>
+      )}
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Employe"
+        subtitle="Chargement de la fiche employe"
+        variant="table"
+      />
+    );
+  }
+
+  if (!employee) return <p className="loading">Employe introuvable</p>;
 
   return (
     <div className="patient-container">
@@ -212,17 +292,16 @@ const formatMonth = (yearMonth) => {
         </button>
       </div>
 
-      {/* --- EMPLOYEE HEADER --- */}
       <div className="patient-top">
         <div className="patient-info-left">
           <div className="patient-name">
             {employee.firstName} {employee.lastName}
           </div>
           <div className="patient-details">
-            <div>{employee.contractType}</div>
-            <div>{formatPhoneNumber(employee.phone)}</div>
-            <div>{employee.email}</div>
-            <div>Embauché le {formatDate(employee.hireDate)}</div>
+            <div>{employee.contractType || "—"}</div>
+            <div>{formatPhoneNumber(employee.phone) || "—"}</div>
+            <div>{employee.email || "—"}</div>
+            <div>Embauche le {formatDate(employee.hireDate)}</div>
           </div>
         </div>
 
@@ -231,66 +310,84 @@ const formatMonth = (yearMonth) => {
             <div className="stat-box stat-facture">
               Salaire: {employee.salary ? `${employee.salary} DA` : "—"}
             </div>
-            <div className={getStatusClass(employee.status)}>
-              {translateStatus(employee.status)}
-            </div>
-          </div>
-          <div className="patient-actions">
-            <button
-              className="btn-secondary-app"
-              onClick={() => setIsModalOpen(true)}
-            >
-              <Edit2 size={16} /> Modifier l’employé
-            </button>
+            <div className={getStatusClass(employee.status)}>{translateStatus(employee.status)}</div>
           </div>
         </div>
       </div>
 
-      {/* --- TABS --- */}
       <div className="tab-buttons">
-        <button
-          className={activeTab === "profile" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("profile")}
-        >
+        <button className={activeTab === "profile" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("profile")}>
           <User size={16} /> Profil
         </button>
-        <button
-          className={activeTab === "schedules" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("schedules")}
-        >
+        <button className={activeTab === "personal" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("personal")}>
+          <User size={16} /> Informations personnelles
+        </button>
+        <button className={activeTab === "account" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("account")}>
+          <Lock size={16} /> Compte
+        </button>
+        <button className={activeTab === "schedules" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("schedules")}>
           <Calendar size={16} /> Horaires
         </button>
-        <button
-          className={activeTab === "paie" ? "tab-btn active" : "tab-btn"}
-          onClick={() => setActiveTab("paie")}
-        >
+        <button className={activeTab === "paie" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("paie")}>
           <CreditCard size={16} /> Versements
         </button>
       </div>
 
-      {/* --- TAB CONTENT --- */}
       {activeTab === "profile" && (
         <div className="profile-content">
-          <div className="profile-field">
-            <div className="field-label">Date de naissance:</div>
-            <div className="field-value">{formatDate(employee.dateOfBirth)}</div>
-          </div>
-          <div className="profile-field">
-            <div className="field-label">Genre:</div>
-            <div className="field-value">{employee.gender}</div>
-          </div>
-          <div className="profile-field">
-            <div className="field-label">N° identité nationale:</div>
-            <div className="field-value">{employee.nationalId}</div>
-          </div>
-          <div className="profile-field">
-            <div className="field-label">Adresse:</div>
-            <div className="field-value">{employee.address}</div>
-          </div>
-          <div className="profile-field">
-            <div className="field-label">Date de fin:</div>
-            <div className="field-value">{formatDate(employee.endDate)}</div>
-          </div>
+          {renderEditableField("firstName", "Prenom")}
+          {renderEditableField("lastName", "Nom")}
+          {renderEditableField("phone", "Telephone", "text", null, formatPhoneNumber(employee.phone) || "—")}
+          {renderEditableField("email", "Email", "email")}
+          {renderEditableField("contractType", "Type de contrat")}
+          {renderEditableField("salary", "Salaire", "number", null, employee.salary ? `${employee.salary} DA` : "—")}
+          {renderEditableField(
+            "status",
+            "Statut",
+            "text",
+            [
+              { value: "ACTIVE", label: "Actif" },
+              { value: "INACTIVE", label: "Inactif" },
+              { value: "ON_LEAVE", label: "En conge" },
+            ],
+            translateStatus(employee.status)
+          )}
+          {renderEditableField(
+            "accessRole",
+            "Role d'acces",
+            "text",
+            [
+              { value: "RECEPTION", label: "Reception" },
+              { value: "ASSISTANT", label: "Assistant" },
+              { value: "PARTNER_DENTIST", label: "Partner Dentist" },
+            ]
+          )}
+        </div>
+      )}
+
+      {activeTab === "personal" && (
+        <div className="profile-content">
+          {renderEditableField(
+            "gender",
+            "Genre",
+            "text",
+            [
+              { value: "Homme", label: "Homme" },
+              { value: "Femme", label: "Femme" },
+            ]
+          )}
+          {renderEditableField("dateOfBirth", "Date de naissance", "date", null, formatDate(employee.dateOfBirth))}
+          {renderEditableField("nationalId", "Numero identite nationale")}
+          {renderEditableField("address", "Adresse")}
+          {renderEditableField("hireDate", "Date d'embauche", "date", null, formatDate(employee.hireDate))}
+          {renderEditableField("endDate", "Date de fin", "date", null, formatDate(employee.endDate))}
+        </div>
+      )}
+
+      {activeTab === "account" && (
+        <div className="profile-content">
+          {renderEditableField("username", "Nom d'utilisateur")}
+          {renderEditableField("password", "Mot de passe", "password", null, "********")}
         </div>
       )}
 
@@ -305,18 +402,14 @@ const formatMonth = (yearMonth) => {
             <thead>
               <tr>
                 <th>Jour</th>
-                <th>Début</th>
+                <th>Debut</th>
                 <th>Fin</th>
               </tr>
             </thead>
             <tbody>
               {employee.workingHours
                 ?.slice()
-                .sort(
-                  (a, b) =>
-                    dayOrder.indexOf(a.dayOfWeek) -
-                    dayOrder.indexOf(b.dayOfWeek)
-                )
+                .sort((a, b) => dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek))
                 .map((h) => (
                   <tr key={h.id}>
                     <td>{translateDay(h.dayOfWeek)}</td>
@@ -333,217 +426,65 @@ const formatMonth = (yearMonth) => {
       )}
 
       {activeTab === "paie" && (
-  <div>
-
-    {/* --- Monthly Summary --- */}
-    <h3 style={{ marginBottom: "10px" }}>Total par mois</h3>
-    <table className="treatment-table" style={{ marginBottom: "25px" }}>
-      <thead>
-        <tr>
-          <th>Mois</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {Object.keys(monthlyTotals).length > 0 ? (
-          Object.entries(monthlyTotals)
-            .sort((a, b) => b[0].localeCompare(a[0]))
-            .map(([month, total]) => (
-              <tr key={month}>
-                <td>{formatMonth(month)}</td>
-                <td style={{ fontWeight: "bold" }}>{total} DA</td>
+        <div>
+          <h3 style={{ marginBottom: "10px" }}>Total par mois</h3>
+          <table className="treatment-table" style={{ marginBottom: "25px" }}>
+            <thead>
+              <tr>
+                <th>Mois</th>
+                <th>Total</th>
               </tr>
-            ))
-        ) : (
-          <tr>
-            <td colSpan="2" style={{ textAlign: "center", color: "#888" }}>
-              Aucun versement
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+            </thead>
+            <tbody>
+              {Object.keys(monthlyTotals).length > 0 ? (
+                Object.entries(monthlyTotals)
+                  .sort((a, b) => b[0].localeCompare(a[0]))
+                  .map(([month, total]) => (
+                    <tr key={month}>
+                      <td>{formatMonth(month)}</td>
+                      <td style={{ fontWeight: "bold" }}>{total} DA</td>
+                    </tr>
+                  ))
+              ) : (
+                <tr>
+                  <td colSpan="2" style={{ textAlign: "center", color: "#888" }}>
+                    Aucun versement
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
 
-    {/* --- Detailed Payments --- */}
-    <h3 style={{ marginBottom: "10px" }}>Détails des versements</h3>
-    <table className="treatment-table">
-      <thead>
-        <tr>
-          <th>Nom</th>
-          <th>Montant</th>
-          <th>Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        {expenses.length > 0 ? (
-          expenses.map((e) => (
-            <tr key={e.id}>
-              <td>{e.title}</td>
-              <td>{e.amount} DA</td>
-              <td>{formatDate(e.date)}</td>
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td colSpan="3" style={{ textAlign: "center", color: "#888" }}>
-              Aucun paiement trouvé
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
-)}
-
-      {/* --- PROFILE EDIT MODAL --- */}
-      {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3>Modifier l’employé</h3>
-              <button className="close-btn" onClick={() => setIsModalOpen(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="modal-body">
-              {/* Profile fields */}
-              <label>
-                Prénom:
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Nom:
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Genre:
-                <select
-                  name="gender"
-                  value={formData.gender || ""}
-                  onChange={handleChange}
-                >
-                  <option value="">—</option>
-                  <option value="Homme">Homme</option>
-                  <option value="Femme">Femme</option>
-                </select>
-              </label>
-              <label>
-                Date de naissance:
-                <input
-                  type="date"
-                  name="dateOfBirth"
-                  value={formData.dateOfBirth || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                N° identité nationale:
-                <input
-                  type="text"
-                  name="nationalId"
-                  value={formData.nationalId || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Adresse:
-                <input
-                  type="text"
-                  name="address"
-                  value={formData.address || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Téléphone:
-                <input
-                  type="text"
-                  name="phone"
-                  value={formData.phone || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Email:
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Type de contrat:
-                <input
-                  type="text"
-                  name="contractType"
-                  value={formData.contractType || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Date d’embauche:
-                <input
-                  type="date"
-                  name="hireDate"
-                  value={formData.hireDate || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Date de fin:
-                <input
-                  type="date"
-                  name="endDate"
-                  value={formData.endDate || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Salaire:
-                <input
-                  type="number"
-                  name="salary"
-                  value={formData.salary || ""}
-                  onChange={handleChange}
-                />
-              </label>
-              <label>
-                Statut:
-                <select
-                  name="status"
-                  value={formData.status || ""}
-                  onChange={handleChange}
-                >
-                  <option value="ACTIVE">Actif</option>
-                  <option value="INACTIVE">Inactif</option>
-                  <option value="ON_LEAVE">En congé</option>
-                </select>
-              </label>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary-app" onClick={() => setIsModalOpen(false)}>
-                Annuler
-              </button>
-              <button className="btn-primary-app" onClick={handleSave}>
-                Sauvegarder
-              </button>
-            </div>
-          </div>
+          <h3 style={{ marginBottom: "10px" }}>Details des versements</h3>
+          <table className="treatment-table">
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Montant</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.length > 0 ? (
+                expenses.map((e) => (
+                  <tr key={e.id}>
+                    <td>{e.title}</td>
+                    <td>{e.amount} DA</td>
+                    <td>{formatDate(e.date)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3" style={{ textAlign: "center", color: "#888" }}>
+                    Aucun paiement trouve
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* --- WORKING HOURS MODAL --- */}
       {isHoursModalOpen && (
         <div className="modal-overlay">
           <div className="modal">
@@ -558,7 +499,7 @@ const formatMonth = (yearMonth) => {
                 <thead>
                   <tr>
                     <th>Jour</th>
-                    <th>Début</th>
+                    <th>Debut</th>
                     <th>Fin</th>
                     <th>Repos</th>
                   </tr>
@@ -566,11 +507,7 @@ const formatMonth = (yearMonth) => {
                 <tbody>
                   {workingHours
                     .slice()
-                    .sort(
-                      (a, b) =>
-                        dayOrder.indexOf(a.dayOfWeek) -
-                        dayOrder.indexOf(b.dayOfWeek)
-                    )
+                    .sort((a, b) => dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek))
                     .map((h) => (
                       <tr key={h.id}>
                         <td>{translateDay(h.dayOfWeek)}</td>
@@ -579,9 +516,7 @@ const formatMonth = (yearMonth) => {
                             type="time"
                             disabled={h.startTime === null && h.endTime === null}
                             value={h.startTime || ""}
-                            onChange={(e) =>
-                              handleWorkingHourChange(h.id, "startTime", e.target.value)
-                            }
+                            onChange={(e) => handleWorkingHourChange(h.id, "startTime", e.target.value)}
                           />
                         </td>
                         <td>
@@ -589,21 +524,15 @@ const formatMonth = (yearMonth) => {
                             type="time"
                             disabled={h.startTime === null && h.endTime === null}
                             value={h.endTime || ""}
-                            onChange={(e) =>
-                              handleWorkingHourChange(h.id, "endTime", e.target.value)
-                            }
+                            onChange={(e) => handleWorkingHourChange(h.id, "endTime", e.target.value)}
                           />
                         </td>
                         <td>
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={h.startTime === null && h.endTime === null}
-                              onChange={(e) =>
-                                handleRestDayToggle(h.id, e.target.checked)
-                              }
-                            />
-                          </label>
+                          <input
+                            type="checkbox"
+                            checked={h.startTime === null && h.endTime === null}
+                            onChange={(e) => handleRestDayToggle(h.id, e.target.checked)}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -621,8 +550,10 @@ const formatMonth = (yearMonth) => {
           </div>
         </div>
       )}
+
+      <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
     </div>
   );
 };
 
-export default Employee;
+export default EmployeeDetails;

@@ -2,6 +2,7 @@ package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
 
+import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 
@@ -38,6 +39,9 @@ public class User {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    @Enumerated(EnumType.STRING)
+    private ClinicAccessRole clinicAccessRole = ClinicAccessRole.DENTIST;
+
     private String firstname;
     private String lastname;
 
@@ -46,6 +50,10 @@ public class User {
     @ManyToOne
     @JoinColumn(name = "plan_id")
     private Plan plan;
+
+    @ManyToOne
+    @JoinColumn(name = "owner_dentist_id")
+    private User ownerDentist;
 
     @Enumerated(EnumType.STRING)
     private UserPlanStatus planStatus = UserPlanStatus.PENDING;

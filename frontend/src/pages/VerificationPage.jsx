@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { LogOut, CheckCircle, XCircle } from "react-feather";
 import { useNavigate } from "react-router-dom";
-import { logout, setCredentials } from "../store/authSlice";
-import api from "../services/authService";
+import { logout as logoutRedux, setCredentials } from "../store/authSlice";
+import api, { getCurrentUser, logout as logoutApi } from "../services/authService";
+import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import "./Verify.css";
 
 const VerificationPage = () => {
@@ -11,78 +12,75 @@ const VerificationPage = () => {
   const navigate = useNavigate();
   const { user, token } = useSelector((state) => state.auth);
 
-  // --- Local State ---
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [phoneCode, setPhoneCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [simulateOtp, setSimulateOtp] = useState(false); // dev simulation checkbox
+
+  useEffect(() => {
+    if (!user) return;
+    const clinicRole = getClinicRole(user);
+    if (clinicRole !== CLINIC_ROLES.DENTIST) {
+      if (clinicRole === CLINIC_ROLES.PARTNER_DENTIST) navigate("/dashboard", { replace: true });
+      else navigate("/appointments", { replace: true });
+    }
+  }, [user, navigate]);
 
   const isPhoneVerified = user?.phoneVerified || false;
   const needsPhoneVerification = !isPhoneVerified;
   const isFullyVerified = isPhoneVerified;
 
-  const getStatusText = (verified) => (verified ? "✅ Vérifié" : "⏳ En attente");
+  const getStatusText = (verified) => (verified ? "Verifie" : "En attente");
 
-  // --- API Calls ---
+  const markAsVerifiedLocally = (updatedUser) => {
+    if (!updatedUser) return;
+    dispatch(setCredentials({ user: updatedUser, token }));
+  };
 
   const handleSendPhoneCode = async () => {
-    if (simulateOtp) return handleSimulateVerification();
     setLoading(true);
     try {
-      await api.post("/api/verify/phone/send");
-      setPhoneCodeSent(true);
-      alert("Un code SMS a été envoyé.");
+      const { data } = await api.post("/api/verify/phone/send");
+      if (data?.verified) {
+        const updatedUser = await getCurrentUser();
+        markAsVerifiedLocally(updatedUser);
+      } else {
+        setPhoneCodeSent(true);
+        alert("Un code SMS a ete envoye.");
+      }
     } catch (err) {
-      alert("Erreur lors de l'envoi du SMS. Vérifiez votre numéro.");
+      alert("Erreur lors de l'envoi du code. Verifiez le numero.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleSubmitPhoneCode = async () => {
-    if (simulateOtp) return handleSimulateVerification();
     if (!phoneCode) return alert("Veuillez entrer le code.");
     setLoading(true);
     try {
       const response = await api.post("/api/verify/phone/check", { code: phoneCode });
-      if (response.data.verified) {
-        markAsVerifiedLocally(response.data);
+      if (response.data?.verified) {
+        const updatedUser = await getCurrentUser();
+        markAsVerifiedLocally(updatedUser);
       }
     } catch (err) {
-      alert("Code SMS incorrect.");
+      alert("Code OTP invalide.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Dev Simulation: write to DB ---
-  const handleSimulateVerification = async () => {
-    setLoading(true);
+  const handleLogout = async () => {
     try {
-      // Backend endpoint to mark phoneVerified = true
-      const { data } = await api.post("/api/verify/phone/simulate");
-      markAsVerifiedLocally(data);
-      alert("Téléphone vérifié (simulation DB).");
-    } catch (err) {
-      console.error(err);
-      alert("Impossible de simuler la vérification. Vérifiez les permissions.");
+      await logoutApi();
+    } catch (error) {
+      console.error("Logout API failed:", error);
     } finally {
-      setLoading(false);
+      dispatch(logoutRedux());
+      navigate("/login", { replace: true });
     }
   };
 
-  const markAsVerifiedLocally = (updatedUser) => {
-    dispatch(setCredentials({ user: updatedUser, token }));
-  };
-
-  // --- Logout ---
-  const handleLogout = () => {
-    dispatch(logout());
-    api.defaults.headers.common["Authorization"] = undefined;
-    navigate("/login");
-  };
-
-  // --- Proceed ---
   const handleProceed = () => {
     if (isFullyVerified) navigate("/dashboard");
   };
@@ -90,32 +88,22 @@ const VerificationPage = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Action Requise : Vérification</h2>
+        <h2>Action requise : verification</h2>
 
         <p style={{ color: "#555", marginBottom: "1rem", fontSize: "0.9rem" }}>
-          Veuillez confirmer votre numéro de téléphone pour accéder à votre cabinet.
+          Veuillez confirmer votre numero de telephone pour acceder a votre cabinet.
         </p>
-
-        {/* --- Dev Simulation Checkbox --- */}
-        <label style={{ display: "block", marginBottom: "1rem", fontSize: "0.9rem" }}>
-          <input
-            type="checkbox"
-            checked={simulateOtp}
-            onChange={(e) => setSimulateOtp(e.target.checked)}
-            style={{ marginRight: "0.5rem" }}
-          />
-          ✅ Local dev: simulate phone verification (writes to DB)
-        </label>
 
         <div className="auth-form" style={{ gap: "0.5rem" }}>
           <div className="verification-step-box">
             <p className="verification-status-row">
-              <span>Vérification Téléphone:</span>
+              <span>Verification telephone:</span>
               <span>{getStatusText(isPhoneVerified)}</span>
             </p>
+
             {needsPhoneVerification && (
               <div className="verification-action-group">
-                {phoneCodeSent && !simulateOtp && (
+                {phoneCodeSent && (
                   <input
                     type="text"
                     placeholder="Entrez le code"
@@ -128,18 +116,13 @@ const VerificationPage = () => {
                   disabled={loading}
                   onClick={phoneCodeSent ? handleSubmitPhoneCode : handleSendPhoneCode}
                 >
-                  {loading
-                    ? "Chargement..."
-                    : phoneCodeSent
-                    ? "Soumettre le code"
-                    : "Démarrer la vérification"}
+                  {loading ? "Chargement..." : phoneCodeSent ? "Soumettre le code" : "Demarrer la verification"}
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* --- Proceed Button --- */}
         <button
           onClick={handleProceed}
           disabled={!isFullyVerified}
@@ -163,20 +146,19 @@ const VerificationPage = () => {
           {isFullyVerified ? (
             <>
               <CheckCircle size={18} style={{ marginRight: "8px" }} />
-              Accéder à l'application
+              Acceder a l'application
             </>
           ) : (
             <>
               <XCircle size={18} style={{ marginRight: "8px" }} />
-              Vérification requise
+              Verification requise
             </>
           )}
         </button>
 
-        {/* --- Logout Button --- */}
         <button onClick={handleLogout} className="verification-logout-btn">
           <LogOut size={16} style={{ marginRight: "8px" }} />
-          Se déconnecter
+          Se deconnecter
         </button>
       </div>
     </div>

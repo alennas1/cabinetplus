@@ -13,9 +13,13 @@ import com.cabinetplus.backend.models.User;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
-        List<User> findByPlanStatus(UserPlanStatus planStatus);
-            List<User> findByRole(UserRole role);
-@Query("SELECT u FROM User u WHERE u.expirationDate BETWEEN :start AND :end")
+    Optional<User> findFirstByPhoneNumberOrderByIdAsc(String phoneNumber);
+    boolean existsByPhoneNumber(String phoneNumber);
+    boolean existsByPhoneNumberAndIdNot(String phoneNumber, Long id);
+    List<User> findByPlanStatus(UserPlanStatus planStatus);
+    List<User> findByRole(UserRole role);
+
+    @Query("SELECT u FROM User u WHERE u.expirationDate BETWEEN :start AND :end")
     List<User> findUsersWithExpiringPlans(LocalDateTime start, LocalDateTime end);
 
 }

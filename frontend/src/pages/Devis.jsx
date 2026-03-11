@@ -4,6 +4,7 @@ import { Plus, Trash2, Download, X, Search, FileText } from 'react-feather';
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getApiErrorMessage } from "../utils/error";
 
 import { getDevises, createDevise, deleteDevise, downloadDevisePdf } from '../services/deviseService';
@@ -19,6 +20,7 @@ const Devise = () => {
     const [devises, setDevises] = useState([]);
     const [treatments, setTreatments] = useState([]);
     const [prosthetics, setProsthetics] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -40,6 +42,7 @@ const Devise = () => {
 
     const loadData = async () => {
         try {
+            setLoading(true);
             const [devisesData, treatmentsData, prostheticsData] = await Promise.all([
                 getDevises(),
                 getTreatments(),
@@ -50,6 +53,8 @@ const Devise = () => {
             setProsthetics(prostheticsData);
         } catch (err) {
             console.error("Error loading data", err);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -117,6 +122,16 @@ const Devise = () => {
     const indexOfFirst = indexOfLast - devisesPerPage;
     const currentDevises = filteredDevises.slice(indexOfFirst, indexOfLast);
     const totalPages = Math.ceil(filteredDevises.length / devisesPerPage);
+
+    if (loading) {
+        return (
+            <DentistPageSkeleton
+                title="Devis"
+                subtitle="Chargement des devis et catalogues"
+                variant="table"
+            />
+        );
+    }
 
     return (
         <div className="patients-container">

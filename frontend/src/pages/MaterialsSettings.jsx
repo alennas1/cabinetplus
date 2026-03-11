@@ -3,6 +3,7 @@ import { Plus, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getAllMaterials, createMaterial, deleteMaterial } from "../services/materialService";
 import { getApiErrorMessage } from "../utils/error";
 
@@ -82,6 +83,16 @@ const MaterialsSettings = () => {
     const currentMaterials = filteredMaterials.slice(indexOfFirst, indexOfLast);
     const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
 
+    if (loading) {
+        return (
+            <DentistPageSkeleton
+                title="Matériaux et composants"
+                subtitle="Chargement du catalogue des matériaux"
+                variant="table"
+            />
+        );
+    }
+
     return (
         <div className="patients-container">
             <PageHeader 
@@ -131,9 +142,7 @@ const MaterialsSettings = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {loading ? (
-                        <tr><td colSpan={3} style={{ textAlign: "center", padding: "40px" }}>Chargement...</td></tr>
-                    ) : currentMaterials.map((m) => (
+                    {currentMaterials.map((m) => (
                         <tr key={m.id}>
                             <td style={{ color: "#888" }}>#{m.id}</td>
                             <td style={{ fontWeight: "500", color: "#333" }}>
@@ -151,7 +160,7 @@ const MaterialsSettings = () => {
                         </tr>
                     ))}
 
-                    {!loading && filteredMaterials.length === 0 && (
+                    {filteredMaterials.length === 0 && (
                         <tr>
                             <td colSpan={3} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
                                 Aucun matériau trouvé

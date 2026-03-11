@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 import ToothGraph from "./ToothGraph";
 
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getAllProthetics,
   updateProtheticsStatus,
@@ -251,43 +252,55 @@ const Prosthetics = () => {
     }
   };
 
-  const filteredProtheses = protheses.filter((p) => {
-    const searchValue = (p[filterBy] || "").toString().toLowerCase();
-    if (search && !searchValue.includes(search.toLowerCase())) return false;
-    if (statusFilter && p.status !== statusFilter) return false;
+  const filteredProtheses = protheses
+    .filter((p) => {
+      const searchValue = (p[filterBy] || "").toString().toLowerCase();
+      if (search && !searchValue.includes(search.toLowerCase())) return false;
+      if (statusFilter && p.status !== statusFilter) return false;
 
-    const targetDateStr = p[dateType];
-    if (!targetDateStr) return selectedFilter === "all";
+      const targetDateStr = p[dateType];
+      if (!targetDateStr) return selectedFilter === "all";
 
-    const targetDate = new Date(targetDateStr);
-    const today = new Date();
+      const targetDate = new Date(targetDateStr);
+      const today = new Date();
 
-    if (selectedFilter === "today") {
-      return targetDate.toDateString() === today.toDateString();
-    }
-    if (selectedFilter === "yesterday") {
-      const yesterday = new Date();
-      yesterday.setDate(today.getDate() - 1);
-      return targetDate.toDateString() === yesterday.toDateString();
-    }
-    if (selectedMonth) {
-      const [year, month] = selectedMonth.split("-").map(Number);
-      return targetDate.getFullYear() === year && targetDate.getMonth() + 1 === month;
-    }
-    if (customRange.start || customRange.end) {
-      if (customRange.start && targetDate < new Date(customRange.start)) return false;
-      if (customRange.end) {
-        const endLimit = new Date(customRange.end);
-        endLimit.setHours(23, 59, 59);
-        if (targetDate > endLimit) return false;
+      if (selectedFilter === "today") {
+        return targetDate.toDateString() === today.toDateString();
       }
-    }
+      if (selectedFilter === "yesterday") {
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        return targetDate.toDateString() === yesterday.toDateString();
+      }
+      if (selectedMonth) {
+        const [year, month] = selectedMonth.split("-").map(Number);
+        return targetDate.getFullYear() === year && targetDate.getMonth() + 1 === month;
+      }
+      if (customRange.start || customRange.end) {
+        if (customRange.start && targetDate < new Date(customRange.start)) return false;
+        if (customRange.end) {
+          const endLimit = new Date(customRange.end);
+          endLimit.setHours(23, 59, 59);
+          if (targetDate > endLimit) return false;
+        }
+      }
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => new Date(b[dateType] || 0) - new Date(a[dateType] || 0));
 
   const formatDateLabel = (dateStr) =>
     dateStr ? new Date(dateStr).toLocaleDateString("fr-FR") : "-";
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Protheses"
+        subtitle="Chargement des travaux et du suivi laboratoire"
+        variant="table"
+      />
+    );
+  }
 
   return (
     <div className="patients-container">
@@ -551,11 +564,12 @@ const Prosthetics = () => {
             </tr>
           ) : (
             filteredProtheses.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} onClick={() => navigate(`/patients/${p.patientId}`)} style={{ cursor: "pointer" }}>
                 <td>
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(p.id)}
+                    onClick={(e) => e.stopPropagation()}
                     onChange={() => toggleSelection(p.id)}
                   />
                 </td>
@@ -592,17 +606,26 @@ const Prosthetics = () => {
                   </button>
                 </td>
                 <td className="actions-cell">
-                  <button className="action-btn edit" onClick={() => handleEditClick(p)}>
+                  <button className="action-btn edit" onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditClick(p);
+                  }}>
                     <Edit2 size={16} />
                   </button>
                   <button
                     className="action-btn view"
-                    onClick={() => navigate(`/patients/${p.patientId}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/patients/${p.patientId}`);
+                    }}
                     title="Ouvrir le profil patient"
                   >
                     <ArrowUpRight size={16} />
                   </button>
-                  <button className="action-btn delete" onClick={() => handleDeleteClick(p)}>
+                  <button className="action-btn delete" onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(p);
+                  }}>
                     <Trash2 size={16} color="#ff4d4d" />
                   </button>
                 </td>

@@ -69,16 +69,20 @@ export default function DashboardUpdated() {
   // --- Appointments for today ---
   const [appointments, setAppointments] = useState([]);
   const [todayAppointments, setTodayAppointments] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [patientPage, setPatientPage] = useState(0);
   const pageSize = 4;
 
   const fetchAppointments = async () => {
+    setLoadingAppointments(true);
     try {
       const data = await getAppointments(); // token handled by service
       setAppointments(data);
     } catch (err) {
       console.error("Error fetching appointments:", err);
       toast.error("Erreur lors du chargement des rendez-vous");
+    } finally {
+      setLoadingAppointments(false);
     }
   };
 
@@ -158,6 +162,7 @@ export default function DashboardUpdated() {
 
   const pagedPatients = todayAppointments.slice(patientPage * pageSize, (patientPage + 1) * pageSize);
   const pagedStock = lowStock.slice(stockPage * pageSize, (stockPage + 1) * pageSize);
+  const isStatsLoading = loadingRevenue || loadingStats;
 
   return (
     <div className="finance-container" style={{ paddingBottom: 40 }}>
@@ -165,20 +170,32 @@ export default function DashboardUpdated() {
 
       {/* Top stats */}
       <div className="finance-squares" style={{ marginTop: 8 }}>
-        {stats.map((s, i) => (
-          <div key={i} className="finance-square" style={{ minWidth: 220 }}>
-            <div className="square-top">
-              <span className="square-title">{s.title}</span>
-              <span className="square-value">
-                {Number(s.value).toLocaleString()}{" "}
-                {s.title.includes("Revenu") || s.title.includes("Net") ? <span className="currency-symbol">DA</span> : null}
-              </span>
-            </div>
-            <div className="square-bottom">
-              <span className={`change-pill ${s.changeColor}`}>{s.change} vs hier</span>
-            </div>
-          </div>
-        ))}
+        {isStatsLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="finance-square finance-skeleton-card" style={{ minWidth: 220 }}>
+                <div className="square-top">
+                  <span className="dashboard-skeleton dashboard-skeleton-title" />
+                  <span className="dashboard-skeleton dashboard-skeleton-value" />
+                </div>
+                <div className="square-bottom">
+                  <span className="dashboard-skeleton dashboard-skeleton-pill" />
+                </div>
+              </div>
+            ))
+          : stats.map((s, i) => (
+              <div key={i} className="finance-square" style={{ minWidth: 220 }}>
+                <div className="square-top">
+                  <span className="square-title">{s.title}</span>
+                  <span className="square-value">
+                    {Number(s.value).toLocaleString()}{" "}
+                    {s.title.includes("Revenu") || s.title.includes("Net") ? <span className="currency-symbol">DA</span> : null}
+                  </span>
+                </div>
+                <div className="square-bottom">
+                  <span className={`change-pill ${s.changeColor}`}>{s.change} vs hier</span>
+                </div>
+              </div>
+            ))}
       </div>
 
       {/* Patients & Stock */}
@@ -206,7 +223,29 @@ export default function DashboardUpdated() {
             </div>
 
             <div style={{ marginTop: 14, flex: 1 }}>
-              {pagedPatients.length === 0 ? (
+              {loadingAppointments ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    className="finance-row finance-skeleton-row"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "12px 0",
+                      borderBottom: idx < 3 ? "1px solid #f1f1f1" : "none",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1 }}>
+                      <div className="dashboard-skeleton dashboard-skeleton-time" />
+                      <div style={{ flex: 1 }}>
+                        <div className="dashboard-skeleton dashboard-skeleton-line dashboard-skeleton-line-strong" />
+                        <div className="dashboard-skeleton dashboard-skeleton-line" style={{ marginTop: 8 }} />
+                      </div>
+                    </div>
+                    <div className="dashboard-skeleton dashboard-skeleton-icon" />
+                  </div>
+                ))
+              ) : pagedPatients.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "40px 0", color: "#777", fontSize: 14 }}>
                   Aucun patient pour aujourd’hui
                 </div>

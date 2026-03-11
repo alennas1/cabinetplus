@@ -11,5 +11,6 @@ import com.cabinetplus.backend.models.User;
 public interface PatientRepository extends JpaRepository<Patient, Long> {
       List<Patient> findByCreatedBy(User user);   // filter by dentist
     Optional<Patient> findByIdAndCreatedBy(Long id, User user); // optional for security
+    long countByCreatedBy(User user);
 }
 

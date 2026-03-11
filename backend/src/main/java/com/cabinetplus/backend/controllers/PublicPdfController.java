@@ -92,8 +92,8 @@ public class PublicPdfController {
         PdfPTable patientInfo = new PdfPTable(2);
         patientInfo.setWidthPercentage(100);
         addKeyValueRow(patientInfo, "PATIENT:", patient.getFirstname() + " " + patient.getLastname().toUpperCase(), bodyFontBold, bodyFont);
-        addKeyValueRow(patientInfo, "Ã‚GE:", patient.getAge() + " ans", bodyFontBold, bodyFont);
-        addKeyValueRow(patientInfo, "TÃ‰LÃ‰PHONE:", (patient.getPhone() != null ? patient.getPhone() : "N/A"), bodyFontBold, bodyFont);
+        addKeyValueRow(patientInfo, "AGE:", patient.getAge() + " ans", bodyFontBold, bodyFont);
+        addKeyValueRow(patientInfo, "TELEPHONE:", (patient.getPhone() != null ? patient.getPhone() : "N/A"), bodyFontBold, bodyFont);
         addKeyValueRow(patientInfo, "DATE:", LocalDateTime.now().format(dtf), bodyFontBold, bodyFont);
         document.add(patientInfo);
 
@@ -134,7 +134,7 @@ public class PublicPdfController {
         PdfPTable pTable = new PdfPTable(new float[]{3, 4, 3});
         pTable.setWidthPercentage(100);
         pTable.setSpacingBefore(10);
-        addCleanHeader(pTable, bodyFontBold, new String[]{"DATE", "MÃ‰THODE", "MONTANT"});
+        addCleanHeader(pTable, bodyFontBold, new String[]{"DATE", "METHODE", "MONTANT"});
         for (Payment pay : payments) {
             addCleanRow(pTable, bodyFont, new String[]{
                 pay.getDate().format(dtf), 
@@ -155,7 +155,7 @@ public class PublicPdfController {
         totalTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
 
         addKeyValueRow(totalTable, "TOTAL TRAITEMENTS:", totalTreatments + " DZD", bodyFont, bodyFont);
-        addKeyValueRow(totalTable, "TOTAL PAYÃ‰:", totalPaid + " DZD", bodyFont, bodyFont);
+        addKeyValueRow(totalTable, "TOTAL PAYE:", totalPaid + " DZD", bodyFont, bodyFont);
         
         PdfPCell sKey = new PdfPCell(new Phrase("SOLDE RESTANT:", bodyFontBold));
         sKey.setBorder(Rectangle.TOP);
@@ -178,9 +178,9 @@ public class PublicPdfController {
     private String translateStatus(String status) {
         if (status == null) return "-";
         return switch (status) {
-            case "SCHEDULED" -> "PlanifiÃ©";
-            case "COMPLETED" -> "TerminÃ©";
-            case "CANCELLED" -> "AnnulÃ©";
+            case "SCHEDULED" -> "Planifie";
+            case "COMPLETED" -> "Termine";
+            case "CANCELLED" -> "Annule";
             default -> status;
         };
     }
@@ -188,10 +188,10 @@ public class PublicPdfController {
     private String translatePaymentMethod(String method) {
         if (method == null) return "-";
         return switch (method) {
-            case "CASH" -> "EspÃ¨ces";
+            case "CASH" -> "Especes";
             case "CARD" -> "Carte";
             case "BANK_TRANSFER" -> "Virement";
-            case "CHECK" -> "ChÃ¨que";
+            case "CHECK" -> "Cheque";
             default -> method;
         };
     }
@@ -229,3 +229,4 @@ public class PublicPdfController {
         }
     }
 }
+

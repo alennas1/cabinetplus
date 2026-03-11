@@ -22,8 +22,10 @@ public class Document {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String title;
     private String filename;
     private String fileType;
+    private Long fileSizeBytes;
     private LocalDateTime uploadedAt;
     private String pathOrUrl;
 

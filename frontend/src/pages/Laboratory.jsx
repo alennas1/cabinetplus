@@ -5,6 +5,7 @@ import { Plus, Edit2, Trash2, Search, X, Eye } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getAllLaboratories,
   createLaboratory,
@@ -121,6 +122,16 @@ const Laboratories = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Laboratoires"
+        subtitle="Chargement des partenaires du laboratoire"
+        variant="table"
+      />
+    );
+  }
+
   return (
     <div className="patients-container">
       <PageHeader title="Laboratoires" subtitle="Gestion des partenaires prothésistes" align="left" />
@@ -175,7 +186,7 @@ const Laboratories = () => {
             </tr>
           ) : (
             currentLabs.map((lab) => (
-              <tr key={lab.id}>
+              <tr key={lab.id} onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.id}`)} style={{ cursor: "pointer" }}>
                 <td style={{ fontWeight: "bold" }}>{lab.name}</td>
                 <td>{lab.contactPerson || "—"}</td>
                 <td>{lab.phoneNumber || "—"}</td>
@@ -183,15 +194,24 @@ const Laboratories = () => {
                 <td className="actions-cell" style={{ textAlign: "right" }}>
                   <button
                     className="action-btn view"
-                    onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.id}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/gestion-cabinet/laboratories/${lab.id}`);
+                    }}
                     title="Voir"
                   >
                     <Eye size={16} />
                   </button>
-                  <button className="action-btn edit" onClick={() => handleEdit(lab)} title="Modifier">
+                  <button className="action-btn edit" onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(lab);
+                  }} title="Modifier">
                     <Edit2 size={16} />
                   </button>
-                  <button className="action-btn delete" onClick={() => handleDeleteClick(lab.id)} title="Supprimer">
+                  <button className="action-btn delete" onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(lab.id);
+                  }} title="Supprimer">
                     <Trash2 size={16} />
                   </button>
                 </td>

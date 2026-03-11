@@ -33,8 +33,7 @@ public class ItemController {
 
     @GetMapping
     public ResponseEntity<List<ItemDTO>> getAll(Principal principal) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
         List<ItemDTO> dtos = itemService.getItemsForDentist(dentist)
                 .stream()
                 .map(itemService::toDTO)
@@ -44,8 +43,7 @@ public class ItemController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ItemDTO> getById(@PathVariable Long id, Principal principal) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
         return itemService.getItemByIdForDentist(id, dentist)
                 .map(itemService::toDTO)
                 .map(ResponseEntity::ok)
@@ -54,8 +52,7 @@ public class ItemController {
 
     @PostMapping
 public ResponseEntity<ItemDTO> create(@RequestBody CreateItemDTO dto, Principal principal) {
-    User dentist = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    User dentist = getClinicUser(principal);
     
     Item saved = itemService.createItemFromDTO(dto, dentist);
     return ResponseEntity.ok(itemService.toDTO(saved));
@@ -65,8 +62,7 @@ public ResponseEntity<ItemDTO> create(@RequestBody CreateItemDTO dto, Principal 
 public ResponseEntity<ItemDTO> update(@PathVariable Long id,
                                       @RequestBody UpdateItemDTO dto,
                                       Principal principal) {
-    User dentist = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    User dentist = getClinicUser(principal);
 
     // fetch existing item
     Item existingItem = itemService.getItemByIdForDentist(id, dentist)
@@ -84,8 +80,7 @@ existingItem.setExpiryDate(dto.getExpiryDate());
 
     @DeleteMapping("/{id}")
 public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
-    User dentist = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    User dentist = getClinicUser(principal);
 
     // Option 1: hard delete
     itemService.getItemByIdForDentist(id, dentist)
@@ -93,6 +88,12 @@ public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
 
     itemService.deleteItem(id, dentist);
     return ResponseEntity.noContent().build();
+}
+
+private User getClinicUser(Principal principal) {
+    User user = userService.findByUsername(principal.getName())
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    return userService.resolveClinicOwner(user);
 }
 }
 

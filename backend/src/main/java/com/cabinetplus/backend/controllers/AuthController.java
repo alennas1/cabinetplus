@@ -9,7 +9,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -21,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.cabinetplus.backend.dto.RegisterRequest;
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.AuditEventType;
+import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.RefreshToken;
 import com.cabinetplus.backend.models.User;
@@ -75,20 +75,48 @@ public class AuthController {
     // ---------------- LOGIN ----------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
-        String username = body.get("username");
+        String identifier = body.get("username");
         String password = body.get("password");
-        try {
-            Authentication auth = authManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, password));
 
-            User user = userRepo.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        if (identifier == null || identifier.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "field", "username",
+                    "error", "Le nom d'utilisateur ou numero de telephone est obligatoire"
+            ));
+        }
+
+        if (password == null || password.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "field", "password",
+                    "error", "Le mot de passe est obligatoire"
+            ));
+        }
+
+        User user = userRepo.findByUsername(identifier)
+                .or(() -> userRepo.findFirstByPhoneNumberOrderByIdAsc(identifier))
+                .orElse(null);
+        if (user == null) {
+            auditService.logFailure(
+                    AuditEventType.AUTH_LOGIN,
+                    "SESSION",
+                    identifier,
+                    "Nom d'utilisateur ou numero de telephone introuvable"
+            );
+            return ResponseEntity.status(401).body(Map.of(
+                    "field", "username",
+                    "error", "Nom d'utilisateur ou numero de telephone introuvable"
+            ));
+        }
+
+        try {
+            String resolvedUsername = user.getUsername();
+            authManager.authenticate(new UsernamePasswordAuthenticationToken(resolvedUsername, password));
 
             String accessToken = jwtUtil.generateAccessToken(user);
 
             RefreshToken refreshToken = new RefreshToken();
             refreshToken.setUser(user);
-            refreshToken.setToken(jwtUtil.generateRefreshToken(username, refreshTokenMs));
+            refreshToken.setToken(jwtUtil.generateRefreshToken(resolvedUsername, refreshTokenMs));
             refreshToken.setCreatedAt(LocalDateTime.now());
             refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
             refreshRepo.save(refreshToken);
@@ -99,17 +127,17 @@ public class AuthController {
             return ResponseEntity.ok(Map.of("accessToken", accessToken));
 
         } catch (AuthenticationException e) {
-            userRepo.findByUsername(username).ifPresentOrElse(
-                    user -> auditService.logFailureAsUser(
-                            user,
-                            AuditEventType.AUTH_LOGIN,
-                            "SESSION",
-                            String.valueOf(user.getId()),
-                            "Identifiants invalides"
-                    ),
-                    () -> auditService.logFailure(AuditEventType.AUTH_LOGIN, "SESSION", username, "Identifiants invalides")
+            auditService.logFailureAsUser(
+                    user,
+                    AuditEventType.AUTH_LOGIN,
+                    "SESSION",
+                    String.valueOf(user.getId()),
+                    "Mot de passe invalide"
             );
-            return ResponseEntity.status(401).body(Map.of("error", "Nom d'utilisateur ou mot de passe invalide"));
+            return ResponseEntity.status(401).body(Map.of(
+                    "field", "password",
+                    "error", "Mot de passe invalide"
+            ));
         }
     }
 
@@ -120,6 +148,16 @@ public class AuthController {
             auditService.logFailure(AuditEventType.AUTH_REGISTER, "USER", request.username(), "Nom d'utilisateur deja utilise");
             return ResponseEntity.badRequest().body(Map.of("error", "Ce nom d'utilisateur est deja utilise"));
         }
+        if (request.phoneNumber() != null && !request.phoneNumber().isBlank()
+                && userRepo.existsByPhoneNumber(request.phoneNumber())) {
+            auditService.logFailure(
+                    AuditEventType.AUTH_REGISTER,
+                    "USER",
+                    request.phoneNumber(),
+                    "Numero de telephone deja utilise"
+            );
+            return ResponseEntity.badRequest().body(Map.of("error", "Ce numero de telephone est deja utilise"));
+        }
 
         User user = new User();
         user.setUsername(request.username());
@@ -127,7 +165,13 @@ public class AuthController {
         user.setFirstname(request.firstname());
         user.setLastname(request.lastname());
         user.setPhoneNumber(request.phoneNumber());
-        user.setRole(UserRole.valueOf(request.role()));
+        String clinicName = request.clinicName() == null ? null : request.clinicName().trim();
+        String address = request.address() == null ? null : request.address().trim();
+        user.setClinicName(clinicName == null || clinicName.isBlank() ? null : clinicName);
+        user.setAddress(address == null || address.isBlank() ? null : address);
+        UserRole role = UserRole.valueOf(request.role());
+        user.setRole(role);
+        user.setClinicAccessRole(role == UserRole.DENTIST ? ClinicAccessRole.DENTIST : null);
         user.setCreatedAt(LocalDateTime.now());
 
         User saved = userRepo.save(user);

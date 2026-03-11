@@ -120,15 +120,15 @@ const ManageAdmins = () => {
         </thead>
         <tbody>
           {currentAdmins.map((admin) => (
-            <tr key={admin.id}>
+            <tr key={admin.id} onClick={() => { setFormData(admin); setIsEditing(true); setShowModal(true); }} style={{ cursor: "pointer" }}>
               <td>{admin.firstname || "—"}</td>
               <td>{admin.lastname || "—"}</td>
               <td>{admin.username || "—"}</td>
               <td>{admin.phoneNumber || "—"}</td>
               <td>{admin.canDeleteAdmin ? "Oui" : "Non"}</td>
               <td className="actions-cell">
-                <button className="action-btn view" onClick={() => { setFormData(admin); setIsEditing(true); setShowModal(true); }}><Eye size={16} /></button>
-                <button className="action-btn delete" onClick={() => handleDelete(admin.id)}><Trash2 size={16} /></button>
+                <button className="action-btn view" onClick={(e) => { e.stopPropagation(); setFormData(admin); setIsEditing(true); setShowModal(true); }}><Eye size={16} /></button>
+                <button className="action-btn delete" onClick={(e) => { e.stopPropagation(); handleDelete(admin.id); }}><Trash2 size={16} /></button>
               </td>
             </tr>
           ))}

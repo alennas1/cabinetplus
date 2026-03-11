@@ -60,6 +60,17 @@ api.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config;
+    const requestUrl = originalRequest?.url || "";
+    const isAuthEntryRequest =
+      requestUrl.includes("/auth/login") ||
+      requestUrl.includes("/auth/register") ||
+      requestUrl.includes("/auth/session");
+
+    // Invalid credentials should stay as local form errors, not session-expired modal.
+    if (isAuthEntryRequest) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => failedQueue.push({ resolve, reject }))
@@ -115,6 +126,9 @@ export const initializeSession = async () => {
 };
 
 export const login = async (username, password) => {
+  // Ensure stale refresh timers/tokens from a previous session don't trigger
+  // a session-expired popup while the user is simply retrying credentials.
+  clearAccessToken();
   const { data } = await api.post("/auth/login", { username, password });
   setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
   return data;

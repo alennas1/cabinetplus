@@ -28,6 +28,10 @@ const initialPlanState = {
   monthlyPrice: 0,
   yearlyMonthlyPrice: 0,
   durationDays: 30,
+  maxDentists: 1,
+  maxEmployees: 0,
+  maxPatients: 0,
+  maxStorageGb: 0,
   active: true,
 };
 
@@ -98,6 +102,53 @@ const PlanFormModal = ({
           min="1"
         />
 
+        <span className="field-label">Maximum dentistes</span>
+        <input
+          type="number"
+          name="maxDentists"
+          placeholder="Entrez le nombre maximum de dentistes..."
+          value={currentPlan.maxDentists}
+          onChange={handleInputChange}
+          required
+          min="0"
+        />
+
+        <span className="field-label">Maximum employÃ©s</span>
+        <input
+          type="number"
+          name="maxEmployees"
+          placeholder="Entrez le nombre maximum d'employÃ©s..."
+          value={currentPlan.maxEmployees}
+          onChange={handleInputChange}
+          required
+          min="0"
+        />
+        <small className='form-small-text'>Assistants et rÃ©ceptionnistes inclus.</small>
+
+        <span className="field-label">Maximum patients</span>
+        <input
+          type="number"
+          name="maxPatients"
+          placeholder="Entrez le nombre maximum de patients..."
+          value={currentPlan.maxPatients}
+          onChange={handleInputChange}
+          required
+          min="0"
+        />
+
+        <span className="field-label">Espace stockage (Go)</span>
+        <input
+          type="number"
+          name="maxStorageGb"
+          placeholder="Entrez l'espace de stockage autorisÃ©..."
+          value={currentPlan.maxStorageGb}
+          onChange={handleInputChange}
+          required
+          min="0"
+          step="0.01"
+        />
+        <small className='form-small-text'>Valeurs décimales acceptées pour les tests, ex: 0.1 ou 0.01 Go.</small>
+
         <div className="form-field" style={{marginTop: '15px'}}>
           <span className="field-label">Statut</span>
           <div className="radio-group" style={{alignItems: 'center'}}>
@@ -166,7 +217,7 @@ const ManagePlans = () => {
     setCurrentPlan(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : (
-          ['monthlyPrice', 'yearlyMonthlyPrice', 'durationDays'].includes(name)
+          ['monthlyPrice', 'yearlyMonthlyPrice', 'durationDays', 'maxDentists', 'maxEmployees', 'maxPatients', 'maxStorageGb'].includes(name)
           ? parseFloat(value) || 0 
           : value
       )
@@ -186,6 +237,10 @@ const ManagePlans = () => {
       monthlyPrice: Number(plan.monthlyPrice),
       yearlyMonthlyPrice: Number(plan.yearlyMonthlyPrice),
       durationDays: Number(plan.durationDays),
+      maxDentists: Number(plan.maxDentists ?? 1),
+      maxEmployees: Number(plan.maxEmployees ?? 0),
+      maxPatients: Number(plan.maxPatients ?? 0),
+      maxStorageGb: Number(plan.maxStorageGb ?? 0),
     });
     setShowModal(true);
   };
@@ -268,6 +323,10 @@ const ManagePlans = () => {
               <th>Prix Mensuel</th>
               <th>Prix Annuel</th>
               <th>Durée</th>
+              <th>Dentistes max</th>
+              <th>Employés max</th>
+              <th>Patients max</th>
+              <th>Stockage max</th>
               <th>Statut</th>
               <th>Actions</th>
             </tr>
@@ -280,6 +339,10 @@ const ManagePlans = () => {
                 <td>{plan.monthlyPrice} DZD</td>
                 <td>{plan.yearlyMonthlyPrice} DZD</td>
                 <td>{plan.durationDays}</td>
+                <td>{plan.maxDentists ?? 1}</td>
+                <td>{plan.maxEmployees ?? 0}</td>
+                <td>{plan.maxPatients ?? 0}</td>
+                <td>{plan.maxStorageGb ?? 0} Go</td>
                 <td>{renderStatus(plan.active)}</td>
                 <td className="actions-cell">
                   <button className="action-btn edit" onClick={() => openEditModal(plan)}><Edit2 size={16} /></button>
@@ -289,7 +352,7 @@ const ManagePlans = () => {
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan="7" style={{textAlign: 'center'}}>Aucun plan trouvé.</td></tr>
+              <tr><td colSpan="11" style={{textAlign: 'center'}}>Aucun plan trouvé.</td></tr>
             )}
           </tbody>
         </table>
@@ -311,3 +374,4 @@ const ManagePlans = () => {
 };
 
 export default ManagePlans;
+

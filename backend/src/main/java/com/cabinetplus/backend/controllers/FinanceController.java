@@ -39,8 +39,7 @@ public class FinanceController {
             Principal principal,
             @RequestParam String timeframe // daily | monthly | yearly
     ) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         FinanceGraphResponseDTO graphData = financeService.getFinanceGraph(dentist, timeframe);
         return ResponseEntity.ok(graphData);
@@ -62,10 +61,15 @@ public class FinanceController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         FinanceCardsResponseDTO cardsData = financeService.getFinanceCards(dentist, timeframe, startDate, endDate);
         return ResponseEntity.ok(cardsData);
+    }
+
+    private User getClinicUser(Principal principal) {
+        User user = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 }

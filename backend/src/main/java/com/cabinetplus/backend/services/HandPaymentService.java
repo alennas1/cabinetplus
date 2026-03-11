@@ -24,10 +24,11 @@ public class HandPaymentService {
     private final HandPaymentRepository handPaymentRepository;
     private final UserRepository userRepository;
 
-    /**
-     * Create a new hand payment
-     * Sets user's planStatus to WAITING
-     */
+    private boolean hasValidActiveSubscription(User user) {
+        return user.getPlan() != null
+                && user.getExpirationDate() != null
+                && user.getExpirationDate().isAfter(LocalDateTime.now());
+    }
 
     public List<HandPaymentResponseDTO> getAllPendingPayments() {
     return handPaymentRepository.findByStatus(PaymentStatus.PENDING)
@@ -106,9 +107,12 @@ public List<HandPaymentResponseDTO> getAllPayments() {
         // Save the payment
         HandPayment savedPayment = handPaymentRepository.save(payment);
 
-        // Update user planStatus to WAITING
+        // Only set WAITING if user does not currently have a valid active subscription.
+        // If they are still active and request renewal/upgrade, keep ACTIVE.
         User user = savedPayment.getUser();
-        user.setPlanStatus(UserPlanStatus.WAITING);
+        if (!hasValidActiveSubscription(user)) {
+            user.setPlanStatus(UserPlanStatus.WAITING);
+        }
         userRepository.save(user);
 
         return savedPayment;
@@ -165,7 +169,7 @@ public HandPayment confirmPayment(Long paymentId) {
 
     /**
      * Reject a pending payment
-     * Sets user's planStatus back to PENDING
+     * Preserves ACTIVE if user still has a valid subscription, otherwise reverts state.
      */
     @Transactional
     public HandPayment rejectPayment(Long paymentId) {
@@ -179,9 +183,15 @@ public HandPayment confirmPayment(Long paymentId) {
         payment.setStatus(PaymentStatus.REJECTED);
         HandPayment rejectedPayment = handPaymentRepository.save(payment);
 
-        // Revert user planStatus to PENDING
+        // Do not downgrade active users who still have a valid plan window.
         User user = rejectedPayment.getUser();
-        user.setPlanStatus(UserPlanStatus.PENDING);
+        if (hasValidActiveSubscription(user)) {
+            user.setPlanStatus(UserPlanStatus.ACTIVE);
+        } else if (user.getExpirationDate() != null && user.getExpirationDate().isBefore(LocalDateTime.now())) {
+            user.setPlanStatus(UserPlanStatus.INACTIVE);
+        } else {
+            user.setPlanStatus(UserPlanStatus.PENDING);
+        }
         userRepository.save(user);
 
         return rejectedPayment;

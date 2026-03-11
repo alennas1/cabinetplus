@@ -27,8 +27,7 @@ public class EmployeeController {
             @RequestBody EmployeeRequestDTO dto,
             Principal principal) {
 
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         EmployeeResponseDTO employeeResponse = employeeService.saveEmployee(dto, dentist);
         return ResponseEntity.ok(employeeResponse);
@@ -40,16 +39,14 @@ public class EmployeeController {
             @RequestBody EmployeeRequestDTO dto,
             Principal principal) {
 
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return ResponseEntity.ok(employeeService.updateEmployee(id, dto, dentist));
     }
 
     @GetMapping
     public ResponseEntity<List<EmployeeResponseDTO>> getAllEmployees(Principal principal) {
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return ResponseEntity.ok(employeeService.getAllEmployeesForDentist(dentist));
     }
@@ -59,8 +56,7 @@ public class EmployeeController {
             @PathVariable Long id,
             Principal principal) {
 
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         return employeeService.getEmployeeByIdForDentist(id, dentist)
                 .map(ResponseEntity::ok)
@@ -72,11 +68,16 @@ public class EmployeeController {
             @PathVariable Long id,
             Principal principal) {
 
-        User dentist = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User dentist = getClinicUser(principal);
 
         employeeService.deleteEmployee(id, dentist);
         return ResponseEntity.noContent().build();
+    }
+
+    private User getClinicUser(Principal principal) {
+        User user = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 }
 

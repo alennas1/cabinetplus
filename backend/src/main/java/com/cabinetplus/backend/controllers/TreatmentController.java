@@ -25,8 +25,9 @@ public class TreatmentController {
     }
 
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 
     // Get all treatments for current user

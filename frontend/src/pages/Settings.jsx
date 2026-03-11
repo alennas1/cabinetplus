@@ -1,12 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  User,
-  Lock,
-  Activity,
-  Settings as Gear,
-  CreditCard,
-} from "react-feather";
+import { User, Lock, Activity, Settings as Gear, CreditCard } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
 
@@ -31,12 +25,12 @@ const Settings = () => {
         },
         {
           title: "Plans et paiements",
-          desc: "Consulter vos factures et l etat de vos abonnements",
+          desc: "Consulter vos factures et l'etat de vos abonnements",
           icon: <CreditCard />,
           path: "/settings/payments",
         },
         {
-          title: "Journal d activite",
+          title: "Journal d'activite",
           desc: "Voir vos actions de securite et authentification",
           icon: <Activity />,
           path: "/settings/audit-logs",
@@ -58,11 +52,7 @@ const Settings = () => {
 
   return (
     <div className="settings-container">
-      <PageHeader
-        title="Parametres"
-        subtitle="Choisissez ce que vous souhaitez gerer :"
-        align="left"
-      />
+      <PageHeader title="Parametres" subtitle="Choisissez ce que vous souhaitez gerer :" align="left" />
 
       {settingsGroups.map((group, i) => (
         <div key={i} className="settings-group">

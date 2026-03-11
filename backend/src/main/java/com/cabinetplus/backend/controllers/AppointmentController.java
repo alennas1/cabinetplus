@@ -45,9 +45,7 @@ public class AppointmentController {
     // Return appointments only for the logged-in practitioner
     @GetMapping
     public List<Appointment> getAllAppointments(Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User currentUser = getClinicUser(principal);
 
         return appointmentService.findByPractitioner(currentUser);
     }
@@ -59,9 +57,7 @@ public class AppointmentController {
 
     @PostMapping
     public AppointmentResponse createAppointment(@RequestBody AppointmentRequest request, Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User currentUser = getClinicUser(principal);
 
         // Overlap check
         List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
@@ -106,9 +102,7 @@ public class AppointmentController {
 
     @PutMapping("/{id}")
     public Appointment updateAppointment(@PathVariable Long id, @RequestBody Appointment updatedAppointment, Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User currentUser = getClinicUser(principal);
 
         // Overlap check (ignore current appointment)
         List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
@@ -151,8 +145,7 @@ public class AppointmentController {
   @GetMapping("/stats/completed-today")
 public Map<String, Object> getComparisonStats(Principal principal) {
 
-    User user = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+    User user = getClinicUser(principal);
 
     LocalDate today = LocalDate.now();
     LocalDate yesterday = today.minusDays(1);
@@ -176,5 +169,11 @@ public Map<String, Object> getComparisonStats(Principal principal) {
         )
     );
 }
+
+    private User getClinicUser(Principal principal) {
+        User currentUser = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        return userService.resolveClinicOwner(currentUser);
+    }
 
 }

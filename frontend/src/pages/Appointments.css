@@ -214,6 +214,22 @@ html, body {
   width: 100%;
 }
 
+.appointment-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .week-cell .status-chip {
   font-size: 0.78rem;
   padding: 3px 8px;
@@ -250,6 +266,12 @@ html, body {
   width: 100%;
   border-radius: 999px;
   background: rgba(17, 24, 39, 0.18);
+}
+
+.slot-patient {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .week-row:nth-child(even) .week-cell.empty {

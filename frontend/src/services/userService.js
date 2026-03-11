@@ -39,6 +39,12 @@ export const selectPlan = async (planId) => {
   return response.data;
 };
 
+/** Get current plan usage for the current cabinet */
+export const getCurrentPlanUsage = async () => {
+  const response = await api.get(`${BASE_URL}/me/plan-usage`);
+  return response.data;
+};
+
 /**
  * ==========================
  * ADMIN ENDPOINTS

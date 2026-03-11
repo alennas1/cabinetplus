@@ -51,6 +51,10 @@ public class Employee {
     @JoinColumn(name = "dentist_id")
     private User dentist;
 
+    @OneToOne
+    @JoinColumn(name = "user_id")
+    private User user;
+
     // Relation with working hours
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EmployeeWorkingHours> workingHours;

@@ -4,6 +4,7 @@ import { Plus, Search, Edit2, Trash2, Filter } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getItemDefaults } from "../services/itemDefaultService";
 import {
   createInventoryItem,
@@ -183,6 +184,16 @@ const Inventory = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Inventaire"
+        subtitle="Chargement des articles en stock"
+        variant="table"
+      />
+    );
+  }
 
   return (
     <div className="patients-container">

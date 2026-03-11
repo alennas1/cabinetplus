@@ -1,123 +1,313 @@
-.history-page-container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
+.plans-payments-page {
+  width: 100%;
 }
 
 .back-btn {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: none;
-    border: none;
-    color: #64748b;
-    cursor: pointer;
-    font-weight: 500;
-    margin-bottom: 20px;
-    transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 16px;
 }
 
-.back-btn:hover { color: #3b82f6; }
-
-.history-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-top: 30px;
+.panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px;
+  margin-top: 16px;
 }
 
-.payment-history-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 20px;
-    transition: transform 0.2s;
+.panel h3 {
+  margin: 0 0 14px;
+  color: #0f172a;
+  font-size: 1rem;
 }
 
-.card-main-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+.inline-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 10px;
 }
 
-.plan-info h3 {
-    margin: 0 0 8px 0;
-    font-size: 1.1rem;
-    color: #1e293b;
+.plan-overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.payment-meta {
-    display: flex;
-    gap: 15px;
-    color: #94a3b8;
-    font-size: 0.85rem;
+.plan-overview-header h3 {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 1.35rem;
 }
 
-.payment-meta span {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+.plan-overview-kicker {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
 }
 
-.price-info {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
+.plan-overview-meta {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.92rem;
 }
 
-.amount {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #1e293b;
+.plan-overview-meta strong {
+  color: #0f172a;
 }
 
-/* --- TABLE ALIGNEMENT --- */
-.patients-table {
-  width: 100%;
-  border-collapse: collapse;
+.plan-summary-panel {
+  margin-top: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbe7f3;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
 
-/* On force le centrage du titre ET du contenu de la dernière colonne */
-.patients-table th:last-child, 
-.patients-table td:last-child {
-  text-align: center !important;
-  padding-left: 0 !important;   /* Crucial : supprime le décalage gauche */
-  padding-right: 0 !important;  /* Crucial : supprime le décalage droit */
-  width: 140px;                 /* Largeur fixe pour stabiliser l'alignement */
+.usage-section {
+  margin-top: 18px;
+  padding-top: 6px;
 }
 
-/* --- BADGE COMPACT & CENTRÉ --- */
-.status-badge {
-  display: inline-flex;         /* Permet au badge d'être sensible au text-align du parent */
+.usage-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.usage-section-header h4 {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 1.35rem;
+}
+
+.usage-section-header span {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.usage-card {
+  background: #ffffff;
+  border: 1px solid #dbe7f3;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.usage-card span {
+  display: block;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.usage-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.controls-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 160px;
+  gap: 12px;
+  align-items: end;
+}
+
+.controls-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.controls-row select {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 0.92rem;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.price-box {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.price-box span {
+  display: block;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.price-box strong {
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.rules-box {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.rules-box p {
+  margin: 6px 0;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.actions-row {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.changer-btn {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #1f2937;
+}
+
+.changer-btn:hover {
+  background: #cbd5e1;
+}
+
+.tab-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  padding: 6px 14px;
+  font-size: 14px;
+  border: none;
+  border-radius: 999px;
+  background-color: #e5e7eb;
+  color: #6b7280;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background-color: #d1d5db;
+}
+
+.tab-btn.active {
+  background-color: #3498db;
+  color: #fff;
+}
+
+.payment-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 600;
-  white-space: nowrap;
-  width: fit-content;           /* Ne prend que la place nécessaire */
-  margin: 0 auto;               /* Centre le bloc horizontalement */
+  width: fit-content;
+  margin: 0 auto;
   box-sizing: border-box;
 }
 
-/* Vos couleurs de statut */
-.status-badge.active { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-.status-badge.on_leave { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
-.status-badge.inactive { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-.payment-notes {
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px dashed #e2e8f0;
-    font-size: 0.85rem;
-    color: #64748b;
+.payment-status.active {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
 }
 
-.empty-state {
-    text-align: center;
-    padding: 60px;
-    color: #94a3b8;
+.payment-status.on_leave {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.payment-status.inactive {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.payments-table td:last-child {
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+@media (max-width: 900px) {
+  .plan-overview-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .usage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .controls-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .plans-payments-page {
+    padding: 14px;
+  }
+
+  .usage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .actions-row {
+    flex-direction: column;
+    justify-content: stretch;
+  }
 }

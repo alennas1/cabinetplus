@@ -16,41 +16,41 @@ const Catalogue = () => {
 
   const catalogueGroups = [
     {
-      title: "Catalogues",
+      title: "",
       options: [
         {
-          title: "Catalogue des medicaments",
-          desc: "Gerer la liste des medicaments disponibles",
+          title: "Médicaments",
+          desc: "Gérer la liste des médicaments disponibles",
           icon: <Box />,
           path: "/catalogue/medications",
         },
         {
-          title: "Catalogue des traitements",
-          desc: "Ajouter, modifier ou supprimer les traitements proposes",
+          title: "Traitements",
+          desc: "Ajouter, modifier ou supprimer les traitements proposés",
           icon: <Clipboard />,
           path: "/catalogue/treatments",
         },
         {
-          title: "Catalogue des articles",
+          title: "Articles",
           desc: "Ajouter, modifier ou supprimer les articles disponibles",
           icon: <Package />,
           path: "/catalogue/items",
         },
         {
-          title: "Catalogue des justifications",
-          desc: "Gerer les modeles de documents et certificats",
+          title: "Justifications",
+          desc: "Gérer les modèles de documents et certificats",
           icon: <FileText />,
           path: "/catalogue/justifications",
         },
         {
-          title: "Catalogue des protheses",
-          desc: "Definir les types de protheses (Couronnes, Bridges, etc.)",
+          title: "Prothèses",
+          desc: "Définir les types de prothèses (Couronnes, Bridges, etc.)",
           icon: <Layers />,
           path: "/catalogue/prosthetics",
         },
         {
-          title: "Materiaux et composants",
-          desc: "Gerer les materiaux utilises (Zircone, Ceramique, Resine)",
+          title: "Matériaux et composants",
+          desc: "Gérer les matériaux utilisés (Zircone, Céramique, Résine)",
           icon: <Tool />,
           path: "/catalogue/materials",
         },
@@ -62,13 +62,13 @@ const Catalogue = () => {
     <div className="settings-container">
       <PageHeader
         title="Catalogues"
-        subtitle="Choisissez le catalogue a gerer :"
+        subtitle="Choisissez le catalogue à gérer :"
         align="left"
       />
 
       {catalogueGroups.map((group, i) => (
         <div key={i} className="settings-group">
-          <h3 className="group-title">{group.title}</h3>
+          {group.title ? <h3 className="group-title">{group.title}</h3> : null}
           <div className="settings-options">
             {group.options.map((option, index) => (
               <div

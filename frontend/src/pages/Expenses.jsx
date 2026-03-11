@@ -4,6 +4,7 @@ import { Plus, Search, Edit2, Filter, Trash2 } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getExpenses,
   createExpense,
@@ -74,15 +75,17 @@ const Expenses = () => {
   };
 
   // Filtered expenses
-  const filteredExpenses = expenses.filter((e) => {
-    let value = "";
-    if (filterBy === "category") {
-      value = EXPENSE_CATEGORIES[e.category] || "";
-    } else {
-      value = (e[filterBy] || "").toString();
-    }
-    return value.toLowerCase().includes(search.toLowerCase());
-  });
+  const filteredExpenses = expenses
+    .filter((e) => {
+      let value = "";
+      if (filterBy === "category") {
+        value = EXPENSE_CATEGORIES[e.category] || "";
+      } else {
+        value = (e[filterBy] || "").toString();
+      }
+      return value.toLowerCase().includes(search.toLowerCase());
+    })
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -165,6 +168,16 @@ const Expenses = () => {
       setConfirmDelete(null);
     }
   };
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Depenses"
+        subtitle="Chargement des depenses du cabinet"
+        variant="table"
+      />
+    );
+  }
 
   return (
     <div className="patients-container">

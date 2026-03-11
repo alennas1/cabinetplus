@@ -64,13 +64,15 @@ const WaitingPage = () => {
     });
   };
 
-  const filteredPayments = payments.filter((p) => {
-    if (!search) return true;
-    return (
-      p.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      p.planName.toLowerCase().includes(search.toLowerCase())
-    );
-  });
+  const filteredPayments = payments
+    .filter((p) => {
+      if (!search) return true;
+      return (
+        p.fullName.toLowerCase().includes(search.toLowerCase()) ||
+        p.planName.toLowerCase().includes(search.toLowerCase())
+      );
+    })
+    .sort((a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0));
 
   // Pagination
   const indexOfLast = currentPage * paymentsPerPage;

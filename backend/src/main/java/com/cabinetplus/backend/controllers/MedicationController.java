@@ -37,9 +37,7 @@ public class MedicationController {
 
     @GetMapping
     public ResponseEntity<List<MedicationResponse>> getAllMedications(Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User currentUser = getCurrentUser(principal);
 
         List<MedicationResponse> response = medicationService.findAllByUser(currentUser)
                 .stream()
@@ -58,9 +56,7 @@ public class MedicationController {
 
     @GetMapping("/{id}")
     public ResponseEntity<MedicationResponse> getMedicationById(@PathVariable Long id, Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User currentUser = getCurrentUser(principal);
 
         return medicationService.findByIdAndUser(id, currentUser)
                 .map(m -> new MedicationResponse(
@@ -77,12 +73,10 @@ public class MedicationController {
 
     @PostMapping
     public ResponseEntity<MedicationResponse> createMedication(
-            @Valid @RequestBody MedicationRequest dto,
+        @Valid @RequestBody MedicationRequest dto,
             Principal principal) {
 
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User currentUser = getCurrentUser(principal);
 
         Medication entity = new Medication();
         entity.setName(dto.getName());
@@ -112,9 +106,7 @@ public class MedicationController {
             @Valid @RequestBody MedicationRequest dto,
             Principal principal) {
 
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User currentUser = getCurrentUser(principal);
 
         return medicationService.update(id, new Medication(
                 id,
@@ -137,12 +129,16 @@ public class MedicationController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMedication(@PathVariable Long id, Principal principal) {
-        String username = principal.getName();
-        User currentUser = userService.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User currentUser = getCurrentUser(principal);
 
         boolean deleted = medicationService.deleteByUser(id, currentUser);
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+    }
+
+    private User getCurrentUser(Principal principal) {
+        User user = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 }
 

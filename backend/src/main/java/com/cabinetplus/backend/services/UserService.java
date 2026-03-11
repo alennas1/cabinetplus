@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.User;
@@ -60,6 +61,22 @@ public class UserService {
 
     public List<User> getAllDentists() {
         return userRepository.findByRole(UserRole.DENTIST);
+    }
+
+    public User resolveClinicOwner(User user) {
+        if (user == null) return null;
+        if (user.getRole() != UserRole.DENTIST) return user;
+
+        ClinicAccessRole clinicRole = user.getClinicAccessRole();
+        if (clinicRole != null && clinicRole != ClinicAccessRole.DENTIST && user.getOwnerDentist() != null) {
+            return user.getOwnerDentist();
+        }
+        return user;
+    }
+
+    public boolean isOwnerDentist(User user) {
+        if (user == null || user.getRole() != UserRole.DENTIST) return false;
+        return user.getClinicAccessRole() == null || user.getClinicAccessRole() == ClinicAccessRole.DENTIST;
     }
 
     // ===============================

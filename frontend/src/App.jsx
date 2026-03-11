@@ -13,7 +13,6 @@ import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Settings from "./pages/Settings";
-import Unauthorized from "./pages/Unauthorized";
 import Patient from "./pages/Patient";
 import Medications from "./pages/Medications";
 import TreatmentCatalog from "./pages/Treatments";
@@ -58,8 +57,11 @@ import LaboratoryDetails from "./pages/LaboratoryDetails";
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
 import RequireAuth from "./components/RequireAuth"; 
+import RequireClinicRole from "./components/RequireClinicRole";
 import GestionCabinetPinGuard from "./components/GestionCabinetPinGuard";
 import SessionExpiredModal from "./components/SessionExpiredModal";
+import { CLINIC_ROLES, getClinicRole } from "./utils/clinicAccess";
+import { isPlanActiveForAccess } from "./utils/planAccess";
 
 import "./index.css";
 
@@ -103,10 +105,15 @@ const AppContent = () => {
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
-    if (!user.phoneVerified) return "/verify";
-    if (user.planStatus === "WAITING") return "/waiting";
-    if (user.planStatus !== "ACTIVE") return "/plan";
-    return "/dashboard";
+    if (getClinicRole(user) === CLINIC_ROLES.DENTIST) {
+      if (!user.phoneVerified) return "/verify";
+      const isPlanActive = isPlanActiveForAccess(user);
+      if (!isPlanActive && user.planStatus === "WAITING") return "/waiting";
+      if (!isPlanActive) return "/plan";
+      return "/dashboard";
+    }
+    if (getClinicRole(user) === CLINIC_ROLES.PARTNER_DENTIST) return "/dashboard";
+    return "/appointments";
   };
 
   // --- Loading Screen ---
@@ -134,7 +141,7 @@ const AppContent = () => {
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="/unauthorized" element={<CatchAllRedirect />} />
 
         {/* Dentist Protected Routes */}
         <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
@@ -143,47 +150,54 @@ const AppContent = () => {
           <Route path="/waiting" element={<WaitingPage />} />
 
           <Route element={<Layout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/devis" element={<Devis />} />
-
-            <Route element={<GestionCabinetPinGuard />}>
-              <Route path="/gestion-cabinet" element={<GestionCabinet />} />
-              <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
-              <Route path="/gestion-cabinet/laboratories/:id" element={<LaboratoryDetails />} />
-              <Route path="/gestion-cabinet/finance" element={<Finance />} />
-              <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
-              <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
-              <Route path="/gestion-cabinet/prosthetics-tracking" element={<Prosthetics />} />
-              <Route path="/gestion-cabinet/employees" element={<Employees />} />
-              <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
+            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST]} />}>
+              <Route path="/dashboard" element={<Dashboard />} />
             </Route>
 
             <Route path="/patients" element={<Patients />} />
             <Route path="/patients/:id" element={<Patient />} />
             <Route path="/appointments" element={<Appointments />} />
-            <Route path="/catalogue" element={<Catalogue />} />
-            <Route path="/catalogue/medications" element={<Medications />} />
-            <Route path="/catalogue/treatments" element={<TreatmentCatalog />} />
-            <Route path="/catalogue/justifications" element={<JustificationContent />} />
-            <Route path="/catalogue/prosthetics" element={<ProstheticsSettings />} />
-            <Route path="/catalogue/materials" element={<MaterialsSettings />} />
-            <Route path="/catalogue/items" element={<Items />} />
+            <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
+            <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
+            <Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
 
-            <Route path="/settings" element={<Settings />} />
+            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST, CLINIC_ROLES.ASSISTANT]} />}>
+              <Route path="/gestion-cabinet/prosthetics-tracking" element={<Prosthetics />} />
+              <Route path="/catalogue" element={<Catalogue />} />
+              <Route path="/catalogue/medications" element={<Medications />} />
+              <Route path="/catalogue/treatments" element={<TreatmentCatalog />} />
+              <Route path="/catalogue/justifications" element={<JustificationContent />} />
+              <Route path="/catalogue/prosthetics" element={<ProstheticsSettings />} />
+              <Route path="/catalogue/materials" element={<MaterialsSettings />} />
+              <Route path="/catalogue/items" element={<Items />} />
+            </Route>
+
+            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST]} />}>
+              <Route element={<GestionCabinetPinGuard />}>
+                <Route path="/gestion-cabinet" element={<GestionCabinet />} />
+                <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
+                <Route path="/gestion-cabinet/laboratories/:id" element={<LaboratoryDetails />} />
+                <Route path="/gestion-cabinet/finance" element={<Finance />} />
+                <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
+                <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
+                <Route path="/gestion-cabinet/employees" element={<Employees />} />
+                <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
+              </Route>
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/preferences" element={<Preference />} />
+              <Route path="/settings/profile" element={<Profile />} />
+              <Route path="/settings/security" element={<Security />} />
+              <Route path="/settings/audit-logs" element={<AuditLogs />} />
+              <Route path="/settings/payments" element={<HandPaymentHistory />} />
+            </Route>
+
             <Route path="/settings/medications" element={<Navigate to="/catalogue/medications" replace />} />
             <Route path="/settings/treatments" element={<Navigate to="/catalogue/treatments" replace />} />
             <Route path="/settings/justifications" element={<Navigate to="/catalogue/justifications" replace />} />
             <Route path="/settings/prosthetics" element={<Navigate to="/catalogue/prosthetics" replace />} />
             <Route path="/settings/materials" element={<Navigate to="/catalogue/materials" replace />} />
             <Route path="/settings/items" element={<Navigate to="/catalogue/items" replace />} />
-            <Route path="/settings/preferences" element={<Preference />} />
-            <Route path="/settings/profile" element={<Profile />} />
-            <Route path="/settings/security" element={<Security />} />
-            <Route path="/settings/audit-logs" element={<AuditLogs />} />
-            <Route path="/settings/payments" element={<HandPaymentHistory />} />
-            <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
-            <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
-            <Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
             
           </Route>
         </Route>
@@ -202,7 +216,7 @@ const AppContent = () => {
             <Route path="/admin/change-password" element={<AdminChangePassword />} />
             <Route path="/admin/manage-plans" element={<ManagePlans />} />
             <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
-          </Route>/gestion-cabinet
+          </Route>
         </Route>
 
         {/* Redirects */}

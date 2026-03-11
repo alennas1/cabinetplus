@@ -4,6 +4,7 @@ import { Plus, Search, Edit2,Filter, Trash2 } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import {
   getItemDefaults,
   createItemDefault,
@@ -89,6 +90,16 @@ const Items = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+
+  if (loading) {
+    return (
+      <DentistPageSkeleton
+        title="Articles"
+        subtitle="Chargement des articles du catalogue"
+        variant="table"
+      />
+    );
+  }
 
   // Handlers
   const handleChange = (e) => {

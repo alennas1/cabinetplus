@@ -74,10 +74,11 @@ public ResponseEntity<DeviseResponse> getById(@PathVariable Long id, Principal p
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
 
-    // ðŸ”¹ Helpers (Consistent with your MaterialController)
+    // Helpers (Consistent with your MaterialController)
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        User user = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(user);
     }
 
     private DeviseResponse mapToResponse(Devise d) {
@@ -138,8 +139,10 @@ public void generateDevisePdf(
     Font boldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11);
 
     // Header (Practitioner Info)
-    String clinicName = practitioner.getClinicName() != null ? practitioner.getClinicName() : "CABINET DENTAIRE";
-    document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
+    String clinicName = practitioner.getClinicName();
+    if (clinicName != null && !clinicName.isBlank()) {
+        document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
+    }
     document.add(new Paragraph("Dr. " + practitioner.getFirstname() + " " + practitioner.getLastname(), subTitleFont));
 
     if (practitioner.getAddress() != null) {
@@ -172,7 +175,7 @@ public void generateDevisePdf(
     table.setSpacingBefore(10);
 
     // Table Headers
-    String[] headers = {"DÃ©signation", "QtÃ©", "Prix Unitaire", "Total"};
+    String[] headers = {"Designation", "Qte", "Prix Unitaire", "Total"};
     for (String columnHeader : headers) {
         PdfPCell cell = new PdfPCell(new Phrase(columnHeader, boldFont));
         cell.setBackgroundColor(java.awt.Color.LIGHT_GRAY);
@@ -202,7 +205,7 @@ public void generateDevisePdf(
     document.add(table);
 
     // Total Section
-    Paragraph totalP = new Paragraph("\nTOTAL GÃ‰NÃ‰RAL: " + String.format("%,.2f DZD", devise.getTotalAmount()), subTitleFont);
+    Paragraph totalP = new Paragraph("\nTOTAL GENERAL: " + String.format("%,.2f DZD", devise.getTotalAmount()), subTitleFont);
     totalP.setAlignment(Element.ALIGN_RIGHT);
     document.add(totalP);
 
@@ -219,4 +222,5 @@ public void generateDevisePdf(
 }
 
   }
+
 

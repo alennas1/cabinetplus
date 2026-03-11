@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.UserDto;
+import com.cabinetplus.backend.dto.PlanUsageDto;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
@@ -26,6 +28,7 @@ import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.PlanService;
+import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -39,6 +42,7 @@ public class UserController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final PlanService planService;
+    private final PlanLimitService planLimitService;
     private final JwtUtil jwtUtil;
     private final AuditService auditService;
 
@@ -46,12 +50,14 @@ public class UserController {
             UserService userService,
             PasswordEncoder passwordEncoder,
             PlanService planService,
+            PlanLimitService planLimitService,
             JwtUtil jwtUtil,
             AuditService auditService
     ) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.planService = planService;
+        this.planLimitService = planLimitService;
         this.jwtUtil = jwtUtil;
         this.auditService = auditService;
     }
@@ -60,11 +66,13 @@ public class UserController {
     // BASIC CRUD
     // ===============================
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public List<User> getAllUsers() {
         return userService.findAll();
     }
 
     @GetMapping("/dentists")
+    @PreAuthorize("hasRole('ADMIN')")
     public List<User> getAllDentists() {
         return userService.getAllDentists();
     }
@@ -82,17 +90,20 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public User getUserById(@PathVariable Long id) {
         return userService.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public User createUser(@RequestBody User user) {
         return userService.save(user);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public User updateUser(@PathVariable Long id, @RequestBody User user) {
         user.setId(id);
         return userService.save(user);
@@ -133,6 +144,16 @@ public class UserController {
     public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
         return userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+    }
+
+    @GetMapping("/me/plan-usage")
+    public PlanUsageDto getCurrentPlanUsage(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
+    ) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User owner = userService.resolveClinicOwner(user);
+        return planLimitService.getPlanUsage(owner);
     }
 
     @PutMapping("/me")
@@ -202,6 +223,10 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     User user = userService.findByUsername(userDetails.getUsername())
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
+    if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
+        throw new AccessDeniedException("Les comptes employes heritent la verification du proprietaire");
+    }
+
     user.setPhoneVerified(true); // <--- Sets the phone verification status
     return userService.save(user);
 }
@@ -215,6 +240,10 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
 
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
+            throw new AccessDeniedException("Les comptes employes heritent le plan du proprietaire");
+        }
 
         if (!planData.containsKey("planId")) {
             throw new IllegalArgumentException("planId est obligatoire");
@@ -286,6 +315,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         }
 
         newAdmin.setRole(UserRole.ADMIN);
+        newAdmin.setClinicAccessRole(null);
         newAdmin.setCreatedAt(LocalDateTime.now());
         newAdmin.setPlanStatus(UserPlanStatus.PENDING);
         newAdmin.setPhoneVerified(false);

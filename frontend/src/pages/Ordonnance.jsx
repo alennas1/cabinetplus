@@ -1,7 +1,7 @@
 // src/pages/Ordonnance.jsx
 import React, { useState, useEffect } from "react";
 import { Edit2, Trash2, Printer, ArrowLeft } from "react-feather";
-import { createPrescription, getPrescriptionById, updatePrescription, downloadPrescriptionPdf } from "../services/prescriptionService";
+import { createPrescription, getPrescriptionById, updatePrescription, openPrescriptionPdfInNewTab } from "../services/prescriptionService";
 import { getMedications } from "../services/medicationService";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -157,8 +157,8 @@ useEffect(() => {
       currentOrdonnanceId = newPrescription.id; // Get the new ID from the backend response
     }
 
-    // 3. Trigger PDF Download
-    await downloadPrescriptionPdf(currentOrdonnanceId, rxId || "prescription");
+    // 3. Open PDF in a new tab (user can print or download from browser viewer)
+    await openPrescriptionPdfInNewTab(currentOrdonnanceId);
 
     toast.success("Enregistré et prêt à imprimer !");
 

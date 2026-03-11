@@ -1,17 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  User, 
-  Lock, 
+import {
+  User,
+  Lock,
   Activity,
-  Package, 
-  Settings as Gear, 
-  FileText, 
-  Box, 
-  CreditCard, 
-  Clipboard,
-  Layers, 
-  Tool 
+  Settings as Gear,
+  CreditCard,
 } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
@@ -23,81 +17,40 @@ const Settings = () => {
     {
       title: "Compte",
       options: [
-        { 
-          title: "Profil", 
-          desc: "Modifier votre nom et informations personnelles", 
-          icon: <User />, 
-          path: "/settings/profile" 
+        {
+          title: "Profil",
+          desc: "Modifier votre nom et informations personnelles",
+          icon: <User />,
+          path: "/settings/profile",
         },
-        { 
-          title: "Sécurité", 
-          desc: "Changer mot de passe et paramètres de sécurité", 
-          icon: <Lock />, 
-          path: "/settings/security" 
+        {
+          title: "Securite",
+          desc: "Changer mot de passe et parametres de securite",
+          icon: <Lock />,
+          path: "/settings/security",
         },
-        { 
-          title: "Historique de paiements", 
-          desc: "Consulter vos factures et l'état de vos abonnements", 
-          icon: <CreditCard />, 
-          path: "/settings/payments"
+        {
+          title: "Plans et paiements",
+          desc: "Consulter vos factures et l etat de vos abonnements",
+          icon: <CreditCard />,
+          path: "/settings/payments",
         },
         {
           title: "Journal d activite",
           desc: "Voir vos actions de securite et authentification",
           icon: <Activity />,
-          path: "/settings/audit-logs"
+          path: "/settings/audit-logs",
         },
       ],
     },
     {
-      title: "Catalogues",
+      title: "Preferences",
       options: [
-        { 
-          title: "Catalogue des médicaments", 
-          desc: "Gérer la liste des médicaments disponibles", 
-          icon: <Box />, 
-          path: "/settings/medications" 
-        },
-        { 
-          title: "Catalogue des traitements", 
-          desc: "Ajouter, modifier ou supprimer les traitements proposés", 
-          icon: <Clipboard />, 
-          path: "/settings/treatments" 
-        },
-        { 
-          title: "Catalogue des articles", 
-          desc: "Ajouter, modifier ou supprimer les articles disponibles", 
-          icon: <Package />, 
-          path: "/settings/items" 
-        },
-        { 
-          title: "Catalogue des justifications", 
-          desc: "Gérer les modèles de documents et certificats", 
-          icon: <FileText />, 
-          path: "/settings/justifications" 
-        },
-        { 
-          title: "Catalogue des prothèses", 
-          desc: "Définir les types de prothèses (Couronnes, Bridges, etc.)", 
-          icon: <Layers />, 
-          path: "/settings/prosthetics" 
-        },
-        { 
-          title: "Matériaux & Composants", 
-          desc: "Gérer les matériaux utilisés (Zircone, Céramique, Résine)", 
-          icon: <Tool />, 
-          path: "/settings/materials" 
-        },
-      ],
-    },
-    {
-      title: "Préférences",
-      options: [
-        { 
-          title: "Configuration", 
-          desc: "Personnaliser l'application selon vos besoins", 
-          icon: <Gear />, 
-          path: "/settings/preferences" 
+        {
+          title: "Configuration",
+          desc: "Personnaliser l'application selon vos besoins",
+          icon: <Gear />,
+          path: "/settings/preferences",
         },
       ],
     },
@@ -105,10 +58,10 @@ const Settings = () => {
 
   return (
     <div className="settings-container">
-      <PageHeader 
-        title="Paramètres" 
-        subtitle="Choisissez ce que vous souhaitez gérer :" 
-        align="left" 
+      <PageHeader
+        title="Parametres"
+        subtitle="Choisissez ce que vous souhaitez gerer :"
+        align="left"
       />
 
       {settingsGroups.map((group, i) => (
@@ -116,13 +69,13 @@ const Settings = () => {
           <h3 className="group-title">{group.title}</h3>
           <div className="settings-options">
             {group.options.map((option, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="settings-card"
                 role="button"
                 tabIndex={0}
                 onClick={() => navigate(option.path)}
-                onKeyDown={(e) => e.key === 'Enter' && navigate(option.path)}
+                onKeyDown={(e) => e.key === "Enter" && navigate(option.path)}
               >
                 <div className="settings-icon">{option.icon}</div>
                 <div className="settings-text">

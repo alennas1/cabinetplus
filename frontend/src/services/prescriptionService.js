@@ -57,3 +57,15 @@ export const downloadPrescriptionPdf = async (id, rxId = "prescription") => {
 
   return true;
 };
+
+export const openPrescriptionPdfInNewTab = async (id) => {
+  const response = await api.get(`${BASE_URL}/${id}/pdf`, { responseType: "blob" });
+  const file = new Blob([response.data], { type: "application/pdf" });
+  const fileURL = URL.createObjectURL(file);
+
+  window.open(fileURL, "_blank");
+
+  // Give the new tab time to load the blob URL before cleanup.
+  setTimeout(() => URL.revokeObjectURL(fileURL), 60_000);
+  return true;
+};

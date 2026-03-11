@@ -4,6 +4,7 @@ import { Search, ChevronDown, Trash2, Send, Edit2, X, ArrowUpRight } from "react
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import ToothGraph from "./ToothGraph";
 
 import PageHeader from "../components/PageHeader";
 import {
@@ -13,6 +14,7 @@ import {
   deleteProthetics,
   updateProthetics,
 } from "../services/prostheticsService";
+import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
 import { getAllLaboratories } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
 
@@ -22,8 +24,8 @@ import "./Finance.css";
 const prothesisStatusLabels = {
   PENDING: "En attente",
   SENT_TO_LAB: "Au labo",
-  RECEIVED: "Reçu",
-  FITTED: "Posée",
+  RECEIVED: "Recu",
+  FITTED: "Posee",
 };
 
 const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"];
@@ -33,6 +35,7 @@ const Prosthetics = () => {
   const navigate = useNavigate();
 
   const [protheses, setProtheses] = useState([]);
+  const [prothesisCatalog, setProthesisCatalog] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -79,11 +82,16 @@ const Prosthetics = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [pData, lData] = await Promise.all([getAllProthetics(), getAllLaboratories()]);
+      const [pData, lData, catalogData] = await Promise.all([
+        getAllProthetics(),
+        getAllLaboratories(),
+        getAllProstheticsCatalogue(),
+      ]);
       setProtheses(pData);
       setLaboratories(lData);
+      setProthesisCatalog(catalogData);
     } catch (err) {
-      toast.error("Erreur de chargement des données");
+      toast.error("Erreur de chargement des donnees");
     } finally {
       setLoading(false);
     }
@@ -96,6 +104,35 @@ const Prosthetics = () => {
 
   const clearSelection = () => {
     setSelectedIds([]);
+  };
+
+  const getSuggestedLabCost = (ids) => {
+    const selected = protheses.filter((p) => ids.includes(p.id));
+    const numericCosts = selected
+      .map((p) => (p.labCost == null ? null : Number(p.labCost)))
+      .filter((c) => c != null && !Number.isNaN(c));
+
+    if (numericCosts.length === 0) return "";
+
+    const uniqueCosts = [...new Set(numericCosts)];
+    if (ids.length === 1 || uniqueCosts.length === 1) {
+      return String(uniqueCosts[0]);
+    }
+
+    return "";
+  };
+
+  const openAssignModalWithSelection = (ids) => {
+    setAssignData({ labId: "", cost: getSuggestedLabCost(ids) });
+    setShowAssignModal(true);
+  };
+
+  const isBulkAssign = selectedIds.length > 1;
+
+  const getLabCostForAssignment = (id) => {
+    const item = protheses.find((p) => p.id === id);
+    const value = Number(item?.labCost);
+    return Number.isNaN(value) ? 0 : value;
   };
 
   const selectedProtheses = protheses.filter((p) => selectedIds.includes(p.id));
@@ -111,22 +148,22 @@ const Prosthetics = () => {
 
   const handleOpenAssignModal = () => {
     if (!canBulkSendToLab) {
-      toast.error("Sélectionnez uniquement des travaux en attente pour l'envoi au laboratoire.");
+      toast.error("Selectionnez uniquement des travaux en attente pour l'envoi au laboratoire.");
       return;
     }
 
-    setShowAssignModal(true);
+    openAssignModalWithSelection(selectedIds);
   };
 
   const handleBulkReturn = async () => {
     if (!canBulkReturn) {
-      toast.error("Sélectionnez uniquement des travaux au labo pour effectuer le retour.");
+      toast.error("Selectionnez uniquement des travaux au labo pour effectuer le retour.");
       return;
     }
 
     try {
       await Promise.all(selectedIds.map((id) => updateProtheticsStatus(id, "RECEIVED")));
-      toast.success("Travaux marqués comme reçus");
+      toast.success("Travaux marques comme recus");
       clearSelection();
       await loadData();
     } catch (err) {
@@ -134,32 +171,61 @@ const Prosthetics = () => {
     }
   };
 
+
   const handleCycleProthesisStatus = async (p) => {
+    if (p.status === "PENDING") {
+      const targetIds = [p.id];
+      setSelectedIds(targetIds);
+      openAssignModalWithSelection(targetIds);
+      return;
+    }
+
     const currentIndex = prothesisStatusOrder.indexOf(p.status);
     const nextStatus = prothesisStatusOrder[(currentIndex + 1) % prothesisStatusOrder.length];
 
     if (nextStatus === "SENT_TO_LAB") {
-      setSelectedIds([p.id]);
-      setShowAssignModal(true);
+      const targetIds = [p.id];
+      setSelectedIds(targetIds);
+      openAssignModalWithSelection(targetIds);
       return;
     }
 
     try {
       await updateProtheticsStatus(p.id, nextStatus);
-      toast.success(`Statut mis à jour : ${prothesisStatusLabels[nextStatus]}`);
+      toast.success(`Statut mis a jour : ${prothesisStatusLabels[nextStatus]}`);
       await loadData();
     } catch (err) {
       toast.error("Erreur lors du changement de statut");
     }
   };
 
+  const applyCatalogPricingFromTeeth = (teeth, catalogId, currentState) => {
+    const catalogItem = prothesisCatalog.find((item) => item.id === Number(catalogId));
+    if (!catalogItem) {
+      return { ...currentState, teeth };
+    }
+
+    const multiplier = catalogItem.isFlatFee ? 1 : (teeth.length || 1);
+    const nextFinalPrice = Number(catalogItem.defaultPrice || 0) * multiplier;
+    const nextLabCost = Number(catalogItem.defaultLabCost || 0) * multiplier;
+
+    return {
+      ...currentState,
+      teeth,
+      finalPrice: nextFinalPrice,
+      labCost: nextLabCost,
+    };
+  };
+
   const handleEditClick = (p) => {
     setEditingProthesis({
       id: p.id,
+      catalogId: p.catalogId,
       labCost: p.labCost || 0,
       finalPrice: p.finalPrice || 0,
+      code: p.code || "",
       notes: p.notes || "",
-      teeth: p.teeth ? p.teeth.join(", ") : "",
+      teeth: p.teeth || [],
     });
     setShowEditModal(true);
   };
@@ -175,7 +241,7 @@ const Prosthetics = () => {
     try {
       await deleteProthetics(prothesisToDelete.id);
       setSelectedIds((current) => current.filter((id) => id !== prothesisToDelete.id));
-      toast.success("Travail supprimé");
+      toast.success("Travail supprime");
       await loadData();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
@@ -221,11 +287,11 @@ const Prosthetics = () => {
   });
 
   const formatDateLabel = (dateStr) =>
-    dateStr ? new Date(dateStr).toLocaleDateString("fr-FR") : "—";
+    dateStr ? new Date(dateStr).toLocaleDateString("fr-FR") : "-";
 
   return (
     <div className="patients-container">
-      <PageHeader title="Prothèses" subtitle="Gestion des travaux et laboratoire" align="left" />
+      <PageHeader title="Protheses" subtitle="Gestion des travaux et laboratoire" align="left" />
 
       <div className="patients-controls">
         <div className="controls-left">
@@ -244,7 +310,7 @@ const Prosthetics = () => {
               className={`dropdown-trigger ${dropdownOpen ? "open" : ""}`}
               onClick={() => setDropdownOpen(!dropdownOpen)}
             >
-              <span>{filterBy === "prothesisName" ? "Par Travail" : "Par Matériau"}</span>
+              <span>{filterBy === "prothesisName" ? "Par Travail" : "Par Materiau"}</span>
               <ChevronDown size={18} className={`chevron ${dropdownOpen ? "rotated" : ""}`} />
             </button>
             {dropdownOpen && (
@@ -263,7 +329,7 @@ const Prosthetics = () => {
                     setDropdownOpen(false);
                   }}
                 >
-                  Par Matériau
+                  Par Materiau
                 </li>
               </ul>
             )}
@@ -327,7 +393,7 @@ const Prosthetics = () => {
                   opacity: canBulkReturn ? 1 : 0.6,
                   cursor: canBulkReturn ? "pointer" : "not-allowed",
                 }}
-                title="Disponible uniquement pour les travaux déjà au labo"
+                title="Disponible uniquement pour les travaux deja au labo"
               >
                 Retour ({selectedIds.length})
               </button>
@@ -361,7 +427,7 @@ const Prosthetics = () => {
               backgroundColor: "#f9f9f9",
             }}
           >
-            <option value="dateCreated">Date Création</option>
+            <option value="dateCreated">Date Creation</option>
             <option value="sentToLabDate">Date Envoi Labo</option>
             <option value="actualReturnDate">Date Retour</option>
           </select>
@@ -432,7 +498,7 @@ const Prosthetics = () => {
         </div>
 
         <div className="custom-range-container">
-          <span className="custom-range-label">Plage personnalisée :</span>
+          <span className="custom-range-label">Plage personnalisee :</span>
           <div className="custom-range">
             <input
               type="date"
@@ -460,10 +526,11 @@ const Prosthetics = () => {
         <thead>
           <tr>
             <th style={{ width: "40px" }}></th>
-            <th>Travail / Matériau</th>
+            <th>Travail / Materiau</th>
+            <th>Code</th>
             <th>Dents</th>
             <th>Laboratoire</th>
-            <th>Coût Labo</th>
+            <th>Cout Labo</th>
             <th>Dates</th>
             <th>Statut</th>
             <th>Actions</th>
@@ -472,14 +539,14 @@ const Prosthetics = () => {
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={8} style={{ textAlign: "center", padding: "40px" }}>
+              <td colSpan={9} style={{ textAlign: "center", padding: "40px" }}>
                 Chargement...
               </td>
             </tr>
           ) : filteredProtheses.length === 0 ? (
             <tr>
-              <td colSpan={8} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
-                Aucun travail trouvé
+              <td colSpan={9} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
+                Aucun travail trouve
               </td>
             </tr>
           ) : (
@@ -498,6 +565,7 @@ const Prosthetics = () => {
                     {p.materialName}
                   </div>
                 </td>
+                <td style={{ fontWeight: "600" }}>{p.code || "-"}</td>
                 <td style={{ textAlign: "center" }}>
                   {p.teeth?.map((t) => (
                     <span key={t} className="tooth-badge">
@@ -505,9 +573,9 @@ const Prosthetics = () => {
                     </span>
                   ))}
                 </td>
-                <td style={{ fontWeight: "500" }}>{p.labName === "Not Sent" ? "—" : p.labName}</td>
+                <td style={{ fontWeight: "500" }}>{p.labName === "Not Sent" ? "-" : p.labName}</td>
                 <td style={{ fontWeight: "600", color: "#3498db" }}>
-                  {p.labCost ? `${p.labCost} DZD` : "—"}
+                  {p.labCost ? `${p.labCost} DZD` : "-"}
                 </td>
                 <td style={{ fontSize: "11px", color: "#666", lineHeight: "1.4" }}>
                   <div>C: {formatDateLabel(p.dateCreated)}</div>
@@ -545,77 +613,92 @@ const Prosthetics = () => {
       </table>
 
       {showEditModal && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+        <div className="modal-overlay treatment-modal" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Modifier les détails</h2>
+            <h2>Modifier les details</h2>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
                 try {
                   const dataToSend = {
                     ...editingProthesis,
-                    teeth: editingProthesis.teeth
-                      .split(",")
-                      .map((t) => parseInt(t.trim(), 10))
-                      .filter((t) => !Number.isNaN(t)),
+                    teeth: editingProthesis.teeth || [],
                     labCost: parseFloat(editingProthesis.labCost),
                     finalPrice: parseFloat(editingProthesis.finalPrice),
+                    code: editingProthesis.code || "",
                   };
                   await updateProthetics(editingProthesis.id, dataToSend);
-                  toast.success("Mis à jour réussie");
+                  toast.success("Mise a jour reussie");
                   setShowEditModal(false);
                   await loadData();
                 } catch (err) {
                   toast.error("Erreur de modification");
                 }
               }}
-              className="modal-form"
+              className="treatment-modal-form"
             >
-              <label className="field-label">Dents (séparées par des virgules)</label>
-              <input
-                type="text"
-                value={editingProthesis.teeth}
-                onChange={(e) =>
-                  setEditingProthesis({ ...editingProthesis, teeth: e.target.value })
-                }
-              />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
-                <div>
-                  <label className="field-label">Coût Labo (DZD)</label>
-                  <input
-                    type="number"
-                    value={editingProthesis.labCost}
-                    onChange={(e) =>
-                      setEditingProthesis({ ...editingProthesis, labCost: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="field-label">Prix Patient (DZD)</label>
-                  <input
-                    type="number"
-                    value={editingProthesis.finalPrice}
-                    onChange={(e) =>
-                      setEditingProthesis({ ...editingProthesis, finalPrice: e.target.value })
-                    }
-                  />
-                </div>
+              <div className="modal-form-left">
+                <label className="tooth-text">Selectionner la/les dent(s)</label>
+                <ToothGraph
+                  selectedTeeth={editingProthesis.teeth || []}
+                  onChange={(newTeeth) =>
+                    setEditingProthesis((prev) =>
+                      applyCatalogPricingFromTeeth(newTeeth, prev.catalogId, prev)
+                    )
+                  }
+                />
               </div>
-              <label className="field-label">Notes</label>
-              <textarea
-                value={editingProthesis.notes}
-                onChange={(e) =>
-                  setEditingProthesis({ ...editingProthesis, notes: e.target.value })
-                }
-                rows="2"
-              />
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary2">
-                  Enregistrer
-                </button>
-                <button type="button" className="btn-cancel" onClick={() => setShowEditModal(false)}>
-                  Annuler
-                </button>
+
+              <div className="modal-form-right">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                  <div>
+                    <label className="field-label">Cout Labo (DZD)</label>
+                    <input
+                      type="number"
+                      value={editingProthesis.labCost}
+                      onChange={(e) =>
+                        setEditingProthesis({ ...editingProthesis, labCost: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">Prix Patient (DZD)</label>
+                    <input
+                      type="number"
+                      value={editingProthesis.finalPrice}
+                      onChange={(e) =>
+                        setEditingProthesis({ ...editingProthesis, finalPrice: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <label className="field-label">Code</label>
+                <input
+                  type="text"
+                  value={editingProthesis.code || ""}
+                  onChange={(e) =>
+                    setEditingProthesis({ ...editingProthesis, code: e.target.value })
+                  }
+                />
+
+                <label className="field-label">Notes</label>
+                <textarea
+                  value={editingProthesis.notes}
+                  onChange={(e) =>
+                    setEditingProthesis({ ...editingProthesis, notes: e.target.value })
+                  }
+                  rows="2"
+                />
+
+                <div className="modal-actions">
+                  <button type="submit" className="btn-primary2">
+                    Enregistrer
+                  </button>
+                  <button type="button" className="btn-cancel" onClick={() => setShowEditModal(false)}>
+                    Annuler
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -627,7 +710,7 @@ const Prosthetics = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Envoi au Laboratoire</h2>
             <p style={{ fontSize: "12px", color: "#666", marginBottom: "15px" }}>
-              Travaux sélectionnés : {selectedIds.length}
+              Travaux selectionnes : {selectedIds.length}
             </p>
             <form
               onSubmit={async (e) => {
@@ -637,11 +720,13 @@ const Prosthetics = () => {
                     selectedIds.map((id) =>
                       assignProtheticsToLab(id, {
                         laboratoryId: parseInt(assignData.labId, 10),
-                        labCost: parseFloat(assignData.cost),
+                        labCost: isBulkAssign
+                          ? getLabCostForAssignment(id)
+                          : parseFloat(assignData.cost),
                       })
                     )
                   );
-                  toast.success("Envoyé au laboratoire avec succès");
+                  toast.success("Envoye au laboratoire avec succes");
                   resetAssignModal();
                   clearSelection();
                   await loadData();
@@ -664,14 +749,22 @@ const Prosthetics = () => {
                   </option>
                 ))}
               </select>
-              <label className="field-label">Coût du travail (DZD)</label>
-              <input
-                type="number"
-                value={assignData.cost}
-                onChange={(e) => setAssignData({ ...assignData, cost: e.target.value })}
-                required
-                placeholder="Ex: 4500"
-              />
+              {isBulkAssign ? (
+                <p style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  Cout labo: valeur automatique pour chaque travail selectionne.
+                </p>
+              ) : (
+                <>
+                  <label className="field-label">Cout du travail (DZD)</label>
+                  <input
+                    type="number"
+                    value={assignData.cost}
+                    onChange={(e) => setAssignData({ ...assignData, cost: e.target.value })}
+                    required
+                    placeholder="Ex: 4500"
+                  />
+                </>
+              )}
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2">
                   Confirmer
@@ -703,7 +796,7 @@ const Prosthetics = () => {
               />
             </div>
             <p className="text-gray-600 mb-6">
-              Voulez-vous vraiment supprimer ce travail ? Cette action est irréversible.
+              Voulez-vous vraiment supprimer ce travail ? Cette action est irreversible.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -729,3 +822,6 @@ const Prosthetics = () => {
 };
 
 export default Prosthetics;
+
+
+

@@ -41,18 +41,22 @@ public class ProthesisService {
         p.setPractitioner(user);
         p.setTeeth(dto.teeth());
         p.setFinalPrice(dto.finalPrice());
+        p.setLabCost(dto.labCost());
+        if (dto.code() != null) {
+            p.setCode(dto.code());
+        }
         p.setNotes(dto.notes());
         p.setStatus("PENDING");
         p.setDateCreated(LocalDateTime.now());
 
         // Keep manually edited price when provided; otherwise fall back to catalog logic.
         if (dto.finalPrice() == null) {
-            if (catalog.isFlatFee()) {
-                p.setFinalPrice(catalog.getDefaultPrice());
-            } else {
-                int count = (dto.teeth() != null && !dto.teeth().isEmpty()) ? dto.teeth().size() : 1;
-                p.setFinalPrice(catalog.getDefaultPrice() * count);
-            }
+            p.setFinalPrice(resolveCatalogAmount(catalog.getDefaultPrice(), catalog.isFlatFee(), dto.teeth()));
+        }
+
+        // Auto-fill lab cost from catalog when not manually provided.
+        if (dto.labCost() == null) {
+            p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), dto.teeth()));
         }
 
         return repository.save(p);
@@ -74,18 +78,21 @@ public class ProthesisService {
             p.setTeeth(dto.teeth());
         }
 
+        p.setCode(dto.code());
         p.setNotes(dto.notes());
 
         if (dto.finalPrice() != null) {
             p.setFinalPrice(dto.finalPrice());
         } else {
             ProthesisCatalog catalog = p.getProthesisCatalog();
-            if (catalog.isFlatFee()) {
-                p.setFinalPrice(catalog.getDefaultPrice());
-            } else {
-                int count = (p.getTeeth() != null && !p.getTeeth().isEmpty()) ? p.getTeeth().size() : 1;
-                p.setFinalPrice(catalog.getDefaultPrice() * count);
-            }
+            p.setFinalPrice(resolveCatalogAmount(catalog.getDefaultPrice(), catalog.isFlatFee(), p.getTeeth()));
+        }
+
+        if (dto.labCost() != null) {
+            p.setLabCost(dto.labCost());
+        } else if (p.getLabCost() == null || dto.catalogId() != null || dto.teeth() != null) {
+            ProthesisCatalog catalog = p.getProthesisCatalog();
+            p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), p.getTeeth()));
         }
 
         return repository.save(p);
@@ -148,5 +155,14 @@ public List<Prothesis> findByPatientAndPractitioner(Long patientId, User user) {
                 .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
                 .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
         repository.delete(p);
+    }
+
+    private Double resolveCatalogAmount(Double defaultAmount, boolean isFlatFee, List<Integer> teeth) {
+        double amount = defaultAmount != null ? defaultAmount : 0.0;
+        if (isFlatFee) {
+            return amount;
+        }
+        int count = (teeth != null && !teeth.isEmpty()) ? teeth.size() : 1;
+        return amount * count;
     }
 }

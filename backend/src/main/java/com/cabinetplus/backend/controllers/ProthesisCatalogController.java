@@ -33,6 +33,7 @@ public class ProthesisCatalogController {
         ProthesisCatalog entity = new ProthesisCatalog();
         entity.setName(dto.name());
         entity.setDefaultPrice(dto.defaultPrice());
+        entity.setDefaultLabCost(dto.defaultLabCost() != null ? dto.defaultLabCost() : 0.0);
         entity.setFlatFee(dto.isFlatFee());
         return ResponseEntity.ok(mapToResponse(service.save(entity, dto.materialId(), user)));
     }
@@ -43,6 +44,7 @@ public class ProthesisCatalogController {
         ProthesisCatalog updateData = new ProthesisCatalog();
         updateData.setName(dto.name());
         updateData.setDefaultPrice(dto.defaultPrice());
+        updateData.setDefaultLabCost(dto.defaultLabCost() != null ? dto.defaultLabCost() : 0.0);
         updateData.setFlatFee(dto.isFlatFee());
         return service.update(id, updateData, dto.materialId(), user)
                 .map(this::mapToResponse).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
@@ -59,6 +61,13 @@ public class ProthesisCatalogController {
 
     private ProthesisCatalogResponse mapToResponse(ProthesisCatalog c) {
         String materialName = (c.getMaterial() != null) ? c.getMaterial().getName() : "Unknown";
-        return new ProthesisCatalogResponse(c.getId(), c.getName(), materialName, c.getDefaultPrice(), c.isFlatFee());
+        return new ProthesisCatalogResponse(
+                c.getId(),
+                c.getName(),
+                materialName,
+                c.getDefaultPrice(),
+                c.getDefaultLabCost(),
+                c.isFlatFee()
+        );
     }
 }

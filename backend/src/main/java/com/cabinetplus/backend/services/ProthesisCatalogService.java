@@ -27,6 +27,7 @@ public class ProthesisCatalogService {
         return repository.findById(id).filter(c -> c.getCreatedBy().equals(user)).map(existing -> {
             existing.setName(updated.getName());
             existing.setDefaultPrice(updated.getDefaultPrice());
+            existing.setDefaultLabCost(updated.getDefaultLabCost());
             existing.setFlatFee(updated.isFlatFee());
             if (materialId != null) {
                 existing.setMaterial(materialRepository.findById(materialId).orElse(null));

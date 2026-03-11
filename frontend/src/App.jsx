@@ -37,6 +37,7 @@ import WaitingPage from "./pages/WaitingPage";
 import HandPaymentHistory from "./pages/HandPaymentHistory";
 import JustificationContent from "./pages/JustificationContent";
 import GestionCabinet from "./pages/GestionCabinet";
+import Catalogue from "./pages/Catalogue";
 // --- Admin Pages ---
 import DentistsPage from "./pages/Dentists"; 
 import PendingPaymentsPage from "./pages/PendingPayments"; 
@@ -160,14 +161,21 @@ const AppContent = () => {
             <Route path="/patients" element={<Patients />} />
             <Route path="/patients/:id" element={<Patient />} />
             <Route path="/appointments" element={<Appointments />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/settings/medications" element={<Medications />} />
-            <Route path="/settings/treatments" element={<TreatmentCatalog />} />
-            <Route path="/settings/justifications" element={<JustificationContent />} />
-            <Route path="/settings/prosthetics" element={<ProstheticsSettings />} />
+            <Route path="/catalogue" element={<Catalogue />} />
+            <Route path="/catalogue/medications" element={<Medications />} />
+            <Route path="/catalogue/treatments" element={<TreatmentCatalog />} />
+            <Route path="/catalogue/justifications" element={<JustificationContent />} />
+            <Route path="/catalogue/prosthetics" element={<ProstheticsSettings />} />
+            <Route path="/catalogue/materials" element={<MaterialsSettings />} />
+            <Route path="/catalogue/items" element={<Items />} />
 
-            <Route path="/settings/materials" element={<MaterialsSettings />} />
-            <Route path="/settings/items" element={<Items />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/medications" element={<Navigate to="/catalogue/medications" replace />} />
+            <Route path="/settings/treatments" element={<Navigate to="/catalogue/treatments" replace />} />
+            <Route path="/settings/justifications" element={<Navigate to="/catalogue/justifications" replace />} />
+            <Route path="/settings/prosthetics" element={<Navigate to="/catalogue/prosthetics" replace />} />
+            <Route path="/settings/materials" element={<Navigate to="/catalogue/materials" replace />} />
+            <Route path="/settings/items" element={<Navigate to="/catalogue/items" replace />} />
             <Route path="/settings/preferences" element={<Preference />} />
             <Route path="/settings/profile" element={<Profile />} />
             <Route path="/settings/security" element={<Security />} />

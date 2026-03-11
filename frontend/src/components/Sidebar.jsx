@@ -10,6 +10,8 @@ import {
   FileText,
   Settings,
   Briefcase,
+  BookOpen,
+  Layers,
   Lock,
   Unlock
 } from "react-feather";
@@ -24,6 +26,7 @@ import {
   clearGestionCabinetUnlocked,
   disableGestionCabinetPin,
   enableGestionCabinetPin,
+  setCachedGestionCabinetPinEnabled,
   getGestionCabinetPinStatus,
   setGestionCabinetUnlocked,
 } from "../services/pinGuardService";
@@ -53,7 +56,9 @@ const Sidebar = () => {
     try {
       setPinChecking(true);
       const status = await getGestionCabinetPinStatus();
-      setPinEnabled(!!status?.enabled);
+      const nextEnabled = !!status?.enabled;
+      setPinEnabled(nextEnabled);
+      setCachedGestionCabinetPinEnabled(userKey, nextEnabled);
     } catch {
       setPinEnabled(false);
     } finally {
@@ -195,6 +200,13 @@ const Sidebar = () => {
         </li>
 
         <li>
+          <Link to="/appointments">
+            <Calendar size={20} />
+            <span className="link-text">Rendez-vous</span>
+          </Link>
+        </li>
+
+        <li>
           <Link to="/patients">
             <Users size={20} />
             <span className="link-text">Patients</span>
@@ -202,21 +214,14 @@ const Sidebar = () => {
         </li>
 
         <li>
-          <Link to="/appointments">
-            <Calendar size={20} />
-            <span className="link-text">Rendez-vous</span>
-          </Link>
-        </li>
-
-        {/* --- Administration Group --- */}
-        <li className="sidebar-group-title admin">Administration</li>
-
-        <li className="admin-link">
           <Link to="/devis">
             <FileText size={20} />
             <span className="link-text">Devis</span>
           </Link>
         </li>
+
+        {/* --- Administration Group --- */}
+        <li className="sidebar-group-title admin">Administration</li>
 
         {/* Combined Gestion Cabinet Link */}
         <li className="admin-link">
@@ -247,6 +252,20 @@ const Sidebar = () => {
             >
               {pinEnabled ? <Lock size={18} color="#ef4444" /> : <Unlock size={18} color="#22c55e" />}
             </button>
+          </Link>
+        </li>
+
+        <li className="admin-link">
+          <Link to="/catalogue">
+            <BookOpen size={20} />
+            <span className="link-text">Catalogues</span>
+          </Link>
+        </li>
+
+        <li className="admin-link">
+          <Link to="/gestion-cabinet/prosthetics-tracking">
+            <Layers size={20} />
+            <span className="link-text">Prothèses</span>
           </Link>
         </li>
 
@@ -432,3 +451,5 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
+

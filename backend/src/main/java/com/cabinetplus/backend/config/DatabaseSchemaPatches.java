@@ -35,6 +35,15 @@ public class DatabaseSchemaPatches {
                                 "ADD COLUMN IF NOT EXISTS is_flat_fee boolean NOT NULL DEFAULT false"
                 );
 
+                jdbcTemplate.execute(
+                        "ALTER TABLE prothesis_catalog " +
+                                "ADD COLUMN IF NOT EXISTS default_lab_cost double precision NOT NULL DEFAULT 0"
+                );
+
+                jdbcTemplate.execute(
+                        "ALTER TABLE protheses " +
+                                "ADD COLUMN IF NOT EXISTS code varchar(120)"
+                );
 
                 jdbcTemplate.execute(
                         "CREATE TABLE IF NOT EXISTS audit_logs (" +

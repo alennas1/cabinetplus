@@ -6,7 +6,7 @@ import {
   generateDraftJustification,
   createJustification,
   updateJustification,
-  downloadJustificationPdf,
+  openJustificationPdfInNewTab,
 } from "../services/justificationService";
 import { getPatientById } from "../services/patientService";
 import "react-toastify/dist/ReactToastify.css";
@@ -71,7 +71,7 @@ const Justification = () => {
       toast.success(printAfter ? "Préparation du PDF..." : "Document enregistré");
 
       if (printAfter) {
-        await downloadJustificationPdf(saved.id || justificationId);
+        await openJustificationPdfInNewTab(saved.id || justificationId);
       } else {
         navigate(`/patients/${patientId}`);
       }

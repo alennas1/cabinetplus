@@ -27,7 +27,7 @@ import { getJustificationTemplates } from "../services/justificationContentServi
 import { 
   getJustificationsByPatient, 
   deleteJustification,
-  downloadJustificationPdf,
+  openJustificationPdfInNewTab,
   generateDraftJustification, 
   createJustification
 } from "../services/justificationService";
@@ -184,7 +184,7 @@ const handleQuickPrintJustification = async (template) => {
     setJustifications([saved, ...justifications]);
     
     // 4. Download/Print the PDF
-    await downloadJustificationPdf(saved.id, saved.title);
+    await openJustificationPdfInNewTab(saved.id);
     
     toast.success("Document généré et imprimé !");
     setShowJustificationModal(false);
@@ -213,7 +213,7 @@ const handleDownloadPdf = async () => {
 const handlePrintJustification = async (justificationId, title) => {
   try {
     toast.info("Génération du PDF...");
-    await downloadJustificationPdf(justificationId, title || "Justificatif");
+    await openJustificationPdfInNewTab(justificationId);
   } catch (error) {
     console.error("Error printing justification:", error);
     toast.error(getApiErrorMessage(error, "Erreur lors de la génération du PDF"));

@@ -5,8 +5,10 @@ import { toast } from "react-toastify";
 import PinCodeInput from "./PinCodeInput";
 import {
   clearGestionCabinetUnlocked,
+  getCachedGestionCabinetPinEnabled,
   getGestionCabinetPinStatus,
   isGestionCabinetUnlocked,
+  setCachedGestionCabinetPinEnabled,
   setGestionCabinetUnlocked,
   verifyGestionCabinetPin,
 } from "../services/pinGuardService";
@@ -16,9 +18,10 @@ const GestionCabinetPinGuard = () => {
   const userKey = user?.id ?? user?.username;
   useLocation(); // re-render on navigation inside gestion-cabinet
   const navigate = useNavigate();
+  const cachedEnabled = getCachedGestionCabinetPinEnabled(userKey);
 
-  const [checking, setChecking] = useState(true);
-  const [enabled, setEnabled] = useState(false);
+  const [checking, setChecking] = useState(cachedEnabled === null && !!userKey);
+  const [enabled, setEnabled] = useState(cachedEnabled ?? false);
   const unlocked = isGestionCabinetUnlocked(userKey);
   const showGate = enabled && !unlocked;
 
@@ -30,9 +33,11 @@ const GestionCabinetPinGuard = () => {
     let cancelled = false;
     const run = async () => {
       try {
-        setChecking(true);
+        if (getCachedGestionCabinetPinEnabled(userKey) === null) setChecking(true);
         const status = await getGestionCabinetPinStatus();
-        if (!cancelled) setEnabled(!!status?.enabled);
+        const nextEnabled = !!status?.enabled;
+        setCachedGestionCabinetPinEnabled(userKey, nextEnabled);
+        if (!cancelled) setEnabled(nextEnabled);
       } catch {
         if (!cancelled) setEnabled(false);
       } finally {

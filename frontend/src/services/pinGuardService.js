@@ -1,7 +1,9 @@
 const SESSION_KEY_PREFIX = "cabinetplus:gc_pin_session:";
+const PIN_STATUS_KEY_PREFIX = "cabinetplus:gc_pin_enabled:";
 import api from "./authService";
 
 const sessionKey = (userId) => `${SESSION_KEY_PREFIX}${userId}`;
+const pinStatusKey = (userId) => `${PIN_STATUS_KEY_PREFIX}${userId}`;
 
 const notifyPinStatusChanged = () => {
   try {
@@ -37,6 +39,29 @@ export const disableGestionCabinetPin = async (password) => {
 export const verifyGestionCabinetPin = async (pin) => {
   const { data } = await api.post("/api/security/gestion-cabinet-pin/verify", { pin });
   return !!data?.valid;
+};
+
+export const setCachedGestionCabinetPinEnabled = (userId, enabled, minutes = 10) => {
+  if (!userId) return;
+  const expiresAt = Date.now() + minutes * 60 * 1000;
+  sessionStorage.setItem(pinStatusKey(userId), JSON.stringify({ enabled: !!enabled, expiresAt }));
+};
+
+export const getCachedGestionCabinetPinEnabled = (userId) => {
+  if (!userId) return null;
+  try {
+    const raw = sessionStorage.getItem(pinStatusKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.expiresAt || Date.now() > parsed.expiresAt) {
+      sessionStorage.removeItem(pinStatusKey(userId));
+      return null;
+    }
+    return !!parsed.enabled;
+  } catch {
+    sessionStorage.removeItem(pinStatusKey(userId));
+    return null;
+  }
 };
 
 export const setGestionCabinetUnlocked = (userId, minutes = 30) => {

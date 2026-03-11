@@ -93,6 +93,7 @@ public class ProtheticsController {
         p.getTeeth(),
         p.getFinalPrice(),
         p.getLabCost(),
+        p.getCode(),
         p.getNotes(),
         p.getStatus(),
         p.getLaboratory() != null ? p.getLaboratory().getName() : "Not Sent",

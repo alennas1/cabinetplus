@@ -1,4 +1,4 @@
-package com.cabinetplus.backend.dto;
+﻿package com.cabinetplus.backend.dto;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,11 +12,12 @@ public record ProthesisResponse(
     String materialName,
     List<Integer> teeth,
     Double finalPrice,
-    Double labCost,    // Ajouté
+    Double labCost,
+    String code,
     String notes,
     String status,
     String labName,
     LocalDateTime dateCreated,
-    LocalDateTime sentToLabDate, // Ajouté
-    LocalDateTime actualReturnDate // Ajouté
+    LocalDateTime sentToLabDate,
+    LocalDateTime actualReturnDate
 ) {}

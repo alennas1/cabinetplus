@@ -48,6 +48,7 @@ public class Prothesis {
 
     // --- Pricing & Details ---
     private Double finalPrice; // Calculated: (catalog.price * teeth.size()) or flat fee
+    private String code;
     private String notes;
 
     @ElementCollection(fetch = FetchType.EAGER)

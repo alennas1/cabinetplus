@@ -1,17 +1,8 @@
 // components/LoadingLogo.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import logo from "../assets/logo.svg";
 
-const LoadingLogo = ({ minDisplayMs = 500 }) => {
-  const [show, setShow] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setShow(false), minDisplayMs);
-    return () => clearTimeout(timer);
-  }, [minDisplayMs]);
-
-  if (!show) return null; // hide logo after minDisplayMs
-
+const LoadingLogo = () => {
   return (
     <div
       style={{
@@ -19,11 +10,11 @@ const LoadingLogo = ({ minDisplayMs = 500 }) => {
         justifyContent: "center",
         alignItems: "center",
         height: "100vh",
-        backgroundColor: "#fff",
+        backgroundColor: "#f2f4f8",
         transition: "opacity 0.3s",
       }}
     >
-      <img src={logo} alt="CabinetPlus Logo" style={{ width: "150px", height: "auto" }} />
+      <img src={logo} alt="CabinetPlus Logo" style={{ width: "72px", height: "auto" }} />
     </div>
   );
 };

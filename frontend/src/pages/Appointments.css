@@ -77,7 +77,7 @@ html, body {
 }
 
 /* =========================
-   Week view
+   4-day view
 ========================= */
 .week-nav {
   display: inline-flex;
@@ -111,175 +111,109 @@ html, body {
   white-space: nowrap;
 }
 
-.week-grid {
-  border: 1px solid #e5e7eb;
+.four-day-grid {
+  border: none;
   border-radius: 12px;
   overflow: auto;
-  background: #fff;
-  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+  background: transparent;
+  box-shadow: none;
 }
 
-.week-grid-header {
+.four-day-header {
   display: grid;
-  grid-template-columns: 70px repeat(7, minmax(120px, 1fr));
+  grid-template-columns: 120px repeat(4, minmax(200px, 1fr));
   position: sticky;
   top: 0;
-  background: #ffffff;
+  background: transparent;
   z-index: 2;
-  border-bottom: 1px solid #e5e7eb;
+  column-gap: 10px;
+  padding: 10px;
 }
 
-.week-time-header {
-  padding: 10px 8px;
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  background: #ffffff;
+.four-day-time-header {
+  background: transparent;
 }
 
-.week-day-header {
-  padding: 10px 8px;
+.four-day-header-cell {
+  padding: 10px 12px;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 14px;
   color: #111827;
   text-transform: capitalize;
-  border-left: 1px solid #f3f4f6;
   white-space: nowrap;
   background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
 }
 
-.week-day-header.today {
+.four-day-header-cell.today {
   background: #eff6ff;
   color: #1d4ed8;
 }
 
-.week-day-header.weekend {
+.four-day-header-cell.weekend {
   background: #fcfcfd;
   color: #374151;
 }
 
-.week-grid-body {
+.four-day-body {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  padding: 0 10px 10px;
 }
 
-.week-row {
+.four-day-row {
   display: grid;
-  grid-template-columns: 70px repeat(7, minmax(120px, 1fr));
-  border-bottom: 1px solid #f3f4f6;
+  grid-template-columns: 120px repeat(4, minmax(200px, 1fr));
+  column-gap: 10px;
 }
 
-.week-time-cell {
-  padding: 8px 8px;
-  font-size: 12px;
-  color: #6b7280;
+.four-day-time-cell {
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #111827;
   font-weight: 600;
-  background: #fafafa;
-  border-right: 1px solid #f3f4f6;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   position: sticky;
   left: 0;
   z-index: 1;
-}
-
-.week-cell {
-  min-height: 40px; /* narrower slots */
-  padding: 6px 6px;
-  border-left: 1px solid #f3f4f6;
-  cursor: pointer;
   display: flex;
   align-items: center;
-  position: relative;
 }
 
-.week-cell.empty:hover {
-  background: #f9fafb;
+.four-day-cell {
+  padding: 0;
 }
 
-.week-cell.occupied {
-  cursor: default;
+.four-day-cell:first-child {
+  border-left: none;
 }
 
-.week-cell.today {
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.25);
-}
-
-.week-cell.weekend {
-  background: #fcfcfd;
-}
-
-.week-appt {
-  display: flex;
+.four-day-grid .slot {
+  padding: 10px 12px;
+  gap: 10px;
+  background: transparent;
+  height: 64px;
+  min-height: 64px;
+  overflow: hidden;
   align-items: center;
-  gap: 8px;
-  width: 100%;
 }
 
-.appointment-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: #0f172a;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  flex-shrink: 0;
+.four-day-grid .appointment-row {
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
-.week-cell .status-chip {
+.four-day-grid .status-chip {
   font-size: 0.78rem;
   padding: 3px 8px;
 }
 
-.week-cell .action-btn {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.week-cell.SCHEDULED {
-  background: #fff8e1;
-}
-
-.week-cell.COMPLETED {
-  background: #e8f5e9;
-}
-
-.week-cell.CANCELLED {
-  background: #ffebee;
-}
-
-.week-cell.continuation {
-  opacity: 0.92;
-}
-
-.week-continued {
-  height: 6px;
-  width: 100%;
-  border-radius: 999px;
-  background: rgba(17, 24, 39, 0.18);
-}
-
-.slot-patient {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.week-row:nth-child(even) .week-cell.empty {
-  background: #ffffff;
-}
-
-.week-row:nth-child(odd) .week-cell.empty {
-  background: #fbfdff;
+.four-day-grid .action-btn {
+  padding: 5px;
 }
 
 
@@ -385,9 +319,16 @@ html, body {
   color: #2e7d32;
 }
 .status-chip.CANCELLED {
-  background: #ffcdd2;
-  color: #c62828;
+  background: #ffe4e6;
+  color: #9f1239;
+  border: 1px solid #fecdd3;
 }
+.status-chip.CANCELED {
+  background: #ffe4e6;
+  color: #9f1239;
+  border: 1px solid #fecdd3;
+}
+
 
 /* =========================
    Modal
@@ -498,8 +439,12 @@ html, body {
   border-color: #66bb6a;
 }
 .slot.CANCELLED {
-  background: #ffcdd2; /* light red */
-  border-color: #ef5350;
+  background: #fff1f2; /* lighter than chip */
+  border-color: #fda4af;
+}
+.slot.CANCELED {
+  background: #fff1f2; /* lighter than chip */
+  border-color: #fda4af;
 }
 
 /* Appointment row inside slot */
@@ -515,6 +460,23 @@ html, body {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.appointment-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-right: 6px;
 }
 
 /* Status chip and buttons right-aligned */

@@ -18,7 +18,6 @@ import {
   TIME_FORMATS,
   buildDateAtMinutes,
   formatHour,
-  formatMinutesLabel,
   getTimeFormatPreference,
   getWorkingHoursWindow,
 } from "../utils/workingHours";
@@ -53,7 +52,7 @@ export default function Appointments() {
   const [openedFromSlot, setOpenedFromSlot] = useState(false);
   const [formBaseDate, setFormBaseDate] = useState(null);
 
-  const [viewMode, setViewMode] = useState("day"); // day | week
+  const [viewMode, setViewMode] = useState("day"); // day | 4-days
   const [weekOffset, setWeekOffset] = useState(0);
 
   const [slotDuration, setSlotDuration] = useState(30); // Default slot duration: 30 min
@@ -114,7 +113,7 @@ export default function Appointments() {
   const statusLabels = {
     SCHEDULED: "Planifié",
     COMPLETED: "Complet",
-    CANCELED: "Annulé",
+    CANCELLED: "Annulé",
   };
 
   const handleSexChange = (e) => {
@@ -168,20 +167,8 @@ export default function Appointments() {
     setSearchResults(results.slice(0, 3));
   };
 
- const getSlotAppointments = () => {
+ const buildSlotsForDate = (baseDate) => {
   const slots = [];
-  let baseDate;
-  if (selectedDate === "today") baseDate = new Date();
-  else if (selectedDate === "tomorrow") {
-    baseDate = new Date();
-    baseDate.setDate(baseDate.getDate() + 1);
-  } else if (selectedDate === "custom" && customDate) {
-    const [year, month, day] = customDate.split("-");
-    baseDate = new Date(Number(year), Number(month) - 1, Number(day));
-  } else {
-    baseDate = new Date();
-  }
-
   const dayStart = buildDateAtMinutes(baseDate, workingHours.startMinutes);
   const dayEnd = workingHours.endMinutes === 24 * 60 ? addDays(startOfDay(baseDate), 1) : buildDateAtMinutes(baseDate, workingHours.endMinutes);
 
@@ -266,7 +253,7 @@ export default function Appointments() {
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
   const formatWeekRange = (start) => {
-    const end = addDays(start, 6);
+    const end = addDays(start, 3);
     return `Du ${formatDayMonthByPreference(start)} au ${formatDayMonthByPreference(end)}`;
   };
 
@@ -623,13 +610,13 @@ export default function Appointments() {
     setOpenedFromSlot(false);
   };
 
-  const slots = React.useMemo(() => getSlotAppointments(), [appointments, selectedDate, customDate, slotDuration, workingHours]);
+  const slots = React.useMemo(() => buildSlotsForDate(getSelectedDayBaseDate()), [appointments, selectedDate, customDate, slotDuration, workingHours]);
 
-  const weekStart = React.useMemo(() => addDays(getWeekStartMonday(new Date()), weekOffset * 7), [weekOffset]);
-  const weekDays = React.useMemo(() => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)), [weekStart]);
+  const weekStart = React.useMemo(() => addDays(getSelectedDayBaseDate(), weekOffset), [weekOffset, selectedDate, customDate]);
+  const weekDays = React.useMemo(() => Array.from({ length: 4 }).map((_, i) => addDays(weekStart, i)), [weekStart]);
   const weekDayStart = React.useMemo(() => buildDateAtMinutes(weekStart, workingHours.startMinutes), [weekStart, workingHours]);
   const weekDayEnd = React.useMemo(() => {
-    const lastDay = addDays(weekStart, 6);
+    const lastDay = addDays(weekStart, 3);
     return workingHours.endMinutes === 24 * 60
       ? addDays(startOfDay(lastDay), 1)
       : buildDateAtMinutes(lastDay, workingHours.endMinutes);
@@ -651,40 +638,52 @@ export default function Appointments() {
     return map;
   }, [appointments, weekDays, weekDayStart, weekDayEnd]);
 
-  const weekTimeSlots = React.useMemo(() => {
-    const dayStartMinutes = workingHours.startMinutes;
-    const dayEndMinutes = workingHours.endMinutes;
-
-    const boundaries = new Set();
-    boundaries.add(dayStartMinutes);
-    boundaries.add(dayEndMinutes);
-
-    for (let m = dayStartMinutes; m <= dayEndMinutes; m += slotDuration) boundaries.add(m);
-
-    appointments.forEach((a) => {
-      const s = new Date(a.dateTimeStart);
-      const e = new Date(a.dateTimeEnd);
-      if (s < weekDayStart || s > weekDayEnd) return;
-
-      const startMin = s.getHours() * 60 + s.getMinutes();
-      const endMin = e.getHours() * 60 + e.getMinutes();
-      if (startMin >= dayStartMinutes && startMin <= dayEndMinutes) boundaries.add(startMin);
-      if (endMin >= dayStartMinutes && endMin <= dayEndMinutes) boundaries.add(endMin);
+  const alignedSlotsByDay = React.useMemo(() => {
+    if (!slots.length) return {};
+    const baseSlots = slots;
+    const baseKeys = baseSlots.map((slot) => {
+      const startMin = slot.start.getHours() * 60 + slot.start.getMinutes();
+      const endMin = slot.end.getHours() * 60 + slot.end.getMinutes();
+      return `${startMin}-${endMin}`;
     });
 
-    const sorted = Array.from(boundaries)
-      .filter((m) => m >= dayStartMinutes && m <= dayEndMinutes)
-      .sort((a, b) => a - b);
+    return weekDays.reduce((map, day) => {
+      const daySlots = buildSlotsForDate(day);
+      const dayMap = new Map(
+        daySlots.map((slot) => {
+          const startMin = slot.start.getHours() * 60 + slot.start.getMinutes();
+          const endMin = slot.end.getHours() * 60 + slot.end.getMinutes();
+          return [`${startMin}-${endMin}`, slot];
+        })
+      );
 
-    const slots = [];
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const start = sorted[i];
-      const end = sorted[i + 1];
-      if (end <= start) continue;
-      slots.push({ startMinutes: start, endMinutes: end });
-    }
-    return slots;
-  }, [appointments, slotDuration, weekDayStart, weekDayEnd, workingHours]);
+      map[toDateKey(day)] = baseSlots.map((baseSlot, index) => {
+        const key = baseKeys[index];
+        const match = dayMap.get(key);
+        if (match) return match;
+
+        const start = new Date(
+          day.getFullYear(),
+          day.getMonth(),
+          day.getDate(),
+          baseSlot.start.getHours(),
+          baseSlot.start.getMinutes(),
+          0
+        );
+        const end = new Date(
+          day.getFullYear(),
+          day.getMonth(),
+          day.getDate(),
+          baseSlot.end.getHours(),
+          baseSlot.end.getMinutes(),
+          0
+        );
+        return { start, end, appointments: [] };
+      });
+
+      return map;
+    }, {});
+  }, [appointments, slots, weekDays, slotDuration, workingHours]);
 
   const getPatientName = (appt) => {
     if (!appt) return "";
@@ -745,7 +744,7 @@ export default function Appointments() {
               Jour
             </button>
             <button className={viewMode === "week" ? "active" : ""} onClick={() => setViewMode("week")}>
-              Semaine
+              4 jours
             </button>
 
             {viewMode === "day" && (
@@ -764,11 +763,11 @@ export default function Appointments() {
 
             {viewMode === "week" && (
               <div className="week-nav">
-                <button type="button" onClick={() => setWeekOffset((v) => v - 1)} className="week-nav-btn" title="Semaine précédente">
+                <button type="button" onClick={() => setWeekOffset((v) => v - 1)} className="week-nav-btn" title="Jour précédent">
                   <ChevronLeft size={16} />
                 </button>
                 <div className="week-nav-label">{formatWeekRange(weekStart)}</div>
-                <button type="button" onClick={() => setWeekOffset((v) => v + 1)} className="week-nav-btn" title="Semaine suivante">
+                <button type="button" onClick={() => setWeekOffset((v) => v + 1)} className="week-nav-btn" title="Jour suivant">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -878,13 +877,13 @@ export default function Appointments() {
             ))}
           </div>
         ) : (
-          <div className="week-grid">
-            <div className="week-grid-header">
-              <div className="week-time-header"></div>
+          <div className="four-day-grid">
+            <div className="four-day-header">
+              <div className="four-day-time-header"></div>
               {weekDays.map((d) => (
                 <div
                   key={toDateKey(d)}
-                  className={`week-day-header ${isSameDay(d, new Date()) ? "today" : ""} ${
+                  className={`four-day-header-cell ${isSameDay(d, new Date()) ? "today" : ""} ${
                     d.getDay() === 0 || d.getDay() === 6 ? "weekend" : ""
                   }`}
                 >
@@ -893,86 +892,56 @@ export default function Appointments() {
               ))}
             </div>
 
-            <div className="week-grid-body">
-              {weekTimeSlots.map((time) => {
-                const h = Math.floor(time.startMinutes / 60);
-                const m = time.startMinutes % 60;
-                const timeLabel = formatMinutesLabel(time.startMinutes);
-                return (
-                  <div key={timeLabel} className="week-row">
-                    <div className="week-time-cell">{timeLabel}</div>
-                    {weekDays.map((day) => {
-                      const slotStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0);
-                      const slotStartMs = slotStart.getTime();
-                      const key = toDateKey(day);
-                      const list = appointmentsByDay[key] || [];
-
-                      const startAppt = list.find((a) => new Date(a.dateTimeStart).getTime() === slotStartMs);
-                      const overlapAppt = startAppt
-                        ? null
-                        : list.find((a) => {
-                            const s = new Date(a.dateTimeStart).getTime();
-                            const e = new Date(a.dateTimeEnd).getTime();
-                            return s < slotStartMs && e > slotStartMs;
-                          });
-
-                      const statusClass = (startAppt || overlapAppt)?.status || "";
-                      const isEmpty = !startAppt && !overlapAppt;
-
-                      return (
-                        <div
-                          key={`${key}-${timeLabel}`}
-                          className={`week-cell ${isEmpty ? "empty" : "occupied"} ${statusClass} ${
-                            overlapAppt ? "continuation" : ""
-                          } ${isSameDay(day, new Date()) ? "today" : ""} ${
-                            day.getDay() === 0 || day.getDay() === 6 ? "weekend" : ""
-                          }`}
-                          onClick={() => {
-                            if (!isEmpty) return;
-                            handleWeekSlotClick(day, slotStart);
-                          }}
-                        >
-                          {startAppt && (
-                            <div className="week-appt" onClick={(e) => { e.stopPropagation(); handleEditAppointment(startAppt); }}>
-                              <span className="appointment-number">
-                                {appointmentNumbersByWeekDay[key]?.[startAppt.id] ?? "-"}
-                              </span>
-                              <span className={`status-chip ${startAppt.status}`}>{statusLabels[startAppt.status] || startAppt.status}</span>
-
-                              {(startAppt.patient?.id || startAppt.patientId) && (
-                                <button
-                                  className="action-btn view"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/patients/${startAppt.patient?.id ?? startAppt.patientId}`);
-                                  }}
-                                  title="Voir le profil patient"
-                                >
-                                  <ArrowUpRight size={16} />
-                                </button>
-                              )}
-
-                              {startAppt.status !== "COMPLETED" && (
-                                <button
-                                  className="action-btn delete"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(startAppt.id);
-                                  }}
-                                  title="Supprimer"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          {!startAppt && overlapAppt && <div className="week-continued" aria-hidden="true" />}
-                        </div>
-                      );
-                    })}
+            <div className="four-day-body">
+              {slots.map((baseSlot, rowIdx) => (
+                <div key={rowIdx} className="four-day-row">
+                  <div className="four-day-time-cell">
+                    {formatTime(baseSlot.start)} - {formatTime(baseSlot.end)}
                   </div>
-                );
-              })}
+                  {weekDays.map((day) => {
+                    const key = toDateKey(day);
+                    const daySlots = alignedSlotsByDay[key] || [];
+                    const slot = daySlots[rowIdx];
+                    if (!slot) return <div key={`${key}-${rowIdx}`} className="four-day-cell" />;
+
+                    return (
+                      <div key={`${key}-${rowIdx}`} className="four-day-cell">
+                        <div
+                          className={`slot ${slot.appointments.length ? "SCHEDULED" : "empty"} ${
+                            slot.appointments.some((a) => a.status === "COMPLETED") ? "COMPLETED" : ""
+                          } ${slot.appointments.some((a) => a.status === "CANCELLED") ? "CANCELLED" : ""}`}
+                          onClick={() => handleSlotClick(slot)}
+                        >
+                          {slot.appointments.length ? (
+                            slot.appointments.map((appt) => (
+                              <div key={appt.id} className="appointment-row" onClick={() => handleEditAppointment(appt)}>
+                              <div className="slot-patient">
+                                  <span>{getPatientName(appt)}</span>
+                              </div>
+                                <span className={`status-chip ${appt.status}`}>{statusLabels[appt.status] || appt.status}</span>
+
+                                {appt.status !== "COMPLETED" && (
+                                  <button
+                                    className="action-btn delete"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteClick(appt.id);
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="slot-patient">Disponible</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         )}

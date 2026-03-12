@@ -8,6 +8,7 @@ import { getFinanceCards, getFinanceGraph } from "../services/financeService";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import { formatMoneyWithLabel } from "../utils/format";
 import "./Finance.css";
 
 const Finance = () => {
@@ -369,8 +370,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
               <div className="square-top">
                 <span className="square-title">{item.title}</span>
                 <span className="square-value">
-                  {Number(item.value).toLocaleString()} 
-                  <span className="currency-symbol">DA</span>
+                  {formatMoneyWithLabel(item.value)}
                 </span>
               </div>
               <div className="square-bottom">
@@ -474,7 +474,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
   useMesh={true}
   tooltip={({ point }) => (
     <div style={{ background: "#fff", padding: "6px 10px", borderRadius: "3px", boxShadow: "0 2px 6px rgba(0,0,0,0.1)" }}>
-      {point.data.yFormatted} DA
+      {formatMoneyWithLabel(point.data.y)}
     </div>
   )}
 />
@@ -499,7 +499,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
       radialLabelsSkipAngle={10}
       radialLabelsTextColor="#333"
       sliceLabelsSkipAngle={10}
-      sliceLabel={(d) => `${d.value} DA`}
+      sliceLabel={(d) => formatMoneyWithLabel(d.value)}
       sliceLabelsTextColor="#000"
     />
   ) : (
@@ -665,8 +665,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
                 <div className="square-top">
                   <span className="square-title">{item.title}</span>
                   <span className="square-value">
-                    {Number(item.value).toLocaleString()} 
-                    <span className="currency-symbol">DA</span>
+                  {formatMoneyWithLabel(item.value)}
                   </span>
                 </div>
                 <div className="square-bottom">
@@ -770,7 +769,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
   useMesh={true}
   tooltip={({ point }) => (
     <div style={{ background: "#fff", padding: "6px 10px", borderRadius: "3px", boxShadow: "0 2px 6px rgba(0,0,0,0.1)" }}>
-      {point.data.yFormatted} DA
+      {formatMoneyWithLabel(point.data.y)}
     </div>
   )}
 />
@@ -794,7 +793,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
       radialLabelsSkipAngle={10}
       radialLabelsTextColor="#333"
       sliceLabelsSkipAngle={10}
-      sliceLabel={(d) => `${d.value} DA`}
+      sliceLabel={(d) => formatMoneyWithLabel(d.value)}
       sliceLabelsTextColor="#000"
     />
   ) : (

@@ -13,6 +13,8 @@ import {
 } from "../services/prostheticsCatalogueService";
 import { getAllMaterials } from "../services/materialService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatMoneyWithLabel } from "../utils/format";
+import { getCurrencyLabelPreference } from "../utils/workingHours";
 
 import "./Patients.css";
 
@@ -24,6 +26,7 @@ const ProstheticsSettings = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -38,6 +41,7 @@ const ProstheticsSettings = () => {
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [itemIdToDelete, setItemIdToDelete] = useState(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -94,8 +98,10 @@ const ProstheticsSettings = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     try {
+      setIsSubmitting(true);
       const payload = {
         ...formData,
         defaultPrice: parseFloat(formData.defaultPrice),
@@ -117,6 +123,8 @@ const ProstheticsSettings = () => {
       resetForm();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -126,13 +134,16 @@ const ProstheticsSettings = () => {
   };
 
   const confirmDelete = async () => {
+    if (isDeletingItem) return;
     try {
+      setIsDeletingItem(true);
       await deleteProstheticCatalogue(itemIdToDelete);
       setProsthetics((prev) => prev.filter((p) => p.id !== itemIdToDelete));
       toast.success("Prothese supprimee");
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
+      setIsDeletingItem(false);
       setShowConfirm(false);
       setItemIdToDelete(null);
     }
@@ -204,8 +215,8 @@ const ProstheticsSettings = () => {
                 <td>
                   <span className="status-badge default">{p.materialName}</span>
                 </td>
-                <td>{p.defaultPrice?.toLocaleString()} DA</td>
-                <td>{(p.defaultLabCost ?? 0).toLocaleString()} DA</td>
+                <td>{formatMoneyWithLabel(p.defaultPrice)}</td>
+                <td>{formatMoneyWithLabel(p.defaultLabCost ?? 0)}</td>
                 <td>
                   <span className={`type-pill ${p.isFlatFee ? "flat" : "unit"}`}>
                     {p.isFlatFee ? "Forfait" : "Unitaire"}
@@ -279,7 +290,7 @@ const ProstheticsSettings = () => {
                 ))}
               </select>
 
-              <span className="field-label">Prix par defaut (DA)</span>
+              <span className="field-label">Prix par defaut ({getCurrencyLabelPreference()})</span>
               <input
                 type="number"
                 className="input-standard"
@@ -289,7 +300,7 @@ const ProstheticsSettings = () => {
                 required
               />
 
-              <span className="field-label">Cout labo par defaut (DA)</span>
+              <span className="field-label">Cout labo par defaut ({getCurrencyLabelPreference()})</span>
               <input
                 type="number"
                 className="input-standard"
@@ -320,8 +331,8 @@ const ProstheticsSettings = () => {
               </div>
 
               <div className="modal-actions" style={{ marginTop: "30px" }}>
-                <button type="submit" className="btn-primary2">
-                  {isEditing ? "Mettre a jour" : "Enregistrer"}
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>
+                  {isSubmitting ? "Enregistrement..." : isEditing ? "Mettre a jour" : "Enregistrer"}
                 </button>
                 <button
                   type="button"
@@ -352,13 +363,13 @@ const ProstheticsSettings = () => {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors" disabled={isDeletingItem}
               >
                 Annuler
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors" disabled={isDeletingItem}
               >
                 Supprimer
               </button>
@@ -373,3 +384,5 @@ const ProstheticsSettings = () => {
 };
 
 export default ProstheticsSettings;
+
+

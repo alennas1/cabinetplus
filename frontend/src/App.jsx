@@ -62,6 +62,8 @@ import GestionCabinetPinGuard from "./components/GestionCabinetPinGuard";
 import SessionExpiredModal from "./components/SessionExpiredModal";
 import { CLINIC_ROLES, getClinicRole } from "./utils/clinicAccess";
 import { isPlanActiveForAccess } from "./utils/planAccess";
+import { applyUserPreferences } from "./utils/workingHours";
+import { getUserPreferences } from "./services/userPreferenceService";
 
 import "./index.css";
 
@@ -89,6 +91,12 @@ const AppContent = () => {
       const hasSession = await initializeSession(); // refreshes token if refresh cookie is valid
       if (hasSession) {
         const userData = await getCurrentUser();
+        try {
+          const preferences = await getUserPreferences();
+          applyUserPreferences(preferences);
+        } catch {
+          applyUserPreferences(null);
+        }
         dispatch(setCredentials({ user: userData, token: true })); // now token is valid
       } else {
         dispatch(sessionExpired());
@@ -212,6 +220,7 @@ const AppContent = () => {
             <Route path="/expiring-plans" element={<ExpiringPlansPage />} />
             <Route path="/settings-admin" element={<AdminSettings />} />
             <Route path="/finance-admin" element={<AdminFinance />} />
+            <Route path="/admin/preferences" element={<Preference showWorkingHours={false} />} />
             <Route path="/admin/manage-admins" element={<ManageAdmins />} />
             <Route path="/admin/change-password" element={<AdminChangePassword />} />
             <Route path="/admin/manage-plans" element={<ManagePlans />} />

@@ -133,8 +133,9 @@ public class PatientController {
     // MEDICAL FICHE PDF GENERATION
     // ==========================================
 @GetMapping("/{id}/fiche-pdf")
-public void generatePatientFiche(@PathVariable Long id, HttpServletResponse response) throws Exception {
+public void generatePatientFiche(@PathVariable Long id, HttpServletResponse response, Principal principal) throws Exception {
     // 1. Fetch Data
+    User clinicUser = getClinicUser(principal);
     Patient patient = patientRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Patient introuvable"));
     List<Treatment> treatments = treatmentRepository.findByPatientId(id);
@@ -164,7 +165,28 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     Font bodyFontBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9);
     DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    // 4. Header
+    // 4. Clinic Header (like justification)
+    String clinicName = clinicUser.getClinicName();
+    if (clinicName != null && !clinicName.isBlank()) {
+        document.add(new Paragraph(clinicName.toUpperCase(), titleFont));
+    }
+    document.add(new Paragraph("Dr. " + clinicUser.getFirstname() + " " + clinicUser.getLastname(), sectionHeaderFont));
+    if (clinicUser.getAddress() != null) {
+        document.add(new Paragraph(clinicUser.getAddress(), bodyFont));
+    }
+    String rawPhone = clinicUser.getPhoneNumber() != null ? clinicUser.getPhoneNumber() : "";
+    if (rawPhone.length() == 10) {
+        rawPhone = rawPhone.replaceFirst("(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})", "$1 $2 $3 $4 $5");
+    }
+    if (!rawPhone.isEmpty()) {
+        document.add(new Paragraph("Tel: " + rawPhone, bodyFont));
+    }
+
+    document.add(new Paragraph(" "));
+    document.add(new LineSeparator(0.5f, 100, java.awt.Color.BLACK, Element.ALIGN_CENTER, -2));
+    document.add(new Paragraph(" "));
+
+    // 5. Title
     Paragraph mainTitle = new Paragraph("Fiche de soins", titleFont);
     mainTitle.setAlignment(Element.ALIGN_CENTER);
     mainTitle.setSpacingAfter(25);

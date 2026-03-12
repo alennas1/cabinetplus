@@ -7,6 +7,9 @@ import { getAllHandPayments } from "../services/handPaymentService";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./Finance.css";
+import { formatDateByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
+import { getCurrencyLabelPreference } from "../utils/workingHours";
 
 const AdminFinance = () => {
   const token = useSelector((state) => state.auth.token);
@@ -90,7 +93,7 @@ const AdminFinance = () => {
         } else if (timeframe === "weekly") {
             label = `Sem ${Math.ceil(date.getDate() / 7)}`;
         } else {
-            label = date.toLocaleDateString('fr-FR');
+            label = formatDateByPreference(date);
         }
 
         if (!dataPoints[label]) dataPoints[label] = { confirmed: 0, pending: 0 };
@@ -167,7 +170,7 @@ const AdminFinance = () => {
           <div className="square-top">
             <span className="square-title">Revenu (Confirmé)</span>
             <span className="square-value">
-                {confirmedTotal.toLocaleString()} <span className="currency-symbol">DA</span>
+                {formatMoneyWithLabel(confirmedTotal)}
             </span>
           </div>
           <div className="square-bottom">
@@ -179,7 +182,7 @@ const AdminFinance = () => {
           <div className="square-top">
             <span className="square-title">Revenu Dû (En attente)</span>
             <span className="square-value">
-                {pendingTotal.toLocaleString()} <span className="currency-symbol">DA</span>
+                {formatMoneyWithLabel(pendingTotal)}
             </span>
           </div>
           <div className="square-bottom">
@@ -251,7 +254,7 @@ const AdminFinance = () => {
                 tickSize: 5,
                 tickPadding: 5,
                 tickRotation: 0,
-                legend: "Montant (DA)",
+                legend: `Montant (${getCurrencyLabelPreference()})`,
                 legendOffset: -50,
                 legendPosition: "middle"
               }}

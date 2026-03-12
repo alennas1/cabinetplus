@@ -10,12 +10,15 @@ import {
   rejectHandPayment,
 } from "../services/handPaymentService";
 import { Search, Check, X } from "react-feather";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
 
 const WaitingPage = () => {
   const token = useSelector((state) => state.auth.token);
   const [payments, setPayments] = useState([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [busyPaymentAction, setBusyPaymentAction] = useState({ id: null, type: null });
   const paymentsPerPage = 10;
 
   const loadPayments = async () => {
@@ -33,35 +36,37 @@ const WaitingPage = () => {
   }, []);
 
   const handleConfirm = async (id) => {
+    if (busyPaymentAction.id === id) return;
     try {
+      setBusyPaymentAction({ id, type: "confirm" });
       await confirmHandPayment(id, token);
       toast.success("Paiement confirmé");
-      loadPayments();
+      await loadPayments();
     } catch (err) {
       toast.error("Erreur lors de la confirmation");
+    } finally {
+      setBusyPaymentAction({ id: null, type: null });
     }
   };
 
   const handleReject = async (id) => {
+    if (busyPaymentAction.id === id) return;
     try {
+      setBusyPaymentAction({ id, type: "reject" });
       await rejectHandPayment(id, token);
       toast.error("Paiement rejeté");
-      loadPayments();
+      await loadPayments();
     } catch (err) {
       toast.error("Erreur lors du rejet");
+    } finally {
+      setBusyPaymentAction({ id: null, type: null });
     }
   };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const label = formatDateTimeByPreference(dateStr);
+    return label === "-" ? "" : label;
   };
 
   const filteredPayments = payments
@@ -126,7 +131,7 @@ const WaitingPage = () => {
               <tr key={p.paymentId}>
                 <td>{p.fullName}</td>
                 <td>{p.planName}</td>
-                <td>{p.amount} DA</td>
+                <td>{formatMoneyWithLabel(p.amount)}</td>
                 <td>{formatDate(p.paymentDate)}</td>
                 <td>
                   <span
@@ -148,6 +153,7 @@ const WaitingPage = () => {
                     className="action-btn complete"
                     title="Confirmer"
                     onClick={() => handleConfirm(p.paymentId)}
+                    disabled={busyPaymentAction.id === p.paymentId}
                   >
                     <Check size={16} />
                   </button>
@@ -155,6 +161,7 @@ const WaitingPage = () => {
                     className="action-btn delete"
                     title="Rejeter"
                     onClick={() => handleReject(p.paymentId)}
+                    disabled={busyPaymentAction.id === p.paymentId}
                   >
                     <X size={16} />
                   </button>

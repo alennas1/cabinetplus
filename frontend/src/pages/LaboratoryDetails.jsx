@@ -23,6 +23,9 @@ import {
   updateLaboratory,
 } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatDateTimeByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
+import { getCurrencyLabelPreference } from "../utils/workingHours";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Patient.css";
 import "./Profile.css";
@@ -74,7 +77,7 @@ const LaboratoryDetails = () => {
         const date = new Date();
         date.setMonth(date.getMonth() - i);
         const monthStr = (date.getMonth() + 1).toString().padStart(2, "0");
-        const label = date.toLocaleString("fr-FR", { month: "long", year: "numeric" });
+        const label = formatMonthYearByPreference(date);
 
         return {
           label: label.charAt(0).toUpperCase() + label.slice(1),
@@ -100,17 +103,12 @@ const LaboratoryDetails = () => {
     }
   };
 
-  const formatCurrency = (value) => `${(value || 0).toFixed(2)} DZD`;
+  const formatCurrency = (value) => formatMoneyWithLabel(value);
 
   const formatDateTime = (value) => {
     if (!value) return "—";
-    return new Date(value).toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const label = formatDateTimeByPreference(value);
+    return label === "-" ? "—" : label;
   };
 
   const formatPhoneNumber = (phone) => {
@@ -120,11 +118,12 @@ const LaboratoryDetails = () => {
 
   const formatMonth = (yearMonth) => {
     const [year, month] = yearMonth.split("-");
-    return new Date(year, month - 1).toLocaleDateString("fr-FR", {
-      month: "long",
-      year: "numeric",
-    });
+    return formatMonthYearByPreference(new Date(year, month - 1, 1));
   };
+
+  const remainingToPayValue = Number(laboratory?.remainingToPay || 0);
+  const hasCredit = remainingToPayValue < 0;
+  const displayRemaining = Math.abs(remainingToPayValue);
 
   const applyDateFilter = (items, dateField, filters) => {
     return items.filter((item) => {
@@ -436,7 +435,9 @@ const LaboratoryDetails = () => {
           <div className="patient-stats">
             <div className="stat-box stat-facture">Facture: {formatCurrency(laboratory.totalOwed)}</div>
             <div className="stat-box stat-paiement">Payé: {formatCurrency(laboratory.totalPaid)}</div>
-            <div className="stat-box stat-reste">Reste: {formatCurrency(laboratory.remainingToPay)}</div>
+            <div className="stat-box stat-reste">
+              {hasCredit ? "Crédit" : "Reste"}: {formatCurrency(displayRemaining)}
+            </div>
           </div>
           <div className="patient-actions">
             <button className="btn-primary-app" onClick={() => setShowPaymentModal(true)}>
@@ -545,7 +546,7 @@ const LaboratoryDetails = () => {
             </div>
 
             <form onSubmit={handlePaymentSubmit} className="modal-form">
-              <label className="field-label">Montant payé (DZD)</label>
+              <label className="field-label">Montant payé ({getCurrencyLabelPreference()})</label>
               <input
                 type="number"
                 min="0"

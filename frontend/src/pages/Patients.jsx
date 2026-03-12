@@ -16,6 +16,7 @@ import {
   updatePatient,
 } from "../services/patientService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
 import "./Patients.css";
 
 
@@ -86,16 +87,11 @@ const navigate = useNavigate();
     sex: "",
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 const formatDate = (dateStr) => {
   if (!dateStr) return "";
-  const date = new Date(dateStr);
-  return date.toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const label = formatDateTimeByPreference(dateStr);
+  return label === "-" ? "" : label;
 };
 
 const formatPhone = (phone) => {
@@ -145,6 +141,8 @@ const formatPhone = (phone) => {
   // Add / update
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       if (isEditing) {
         const updated = await updatePatient(formData.id, formData, token);
@@ -181,6 +179,8 @@ const formatPhone = (phone) => {
     } catch (err) {
       console.error("Error saving patient:", err);
       toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -540,8 +540,8 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
               />
 
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2">
-                  {isEditing ? "Mettre à jour" : "Ajouter"}
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>
+                  {isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}
                 </button>
                 <button
                   type="button"

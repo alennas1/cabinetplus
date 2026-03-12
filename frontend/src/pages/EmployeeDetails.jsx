@@ -16,9 +16,17 @@ import { getEmployeeById, updateEmployee } from "../services/employeeService";
 import { getExpensesByEmployee } from "../services/expenseService";
 import { updateWorkingHour } from "../services/workingHoursService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Patient.css";
 import "./Profile.css";
+
+const EMPLOYEE_ROLE_OPTIONS = [
+  { value: "RECEPTION", label: "Reception" },
+  { value: "ASSISTANT", label: "Assistant" },
+  { value: "PARTNER_DENTIST", label: "Dentiste partenaire" },
+];
 
 const EmployeeDetails = () => {
   const { id } = useParams();
@@ -33,14 +41,11 @@ const EmployeeDetails = () => {
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
 
-  const formatDate = (dateStr) =>
-    dateStr
-      ? new Date(dateStr).toLocaleDateString("fr-FR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        })
-      : "—";
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "—";
+    const label = formatDateByPreference(dateStr);
+    return label === "-" ? "—" : label;
+  };
 
   const formatPhoneNumber = (phone) => {
     if (!phone) return "";
@@ -100,6 +105,11 @@ const EmployeeDetails = () => {
         return "status-badge default";
     }
   };
+
+  const getRoleAccessLabel = (roleValue) =>
+    EMPLOYEE_ROLE_OPTIONS.find((roleOption) => roleOption.value === roleValue)?.label ||
+    roleValue ||
+    "—";
 
   const toUpdatePayload = (source, passwordValue = null) => ({
     firstName: source.firstName || "",
@@ -161,10 +171,7 @@ const EmployeeDetails = () => {
 
   const formatMonth = (yearMonth) => {
     const [year, month] = yearMonth.split("-");
-    return new Date(year, month - 1).toLocaleDateString("fr-FR", {
-      month: "long",
-      year: "numeric",
-    });
+    return formatMonthYearByPreference(new Date(year, month - 1, 1));
   };
 
   const startEdit = (field) => {
@@ -298,6 +305,9 @@ const EmployeeDetails = () => {
             {employee.firstName} {employee.lastName}
           </div>
           <div className="patient-details">
+            <div>
+              <span className="employee-role-pill">{getRoleAccessLabel(employee.accessRole)}</span>
+            </div>
             <div>{employee.contractType || "—"}</div>
             <div>{formatPhoneNumber(employee.phone) || "—"}</div>
             <div>{employee.email || "—"}</div>
@@ -308,7 +318,7 @@ const EmployeeDetails = () => {
         <div className="patient-right">
           <div className="patient-stats">
             <div className="stat-box stat-facture">
-              Salaire: {employee.salary ? `${employee.salary} DA` : "—"}
+              Salaire: {employee.salary ? formatMoneyWithLabel(employee.salary) : "—"}
             </div>
             <div className={getStatusClass(employee.status)}>{translateStatus(employee.status)}</div>
           </div>
@@ -340,7 +350,7 @@ const EmployeeDetails = () => {
           {renderEditableField("phone", "Telephone", "text", null, formatPhoneNumber(employee.phone) || "—")}
           {renderEditableField("email", "Email", "email")}
           {renderEditableField("contractType", "Type de contrat")}
-          {renderEditableField("salary", "Salaire", "number", null, employee.salary ? `${employee.salary} DA` : "—")}
+          {renderEditableField("salary", "Salaire", "number", null, employee.salary ? formatMoneyWithLabel(employee.salary) : "—")}
           {renderEditableField(
             "status",
             "Statut",
@@ -442,7 +452,7 @@ const EmployeeDetails = () => {
                   .map(([month, total]) => (
                     <tr key={month}>
                       <td>{formatMonth(month)}</td>
-                      <td style={{ fontWeight: "bold" }}>{total} DA</td>
+                      <td style={{ fontWeight: "bold" }}>{formatMoneyWithLabel(total)}</td>
                     </tr>
                   ))
               ) : (
@@ -469,7 +479,7 @@ const EmployeeDetails = () => {
                 expenses.map((e) => (
                   <tr key={e.id}>
                     <td>{e.title}</td>
-                    <td>{e.amount} DA</td>
+                    <td>{formatMoneyWithLabel(e.amount)}</td>
                     <td>{formatDate(e.date)}</td>
                   </tr>
                 ))

@@ -1,7 +1,7 @@
 // AdminSettings.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Lock, Package, Shield } from "react-feather";
+import { User, Lock, Package, Shield, Sliders } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import "./Settings.css"; // same CSS as Settings.jsx
 
@@ -23,6 +23,12 @@ const AdminSettings = () => {
           desc: "Mettre à jour votre mot de passe actuel",
           icon: <Lock />,
           path: "/admin/change-password",
+        },
+        {
+          title: "Preferences d'affichage",
+          desc: "Changer les formats de date, heure, montants et devise",
+          icon: <Sliders />,
+          path: "/admin/preferences",
         },
         {
           title: "Gérer les plans",

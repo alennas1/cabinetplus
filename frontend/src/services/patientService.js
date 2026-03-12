@@ -1,4 +1,4 @@
-import api from "./authService";
+import api, { initializeSession } from "./authService";
 
 // ----------------- Get All Patients -----------------
 export const getPatients = async () => {
@@ -31,35 +31,47 @@ export const deletePatient = async (id) => {
 
 // ----------------- Download Patient Fiche (PDF) -----------------
 export const downloadPatientFiche = async (id) => {
-  try {
-    const response = await api.get(`/api/patients/${id}/fiche-pdf`, {
-      responseType: "blob", // Necessary for binary files
-    });
-
-    // 1. Get the header from the response
-    const contentDisposition = response.headers['content-disposition'];
-    let fileName = "fiche_patient.pdf"; // Fallback name
+  const triggerDownload = (response) => {
+    const contentDisposition = response.headers["content-disposition"];
+    let fileName = "fiche_patient.pdf";
 
     if (contentDisposition) {
-      // Regex to extract filename between quotes
       const fileNameMatch = contentDisposition.match(/filename="(.+?)"/);
       if (fileNameMatch && fileNameMatch[1]) {
         fileName = fileNameMatch[1];
       }
     }
 
-    // 2. Trigger the browser download
     const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.setAttribute('download', fileName); // This sets the actual filename
+    link.setAttribute("download", fileName);
     document.body.appendChild(link);
     link.click();
-
-    // 3. Clean up
     link.remove();
     window.URL.revokeObjectURL(url);
+  };
+
+  try {
+    const response = await api.get(`/api/patients/${id}/fiche-pdf`, {
+      responseType: "blob",
+    });
+    triggerDownload(response);
   } catch (error) {
+    if (error.response?.status === 403) {
+      try {
+        const refreshed = await initializeSession();
+        if (refreshed) {
+          const retry = await api.get(`/api/patients/${id}/fiche-pdf`, {
+            responseType: "blob",
+          });
+          triggerDownload(retry);
+          return;
+        }
+      } catch (refreshError) {
+        console.error("Session refresh failed", refreshError);
+      }
+    }
     console.error("Download failed", error);
     throw error;
   }

@@ -1,12 +1,15 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { setCredentials } from "../store/authSlice";
+import { setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
 import { login, getCurrentUser } from "../services/authService";
+import { getUserPreferences } from "../services/userPreferenceService";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "react-feather";
 import { getApiErrorMessage } from "../utils/error";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
+import { formatDateByPreference } from "../utils/dateFormat";
+import { applyUserPreferences } from "../utils/workingHours";
 import femmed from "../assets/femmed.png";
 import femmed2 from "../assets/femmed2.png";
 import transpiamge from "../assets/transpiamge.png";
@@ -83,10 +86,17 @@ const LoginPage = () => {
     try {
       const { accessToken } = await login(identifier.trim(), password.trim());
       const currentUser = await getCurrentUser();
+      dispatch(setAuthLoading(true));
+      try {
+        const prefs = await getUserPreferences();
+        applyUserPreferences(prefs);
+      } catch {
+        applyUserPreferences(null);
+      }
       dispatch(setCredentials({ token: accessToken, user: currentUser }));
 
       if (currentUser.planStatus === "INACTIVE" && currentUser.expirationDate) {
-        alert(`Votre offre a expire le ${new Date(currentUser.expirationDate).toLocaleDateString()}`);
+        alert(`Votre offre a expire le ${formatDateByPreference(currentUser.expirationDate)}`);
       }
 
       handleRedirect(currentUser);

@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import PageHeader from "../components/PageHeader";
 import { getSecurityAuditLogs } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
 import "./Patients.css";
 
 const EVENT_LABELS = {
@@ -24,13 +25,6 @@ const EVENT_LABELS = {
 const STATUS_LABELS = {
   SUCCESS: "Succes",
   FAILURE: "Echec",
-};
-
-const formatDateTime = (isoDate) => {
-  if (!isoDate) return "-";
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("fr-FR");
 };
 
 const AdminAuditLogs = () => {
@@ -144,7 +138,7 @@ const AdminAuditLogs = () => {
               const badgeClass = status === "SUCCESS" ? "active" : "inactive";
               return (
                 <tr key={`${log.ipAddress || "ip"}-${index}`}>
-                  <td>{formatDateTime(log.occurredAt)}</td>
+                  <td>{formatDateTimeByPreference(log.occurredAt)}</td>
                   <td>{EVENT_LABELS[log.eventType] || log.eventType || "-"}</td>
                   <td>
                     <span className={`status-badge ${badgeClass}`}>

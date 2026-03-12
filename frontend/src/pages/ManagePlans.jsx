@@ -18,6 +18,8 @@ import {
   deactivatePlanAdmin
 } from '../services/adminPlanService';
 import { getApiErrorMessage } from '../utils/error';
+import { formatMoneyWithLabel } from '../utils/format';
+import { getCurrencyLabelPreference } from '../utils/workingHours';
 
 import './Patients.css'; 
 
@@ -69,7 +71,7 @@ const PlanFormModal = ({
           required
         />
 
-        <span className="field-label">Prix Mensuel (DZD)</span>
+        <span className="field-label">Prix Mensuel ({getCurrencyLabelPreference()})</span>
         <input
           type="number"
           name="monthlyPrice"
@@ -113,17 +115,17 @@ const PlanFormModal = ({
           min="0"
         />
 
-        <span className="field-label">Maximum employÃ©s</span>
+        <span className="field-label">Maximum employés</span>
         <input
           type="number"
           name="maxEmployees"
-          placeholder="Entrez le nombre maximum d'employÃ©s..."
+          placeholder="Entrez le nombre maximum d'employés..."
           value={currentPlan.maxEmployees}
           onChange={handleInputChange}
           required
           min="0"
         />
-        <small className='form-small-text'>Assistants et rÃ©ceptionnistes inclus.</small>
+        <small className='form-small-text'>Assistants et réceptionnistes inclus.</small>
 
         <span className="field-label">Maximum patients</span>
         <input
@@ -140,7 +142,7 @@ const PlanFormModal = ({
         <input
           type="number"
           name="maxStorageGb"
-          placeholder="Entrez l'espace de stockage autorisÃ©..."
+          placeholder="Entrez l'espace de stockage autorisé..."
           value={currentPlan.maxStorageGb}
           onChange={handleInputChange}
           required
@@ -336,8 +338,8 @@ const ManagePlans = () => {
               <tr key={plan.id}>
                 <td>{plan.code}</td>
                 <td>{plan.name}</td>
-                <td>{plan.monthlyPrice} DZD</td>
-                <td>{plan.yearlyMonthlyPrice} DZD</td>
+                <td>{formatMoneyWithLabel(plan.monthlyPrice)}</td>
+                <td>{formatMoneyWithLabel(plan.yearlyMonthlyPrice)}</td>
                 <td>{plan.durationDays}</td>
                 <td>{plan.maxDentists ?? 1}</td>
                 <td>{plan.maxEmployees ?? 0}</td>

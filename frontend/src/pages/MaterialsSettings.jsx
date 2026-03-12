@@ -14,6 +14,7 @@ const MaterialsSettings = () => {
     const [newMaterialName, setNewMaterialName] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -22,6 +23,7 @@ const MaterialsSettings = () => {
     // Delete Confirmation State
     const [showConfirm, setShowConfirm] = useState(false);
     const [materialIdToDelete, setMaterialIdToDelete] = useState(null);
+    const [isDeletingMaterial, setIsDeletingMaterial] = useState(false);
 
     useEffect(() => {
         fetchMaterials();
@@ -41,15 +43,19 @@ const MaterialsSettings = () => {
 
     const handleAddMaterial = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
         if (!newMaterialName.trim()) return;
 
         try {
+            setIsSubmitting(true);
             const savedMaterial = await createMaterial({ name: newMaterialName });
             setMaterials([...materials, savedMaterial]);
             setNewMaterialName(""); 
             toast.success("Matériau ajouté avec succès");
         } catch (err) {
-            toast.error("Impossible d'ajouter le matériau.");
+            toast.error("Impossible d'ajouter le mat�riau.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -60,13 +66,16 @@ const MaterialsSettings = () => {
     };
 
     const confirmDelete = async () => {
+        if (isDeletingMaterial) return;
         try {
+            setIsDeletingMaterial(true);
             await deleteMaterial(materialIdToDelete);
             setMaterials(materials.filter((m) => m.id !== materialIdToDelete));
             toast.success("Matériau supprimé");
         } catch (err) {
             toast.error(getApiErrorMessage(err, "Erreur lors de la suppression."));
         } finally {
+            setIsDeletingMaterial(false);
             setShowConfirm(false);
             setMaterialIdToDelete(null);
         }
@@ -125,8 +134,8 @@ const MaterialsSettings = () => {
                             className="input-standard"
                             required
                         />
-                        <button type="submit" className="btn-primary" disabled={loading}>
-                            <Plus size={16} /> {loading ? "Ajout..." : "Ajouter"}
+                        <button type="submit" className="btn-primary" disabled={loading || isSubmitting}>
+                            <Plus size={16} /> {isSubmitting ? "Ajout..." : "Ajouter"}
                         </button>
                     </form>
                 </div>
@@ -209,13 +218,13 @@ const MaterialsSettings = () => {
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setShowConfirm(false)}
-                                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors" disabled={isDeletingMaterial}
                             >
                                 Annuler
                             </button>
                             <button
                                 onClick={confirmDelete}
-                                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors" disabled={isDeletingMaterial}
                             >
                                 Supprimer
                             </button>
@@ -230,3 +239,8 @@ const MaterialsSettings = () => {
 };
 
 export default MaterialsSettings;
+
+
+
+
+

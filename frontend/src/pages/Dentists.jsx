@@ -5,6 +5,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import { getAllDentists } from "../services/userService";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { Eye, ChevronDown, Search } from "react-feather";
 
 const statusMap = {
@@ -50,18 +51,6 @@ const Dentists = () => {
 
   const handleView = (id) => {
     toast.info(`Viewing dentist with ID: ${id}`);
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "-";
-    const date = new Date(dateStr);
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   const filteredDentists = dentists.filter((d) => {
@@ -176,7 +165,7 @@ const Dentists = () => {
                     </span>
                   </td>
                   <td>{status === "ACTIVE" && d.plan ? d.plan.name : "-"}</td>
-                  <td>{formatDate(d.expirationDate)}</td>
+                  <td>{formatDateTimeByPreference(d.expirationDate)}</td>
                   <td className="actions-cell">
                     <button
                       className="action-btn view"

@@ -18,6 +18,9 @@ import {
 import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
 import { getAllLaboratories } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
+import { getCurrencyLabelPreference } from "../utils/workingHours";
 
 import "./Patients.css";
 import "./Finance.css";
@@ -60,6 +63,11 @@ const Prosthetics = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [isReturningBulk, setIsReturningBulk] = useState(false);
+  const [busyStatusId, setBusyStatusId] = useState(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isAssigningLab, setIsAssigningLab] = useState(false);
+  const [isDeletingProthesis, setIsDeletingProthesis] = useState(false);
   const [assignData, setAssignData] = useState({ labId: "", cost: "" });
   const [editingProthesis, setEditingProthesis] = useState(null);
   const [prothesisToDelete, setProthesisToDelete] = useState(null);
@@ -68,7 +76,7 @@ const Prosthetics = () => {
     const date = new Date();
     date.setMonth(date.getMonth() - i);
     const monthStr = (date.getMonth() + 1).toString().padStart(2, "0");
-    const label = date.toLocaleString("fr-FR", { month: "long", year: "numeric" });
+    const label = formatMonthYearByPreference(date);
 
     return {
       label: label.charAt(0).toUpperCase() + label.slice(1),
@@ -157,23 +165,30 @@ const Prosthetics = () => {
   };
 
   const handleBulkReturn = async () => {
+    if (isReturningBulk) return;
+
     if (!canBulkReturn) {
       toast.error("Selectionnez uniquement des travaux au labo pour effectuer le retour.");
       return;
     }
 
     try {
+      setIsReturningBulk(true);
       await Promise.all(selectedIds.map((id) => updateProtheticsStatus(id, "RECEIVED")));
       toast.success("Travaux marques comme recus");
       clearSelection();
       await loadData();
     } catch (err) {
       toast.error("Erreur lors du retour des travaux");
+    } finally {
+      setIsReturningBulk(false);
     }
   };
 
 
   const handleCycleProthesisStatus = async (p) => {
+    if (busyStatusId === p.id) return;
+
     if (p.status === "PENDING") {
       const targetIds = [p.id];
       setSelectedIds(targetIds);
@@ -192,11 +207,14 @@ const Prosthetics = () => {
     }
 
     try {
+      setBusyStatusId(p.id);
       await updateProtheticsStatus(p.id, nextStatus);
       toast.success(`Statut mis a jour : ${prothesisStatusLabels[nextStatus]}`);
       await loadData();
     } catch (err) {
       toast.error("Erreur lors du changement de statut");
+    } finally {
+      setBusyStatusId(null);
     }
   };
 
@@ -237,9 +255,10 @@ const Prosthetics = () => {
   };
 
   const confirmDelete = async () => {
-    if (!prothesisToDelete) return;
+    if (!prothesisToDelete || isDeletingProthesis) return;
 
     try {
+      setIsDeletingProthesis(true);
       await deleteProthetics(prothesisToDelete.id);
       setSelectedIds((current) => current.filter((id) => id !== prothesisToDelete.id));
       toast.success("Travail supprime");
@@ -247,6 +266,7 @@ const Prosthetics = () => {
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
+      setIsDeletingProthesis(false);
       setShowConfirmDelete(false);
       setProthesisToDelete(null);
     }
@@ -290,7 +310,7 @@ const Prosthetics = () => {
     .sort((a, b) => new Date(b[dateType] || 0) - new Date(a[dateType] || 0));
 
   const formatDateLabel = (dateStr) =>
-    dateStr ? new Date(dateStr).toLocaleDateString("fr-FR") : "-";
+    dateStr ? formatDateByPreference(dateStr) : "-";
 
   if (loading) {
     return (
@@ -402,13 +422,14 @@ const Prosthetics = () => {
               <button
                 className="btn-primary"
                 onClick={handleBulkReturn}
+                disabled={isReturningBulk}
                 style={{
                   opacity: canBulkReturn ? 1 : 0.6,
                   cursor: canBulkReturn ? "pointer" : "not-allowed",
                 }}
                 title="Disponible uniquement pour les travaux deja au labo"
               >
-                Retour ({selectedIds.length})
+                {isReturningBulk ? `Retour... (${selectedIds.length})` : `Retour (${selectedIds.length})`}
               </button>
             </div>
           )}
@@ -589,7 +610,7 @@ const Prosthetics = () => {
                 </td>
                 <td style={{ fontWeight: "500" }}>{p.labName === "Not Sent" ? "-" : p.labName}</td>
                 <td style={{ fontWeight: "600", color: "#3498db" }}>
-                  {p.labCost ? `${p.labCost} DZD` : "-"}
+                  {p.labCost ? formatMoneyWithLabel(p.labCost) : "-"}
                 </td>
                 <td style={{ fontSize: "11px", color: "#666", lineHeight: "1.4" }}>
                   <div>C: {formatDateLabel(p.dateCreated)}</div>
@@ -601,8 +622,9 @@ const Prosthetics = () => {
                     type="button"
                     className={`status-chip clickable ${p.status?.toLowerCase()}`}
                     onClick={() => handleCycleProthesisStatus(p)}
+                    disabled={busyStatusId === p.id}
                   >
-                    {prothesisStatusLabels[p.status]}
+                    {busyStatusId === p.id ? "Mise a jour..." : prothesisStatusLabels[p.status]}
                   </button>
                 </td>
                 <td className="actions-cell">
@@ -637,7 +659,9 @@ const Prosthetics = () => {
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (isSavingEdit) return;
                 try {
+                  setIsSavingEdit(true);
                   const dataToSend = {
                     ...editingProthesis,
                     teeth: editingProthesis.teeth || [],
@@ -651,6 +675,8 @@ const Prosthetics = () => {
                   await loadData();
                 } catch (err) {
                   toast.error("Erreur de modification");
+                } finally {
+                  setIsSavingEdit(false);
                 }
               }}
               className="treatment-modal-form"
@@ -670,7 +696,7 @@ const Prosthetics = () => {
               <div className="modal-form-right">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
                   <div>
-                    <label className="field-label">Cout Labo (DZD)</label>
+                    <label className="field-label">Cout Labo ({getCurrencyLabelPreference()})</label>
                     <input
                       type="number"
                       value={editingProthesis.labCost}
@@ -680,7 +706,7 @@ const Prosthetics = () => {
                     />
                   </div>
                   <div>
-                    <label className="field-label">Prix Patient (DZD)</label>
+                    <label className="field-label">Prix Patient ({getCurrencyLabelPreference()})</label>
                     <input
                       type="number"
                       value={editingProthesis.finalPrice}
@@ -710,10 +736,10 @@ const Prosthetics = () => {
                 />
 
                 <div className="modal-actions">
-                  <button type="submit" className="btn-primary2">
-                    Enregistrer
+                  <button type="submit" className="btn-primary2" disabled={isSavingEdit}>
+                    {isSavingEdit ? "Enregistrement..." : "Enregistrer"}
                   </button>
-                  <button type="button" className="btn-cancel" onClick={() => setShowEditModal(false)}>
+                  <button type="button" className="btn-cancel" onClick={() => setShowEditModal(false)} disabled={isSavingEdit}>
                     Annuler
                   </button>
                 </div>
@@ -733,7 +759,9 @@ const Prosthetics = () => {
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (isAssigningLab) return;
                 try {
+                  setIsAssigningLab(true);
                   await Promise.all(
                     selectedIds.map((id) =>
                       assignProtheticsToLab(id, {
@@ -750,6 +778,8 @@ const Prosthetics = () => {
                   await loadData();
                 } catch (err) {
                   toast.error("Erreur d'assignation");
+                } finally {
+                  setIsAssigningLab(false);
                 }
               }}
               className="modal-form"
@@ -773,7 +803,7 @@ const Prosthetics = () => {
                 </p>
               ) : (
                 <>
-                  <label className="field-label">Cout du travail (DZD)</label>
+                  <label className="field-label">Cout du travail ({getCurrencyLabelPreference()})</label>
                   <input
                     type="number"
                     value={assignData.cost}
@@ -784,10 +814,10 @@ const Prosthetics = () => {
                 </>
               )}
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2">
-                  Confirmer
+                <button type="submit" className="btn-primary2" disabled={isAssigningLab}>
+                  {isAssigningLab ? "Confirmation..." : "Confirmer"}
                 </button>
-                <button type="button" className="btn-cancel" onClick={resetAssignModal}>
+                <button type="button" className="btn-cancel" onClick={resetAssignModal} disabled={isAssigningLab}>
                   Annuler
                 </button>
               </div>
@@ -820,14 +850,16 @@ const Prosthetics = () => {
               <button
                 onClick={() => setShowConfirmDelete(false)}
                 className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                disabled={isDeletingProthesis}
               >
                 Annuler
               </button>
               <button
                 onClick={confirmDelete}
                 className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                disabled={isDeletingProthesis}
               >
-                Supprimer
+                {isDeletingProthesis ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </div>

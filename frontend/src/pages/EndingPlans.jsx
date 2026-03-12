@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import { getUsersExpiringInDays } from "../services/userService";
 import { Eye, ChevronDown, Search } from "react-feather";
+import { formatDateByPreference } from "../utils/dateFormat";
 
 const statusMap = {
   PENDING: "En attente",
@@ -152,7 +153,7 @@ const EndingPlans = () => {
               </span>
             </td>
             <td>{status === "ACTIVE" && u.plan ? u.plan.name : "-"}</td>
-            <td>{u.expirationDate ? new Date(u.expirationDate).toLocaleDateString("fr-FR") : "-"}</td>
+            <td>{u.expirationDate ? formatDateByPreference(u.expirationDate) : "-"}</td>
             <td className="actions-cell">
               <button className="action-btn view" title="View" onClick={(e) => {
                 e.stopPropagation();

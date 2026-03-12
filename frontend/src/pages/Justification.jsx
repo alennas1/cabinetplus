@@ -9,6 +9,7 @@ import {
   openJustificationPdfInNewTab,
 } from "../services/justificationService";
 import { getPatientById } from "../services/patientService";
+import { formatDateByPreference } from "../utils/dateFormat";
 import "react-toastify/dist/ReactToastify.css";
 
 const Justification = () => {
@@ -103,7 +104,7 @@ const Justification = () => {
   </div>
   <div className="text-right">
     <p className="text-sm text-gray-600">
-      Date: <span className="font-medium">{new Date().toLocaleDateString()}</span>
+      Date: <span className="font-medium">{formatDateByPreference(new Date())}</span>
     </p>
     {/* Optional: Add a second subtext line for status */}
     <p className="text-xs text-indigo-500 font-medium mt-1">

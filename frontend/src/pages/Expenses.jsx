@@ -13,6 +13,7 @@ import {
 } from "../services/expenseService";
 import { getEmployees } from "../services/employeeService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatMoneyWithLabel } from "../utils/format";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -36,6 +37,8 @@ const Expenses = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeletingExpense, setIsDeletingExpense] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -121,7 +124,9 @@ const Expenses = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       if (isEditing) {
         const updated = await updateExpense(editingExpense.id, formData);
         setExpenses(expenses.map((e) => (e.id === updated.id ? updated : e)));
@@ -139,6 +144,8 @@ const Expenses = () => {
     } catch (err) {
       console.error(err);
       toast.error("Erreur lors de l'enregistrement");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -156,7 +163,9 @@ const Expenses = () => {
   };
 
   const confirmDeleteExpense = async () => {
+    if (isDeletingExpense) return;
     try {
+      setIsDeletingExpense(true);
       await deleteExpense(confirmDelete);
       setExpenses(expenses.filter((e) => e.id !== confirmDelete));
       toast.success("Dépense supprimée");
@@ -164,6 +173,7 @@ const Expenses = () => {
       console.error(err);
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
+      setIsDeletingExpense(false);
       setShowConfirm(false);
       setConfirmDelete(null);
     }
@@ -248,7 +258,7 @@ const Expenses = () => {
             <tr key={e.id}>
               <td>{e.title || "—"}</td>
               <td>{EXPENSE_CATEGORIES[e.category] || e.category}</td>
-              <td>{e.amount} DA</td>
+              <td>{formatMoneyWithLabel(e.amount)}</td>
               <td>{e.date}</td>
               <td>{e.description || "—"}</td>
               <td className="actions-cell">
@@ -327,8 +337,8 @@ const Expenses = () => {
               </select>
 
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}</button>
+                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
           </div>
@@ -342,8 +352,8 @@ const Expenses = () => {
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer la dépense ?</h2>
             <p className="text-gray-600 mb-6">Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100">Annuler</button>
-              <button onClick={confirmDeleteExpense} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600">Supprimer</button>
+              <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100" disabled={isDeletingExpense}>Annuler</button>
+              <button onClick={confirmDeleteExpense} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600" disabled={isDeletingExpense}>{isDeletingExpense ? "Suppression..." : "Supprimer"}</button>
             </div>
           </div>
         </div>
@@ -355,3 +365,4 @@ const Expenses = () => {
 };
 
 export default Expenses;
+

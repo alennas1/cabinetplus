@@ -2,11 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Shield } from "react-feather";
-import { logout, setCredentials } from "../store/authSlice";
+import { logout, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment } from "../services/handPaymentService";
 import { getCurrentUser } from "../services/authService";
 import { getCurrentPlanUsage } from "../services/userService";
+import { getUserPreferences } from "../services/userPreferenceService";
+import { applyUserPreferences } from "../utils/workingHours";
+import { formatMoney, formatMoneyWithLabel } from "../utils/format";
+import { getCurrencyLabelPreference } from "../utils/workingHours";
 import "./Plan.css";
 
 const getPlanFeatures = (plan) => [
@@ -79,6 +83,13 @@ const PlanPage = () => {
 
       await createHandPayment(paymentData);
       const refreshedUser = await getCurrentUser();
+      dispatch(setAuthLoading(true));
+      try {
+        const prefs = await getUserPreferences();
+        applyUserPreferences(prefs);
+      } catch {
+        applyUserPreferences(null);
+      }
       dispatch(setCredentials({ user: refreshedUser, token }));
       setShowPopup(false);
       navigate("/waiting", { replace: true });
@@ -144,12 +155,12 @@ const PlanPage = () => {
 
                 <div className="plan-price-container">
                   {!isFree && isYearly && hasDiscount && (
-                    <div className="price-strikethrough">{plan.monthlyPrice} DZD</div>
+                    <div className="price-strikethrough">{formatMoneyWithLabel(plan.monthlyPrice)}</div>
                   )}
 
                   <div>
-                    <span className="plan-price-main">{displayPrice}</span>
-                    <span className="plan-price-sub"> DZD / mois</span>
+                    <span className="plan-price-main">{formatMoney(displayPrice)}</span>
+                    <span className="plan-price-sub"> {getCurrencyLabelPreference()} / mois</span>
                   </div>
 
                   {!isFree && isYearly && hasDiscount && (
@@ -159,7 +170,7 @@ const PlanPage = () => {
                         <span style={{ textDecoration: "line-through", opacity: 0.5 }}>
                           {totalMonthlyEquivalent}
                         </span>{" "}
-                        {totalAnnualPrice} DZD/an
+                        {formatMoney(totalAnnualPrice)} {getCurrencyLabelPreference()}/an
                       </div>
                       <div className="save-badge">
                         -
@@ -240,7 +251,7 @@ const PlanPage = () => {
                       : isYearly
                       ? selectedPlan.yearlyMonthlyPrice * 12
                       : selectedPlan.monthlyPrice}{" "}
-                    DZD
+                    {getCurrencyLabelPreference()}
                   </span>
                 </div>
               </div>

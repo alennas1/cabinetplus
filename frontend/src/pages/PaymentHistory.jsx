@@ -5,6 +5,8 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import { getAllHandPayments } from "../services/handPaymentService";
 import { Search, ChevronDown } from "react-feather";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
 
 const AllPayments = () => {
   const token = useSelector((state) => state.auth.token);
@@ -43,14 +45,8 @@ const AllPayments = () => {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const label = formatDateTimeByPreference(dateStr);
+    return label === "-" ? "" : label;
   };
 
   // Map backend status to French labels
@@ -152,7 +148,7 @@ const AllPayments = () => {
               <tr key={p.paymentId}>
                 <td>{p.fullName}</td>
                 <td>{p.planName}</td>
-                <td>{p.amount} DA</td>
+                <td>{formatMoneyWithLabel(p.amount)}</td>
                 <td>{formatDate(p.paymentDate)}</td>
                 <td>
                   <span

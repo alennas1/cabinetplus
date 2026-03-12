@@ -53,6 +53,8 @@ const Medications = () => {
 
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeletingMedication, setIsDeletingMedication] = useState(false);
 
   // Load medications
   useEffect(() => {
@@ -99,8 +101,10 @@ const Medications = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     try {
+      setIsSubmitting(true);
       if (isEditing) {
         const updated = await updateMedication(form.id, form, token);
         setMedications(
@@ -119,6 +123,8 @@ const Medications = () => {
     } catch (err) {
       console.error("Error saving medication:", err);
       toast.error("Erreur lors de l'enregistrement");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -141,7 +147,9 @@ const Medications = () => {
   };
 
   const confirmDeleteMedication = async () => {
+    if (isDeletingMedication) return;
     try {
+      setIsDeletingMedication(true);
       await deleteMedication(confirmDelete, token);
       setMedications(medications.filter((m) => m.id !== confirmDelete));
       toast.success("Médicament supprimé");
@@ -149,6 +157,7 @@ const Medications = () => {
       console.error(err);
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
+      setIsDeletingMedication(false);
       setShowConfirm(false);
       setConfirmDelete(null);
     }
@@ -325,7 +334,7 @@ const Medications = () => {
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
+                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
           </div>
@@ -339,8 +348,8 @@ const Medications = () => {
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer le médicament ?</h2>
             <p className="text-gray-600 mb-6">Êtes-vous sûr ? Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100">Annuler</button>
-              <button onClick={confirmDeleteMedication} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600">Supprimer</button>
+              <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100" disabled={isDeletingMedication}>Annuler</button>
+              <button onClick={confirmDeleteMedication} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600" disabled={isDeletingMedication}>{isDeletingMedication ? "Suppression..." : "Supprimer"}</button>
             </div>
           </div>
         </div>
@@ -367,3 +376,4 @@ const Medications = () => {
 };
 
 export default Medications;
+

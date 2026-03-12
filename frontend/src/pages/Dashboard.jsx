@@ -6,11 +6,27 @@ import { getFinanceCards } from "../services/financeService";
 import { getCompletedAppointmentsStats, getAppointments } from "../services/appointmentService";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { buildDateAtMinutes, formatHour, getWorkingHoursWindow } from "../utils/workingHours";
+import { formatMoneyWithLabel } from "../utils/format";
 import "react-toastify/dist/ReactToastify.css";
 import "./Finance.css";
 
 export default function DashboardUpdated() {
   const navigate = useNavigate();
+
+  const getAppointmentPatient = (appointment) => {
+    const patient = appointment?.patient;
+    if (patient?.firstname || patient?.lastname) {
+      return {
+        id: patient.id ?? appointment?.patientId ?? null,
+        fullname: `${patient.firstname ?? ""} ${patient.lastname ?? ""}`.trim() || "Inconnu",
+      };
+    }
+    return {
+      id: patient?.id ?? appointment?.patientId ?? null,
+      fullname: "Inconnu",
+    };
+  };
 
   // --- Revenue & Net Revenue state ---
   const [revenueData, setRevenueData] = useState({
@@ -71,6 +87,7 @@ export default function DashboardUpdated() {
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [patientPage, setPatientPage] = useState(0);
+  const [workingHours, setWorkingHours] = useState(() => getWorkingHoursWindow());
   const pageSize = 4;
 
   const fetchAppointments = async () => {
@@ -88,13 +105,16 @@ export default function DashboardUpdated() {
 
   const filterTodayAppointments = () => {
     const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 8, 0, 0);
-    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 18, 0, 0);
+    const start = buildDateAtMinutes(today, workingHours.startMinutes);
+    const end =
+      workingHours.endMinutes === 24 * 60
+        ? new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0)
+        : buildDateAtMinutes(today, workingHours.endMinutes);
 
     const filtered = appointments
       .filter((a) => {
         const apptStart = new Date(a.dateTimeStart);
-        return apptStart >= start && apptStart <= end && a.status === "SCHEDULED";
+        return apptStart >= start && apptStart < end && a.status === "SCHEDULED";
       })
       .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
 
@@ -108,8 +128,14 @@ export default function DashboardUpdated() {
   }, []);
 
   useEffect(() => {
+    const syncWorkingHours = () => setWorkingHours(getWorkingHoursWindow());
+    window.addEventListener("workingHoursChanged", syncWorkingHours);
+    return () => window.removeEventListener("workingHoursChanged", syncWorkingHours);
+  }, []);
+
+  useEffect(() => {
     filterTodayAppointments();
-  }, [appointments]);
+  }, [appointments, workingHours]);
 
   const calcChange = (current, previous) => {
     if (!previous || previous === 0) return "0%";
@@ -187,8 +213,9 @@ export default function DashboardUpdated() {
                 <div className="square-top">
                   <span className="square-title">{s.title}</span>
                   <span className="square-value">
-                    {Number(s.value).toLocaleString()}{" "}
-                    {s.title.includes("Revenu") || s.title.includes("Net") ? <span className="currency-symbol">DA</span> : null}
+                    {s.title.includes("Revenu") || s.title.includes("Net")
+                      ? formatMoneyWithLabel(s.value)
+                      : Number(s.value).toLocaleString()}
                   </span>
                 </div>
                 <div className="square-bottom">
@@ -250,9 +277,11 @@ export default function DashboardUpdated() {
                   Aucun patient pour aujourd’hui
                 </div>
               ) : (
-                pagedPatients.map((a, idx) => (
+                pagedPatients.map((a, idx) => {
+                  const patientInfo = getAppointmentPatient(a);
+                  return (
                   <div
-                    key={idx}
+                    key={a.id ?? idx}
                     className="finance-row"
                     style={{
                       display: "flex",
@@ -263,26 +292,28 @@ export default function DashboardUpdated() {
                   >
                     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                       <div style={{ width: 64, textAlign: "center", padding: "6px 8px", borderRadius: 8, background: "#fafafa" }}>
-                        {new Date(a.dateTimeStart).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {formatHour(a.dateTimeStart)}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600 }}>{`${a.patient.firstname} ${a.patient.lastname}`}</div>
+                        <div style={{ fontWeight: 600 }}>{patientInfo.fullname}</div>
                         <div style={{ fontSize: 13, color: "#666" }}>{a.notes || "Aucune note"}</div>
                       </div>
                     </div>
 
-                    <button
-                      className="action-btn view"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/patients/${a.patient.id}`);
-                      }}
-                      title="Voir le patient"
-                    >
-                      <Eye size={16} />
-                    </button>
+                    {patientInfo.id && (
+                      <button
+                        className="action-btn view"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/patients/${patientInfo.id}`);
+                        }}
+                        title="Voir le patient"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    )}
                   </div>
-                ))
+                )})
               )}
             </div>
           </div>

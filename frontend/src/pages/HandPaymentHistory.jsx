@@ -7,6 +7,8 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment, getMyHandPayments } from "../services/handPaymentService";
 import { getCurrentPlanUsage } from "../services/userService";
+import { formatDateByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
 import "./Patients.css";
 import "./PaymentHistory.css";
 
@@ -18,9 +20,8 @@ const STATUS_LABELS = {
 
 const formatDate = (value) => {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString("fr-FR");
+  const label = formatDateByPreference(value);
+  return label === "-" ? "-" : label;
 };
 
 const computeAmount = (plan, cycle) => {
@@ -289,7 +290,7 @@ const HandPaymentHistory = () => {
                   return (
                     <tr key={payment.id || payment.paymentId}>
                       <td>{payment.planName || "-"}</td>
-                      <td>{payment.amount || 0} DZD</td>
+                      <td>{formatMoneyWithLabel(payment.amount || 0)}</td>
                       <td>{formatDate(payment.paymentDate)}</td>
                       <td>
                         <span className={`payment-status ${statusClass}`}>{STATUS_LABELS[status] || status}</span>
@@ -331,7 +332,7 @@ const HandPaymentHistory = () => {
                   Duree: <strong>{currentPlan?.durationDays || 30} jours</strong>
                 </p>
                 <p>
-                  Montant: <strong>{renewAmount} DZD</strong>
+                  Montant: <strong>{formatMoneyWithLabel(renewAmount)}</strong>
                 </p>
               </div>
 
@@ -393,7 +394,7 @@ const HandPaymentHistory = () => {
                     : `Le changement demarre a la fin du plan actuel (${formatDate(planEndDate)}).`}
                 </p>
                 <p>
-                  Montant: <strong>{upgradeAmount} DZD</strong>
+                  Montant: <strong>{formatMoneyWithLabel(upgradeAmount)}</strong>
                 </p>
               </div>
 

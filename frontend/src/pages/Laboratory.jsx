@@ -25,6 +25,7 @@ const Laboratories = () => {
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     id: null,
     name: "",
@@ -34,6 +35,7 @@ const Laboratories = () => {
   });
   const [showConfirm, setShowConfirm] = useState(false);
   const [labIdToDelete, setLabIdToDelete] = useState(null);
+  const [isDeletingLab, setIsDeletingLab] = useState(false);
 
   useEffect(() => {
     const fetchLabs = async () => {
@@ -71,7 +73,9 @@ const Laboratories = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       if (isEditing) {
         const updated = await updateLaboratory(formData.id, formData);
         setLaboratories(laboratories.map((lab) => (lab.id === updated.id ? updated : lab)));
@@ -85,6 +89,8 @@ const Laboratories = () => {
       resetForm();
     } catch (err) {
       toast.error("Erreur lors de l'enregistrement");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -106,7 +112,9 @@ const Laboratories = () => {
   };
 
   const confirmDelete = async () => {
+    if (isDeletingLab) return;
     try {
+      setIsDeletingLab(true);
       await deleteLaboratory(labIdToDelete);
       setLaboratories(laboratories.filter((lab) => lab.id !== labIdToDelete));
       toast.success("Laboratoire supprimé");
@@ -117,6 +125,7 @@ const Laboratories = () => {
           : "Erreur lors de la suppression";
       toast.error(getApiErrorMessage(err, message));
     } finally {
+      setIsDeletingLab(false);
       setShowConfirm(false);
       setLabIdToDelete(null);
     }
@@ -278,8 +287,8 @@ const Laboratories = () => {
               </div>
 
               <div className="modal-actions" style={{ marginTop: "2rem" }}>
-                <button type="submit" className="btn-primary2">
-                  {isEditing ? "Mettre à jour" : "Enregistrer"}
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>
+                  {isSubmitting ? "Enregistrement..." : isEditing ? "Mettre � jour" : "Enregistrer"}
                 </button>
                 <button
                   type="button"
@@ -288,6 +297,7 @@ const Laboratories = () => {
                     setShowModal(false);
                     resetForm();
                   }}
+                  disabled={isSubmitting}
                 >
                   Annuler
                 </button>
@@ -307,13 +317,13 @@ const Laboratories = () => {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors" disabled={isDeletingLab}
               >
                 Annuler
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors" disabled={isDeletingLab}
               >
                 Supprimer
               </button>
@@ -328,3 +338,5 @@ const Laboratories = () => {
 };
 
 export default Laboratories;
+
+

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -16,7 +16,7 @@ import {
 const GestionCabinetPinGuard = () => {
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.username;
-  useLocation(); // re-render on navigation inside gestion-cabinet
+  const location = useLocation();
   const navigate = useNavigate();
   const cachedEnabled = getCachedGestionCabinetPinEnabled(userKey);
 
@@ -33,7 +33,7 @@ const GestionCabinetPinGuard = () => {
     let cancelled = false;
     const run = async () => {
       try {
-        if (getCachedGestionCabinetPinEnabled(userKey) === null) setChecking(true);
+        setChecking(true);
         const status = await getGestionCabinetPinStatus();
         const nextEnabled = !!status?.enabled;
         setCachedGestionCabinetPinEnabled(userKey, nextEnabled);
@@ -55,7 +55,7 @@ const GestionCabinetPinGuard = () => {
       cancelled = true;
       window.removeEventListener("gcPinStatusChanged", onChanged);
     };
-  }, [userKey]);
+  }, [userKey, location.key]);
 
   useEffect(() => {
     return () => {
@@ -90,14 +90,7 @@ const GestionCabinetPinGuard = () => {
   };
 
   if (checking) {
-    return (
-      <>
-        <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-          <p className="mt-4 text-gray-600 font-medium">Vérification de sécurité...</p>
-        </div>
-      </>
-    );
+    return null;
   }
 
   if (!showGate) {

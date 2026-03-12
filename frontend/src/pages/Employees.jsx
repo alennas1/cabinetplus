@@ -78,11 +78,15 @@ const Employees = () => {
   // Delete Confirmation State
   const [showConfirm, setShowConfirm] = useState(false);
   const [empIdToDelete, setEmpIdToDelete] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
 
   const getRoleOption = (roleValue) =>
     EMPLOYEE_ROLE_OPTIONS.find((roleOption) => roleOption.value === roleValue);
 
   const getRoleLabel = (roleValue) => getRoleOption(roleValue)?.title || "—";
+  const getRoleAccessLabel = (roleValue) =>
+    getRoleOption(roleValue)?.accessLabel || roleValue || "—";
 
   // Load employees
   useEffect(() => {
@@ -121,6 +125,7 @@ const Employees = () => {
   // Add / update
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     const cleanedPayload = {
       firstName: formData.firstName,
@@ -142,6 +147,7 @@ const Employees = () => {
     };
 
     try {
+      setIsSubmitting(true);
       if (isEditing) {
         const updated = await updateEmployee(formData.id, cleanedPayload, token);
         setEmployees(
@@ -159,6 +165,8 @@ const Employees = () => {
     } catch (err) {
       console.error("❌ Error saving employee:", err.response?.data || err.message);
       toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -176,7 +184,9 @@ const Employees = () => {
   };
 
   const confirmDelete = async () => {
+    if (isDeletingEmployee) return;
     try {
+      setIsDeletingEmployee(true);
       await deleteEmployee(empIdToDelete, token);
       setEmployees(employees.filter((emp) => emp.id !== empIdToDelete));
       toast.success("Employé supprimé");
@@ -184,6 +194,7 @@ const Employees = () => {
       console.error("Erreur suppression:", err);
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
+      setIsDeletingEmployee(false);
       setShowConfirm(false);
       setEmpIdToDelete(null);
     }
@@ -278,7 +289,9 @@ const Employees = () => {
               <td>{emp.firstName || "—"}</td>
               <td>{emp.lastName || "—"}</td>
               <td>{emp.phone || "—"}</td>
-              <td>{getRoleLabel(emp.accessRole)}</td>
+	              <td>
+	                <span className="employee-role-card-access">{getRoleAccessLabel(emp.accessRole)}</span>
+	              </td>
               <td>
                 <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
                   {emp.status === "ACTIVE"
@@ -561,8 +574,8 @@ const Employees = () => {
                 )}
 
                 {formStep === 3 && (
-                  <button type="submit" className="btn-primary2">
-                    {isEditing ? "Mettre à jour" : "Ajouter"}
+                  <button type="submit" className="btn-primary2" disabled={isSubmitting}>
+                    {isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}
                   </button>
                 )}
 
@@ -570,6 +583,7 @@ const Employees = () => {
                   type="button"
                   className="btn-cancel"
                   onClick={() => setShowModal(false)}
+                  disabled={isSubmitting}
                 >
                   Annuler
                 </button>
@@ -589,14 +603,16 @@ const Employees = () => {
               <button
                 onClick={() => setShowConfirm(false)}
                 className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                disabled={isDeletingEmployee}
               >
                 Annuler
               </button>
               <button
                 onClick={confirmDelete}
                 className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                disabled={isDeletingEmployee}
               >
-                Supprimer
+                {isDeletingEmployee ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </div>
@@ -609,6 +625,7 @@ const Employees = () => {
 };
 
 export default Employees;
+
 
 
 

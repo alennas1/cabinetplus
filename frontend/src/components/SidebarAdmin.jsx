@@ -11,6 +11,7 @@ import {
   BarChart2,
   PieChart,
   Shield,
+  Sliders,
 } from "react-feather";
 
 import { logout as logoutRedux } from "../store/authSlice";
@@ -81,6 +82,12 @@ const SidebarAdmin = () => {
           <Link to="/settings-admin">
             <Settings size={20} />
             <span className="link-text">Parametres</span>
+          </Link>
+        </li>
+        <li>
+          <Link to="/admin/preferences">
+            <Sliders size={20} />
+            <span className="link-text">Preferences</span>
           </Link>
         </li>
         <li>

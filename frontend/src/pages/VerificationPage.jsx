@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { LogOut, CheckCircle, XCircle } from "react-feather";
 import { useNavigate } from "react-router-dom";
-import { logout as logoutRedux, setCredentials } from "../store/authSlice";
+import { logout as logoutRedux, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
 import api, { getCurrentUser, logout as logoutApi } from "../services/authService";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
+import { getUserPreferences } from "../services/userPreferenceService";
+import { applyUserPreferences } from "../utils/workingHours";
 import "./Verify.css";
 
 const VerificationPage = () => {
@@ -33,7 +35,13 @@ const VerificationPage = () => {
 
   const markAsVerifiedLocally = (updatedUser) => {
     if (!updatedUser) return;
-    dispatch(setCredentials({ user: updatedUser, token }));
+    dispatch(setAuthLoading(true));
+    getUserPreferences()
+      .then((prefs) => applyUserPreferences(prefs))
+      .catch(() => applyUserPreferences(null))
+      .finally(() => {
+        dispatch(setCredentials({ user: updatedUser, token }));
+      });
   };
 
   const handleSendPhoneCode = async () => {

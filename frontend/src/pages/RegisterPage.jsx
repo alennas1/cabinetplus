@@ -3,10 +3,12 @@ import { register, login, getCurrentUser } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Eye, EyeOff } from "react-feather";
-import { setCredentials } from "../store/authSlice";
+import { setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
 import { getApiErrorMessage } from "../utils/error";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
+import { getUserPreferences } from "../services/userPreferenceService";
+import { applyUserPreferences } from "../utils/workingHours";
 import "./Register.css";
 
 const DZ_PHONE_REGEX = /^(?:0[5-7]\d{8}|(?:\+?213)[5-7]\d{8})$/;
@@ -153,6 +155,13 @@ const RegisterPage = () => {
       await register(formData);
       const { accessToken } = await login(formData.username, formData.password);
       const currentUser = await getCurrentUser();
+      dispatch(setAuthLoading(true));
+      try {
+        const prefs = await getUserPreferences();
+        applyUserPreferences(prefs);
+      } catch {
+        applyUserPreferences(null);
+      }
       dispatch(setCredentials({ token: accessToken, user: currentUser }));
       handleRedirect(currentUser);
     } catch (error) {

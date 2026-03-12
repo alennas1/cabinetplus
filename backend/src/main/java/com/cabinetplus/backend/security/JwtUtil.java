@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import jakarta.annotation.PostConstruct;
 
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.User;
@@ -23,7 +24,9 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret}")
+    private static final String DEFAULT_SECRET = "3zQnXLz+v0Wm+9j8fH9Sv+rb3VbA9M/cD4xPTfFhM7Y=";
+
+    @Value("${jwt.secret:}")
     private String secretKey;
 
     @Value("${jwt.access.expiration-ms}")
@@ -31,6 +34,14 @@ public class JwtUtil {
 
     @Value("${jwt.refresh.expiration-ms}")
     private long refreshExpirationMs;
+
+    @PostConstruct
+    private void initSecret() {
+        if (secretKey == null || secretKey.isBlank()) {
+            String envSecret = System.getenv("JWT_SECRET");
+            secretKey = (envSecret != null && !envSecret.isBlank()) ? envSecret : DEFAULT_SECRET;
+        }
+    }
 
     private Key getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);

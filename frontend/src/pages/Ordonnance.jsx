@@ -8,6 +8,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { getPatientById } from "../services/patientService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatDateByPreference } from "../utils/dateFormat";
 
 export default function Ordonnance() {
   const navigate = useNavigate();
@@ -228,7 +229,7 @@ useEffect(() => {
       </p>
     )}
     <p className="text-sm text-gray-600">
-      Date: <span className="font-medium">{new Date().toLocaleDateString('fr-DZ')}</span>
+      Date: <span className="font-medium">{formatDateByPreference(new Date())}</span>
     </p>
   </div>
 </header>

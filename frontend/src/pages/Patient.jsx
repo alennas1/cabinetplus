@@ -1,5 +1,5 @@
 // src/pages/Patient.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
@@ -20,6 +20,15 @@ import {
   getAppointmentsByPatient, createAppointment, updateAppointment, deleteAppointment 
 } from "../services/appointmentService";
 import { getTreatments as getTreatmentCatalog } from "../services/treatmentCatalogueService";
+import {
+  TIME_FORMATS,
+  formatHour,
+  formatMinutesLabel,
+  getTimeFormatPreference,
+  getWorkingHoursWindow,
+} from "../utils/workingHours";
+import { formatDateByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
 
 import { getPrescriptionsByPatient,deletePrescription } from "../services/prescriptionService"; // make sure you have this
 
@@ -45,6 +54,8 @@ import { getApiErrorMessage } from "../utils/error";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Patient.css";
 import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud } from "react-feather";
+
+const QUARTER_MINUTES = ["00", "15", "30", "45"];
 
 const Patient = () => {
   const { id } = useParams();
@@ -84,6 +95,13 @@ const maxDocumentFileSizeBytes = 25 * 1024 * 1024;
 const [activeTab, setActiveTab] = useState("treatments"); // default tab
 
 const [showTeethHistoryModal, setShowTeethHistoryModal] = useState(false);
+const [isSavingProthesis, setIsSavingProthesis] = useState(false);
+const [isSavingTreatment, setIsSavingTreatment] = useState(false);
+const [isSavingPayment, setIsSavingPayment] = useState(false);
+const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+const [isConfirmingAction, setIsConfirmingAction] = useState(false);
+const [busyAppointmentStatusId, setBusyAppointmentStatusId] = useState(null);
+const [busyProthesisStatusId, setBusyProthesisStatusId] = useState(null);
 
 const [protheses, setProtheses] = useState([]);
 const [prothesisCatalog, setProthesisCatalog] = useState([]); // <--- Add this line
@@ -149,10 +167,12 @@ const handleEditProthesis = (p) => {
   setShowProthesisModal(true);
 };
 const handleCancelAppointment = async (a) => {
+  if (busyAppointmentStatusId === a.id) return;
   // Optionnel : Ajouter une confirmation simple
   if (!window.confirm("Voulez-vous vraiment annuler ce rendez-vous ?")) return;
 
   try {
+    setBusyAppointmentStatusId(a.id);
     const updatedAppointment = await updateAppointment(a.id, { 
       ...a, 
       status: "CANCELLED" 
@@ -165,10 +185,14 @@ const handleCancelAppointment = async (a) => {
   } catch (err) {
     console.error(err);
     toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du rendez-vous"));
+  } finally {
+    setBusyAppointmentStatusId(null);
   }
 };
 const handleCompleteAppointment = async (a) => {
+  if (busyAppointmentStatusId === a.id) return;
   try {
+    setBusyAppointmentStatusId(a.id);
     const updatedAppointment = await updateAppointment(a.id, { 
       ...a, 
       status: "COMPLETED" 
@@ -181,6 +205,8 @@ const handleCompleteAppointment = async (a) => {
   } catch (err) {
     console.error(err);
     toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du rendez-vous"));
+  } finally {
+    setBusyAppointmentStatusId(null);
   }
 };
 const handleQuickPrintJustification = async (template) => {
@@ -449,6 +475,8 @@ useEffect(() => {
  
  const handleSaveProthesis = async (e) => {
    e.preventDefault();
+   if (isSavingProthesis) return;
+   setIsSavingProthesis(true);
    try {
     // 1. Prepare the payload
     const payload = {
@@ -488,6 +516,8 @@ useEffect(() => {
     setShowProthesisModal(false);
   } catch (err) {
     toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
+  } finally {
+    setIsSavingProthesis(false);
   }
 };
 
@@ -526,6 +556,7 @@ const handleDeleteProthetics = (prothesis) => {
 
 
 const handleCycleProthesisStatus = async (p) => {
+  if (busyProthesisStatusId === p.id) return;
   const currentIndex = prothesisStatusOrder.indexOf(p.status);
   const nextStatus =
     prothesisStatusOrder[
@@ -533,12 +564,15 @@ const handleCycleProthesisStatus = async (p) => {
     ];
 
   try {
+    setBusyProthesisStatusId(p.id);
     const updated = await updateProtheticsStatus(p.id, nextStatus);
     setProtheses((prev) => prev.map((item) => (item.id === p.id ? updated : item)));
     toast.success(`Statut mis a jour: ${prothesisStatusLabels[nextStatus] || nextStatus}`);
   } catch (err) {
     console.error(err);
     toast.error(getApiErrorMessage(err, "Erreur lors de la mise a jour du statut"));
+  } finally {
+    setBusyProthesisStatusId(null);
   }
 };
  const [isEditingTreatment, setIsEditingTreatment] = useState(false);
@@ -548,10 +582,37 @@ const handleCycleProthesisStatus = async (p) => {
   const [paymentForm, setPaymentForm] = useState({ id: null, amount: "", method: "CASH" });
   const [isEditingPayment, setIsEditingPayment] = useState(false);
 
-  const [appointments, setAppointments] = useState([]);
-  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-const [appointmentForm, setAppointmentForm] = useState({ id: null, date: "", hour: "", minute: "", notes: "" });
-  const [isEditingAppointment, setIsEditingAppointment] = useState(false);
+	const [appointments, setAppointments] = useState([]);
+	const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+	const [appointmentForm, setAppointmentForm] = useState({
+    id: null,
+    date: "",
+    hour: "",
+    minute: "",
+    period: "AM",
+    notes: "",
+    duration: 30,
+  });
+  const [workingHours, setWorkingHours] = useState(() => getWorkingHoursWindow());
+  const [timeFormat, setTimeFormat] = useState(() => getTimeFormatPreference());
+  const use12HourFormat = timeFormat === TIME_FORMATS.TWELVE_HOURS;
+  const [minuteDropdownOpen, setMinuteDropdownOpen] = useState(false);
+  const minuteDropdownRef = useRef(null);
+
+  const durationOptions = useMemo(() => [15, 30, 60], []);
+	  const [isEditingAppointment, setIsEditingAppointment] = useState(false);
+
+  useEffect(() => {
+    const syncWorkingHours = () => setWorkingHours(getWorkingHoursWindow());
+    window.addEventListener("workingHoursChanged", syncWorkingHours);
+    return () => window.removeEventListener("workingHoursChanged", syncWorkingHours);
+  }, []);
+
+  useEffect(() => {
+    const syncTimeFormat = () => setTimeFormat(getTimeFormatPreference());
+    window.addEventListener("timeFormatChanged", syncTimeFormat);
+    return () => window.removeEventListener("timeFormatChanged", syncTimeFormat);
+  }, []);
 
 // --- PATIENT MODAL STATE ---
 const [showConfirm, setShowConfirm] = useState(false);
@@ -586,14 +647,79 @@ const openJustificationModal = async () => {
 
 const closeJustificationModal = () => setShowJustificationModal(false);
 // --- HELPERS ---
-const formatDate = (dateStr) =>
-  dateStr
-    ? new Date(dateStr).toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    : "";
+const formatDate = (dateStr) => {
+  if (!dateStr) return "";
+  const label = formatDateByPreference(dateStr);
+  return label === "-" ? "" : label;
+};
+  const hourBounds24 = useMemo(() => {
+    const earliest = Math.floor(workingHours.startMinutes / 60);
+    const latest = Math.floor((workingHours.endMinutes - 1) / 60);
+    return {
+      earliest: Math.max(0, earliest),
+      latest: Math.min(23, latest),
+    };
+  }, [workingHours]);
+
+  const hour24ForMinuteOptions = useMemo(() => {
+    const hourNum = Number(appointmentForm.hour);
+    if (Number.isNaN(hourNum)) return null;
+
+    if (!use12HourFormat) {
+      return hourNum;
+    }
+
+    if (hourNum < 1 || hourNum > 12) return null;
+    const period = String(appointmentForm.period || "AM").toUpperCase();
+    let resolved = hourNum;
+    if (period === "PM" && resolved !== 12) resolved += 12;
+    if (period === "AM" && resolved === 12) resolved = 0;
+    return resolved;
+  }, [appointmentForm.hour, appointmentForm.period, use12HourFormat]);
+
+  const allowedMinuteOptions = useMemo(() => {
+    if (hour24ForMinuteOptions === null) return [];
+    return QUARTER_MINUTES.filter((minute) => {
+      const totalMinutes = hour24ForMinuteOptions * 60 + Number(minute);
+      return totalMinutes >= workingHours.startMinutes && totalMinutes < workingHours.endMinutes;
+    });
+  }, [hour24ForMinuteOptions, workingHours]);
+
+  useEffect(() => {
+    if (!showAppointmentModal) return;
+    if (!allowedMinuteOptions.length) return;
+    const current =
+      appointmentForm.minute === "" ? "" : String(appointmentForm.minute).padStart(2, "0");
+    if (!allowedMinuteOptions.includes(current)) {
+      setAppointmentForm((prev) => ({ ...prev, minute: allowedMinuteOptions[0] }));
+    }
+  }, [allowedMinuteOptions.join(","), appointmentForm.minute, showAppointmentModal]);
+
+  useEffect(() => {
+    if (!showAppointmentModal) {
+      setMinuteDropdownOpen(false);
+    }
+  }, [showAppointmentModal]);
+
+  useEffect(() => {
+    if (!minuteDropdownOpen) return;
+    if (!allowedMinuteOptions.length) {
+      setMinuteDropdownOpen(false);
+      return;
+    }
+
+    const onMouseDown = (event) => {
+      if (!minuteDropdownRef.current) return;
+      if (!minuteDropdownRef.current.contains(event.target)) {
+        setMinuteDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [minuteDropdownOpen, allowedMinuteOptions.length]);
+
+
 const formatPhone = (phone) =>
   phone ? phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4") : "";
 
@@ -698,6 +824,8 @@ const totalPaiement = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 
 
 // Remaining balance
 const totalReste = totalFacture - totalPaiement;
+const hasCredit = totalReste < 0;
+const displayReste = Math.abs(totalReste);
 
 const sortedPayments = useMemo(
   () => [...payments].sort((a, b) => new Date(b.date || b.paymentDate || 0) - new Date(a.date || a.paymentDate || 0)),
@@ -736,6 +864,8 @@ const sortedAppointments = useMemo(
 
 const handleCreateOrUpdateTreatment = async (e) => {
   e.preventDefault();
+  if (isSavingTreatment) return;
+  setIsSavingTreatment(true);
   try {
     let savedTreatment;
 
@@ -812,6 +942,8 @@ const handleCreateOrUpdateTreatment = async (e) => {
   } catch (err) {
     console.error("❌ Error in handleCreateOrUpdateTreatment:", err);
     toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement du traitement"));
+  } finally {
+    setIsSavingTreatment(false);
   }
 };
 
@@ -869,6 +1001,8 @@ setTreatmentForm({
 
   const handleCreatePayment = async (e) => {
     e.preventDefault();
+    if (isSavingPayment) return;
+    setIsSavingPayment(true);
     try {
       const newPayment = await createPayment({
         patientId: id,
@@ -884,6 +1018,8 @@ setPayments([newPayment, ...payments]);
     } catch (err) {
       console.error(err.response?.data || err);
       toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout du versement"));
+    } finally {
+      setIsSavingPayment(false);
     }
   };
 
@@ -908,35 +1044,84 @@ const handleDeletePayment = (p) => {
     setAppointmentForm({ ...appointmentForm, [name]: value });
   };
 
- const handleEditAppointment = (a) => {
-  const d = new Date(a.dateTimeStart);
-  const hour = d.getHours();
-  const minute = d.getMinutes();
+	 const handleEditAppointment = (a) => {
+	  const start = new Date(a.dateTimeStart);
+    const end = new Date(a.dateTimeEnd);
+    const duration =
+      Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000)) || 30;
 
-  setAppointmentForm({
-    id: a.id,
-    date: d.toISOString().split("T")[0], // yyyy-mm-dd
-    hour,
-    minute,
-    notes: a.notes || ""
-  });
+    const minute = String(start.getMinutes()).padStart(2, "0");
+    let hour = String(start.getHours());
+    let period = "AM";
 
-  setIsEditingAppointment(true);
-  setShowAppointmentModal(true);
-};
+    if (use12HourFormat) {
+      const h24 = start.getHours();
+      period = h24 >= 12 ? "PM" : "AM";
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      hour = String(h12);
+    }
+
+	  setAppointmentForm({
+	    id: a.id,
+	    date: start.toISOString().split("T")[0], // yyyy-mm-dd
+	    hour,
+	    minute,
+      period,
+	    notes: a.notes || "",
+      duration,
+	  });
+	
+	  setIsEditingAppointment(true);
+	  setShowAppointmentModal(true);
+	};
 
 
 
 const handleCreateOrUpdateAppointment = async (e) => {
   e.preventDefault();
+  if (isSavingAppointment) return;
+  setIsSavingAppointment(true);
   try {
     if (!appointmentForm.date || appointmentForm.hour === undefined || appointmentForm.minute === undefined) {
       toast.error("Veuillez sélectionner la date et l'heure");
       return;
     }
 
-    const hour = String(appointmentForm.hour).padStart(2, "0");
-    const minute = String(appointmentForm.minute).padStart(2, "0");
+    let resolvedHour = Number(appointmentForm.hour);
+    if (use12HourFormat) {
+      if (Number.isNaN(resolvedHour) || resolvedHour < 1 || resolvedHour > 12) {
+        toast.error("Heure invalide");
+        return;
+      }
+      const period = String(appointmentForm.period || "AM").toUpperCase();
+      if (period === "PM" && resolvedHour !== 12) resolvedHour += 12;
+      if (period === "AM" && resolvedHour === 12) resolvedHour = 0;
+    } else {
+      if (Number.isNaN(resolvedHour) || resolvedHour < 0 || resolvedHour > 23) {
+        toast.error("Heure invalide");
+        return;
+      }
+    }
+
+    const resolvedMinute = Number(appointmentForm.minute);
+    if (Number.isNaN(resolvedMinute) || resolvedMinute < 0 || resolvedMinute > 59) {
+      toast.error("Minutes invalides");
+      return;
+    }
+    if (resolvedMinute % 15 !== 0) {
+      toast.error("Les minutes doivent etre par pas de 15");
+      return;
+    }
+
+    const startMinutesOfDay = resolvedHour * 60 + resolvedMinute;
+    if (startMinutesOfDay < workingHours.startMinutes || startMinutesOfDay >= workingHours.endMinutes) {
+      toast.error("Heure hors horaires de travail");
+      return;
+    }
+
+    const hour = String(resolvedHour).padStart(2, "0");
+    const minute = String(resolvedMinute).padStart(2, "0");
 
     const startDateTime = `${appointmentForm.date}T${hour}:${minute}`;
     const startDateObj = new Date(startDateTime);
@@ -983,7 +1168,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
     }
 
     setShowAppointmentModal(false);
-    setAppointmentForm({ id: null, date: "", hour: "", minute: "", notes: "", duration: 30 });
+    setAppointmentForm({ id: null, date: "", hour: "", minute: "", period: "AM", notes: "", duration: 30 });
     setIsEditingAppointment(false);
 
   } catch (err) {
@@ -1000,6 +1185,8 @@ const handleCreateOrUpdateAppointment = async (e) => {
     } else {
       toast.error(getApiErrorMessage(err, "Impossible de contacter le serveur. Vérifiez votre connexion internet."));
     }
+  } finally {
+    setIsSavingAppointment(false);
   }
 };
 
@@ -1074,13 +1261,13 @@ const handleDeleteAppointment = (a) => {
   <div className="patient-right">
     <div className="patient-stats">
       <div className="stat-box stat-facture">
-        Facturé: {totalFacture} DA
+        Facturé: {formatMoneyWithLabel(totalFacture)}
       </div>
       <div className="stat-box stat-paiement">
-        Versement: {totalPaiement} DA
+        Versement: {formatMoneyWithLabel(totalPaiement)}
       </div>
       <div className="stat-box stat-reste">
-        Reste: {totalReste} DA
+        {hasCredit ? "Crédit" : "Reste"}: {formatMoneyWithLabel(displayReste)}
       </div>
     </div>
 
@@ -1239,7 +1426,7 @@ const handleDeleteAppointment = (a) => {
             : "—"}
         </td>
             <td>{formatDate(t.date)}</td>
-            <td>{t.price} DA</td>
+            <td>{formatMoneyWithLabel(t.price)}</td>
             <td>{t.notes || "—"}</td>
             <td className="actions-cell">
 
@@ -1316,7 +1503,7 @@ const handleDeleteAppointment = (a) => {
       <td>{p.materialName || "-"}</td>
 
       {/* Prix */}
-      <td>{p.finalPrice?.toLocaleString()} DA</td>
+      <td>{formatMoneyWithLabel(p.finalPrice)}</td>
 
       {/* État */}
       <td>
@@ -1377,7 +1564,7 @@ const handleDeleteAppointment = (a) => {
      <tbody>
   {sortedPayments.map(p => (
     <tr key={p.id}>
-      <td>{p.amount} DA</td>
+      <td>{formatMoneyWithLabel(p.amount)}</td>
       <td>{paymentMethodLabels[p.method] || p.method}</td>
       <td>{formatDate(p.date)}</td>
       <td className="actions-cell">
@@ -1404,14 +1591,22 @@ const handleDeleteAppointment = (a) => {
 {activeTab === "appointments" && (
   <>
     <div className="button-container">
-      <button
-        className="btn-primary-app"
-        onClick={() => {
-          setAppointmentForm({ id: null, date: "", time: "", notes: "" });
-          setIsEditingAppointment(false);
-          setShowAppointmentModal(true);
-        }}
-      >
+	      <button
+	        className="btn-primary-app"
+	        onClick={() => {
+	          setAppointmentForm({
+              id: null,
+              date: "",
+              hour: "",
+              minute: "",
+              period: "AM",
+              notes: "",
+              duration: 30,
+            });
+	          setIsEditingAppointment(false);
+	          setShowAppointmentModal(true);
+	        }}
+	      >
         <Plus size={16} />Ajouter
       </button>
     </div>
@@ -1430,7 +1625,7 @@ const handleDeleteAppointment = (a) => {
         {sortedAppointments.map(a => (
           <tr key={a.id}>
             <td>{formatDate(a.dateTimeStart)}</td>
-            <td>{a.dateTimeStart ? new Date(a.dateTimeStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</td>
+            <td>{a.dateTimeStart ? formatHour(a.dateTimeStart) : ""}</td>
             <td>{a.notes || "—"}</td>
             <td>
               <span className={`status-chip ${a.status?.toLowerCase()}`}>
@@ -1860,7 +2055,7 @@ const handleDeleteAppointment = (a) => {
 
   {treatmentCatalog.map(item => (
     <option key={item.id} value={item.id}>
-      {item.name} ({item.defaultPrice} DA)
+      {item.name} ({formatMoneyWithLabel(item.defaultPrice)})
     </option>
   ))}
 </select>
@@ -1896,7 +2091,9 @@ const handleDeleteAppointment = (a) => {
     </div>
 
     <div className="modal-actions">
-      <button type="submit" className="btn-primary2">Enregistrer</button>
+      <button type="submit" className="btn-primary2" disabled={isSavingTreatment}>
+        {isSavingTreatment ? "Enregistrement..." : "Enregistrer"}
+      </button>
       <button
         type="button"
         className="btn-cancel"
@@ -1944,7 +2141,7 @@ const handleDeleteAppointment = (a) => {
   <option value="">-- Sélectionner dans le catalogue --</option>
   {prothesisCatalog?.map(item => (
     <option key={item.id} value={item.id}>
-      {item.name} - {item.materialName} ({item.defaultPrice} DA)
+      {item.name} - {item.materialName} ({formatMoneyWithLabel(item.defaultPrice)})
     </option>
   ))}
 </select>
@@ -1985,8 +2182,8 @@ const handleDeleteAppointment = (a) => {
           )}
 
           <div className="modal-actions">
-            <button type="submit" className="btn-primary2">
-              {isEditingProthesis ? "Mettre à jour" : "Enregistrer"}
+            <button type="submit" className="btn-primary2" disabled={isSavingProthesis}>
+              {isSavingProthesis ? "Enregistrement..." : isEditingProthesis ? "Mettre à jour" : "Enregistrer"}
             </button>
 
             <button
@@ -2020,7 +2217,9 @@ const handleDeleteAppointment = (a) => {
                 <option value="OTHER">Autre</option>
               </select>
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2">Enregistrer</button>
+                <button type="submit" className="btn-primary2" disabled={isSavingPayment}>
+                  {isSavingPayment ? "Enregistrement..." : "Enregistrer"}
+                </button>
                 <button type="button" className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Annuler</button>
               </div>
             </form>
@@ -2044,46 +2243,89 @@ const handleDeleteAppointment = (a) => {
           required 
         />
 
-        {/* Créneau / Heure */}
-        <label>Heure</label>
-        <div style={{ display: "flex", gap: "8px" }}>
-         <input
-  type="number"
-  placeholder="Heures"
-  min="8"
-  max="18"
-  value={appointmentForm.hour !== undefined ? appointmentForm.hour : ""}
-  onChange={(e) =>
-    setAppointmentForm({ ...appointmentForm, hour: Number(e.target.value) })
-  }
-  required
-/>
-<input
-  type="number"
-  placeholder="Minutes"
-  min="0"
-  max="59"
-  step={15}
-  value={appointmentForm.minute !== undefined ? appointmentForm.minute : ""}
-  onChange={(e) =>
-    setAppointmentForm({ ...appointmentForm, minute: Number(e.target.value) })
-  }
-  required
-/>
-        </div>
+	        {/* Créneau / Heure */}
+	        <label>Heure</label>
+	          <div className="time-input-group">
+	            <input
+	              type="number"
+	              placeholder="HH"
+	              min={use12HourFormat ? 1 : hourBounds24.earliest}
+	              max={use12HourFormat ? 12 : hourBounds24.latest}
+	              value={appointmentForm.hour || ""}
+	              onChange={(e) => setAppointmentForm({ ...appointmentForm, hour: e.target.value })}
+	              required
+	            />
 
+	            <span>:</span>
+
+                <div className="modern-dropdown minute-dropdown" ref={minuteDropdownRef}>
+                  <button
+                    type="button"
+                    className={`dropdown-trigger ${minuteDropdownOpen ? "open" : ""}`}
+                    onClick={() => {
+                      if (!allowedMinuteOptions.length) return;
+                      setMinuteDropdownOpen((prev) => !prev);
+                    }}
+                    disabled={!allowedMinuteOptions.length}
+                  >
+                    <span>
+                      {appointmentForm.minute === "" ? "--" : String(appointmentForm.minute).padStart(2, "0")}
+                    </span>
+                  </button>
+
+                  {minuteDropdownOpen && (
+                    <ul className="dropdown-menu" role="listbox" aria-label="Minutes">
+                      {allowedMinuteOptions.map((minute) => (
+                        <li
+                          key={minute}
+                          role="option"
+                          aria-selected={String(appointmentForm.minute).padStart(2, "0") === minute}
+                          onClick={() => {
+                            setAppointmentForm({ ...appointmentForm, minute });
+                            setMinuteDropdownOpen(false);
+                          }}
+                        >
+                          {minute}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+	            {use12HourFormat && (
+	              <button
+	                type="button"
+	                className="am-pm-toggle"
+	                onClick={() =>
+	                  setAppointmentForm({
+	                    ...appointmentForm,
+	                    period: (appointmentForm.period || "AM") === "AM" ? "PM" : "AM",
+	                  })
+	                }
+	              >
+	                {appointmentForm.period || "AM"}
+	              </button>
+	            )}
+	          </div>
         {/* Duration Selector */}
         <div className="form-field">
           <label>Durée du rendez-vous :</label>
-          <select
-            value={appointmentForm.duration || 30} // default 30 min
-            onChange={(e) => setAppointmentForm({ ...appointmentForm, duration: Number(e.target.value) })}
-          >
-            <option value={15}>15 min</option>
-            <option value={30}>30 min</option>
-            <option value={60}>60 min</option>
-          </select>
-        </div>
+		          <button
+		            type="button"
+		            className="am-pm-toggle duration-toggle"
+		            onClick={() => {
+		              const current = Number(appointmentForm.duration || 30);
+		              const idx = durationOptions.indexOf(current);
+		              const next =
+		                idx === -1
+		                  ? durationOptions[0]
+		                  : durationOptions[(idx + 1) % durationOptions.length];
+		              setAppointmentForm({ ...appointmentForm, duration: next });
+		            }}
+		          >
+		            {(appointmentForm.duration || 30)} min
+		          </button>
+	        </div>
 
         {/* Notes */}
         <label>Notes</label>
@@ -2094,7 +2336,9 @@ const handleDeleteAppointment = (a) => {
         />
 
         <div className="modal-actions">
-          <button type="submit" className="btn-primary2">Enregistrer</button>
+          <button type="submit" className="btn-primary2" disabled={isSavingAppointment}>
+            {isSavingAppointment ? "Enregistrement..." : "Enregistrer"}
+          </button>
           <button type="button" className="btn-cancel" onClick={() => setShowAppointmentModal(false)}>Annuler</button>
         </div>
       </form>
@@ -2115,18 +2359,25 @@ const handleDeleteAppointment = (a) => {
       <div className="flex justify-end gap-3">
         <button
           onClick={() => setShowConfirm(false)}
+          disabled={isConfirmingAction}
           className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100"
         >
           Annuler
         </button>
         <button
-          onClick={() => {
-            onConfirmAction();
-            setShowConfirm(false);
+          onClick={async () => {
+            if (isConfirmingAction || !onConfirmAction) return;
+            setIsConfirmingAction(true);
+            try {
+              await onConfirmAction();
+            } finally {
+              setIsConfirmingAction(false);
+              setShowConfirm(false);
+            }
           }}
           className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600"
         >
-          Supprimer
+          {isConfirmingAction ? "Suppression..." : "Supprimer"}
         </button>
       </div>
     </div>
@@ -2224,6 +2475,11 @@ const handleDeleteAppointment = (a) => {
 };
 
 export default Patient;
+
+
+
+
+
 
 
 

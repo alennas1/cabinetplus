@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.UserDto;
+import com.cabinetplus.backend.dto.UserPreferencesRequest;
+import com.cabinetplus.backend.dto.UserPreferencesResponse;
 import com.cabinetplus.backend.dto.PlanUsageDto;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserPlanStatus;
@@ -148,6 +150,37 @@ public class UserController {
     public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
         return userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+    }
+
+    @GetMapping("/me/preferences")
+    public UserPreferencesResponse getCurrentUserPreferences(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
+    ) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User owner = userService.resolveClinicOwner(user);
+        return mapPreferences(owner);
+    }
+
+    @PutMapping("/me/preferences")
+    public UserPreferencesResponse updateCurrentUserPreferences(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+            @RequestBody UserPreferencesRequest request
+    ) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User owner = userService.resolveClinicOwner(user);
+
+        owner.setWorkingHoursMode(request.workingHoursMode());
+        owner.setWorkingHoursStart(request.workingHoursStart());
+        owner.setWorkingHoursEnd(request.workingHoursEnd());
+        owner.setTimeFormat(request.timeFormat());
+        owner.setDateFormat(request.dateFormat());
+        owner.setMoneyFormat(request.moneyFormat());
+        owner.setCurrencyLabel(request.currencyLabel());
+
+        User saved = userService.save(owner);
+        return mapPreferences(saved);
     }
 
     @GetMapping("/me/plan-usage")
@@ -351,6 +384,18 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         return Map.of(
                 "user", dto,
                 "accessToken", accessToken
+        );
+    }
+
+    private UserPreferencesResponse mapPreferences(User user) {
+        return new UserPreferencesResponse(
+                user.getWorkingHoursMode(),
+                user.getWorkingHoursStart(),
+                user.getWorkingHoursEnd(),
+                user.getTimeFormat(),
+                user.getDateFormat(),
+                user.getMoneyFormat(),
+                user.getCurrencyLabel()
         );
     }
 }

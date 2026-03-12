@@ -111,35 +111,55 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id}")
-    public Appointment updateAppointment(@PathVariable Long id, @RequestBody Appointment updatedAppointment, Principal principal) {
+    public AppointmentResponse updateAppointment(@PathVariable Long id, @RequestBody AppointmentRequest request, Principal principal) {
         User currentUser = getClinicUser(principal);
 
         // Overlap check (ignore current appointment)
         List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
                 .filter(a -> !a.getId().equals(id)) // ignore itself
                 .filter(a ->
-                        a.getDateTimeStart().isBefore(updatedAppointment.getDateTimeEnd()) &&
-                        a.getDateTimeEnd().isAfter(updatedAppointment.getDateTimeStart())
+                        a.getDateTimeStart().isBefore(request.dateTimeEnd()) &&
+                        a.getDateTimeEnd().isAfter(request.dateTimeStart())
                 )
                 .collect(Collectors.toList());
 
         if (!overlapping.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce rendez-vous chevauche un autre rendez-vous");
         }
+        PatientDto patientDto = patientService.findById(request.patientId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
 
-        updatedAppointment.setId(id);
-        updatedAppointment.setPractitioner(currentUser);
-        Appointment saved = appointmentService.save(updatedAppointment);
+        Appointment existing = appointmentService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rendez-vous introuvable"));
+
+        Patient patientEntity = new Patient();
+        patientEntity.setId(patientDto.id());
+
+        existing.setDateTimeStart(request.dateTimeStart());
+        existing.setDateTimeEnd(request.dateTimeEnd());
+        existing.setStatus(request.status());
+        existing.setNotes(request.notes());
+        existing.setPatient(patientEntity);
+        existing.setPractitioner(currentUser);
+
+        Appointment saved = appointmentService.save(existing);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_UPDATE,
                 "APPOINTMENT",
                 String.valueOf(saved.getId()),
-                "Rendez-vous modifie pour " + formatPatientName(
-                        saved.getPatient() != null ? saved.getPatient().getFirstname() : null,
-                        saved.getPatient() != null ? saved.getPatient().getLastname() : null
-                )
+                "Rendez-vous modifie pour " + formatPatientName(patientDto.firstname(), patientDto.lastname())
         );
-        return saved;
+        return new AppointmentResponse(
+                saved.getId(),
+                saved.getDateTimeStart(),
+                saved.getDateTimeEnd(),
+                saved.getStatus(),
+                saved.getNotes(),
+                patientDto,
+                currentUser.getId(),
+                currentUser.getFirstname(),
+                currentUser.getLastname()
+        );
     }
 
     @DeleteMapping("/{id}")

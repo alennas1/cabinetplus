@@ -5,6 +5,8 @@ import { toast } from "react-toastify";
 import PageHeader from "../components/PageHeader";
 import { getMyAuditLogs } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatHour } from "../utils/workingHours";
+import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import "./Patients.css";
 
 const STATUS_LABELS = {
@@ -85,7 +87,9 @@ const formatDateTime = (isoDate) => {
   if (!isoDate) return "-";
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("fr-FR");
+  const dateLabel = formatDateByPreference(date);
+  const timeLabel = formatHour(date);
+  return `${dateLabel} ${timeLabel}`;
 };
 
 const getEntityKey = (eventType = "") =>
@@ -121,7 +125,7 @@ const monthsList = Array.from({ length: 12 }).map((_, i) => {
   const date = new Date();
   date.setMonth(date.getMonth() - i);
   const monthStr = (date.getMonth() + 1).toString().padStart(2, "0");
-  const label = date.toLocaleString("fr-FR", { month: "long", year: "numeric" });
+  const label = formatMonthYearByPreference(date);
 
   return {
     label: label.charAt(0).toUpperCase() + label.slice(1),

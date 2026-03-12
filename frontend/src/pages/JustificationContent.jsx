@@ -47,6 +47,8 @@ const JustificationContentPage = () => {
 
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
 
   const editableRef = useRef();
 
@@ -115,6 +117,7 @@ const JustificationContentPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const contentDiv = editableRef.current;
     const spans = contentDiv.querySelectorAll(".placeholder-in-text");
     let content = contentDiv.innerText;
@@ -128,6 +131,7 @@ const JustificationContentPage = () => {
     const payload = { title: formData.title, content };
 
     try {
+      setIsSubmitting(true);
       if (isEditing) {
         const updated = await updateJustificationTemplate(formData.id, payload);
         setTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
@@ -141,6 +145,8 @@ const JustificationContentPage = () => {
       resetForm();
     } catch (err) {
       toast.error("Erreur lors de l'enregistrement");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -169,13 +175,16 @@ const JustificationContentPage = () => {
   };
 
   const confirmDeleteTemplate = async () => {
+    if (isDeletingTemplate) return;
     try {
+      setIsDeletingTemplate(true);
       await deleteJustificationTemplate(confirmDelete);
       setTemplates((prev) => prev.filter((t) => t.id !== confirmDelete));
       toast.success("Modèle supprimé");
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
+      setIsDeletingTemplate(false);
       setShowConfirm(false);
       setConfirmDelete(null);
     }
@@ -278,8 +287,8 @@ const JustificationContentPage = () => {
               </div>
               <div ref={editableRef} className="editable-div" contentEditable suppressContentEditableWarning style={{ minHeight: "250px", border: "1px solid #ddd", padding: "15px", borderRadius: "8px" }}></div>
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Créer"}</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre � jour" : "Cr�er"}</button>
+                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
           </div>
@@ -304,8 +313,8 @@ const JustificationContentPage = () => {
             <h2 style={{ color: "#e74c3c" }}>Confirmer la suppression</h2>
             <p>Voulez-vous supprimer ce modèle ?</p>
             <div className="modal-actions" style={{ justifyContent: "center", marginTop: "20px" }}>
-              <button onClick={() => setShowConfirm(false)} className="btn-cancel">Non</button>
-              <button onClick={confirmDeleteTemplate} className="btn-primary2" style={{ backgroundColor: "#e74c3c" }}>Oui, supprimer</button>
+              <button onClick={() => setShowConfirm(false)} className="btn-cancel" disabled={isDeletingTemplate}>Non</button>
+              <button onClick={confirmDeleteTemplate} className="btn-primary2" style={{ backgroundColor: "#e74c3c" }} disabled={isDeletingTemplate}>{isDeletingTemplate ? "Suppression..." : "Oui, supprimer"}</button>
             </div>
           </div>
         </div>
@@ -317,3 +326,4 @@ const JustificationContentPage = () => {
 };
 
 export default JustificationContentPage;
+

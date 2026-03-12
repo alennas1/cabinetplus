@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { X, Plus, Trash2, Check, ArrowUpRight, ChevronLeft, ChevronRight } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -14,7 +14,18 @@ import { createPatient, getPatients } from "../services/patientService";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getApiErrorMessage } from "../utils/error";
+import {
+  TIME_FORMATS,
+  buildDateAtMinutes,
+  formatHour,
+  formatMinutesLabel,
+  getTimeFormatPreference,
+  getWorkingHoursWindow,
+} from "../utils/workingHours";
+import { formatDayMonthByPreference } from "../utils/dateFormat";
 import "./Appointments.css";
+
+const QUARTER_MINUTES = ["00", "15", "30", "45"];
 
 export default function Appointments() {
   const navigate = useNavigate();
@@ -24,7 +35,8 @@ export default function Appointments() {
   const [loading, setLoading] = useState(true);
   const [searchResults, setSearchResults] = useState([]);
   const [patientSearch, setPatientSearch] = useState("");
-
+  const [timeFormat, setTimeFormat] = useState(() => getTimeFormatPreference());
+  const use12HourFormat = timeFormat === TIME_FORMATS.TWELVE_HOURS;
   const [showModal, setShowModal] = useState(false);
   const [isNewPatient, setIsNewPatient] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -45,6 +57,39 @@ export default function Appointments() {
   const [weekOffset, setWeekOffset] = useState(0);
 
   const [slotDuration, setSlotDuration] = useState(30); // Default slot duration: 30 min
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [isDeletingAppointment, setIsDeletingAppointment] = useState(false);
+  const [isCompletingAppointment, setIsCompletingAppointment] = useState(false);
+  const [isCancellingAppointment, setIsCancellingAppointment] = useState(false);
+  const [workingHours, setWorkingHours] = useState(() => getWorkingHoursWindow());
+  const [minuteDropdownOpen, setMinuteDropdownOpen] = useState(false);
+  const minuteDropdownRef = useRef(null);
+
+  const durationOptions = useMemo(() => [15, 30, 45, 60], []);
+
+  const toFormTimeParts = useMemo(() => {
+    return (date) => {
+      const hours = date.getHours();
+      const minute = String(date.getMinutes()).padStart(2, "0");
+
+      if (!use12HourFormat) {
+        return {
+          hour: String(hours).padStart(2, "0"),
+          minute,
+          period: "",
+        };
+      }
+
+      const period = hours >= 12 ? "PM" : "AM";
+      let hour12 = hours % 12;
+      if (hour12 === 0) hour12 = 12;
+      return {
+        hour: String(hour12),
+        minute,
+        period,
+      };
+    };
+  }, [use12HourFormat]);
 
   const [formData, setFormData] = useState({
     id: null,
@@ -53,7 +98,9 @@ export default function Appointments() {
     hour: "",
     minute: "",
     status: "SCHEDULED",
-    duration: 30, // <-- added duration field
+    duration: 30,
+      period: "AM",
+ // <-- added duration field,
   });
 
   const [newPatient, setNewPatient] = useState({
@@ -94,6 +141,18 @@ export default function Appointments() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const syncWorkingHours = () => setWorkingHours(getWorkingHoursWindow());
+    window.addEventListener("workingHoursChanged", syncWorkingHours);
+    return () => window.removeEventListener("workingHoursChanged", syncWorkingHours);
+  }, []);
+
+  useEffect(() => {
+    const syncTimeFormat = () => setTimeFormat(getTimeFormatPreference());
+    window.addEventListener("timeFormatChanged", syncTimeFormat);
+    return () => window.removeEventListener("timeFormatChanged", syncTimeFormat);
+  }, []);
+
   const handlePatientSearch = (query) => {
     setPatientSearch(query);
     if (!query.trim()) {
@@ -123,14 +182,14 @@ export default function Appointments() {
     baseDate = new Date();
   }
 
-  const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 8, 0, 0); // 8:00
-  const dayEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 18, 0, 0); // 18:00
+  const dayStart = buildDateAtMinutes(baseDate, workingHours.startMinutes);
+  const dayEnd = workingHours.endMinutes === 24 * 60 ? addDays(startOfDay(baseDate), 1) : buildDateAtMinutes(baseDate, workingHours.endMinutes);
 
   // Sort appointments by start time
   const dayAppointments = appointments
     .filter((a) => {
       const apptStart = new Date(a.dateTimeStart);
-      return apptStart >= dayStart && apptStart <= dayEnd;
+      return apptStart >= dayStart && apptStart < dayEnd;
     })
     .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
 
@@ -198,16 +257,17 @@ export default function Appointments() {
     return `${y}-${m}-${d}`;
   };
 
-  const formatDayLabel = (date) =>
-    date.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const formatDayLabel = (date) => {
+    const weekday = date.toLocaleDateString("fr-FR", { weekday: "short" });
+    return `${weekday} ${formatDayMonthByPreference(date)}`;
+  };
 
   const isSameDay = (a, b) =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
   const formatWeekRange = (start) => {
     const end = addDays(start, 6);
-    const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-    return `Du ${fmt(start)} au ${fmt(end)}`;
+    return `Du ${formatDayMonthByPreference(start)} au ${formatDayMonthByPreference(end)}`;
   };
 
   const getSelectedDayBaseDate = () => {
@@ -225,14 +285,16 @@ export default function Appointments() {
   const handleSlotClick = (slot) => {
     if (slot.appointments.length > 0) return;
     setFormBaseDate(startOfDay(slot.start));
+    const parts = toFormTimeParts(slot.start);
     setFormData({
       id: null,
       patientId: null,
       patientName: "",
-      hour: slot.start.getHours().toString().padStart(2, "0"),
-      minute: slot.start.getMinutes().toString().padStart(2, "0"),
+      hour: parts.hour,
+      minute: parts.minute,
       status: "SCHEDULED",
       duration: slotDuration,
+      period: parts.period || "AM",
     });
     setIsEditing(false);
     setOpenedFromSlot(true);
@@ -241,17 +303,47 @@ export default function Appointments() {
 
   const handleWeekSlotClick = (dayDate, slotStart) => {
     setFormBaseDate(startOfDay(dayDate));
+    const parts = toFormTimeParts(slotStart);
     setFormData({
       id: null,
       patientId: null,
       patientName: "",
-      hour: String(slotStart.getHours()).padStart(2, "0"),
-      minute: String(slotStart.getMinutes()).padStart(2, "0"),
+      hour: parts.hour,
+      minute: parts.minute,
       status: "SCHEDULED",
       duration: slotDuration,
+      period: parts.period || "AM",
     });
     setIsEditing(false);
     setOpenedFromSlot(true);
+    setShowModal(true);
+  };
+
+  const handleEditAppointment = (appt) => {
+    if (!appt || showModal) return;
+
+    const start = new Date(appt.dateTimeStart);
+    const end = new Date(appt.dateTimeEnd);
+    const patientName = getPatientName(appt);
+    const duration = Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000)) || slotDuration;
+    const parts = toFormTimeParts(start);
+
+    setFormBaseDate(startOfDay(start));
+    setFormData({
+      id: appt.id,
+      patientId: appt.patient?.id ?? appt.patientId ?? null,
+      patientName,
+      hour: parts.hour,
+      minute: parts.minute,
+      status: appt.status || "SCHEDULED",
+      duration,
+      period: parts.period || "AM",
+    });
+    setPatientSearch(patientName);
+    setSearchResults([]);
+    setIsNewPatient(false);
+    setIsEditing(true);
+    setOpenedFromSlot(false);
     setShowModal(true);
   };
 
@@ -265,9 +357,10 @@ export default function Appointments() {
   };
 
   const confirmCompleteAppointment = async () => {
-    if (!completeAppt) return;
+    if (!completeAppt || isCompletingAppointment) return;
+    setIsCompletingAppointment(true);
     try {
-      const payload = { ...completeAppt, status: "COMPLETED" };
+      const payload = { ...completeAppt, status: "COMPLETED", patientId: completeAppt.patient?.id ?? completeAppt.patientId };
       const updated = await updateAppointment(completeAppt.id, payload);
       setAppointments((prev) =>
         prev.map((a) => (a.id === updated.id ? updated : a))
@@ -277,15 +370,16 @@ export default function Appointments() {
       console.error("Error marking complete:", err);
       toast.error("Erreur lors du changement d'état ");
     } finally {
+      setIsCompletingAppointment(false);
       setShowCompleteConfirm(false);
       setCompleteAppt(null);
     }
   };
-
   const confirmCancelAppointment = async () => {
-    if (!cancelAppt) return;
+    if (!cancelAppt || isCancellingAppointment) return;
+    setIsCancellingAppointment(true);
     try {
-      const payload = { ...cancelAppt, status: "CANCELLED" };
+      const payload = { ...cancelAppt, status: "CANCELLED", patientId: cancelAppt.patient?.id ?? cancelAppt.patientId };
       const updated = await updateAppointment(cancelAppt.id, payload);
       setAppointments((prev) =>
         prev.map((a) => (a.id === updated.id ? updated : a))
@@ -295,6 +389,7 @@ export default function Appointments() {
       console.error("Error marking cancelled:", err);
       toast.error("Erreur lors du changement d'état ");
     } finally {
+      setIsCancellingAppointment(false);
       setShowCancelConfirm(false);
       setCancelAppt(null);
     }
@@ -302,38 +397,71 @@ export default function Appointments() {
 
  const handleSubmit = async (e) => {
    e.preventDefault();
+   if (isSavingAppointment) return;
+   setIsSavingAppointment(true);
    try {
      let patientId = formData.patientId;
 
-    // Create new patient if needed
     if (isNewPatient) {
       const newP = await createPatient(newPatient);
       patientId = newP.id;
     }
 
-    // Determine base date
     let baseDate = formBaseDate ? new Date(formBaseDate) : new Date();
-    if (!formBaseDate) {
-      if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
-      if (selectedDate === "custom" && customDate) {
-        const [year, month, day] = customDate.split("-");
-        baseDate = new Date(Number(year), Number(month) - 1, Number(day));
-      }
-    }
+	    if (!formBaseDate) {
+	      if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
+	      if (selectedDate === "custom" && customDate) {
+	        const [year, month, day] = customDate.split("-");
+	        baseDate = new Date(Number(year), Number(month) - 1, Number(day));
+	      }
+	    }
 
-    // Compute start and end datetime
-    const start = new Date(
-      baseDate.getFullYear(),
-      baseDate.getMonth(),
-      baseDate.getDate(),
-      Number(formData.hour),
-      Number(formData.minute),
-      0
-    );
+      let resolvedHour = Number(formData.hour);
+      if (use12HourFormat) {
+        if (Number.isNaN(resolvedHour) || resolvedHour < 1 || resolvedHour > 12) {
+          toast.error("Heure invalide");
+          return;
+        }
+        const period = String(formData.period || "AM").toUpperCase();
+        if (period === "PM" && resolvedHour !== 12) resolvedHour += 12;
+        if (period === "AM" && resolvedHour === 12) resolvedHour = 0;
+      } else {
+        if (Number.isNaN(resolvedHour) || resolvedHour < 0 || resolvedHour > 23) {
+          toast.error("Heure invalide");
+          return;
+        }
+      }
+
+      const resolvedMinute = Number(formData.minute);
+      if (Number.isNaN(resolvedMinute) || resolvedMinute < 0 || resolvedMinute > 59) {
+        toast.error("Minutes invalides");
+        return;
+      }
+      if (resolvedMinute % 15 !== 0) {
+        toast.error("Les minutes doivent etre par pas de 15");
+        return;
+      }
+
+      const startMinutesOfDay = resolvedHour * 60 + resolvedMinute;
+      if (
+        startMinutesOfDay < workingHours.startMinutes ||
+        startMinutesOfDay >= workingHours.endMinutes
+      ) {
+        toast.error("Heure hors horaires de travail");
+        return;
+      }
+
+		    const start = new Date(
+		      baseDate.getFullYear(),
+		      baseDate.getMonth(),
+		      baseDate.getDate(),
+		      resolvedHour,
+		      resolvedMinute,
+		      0
+		    );
 
     const end = new Date(start.getTime() + (formData.duration || slotDuration) * 60000);
 
-    // Format local ISO (not UTC)
     const formatLocalISO = (date) => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -354,27 +482,40 @@ export default function Appointments() {
       patientId,
     };
 
-    // Call API
-    await createAppointment(payload);
+    if (isEditing && formData.id) {
+      await updateAppointment(formData.id, payload);
+    } else {
+      await createAppointment(payload);
+    }
 
-    // Refresh appointments after creation
     const updated = await getAppointments();
     setAppointments(updated);
 
-    toast.success("Rendez-vous ajouté !");
+    toast.success(isEditing ? "Rendez-vous modifié !" : "Rendez-vous ajouté !");
     closeModal();
   } catch (err) {
     console.error("Error saving appointment:", err);
 
-    // Handle backend overlap conflict
     if (err.response && err.response.status === 409) {
-      toast.error("Impossible de créer le rendez-vous : il chevauche un autre rendez-vous !");
+      toast.error(
+        isEditing
+          ? "Impossible de modifier le rendez-vous : il chevauche un autre rendez-vous !"
+          : "Impossible de créer le rendez-vous : il chevauche un autre rendez-vous !"
+      );
     } else {
-      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement du rendez-vous"));
+      toast.error(
+        getApiErrorMessage(
+          err,
+          isEditing
+            ? "Erreur lors de la modification du rendez-vous"
+            : "Erreur lors de l'enregistrement du rendez-vous"
+        )
+      );
     }
+  } finally {
+    setIsSavingAppointment(false);
   }
 };
-
 
 
   const handleDeleteClick = (id) => {
@@ -383,6 +524,8 @@ export default function Appointments() {
   };
 
   const confirmDeleteAppointment = async () => {
+    if (isDeletingAppointment) return;
+    setIsDeletingAppointment(true);
     try {
       await deleteAppointment(confirmDelete);
       setAppointments((prev) => prev.filter((a) => a.id !== confirmDelete));
@@ -391,21 +534,78 @@ export default function Appointments() {
       console.error("Error deleting appointment:", err);
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression "));
     } finally {
+      setIsDeletingAppointment(false);
       setShowConfirm(false);
       setConfirmDelete(null);
     }
   };
 
-  const formatTime = (dt) => {
-    const date = new Date(dt);
-    return `${String(date.getHours()).padStart(2, "0")}:${String(
-      date.getMinutes()
-    ).padStart(2, "0")}`;
-  };
+  const formatTime = (dt) => formatHour(dt);
+
+  const hourBounds24 = useMemo(() => {
+    const earliest = Math.floor(workingHours.startMinutes / 60);
+    const latest = Math.floor((workingHours.endMinutes - 1) / 60);
+    return {
+      earliest: Math.max(0, earliest),
+      latest: Math.min(23, latest),
+    };
+  }, [workingHours]);
+
+  const hour24ForMinuteOptions = useMemo(() => {
+    const hourNum = Number(formData.hour);
+    if (Number.isNaN(hourNum)) return null;
+
+    if (!use12HourFormat) {
+      return hourNum;
+    }
+
+    if (hourNum < 1 || hourNum > 12) return null;
+    const period = String(formData.period || "AM").toUpperCase();
+    let resolved = hourNum;
+    if (period === "PM" && resolved !== 12) resolved += 12;
+    if (period === "AM" && resolved === 12) resolved = 0;
+    return resolved;
+  }, [formData.hour, formData.period, use12HourFormat]);
+
+  const allowedMinuteOptions = useMemo(() => {
+    if (hour24ForMinuteOptions === null) return [];
+    return QUARTER_MINUTES.filter((minute) => {
+      const totalMinutes = hour24ForMinuteOptions * 60 + Number(minute);
+      return totalMinutes >= workingHours.startMinutes && totalMinutes < workingHours.endMinutes;
+    });
+  }, [hour24ForMinuteOptions, workingHours]);
+
+  useEffect(() => {
+    if (!showModal || openedFromSlot) return;
+    if (!allowedMinuteOptions.length) return;
+    const current = String(formData.minute).padStart(2, "0");
+    if (!allowedMinuteOptions.includes(current)) {
+      setFormData((prev) => ({ ...prev, minute: allowedMinuteOptions[0] }));
+    }
+  }, [allowedMinuteOptions.join(","), formData.minute, showModal, openedFromSlot]);
+
+  useEffect(() => {
+    if (!minuteDropdownOpen) return;
+    if (!allowedMinuteOptions.length) {
+      setMinuteDropdownOpen(false);
+      return;
+    }
+
+    const onMouseDown = (event) => {
+      if (!minuteDropdownRef.current) return;
+      if (!minuteDropdownRef.current.contains(event.target)) {
+        setMinuteDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [minuteDropdownOpen, allowedMinuteOptions.length]);
 
   const closeModal = () => {
     setShowModal(false);
     setFormBaseDate(null);
+    setMinuteDropdownOpen(false);
     setFormData({
       id: null,
       patientId: null,
@@ -414,6 +614,7 @@ export default function Appointments() {
       minute: "",
       status: "SCHEDULED",
       duration: slotDuration,
+      period: "AM",
     });
     setIsNewPatient(false);
     setNewPatient({ firstname: "", lastname: "", phone: "", age: "", sex: "Homme" });
@@ -422,12 +623,17 @@ export default function Appointments() {
     setOpenedFromSlot(false);
   };
 
-  const slots = React.useMemo(() => getSlotAppointments(), [appointments, selectedDate, customDate, slotDuration]);
+  const slots = React.useMemo(() => getSlotAppointments(), [appointments, selectedDate, customDate, slotDuration, workingHours]);
 
   const weekStart = React.useMemo(() => addDays(getWeekStartMonday(new Date()), weekOffset * 7), [weekOffset]);
   const weekDays = React.useMemo(() => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)), [weekStart]);
-  const weekDayStart = React.useMemo(() => new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate(), 8, 0, 0), [weekStart]);
-  const weekDayEnd = React.useMemo(() => new Date(addDays(weekStart, 6).getFullYear(), addDays(weekStart, 6).getMonth(), addDays(weekStart, 6).getDate(), 18, 0, 0), [weekStart]);
+  const weekDayStart = React.useMemo(() => buildDateAtMinutes(weekStart, workingHours.startMinutes), [weekStart, workingHours]);
+  const weekDayEnd = React.useMemo(() => {
+    const lastDay = addDays(weekStart, 6);
+    return workingHours.endMinutes === 24 * 60
+      ? addDays(startOfDay(lastDay), 1)
+      : buildDateAtMinutes(lastDay, workingHours.endMinutes);
+  }, [weekStart, workingHours]);
 
   const appointmentsByDay = React.useMemo(() => {
     const map = {};
@@ -446,8 +652,8 @@ export default function Appointments() {
   }, [appointments, weekDays, weekDayStart, weekDayEnd]);
 
   const weekTimeSlots = React.useMemo(() => {
-    const dayStartMinutes = 8 * 60;
-    const dayEndMinutes = 18 * 60;
+    const dayStartMinutes = workingHours.startMinutes;
+    const dayEndMinutes = workingHours.endMinutes;
 
     const boundaries = new Set();
     boundaries.add(dayStartMinutes);
@@ -478,7 +684,7 @@ export default function Appointments() {
       slots.push({ startMinutes: start, endMinutes: end });
     }
     return slots;
-  }, [appointments, slotDuration, weekDayStart, weekDayEnd]);
+  }, [appointments, slotDuration, weekDayStart, weekDayEnd, workingHours]);
 
   const getPatientName = (appt) => {
     if (!appt) return "";
@@ -606,7 +812,7 @@ export default function Appointments() {
                 </div>
                 {slot.appointments.length ? (
                   slot.appointments.map((appt) => (
-                    <div key={appt.id} className="appointment-row">
+                    <div key={appt.id} className="appointment-row" onClick={() => handleEditAppointment(appt)}>
                       <div className="slot-patient">
                         <span className="appointment-number">
                           {appointmentNumbersForSelectedDay[appt.id] ?? "-"}
@@ -691,7 +897,7 @@ export default function Appointments() {
               {weekTimeSlots.map((time) => {
                 const h = Math.floor(time.startMinutes / 60);
                 const m = time.startMinutes % 60;
-                const timeLabel = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                const timeLabel = formatMinutesLabel(time.startMinutes);
                 return (
                   <div key={timeLabel} className="week-row">
                     <div className="week-time-cell">{timeLabel}</div>
@@ -727,7 +933,7 @@ export default function Appointments() {
                           }}
                         >
                           {startAppt && (
-                            <div className="week-appt">
+                            <div className="week-appt" onClick={(e) => { e.stopPropagation(); handleEditAppointment(startAppt); }}>
                               <span className="appointment-number">
                                 {appointmentNumbersByWeekDay[key]?.[startAppt.id] ?? "-"}
                               </span>
@@ -775,7 +981,7 @@ export default function Appointments() {
         {showModal && (
           <div className="modal-overlay" onClick={closeModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h2>Ajouter Rendez-vous</h2>
+              <h2>{isEditing ? "Modifier Rendez-vous" : "Ajouter Rendez-vous"}</h2>
               <form onSubmit={handleSubmit} className="modal-form">
                 <label className={`chip-toggle ${isNewPatient ? "active" : ""}`}>
                   <input
@@ -829,29 +1035,101 @@ export default function Appointments() {
                 )}
 
                 {/* Appointment Time */}
-                {!openedFromSlot && (
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <input type="number" placeholder="Heures" min="8" max="18" value={formData.hour || ""} onChange={(e) => setFormData({ ...formData, hour: e.target.value })} required />
-                    <input type="number" placeholder="Minutes" min="0" max="59" step={slotDuration} value={formData.minute || ""} onChange={(e) => setFormData({ ...formData, minute: e.target.value })} required />
-                  </div>
-                )}
+             {/* Appointment Time */}
+{!openedFromSlot && (
+  <div className="form-field">
+    <label>Choisir l'heure</label>
 
+		    <div className="time-input-group">
+
+        <input
+          type="number"
+          placeholder="HH"
+          min={use12HourFormat ? 1 : hourBounds24.earliest}
+          max={use12HourFormat ? 12 : hourBounds24.latest}
+          value={formData.hour || ""}
+          onChange={(e) => setFormData({ ...formData, hour: e.target.value })}
+          required
+        />
+
+        <span>:</span>
+
+        <div className="modern-dropdown minute-dropdown" ref={minuteDropdownRef}>
+          <button
+            type="button"
+            className={`dropdown-trigger ${minuteDropdownOpen ? "open" : ""}`}
+            onClick={() => {
+              if (!allowedMinuteOptions.length) return;
+              setMinuteDropdownOpen((prev) => !prev);
+            }}
+            disabled={!allowedMinuteOptions.length}
+          >
+            <span>
+              {formData.minute === "" ? "--" : String(formData.minute).padStart(2, "0")}
+            </span>
+          </button>
+
+          {minuteDropdownOpen && (
+            <ul className="dropdown-menu" role="listbox" aria-label="Minutes">
+              {allowedMinuteOptions.map((minute) => (
+                <li
+                  key={minute}
+                  role="option"
+                  aria-selected={String(formData.minute).padStart(2, "0") === minute}
+                  onClick={() => {
+                    setFormData({ ...formData, minute });
+                    setMinuteDropdownOpen(false);
+                  }}
+                >
+                  {minute}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {use12HourFormat && (
+          <button
+            type="button"
+            className="am-pm-toggle"
+            onClick={() =>
+              setFormData({
+                ...formData,
+                period: (formData.period || "AM") === "AM" ? "PM" : "AM",
+              })
+            }
+          >
+            {formData.period || "AM"}
+          </button>
+        )}
+		
+		    </div>
+		  </div>
+		)}
                 {/* Appointment Duration Selector */}
                 <div className="form-field">
                   <label>Durée du rendez-vous :</label>
-                  <select
-                    value={formData.duration || slotDuration}
-                    onChange={(e) => setFormData({...formData, duration: Number(e.target.value)})}
+                  <button
+                    type="button"
+                    className="am-pm-toggle duration-toggle"
+                    onClick={() => {
+                      const current = Number(formData.duration || slotDuration);
+                      const idx = durationOptions.indexOf(current);
+                      const next =
+                        idx === -1
+                          ? durationOptions[0]
+                          : durationOptions[(idx + 1) % durationOptions.length];
+                      setFormData({ ...formData, duration: next });
+                    }}
                   >
-                    <option value={15}>15 min</option>
-                    <option value={30}>30 min</option>
-                    <option value={45}>45 min</option>
-                    <option value={60}>60 min</option>
-                  </select>
+                    {(formData.duration || slotDuration)} min
+                  </button>
                 </div>
 
                 <div className="modal-actions">
-                  <button type="submit" className="btn-primary2">Ajouter</button>
+                  <button type="submit" className="btn-primary2" disabled={isSavingAppointment}>
+                    {isSavingAppointment ? "Enregistrement..." : isEditing ? "Enregistrer" : "Ajouter"}
+                  </button>
                   <button type="button" className="btn-cancel" onClick={closeModal}>Annuler</button>
                 </div>
               </form>
@@ -869,7 +1147,9 @@ export default function Appointments() {
               </p>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100">Annuler</button>
-                <button onClick={confirmDeleteAppointment} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600">Supprimer</button>
+                <button onClick={confirmDeleteAppointment} disabled={isDeletingAppointment} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600">
+                  {isDeletingAppointment ? "Suppression..." : "Supprimer"}
+                </button>
               </div>
             </div>
           </div>
@@ -883,7 +1163,9 @@ export default function Appointments() {
               <p>Êtes-vous sûr de vouloir marquer le rendez-vous de {getPatientName(completeAppt)} comme COMPLET ?</p>
               <div className="modal-actions">
                 <button onClick={() => setShowCompleteConfirm(false)} className="btn-cancel">Annuler</button>
-                <button onClick={confirmCompleteAppointment} className="btn-primary2">Confirmer</button>
+                <button onClick={confirmCompleteAppointment} disabled={isCompletingAppointment} className="btn-primary2">
+                  {isCompletingAppointment ? "Confirmation..." : "Confirmer"}
+                </button>
               </div>
             </div>
           </div>
@@ -897,7 +1179,9 @@ export default function Appointments() {
               <p>Êtes-vous sûr de vouloir annuler le rendez-vous de {getPatientName(cancelAppt)} ?</p>
               <div className="modal-actions">
                 <button onClick={() => setShowCancelConfirm(false)} className="btn-cancel">Annuler</button>
-                <button onClick={confirmCancelAppointment} className="btn-primary2">Confirmer</button>
+                <button onClick={confirmCancelAppointment} disabled={isCancellingAppointment} className="btn-primary2">
+                  {isCancellingAppointment ? "Confirmation..." : "Confirmer"}
+                </button>
               </div>
             </div>
           </div>
@@ -907,3 +1191,15 @@ export default function Appointments() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+

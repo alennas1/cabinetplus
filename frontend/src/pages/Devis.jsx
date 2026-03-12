@@ -3,6 +3,8 @@ import { useSelector } from "react-redux";
 import { Plus, Trash2, Download, X, Search, FileText } from 'react-feather';
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { formatMoneyWithLabel } from "../utils/format";
+import { getCurrencyLabelPreference } from "../utils/workingHours";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getApiErrorMessage } from "../utils/error";
@@ -31,6 +33,9 @@ const Devise = () => {
     // Form State
     const [title, setTitle] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [downloadingId, setDownloadingId] = useState(null);
 
     // Delete Confirmation State
     const [showConfirm, setShowConfirm] = useState(false);
@@ -76,6 +81,7 @@ const Devise = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
         if (selectedItems.length === 0) return toast.error("Ajoutez au moins un élément");
 
         const payload = {
@@ -84,14 +90,17 @@ const Devise = () => {
         };
 
         try {
+            setIsSubmitting(true);
             await createDevise(payload);
             toast.success("Devis enregistré avec succès");
             setIsModalOpen(false);
             setTitle('');
             setSelectedItems([]);
-            loadData();
+            await loadData();
         } catch (err) {
             toast.error("Erreur lors de l'enregistrement");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -102,15 +111,28 @@ const Devise = () => {
     };
 
     const confirmDelete = async () => {
+        if (isDeleting) return;
         try {
+            setIsDeleting(true);
             await deleteDevise(deviseIdToDelete);
             setDevises(devises.filter(d => d.id !== deviseIdToDelete));
             toast.success("Devis supprimé");
         } catch (err) {
             toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
         } finally {
+            setIsDeleting(false);
             setShowConfirm(false);
             setDeviseIdToDelete(null);
+        }
+    };
+
+    const handleDownloadPdf = async (id, deviseTitle) => {
+        if (downloadingId === id) return;
+        try {
+            setDownloadingId(id);
+            await downloadDevisePdf(id, deviseTitle);
+        } finally {
+            setDownloadingId(null);
         }
     };
 
@@ -174,9 +196,9 @@ const Devise = () => {
                     {currentDevises.map((d) => (
                         <tr key={d.id}>
                             <td style={{ fontWeight: "500" }}>{d.title}</td>
-                            <td>{d.totalAmount?.toLocaleString()} DA</td>
+                            <td>{formatMoneyWithLabel(d.totalAmount || 0)}</td>
                             <td className="actions-cell">
-                                <button className="action-btn view" onClick={() => downloadDevisePdf(d.id, d.title)} title="Télécharger PDF">
+                                <button className="action-btn view" onClick={() => handleDownloadPdf(d.id, d.title)} title="Télécharger PDF" disabled={downloadingId === d.id}>
                                     <Download size={16} />
                                 </button>
                                 <button className="action-btn delete" onClick={() => handleDeleteClick(d.id)} title="Supprimer">
@@ -286,7 +308,7 @@ const Devise = () => {
 
                                             {/* Editable Unit Price */}
                                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <span style={{ fontSize: '0.7rem' }}>DA</span>
+                                                <span style={{ fontSize: '0.7rem' }}>{getCurrencyLabelPreference()}</span>
 
                                                 <input
                                                     type="number"
@@ -322,13 +344,13 @@ const Devise = () => {
                                 <div className="total-box">
                                     <div className="total-row">
                                         <span>Total:</span>
-                                        <span>{calculateTotal().toLocaleString()} DA</span>
+                                        <span>{formatMoneyWithLabel(calculateTotal())}</span>
                                     </div>
                                 </div>
 
                                 <div className="modal-actions" style={{ marginTop: '20px' }}>
-                                    <button type="submit" className="btn-primary2">Enregistrer</button>
-                                    <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Annuler</button>
+                                    <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : "Enregistrer"}</button>
+                                    <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Annuler</button>
                                 </div>
                             </form>
                         </div>
@@ -345,15 +367,16 @@ const Devise = () => {
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setShowConfirm(false)}
-                                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors" disabled={isDeleting}
                             >
                                 Annuler
                             </button>
                             <button
                                 onClick={confirmDelete}
                                 className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                disabled={isDeleting}
                             >
-                                Supprimer
+                                {isDeleting ? "Suppression..." : "Supprimer"}
                             </button>
                         </div>
                     </div>
@@ -366,3 +389,4 @@ const Devise = () => {
 };
 
 export default Devise;
+

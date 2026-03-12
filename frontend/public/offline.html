@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hors ligne - Cabinet+</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f5f7fb;
+        color: #0f172a;
+        display: grid;
+        min-height: 100vh;
+        place-items: center;
+      }
+      .card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 32px;
+        width: min(420px, 90vw);
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+        text-align: center;
+      }
+      .logo {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 14px;
+        border-radius: 14px;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+        object-fit: cover;
+      }
+      .title {
+        font-size: 22px;
+        margin: 0 0 8px;
+        font-weight: 700;
+      }
+      .subtitle {
+        margin: 0 0 20px;
+        color: #475569;
+        line-height: 1.5;
+      }
+      .badge {
+        display: inline-block;
+        background: #fee2e2;
+        color: #b91c1c;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .brand {
+        margin-top: 6px;
+        font-weight: 700;
+        color: #0f172a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img class="logo" src="/logo.png" alt="Cabinet+" />
+      <div class="brand">Cabinet+</div>
+      <div class="badge">Hors ligne</div>
+      <h1 class="title">Vous êtes hors ligne</h1>
+      <p class="subtitle">
+        La connexion est indisponible. Cette page se rechargera automatiquement
+        dès que l’internet sera de retour.
+      </p>
+    </div>
+    <script>
+      window.addEventListener("online", () => {
+        window.location.reload();
+      });
+    </script>
+  </body>
+</html>

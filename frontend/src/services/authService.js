@@ -20,6 +20,11 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+const isNetworkError = (error) => !error?.response || error?.response?.status === 0;
+const notifyOffline = () => {
+  window.dispatchEvent(new Event("appOffline"));
+};
+
 export const setAccessToken = (token, expiresInMs = DEFAULT_ACCESS_TOKEN_MS) => {
   accessToken = token;
   api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
@@ -37,11 +42,21 @@ export const setAccessToken = (token, expiresInMs = DEFAULT_ACCESS_TOKEN_MS) => 
 if (!isLoggingOut) {
   window.dispatchEvent(new Event("sessionExpired"));
 }      }
-    } catch {
-      clearAccessToken();
-if (!isLoggingOut) {
-  window.dispatchEvent(new Event("sessionExpired"));
-}    }
+    } catch (error) {
+      if (!isNetworkError(error)) {
+        clearAccessToken();
+        if (!isLoggingOut) {
+          window.dispatchEvent(new Event("sessionExpired"));
+        }
+      } else {
+        // Network/offline: keep current session and retry later
+        notifyOffline();
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+          setAccessToken(accessToken, expiresInMs);
+        }, 30000);
+      }
+    }
   }, refreshDelay);
 };
 
@@ -59,6 +74,11 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   response => response,
   async error => {
+    if (isNetworkError(error)) {
+      notifyOffline();
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config;
     const requestUrl = originalRequest?.url || "";
     const isAuthEntryRequest =
@@ -99,8 +119,12 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
-        clearAccessToken();
-        window.dispatchEvent(new Event("sessionExpired"));
+        if (!isNetworkError(refreshError)) {
+          clearAccessToken();
+          window.dispatchEvent(new Event("sessionExpired"));
+        } else {
+          notifyOffline();
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -119,7 +143,11 @@ export const initializeSession = async () => {
     }
     clearAccessToken();
     return false;
-  } catch {
+  } catch (error) {
+    if (isNetworkError(error)) {
+      notifyOffline();
+      return null; // backend unreachable/offline
+    }
     clearAccessToken();
     return false;
   }

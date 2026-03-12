@@ -60,6 +60,7 @@ import RequireAuth from "./components/RequireAuth";
 import RequireClinicRole from "./components/RequireClinicRole";
 import GestionCabinetPinGuard from "./components/GestionCabinetPinGuard";
 import SessionExpiredModal from "./components/SessionExpiredModal";
+import OfflineScreen from "./components/OfflineScreen";
 import { CLINIC_ROLES, getClinicRole } from "./utils/clinicAccess";
 import { isPlanActiveForAccess } from "./utils/planAccess";
 import { applyUserPreferences } from "./utils/workingHours";
@@ -71,10 +72,15 @@ const AppContent = () => {
   const { isAuthenticated, user, loading } = useSelector((state) => state.auth); 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
 
   // --- Session Expired Listener ---
   useEffect(() => {
     const handleSessionExpired = () => {
+      if (!navigator.onLine) {
+        setIsOffline(true);
+        return;
+      }
       dispatch(sessionExpired());
       navigate("/login", { replace: true, state: { reason: "session_expired" } });
     };
@@ -82,32 +88,72 @@ const AppContent = () => {
     return () => window.removeEventListener("sessionExpired", handleSessionExpired);
   }, [dispatch, navigate]);
 
-  // --- Initialize Session on Page Load ---
- useEffect(() => {
-  const bootApp = async () => {
-    dispatch(setLoading(true));
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      window.location.reload();
+    };
+    const handleOffline = () => setIsOffline(true);
+    const handleAppOffline = () => setIsOffline(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("appOffline", handleAppOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("appOffline", handleAppOffline);
+    };
+  }, []);
 
-    try {
-      const hasSession = await initializeSession(); // refreshes token if refresh cookie is valid
-      if (hasSession) {
-        const userData = await getCurrentUser();
-        try {
-          const preferences = await getUserPreferences();
-          applyUserPreferences(preferences);
-        } catch {
-          applyUserPreferences(null);
+  useEffect(() => {
+    if (!isOffline || !navigator.onLine) return;
+    const interval = window.setInterval(async () => {
+      const status = await initializeSession();
+      if (status !== null) {
+        window.location.reload();
+      }
+    }, 8000);
+    return () => window.clearInterval(interval);
+  }, [isOffline]);
+
+  // --- Initialize Session on Page Load ---
+  useEffect(() => {
+    const bootApp = async () => {
+      dispatch(setLoading(true));
+
+      try {
+        const hasSession = await initializeSession(); // refreshes token if refresh cookie is valid
+        if (hasSession === true) {
+          const userData = await getCurrentUser();
+          try {
+            const preferences = await getUserPreferences();
+            applyUserPreferences(preferences);
+          } catch {
+            applyUserPreferences(null);
+          }
+          dispatch(setCredentials({ user: userData, token: true })); // now token is valid
+          return;
         }
-        dispatch(setCredentials({ user: userData, token: true })); // now token is valid
-      } else {
+
+        if (hasSession === null || !navigator.onLine) {
+          setIsOffline(true);
+          dispatch(setLoading(false));
+          return;
+        }
+
+        dispatch(sessionExpired());
+      } catch (error) {
+        if (!navigator.onLine) {
+          setIsOffline(true);
+          dispatch(setLoading(false));
+          return;
+        }
         dispatch(sessionExpired());
       }
-    } catch {
-      dispatch(sessionExpired());
-    }
-  };
+    };
 
-  bootApp();
-}, [dispatch]);
+    bootApp();
+  }, [dispatch]);
 
   // --- Determine Redirect Path based on User Status ---
   const getRedirectPath = (user) => {
@@ -126,8 +172,12 @@ const AppContent = () => {
 
   // --- Loading Screen ---
   if (loading) {
-  return <LoadingLogo />;
-}
+    return <LoadingLogo />;
+  }
+
+  if (isOffline) {
+    return <OfflineScreen />;
+  }
 
   const RootRedirect = () => (!isAuthenticated ? <Navigate to="/login" replace /> : <Navigate to={getRedirectPath(user)} replace />);
   const CatchAllRedirect = () => (!isAuthenticated ? <Navigate to="/login" replace /> : <Navigate to={getRedirectPath(user)} replace />);

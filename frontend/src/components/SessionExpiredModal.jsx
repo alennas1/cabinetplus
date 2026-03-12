@@ -10,6 +10,10 @@ const SessionExpiredModal = () => {
 
   useEffect(() => {
     const handleSessionExpired = () => {
+      if (!navigator.onLine) {
+        window.dispatchEvent(new Event("appOffline"));
+        return;
+      }
       // Clear Redux state & storage immediately
       dispatch(logout());
       // Show modal

@@ -124,6 +124,22 @@ Parametres:
 - Build Command: `mvn clean package -DskipTests`
 - Start Command: `java -jar target/backend-0.0.1-SNAPSHOT.jar`
 
+### Option 3. En Docker sur Render
+
+Si Render ne propose pas correctement Java dans l'interface, utilise Docker.
+
+Fichiers deja prepares:
+
+- [backend/Dockerfile](/c:/Users/DELL/Desktop/cabinetplus/backend/Dockerfile)
+- [backend/.dockerignore](/c:/Users/DELL/Desktop/cabinetplus/backend/.dockerignore)
+
+Parametres:
+
+- Language: `Docker`
+- Root Directory: `backend`
+
+Dans ce mode, Render utilise directement le `Dockerfile`.
+
 Variables Render a definir:
 
 ```env

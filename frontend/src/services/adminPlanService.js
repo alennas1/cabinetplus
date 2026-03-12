@@ -1,7 +1,8 @@
 // src/services/adminPlanService.js
 import axios from "axios";
 
-const ADMIN_API_URL = "http://localhost:8080/api/admin/plans";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const ADMIN_API_URL = `${API_URL}/api/admin/plans`;
 
 /**
  * Get all active plans (admin view)

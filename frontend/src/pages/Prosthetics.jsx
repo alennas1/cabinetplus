@@ -564,12 +564,12 @@ const Prosthetics = () => {
             </tr>
           ) : (
             filteredProtheses.map((p) => (
-              <tr key={p.id} onClick={() => navigate(`/patients/${p.patientId}`)} style={{ cursor: "pointer" }}>
+              <tr key={p.id}>
                 <td>
                   <input
                     type="checkbox"
+                    className="prothesis-select-checkbox"
                     checked={selectedIds.includes(p.id)}
-                    onClick={(e) => e.stopPropagation()}
                     onChange={() => toggleSelection(p.id)}
                   />
                 </td>
@@ -607,23 +607,18 @@ const Prosthetics = () => {
                 </td>
                 <td className="actions-cell">
                   <button className="action-btn edit" onClick={(e) => {
-                    e.stopPropagation();
                     handleEditClick(p);
                   }}>
                     <Edit2 size={16} />
                   </button>
                   <button
                     className="action-btn view"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/patients/${p.patientId}`);
-                    }}
+                    onClick={() => navigate(`/patients/${p.patientId}`)}
                     title="Ouvrir le profil patient"
                   >
                     <ArrowUpRight size={16} />
                   </button>
-                  <button className="action-btn delete" onClick={(e) => {
-                    e.stopPropagation();
+                  <button className="action-btn delete" onClick={() => {
                     handleDeleteClick(p);
                   }}>
                     <Trash2 size={16} color="#ff4d4d" />

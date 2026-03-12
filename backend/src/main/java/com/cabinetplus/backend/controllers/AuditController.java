@@ -32,7 +32,7 @@ public class AuditController {
     ) {
         User user = userService.findByUsername(principal.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
-        return auditService.getMyLogs(user.getId());
+        return auditService.getMyLogs(user);
     }
 
     @GetMapping("/security")

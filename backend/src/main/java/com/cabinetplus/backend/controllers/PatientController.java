@@ -16,17 +16,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.PatientDto;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Payment;
+import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
-import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.repositories.AppointmentRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.PaymentRepository;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
 import com.cabinetplus.backend.repositories.TreatmentRepository;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.UserService;
 import com.lowagie.text.Element;
@@ -55,6 +57,7 @@ public class PatientController {
     private final AppointmentRepository appointmentRepository;
     private final PaymentRepository paymentRepository;
     private final ProthesisRepository prothesisRepository;
+    private final AuditService auditService;
 
     public PatientController(PatientService patientService, 
                              UserService userService, 
@@ -62,7 +65,8 @@ public class PatientController {
                              TreatmentRepository treatmentRepository,
                              AppointmentRepository appointmentRepository,
                              PaymentRepository paymentRepository,
-                             ProthesisRepository prothesisRepository) {
+                             ProthesisRepository prothesisRepository,
+                             AuditService auditService) {
         this.patientService = patientService;
         this.userService = userService;
         this.patientRepository = patientRepository;
@@ -70,6 +74,7 @@ public class PatientController {
         this.appointmentRepository = appointmentRepository;
         this.paymentRepository = paymentRepository;
         this.prothesisRepository = prothesisRepository;
+        this.auditService = auditService;
     }
 
     @GetMapping
@@ -88,17 +93,40 @@ public class PatientController {
         User currentUser = getClinicUser(principal);
         patient.setCreatedBy(currentUser);
         patient.setCreatedAt(LocalDateTime.now());
-        return patientService.saveAndConvert(patient);
+        PatientDto saved = patientService.saveAndConvert(patient);
+        auditService.logSuccess(
+                AuditEventType.PATIENT_CREATE,
+                "PATIENT",
+                String.valueOf(saved.id()),
+                "Patient ajoute: " + formatPatientName(saved.firstname(), saved.lastname())
+        );
+        return saved;
     }
 
     @PutMapping("/{id}")
     public PatientDto updatePatient(@PathVariable Long id, @RequestBody Patient patient) {
-        return patientService.update(id, patient);
+        PatientDto updated = patientService.update(id, patient);
+        auditService.logSuccess(
+                AuditEventType.PATIENT_UPDATE,
+                "PATIENT",
+                String.valueOf(updated.id()),
+                "Patient modifie: " + formatPatientName(updated.firstname(), updated.lastname())
+        );
+        return updated;
     }
 
     @DeleteMapping("/{id}")
     public void deletePatient(@PathVariable Long id) {
+        PatientDto existing = patientService.findById(id).orElse(null);
         patientService.delete(id);
+        auditService.logSuccess(
+                AuditEventType.PATIENT_DELETE,
+                "PATIENT",
+                String.valueOf(id),
+                existing != null
+                        ? "Patient supprime: " + formatPatientName(existing.firstname(), existing.lastname())
+                        : "Patient supprime: #" + id
+        );
     }
 
     // ==========================================
@@ -320,6 +348,13 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
         User currentUser = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(currentUser);
+    }
+
+    private String formatPatientName(String firstname, String lastname) {
+        String first = firstname != null ? firstname.trim() : "";
+        String last = lastname != null ? lastname.trim() : "";
+        String fullName = (first + " " + last).trim();
+        return fullName.isEmpty() ? "Patient sans nom" : fullName;
     }
 }
 

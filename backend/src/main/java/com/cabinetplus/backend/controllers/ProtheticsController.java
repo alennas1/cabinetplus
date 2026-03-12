@@ -1,7 +1,10 @@
 package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.*;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.*;
+import com.cabinetplus.backend.repositories.ProthesisRepository;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +20,8 @@ import java.util.stream.Collectors;
 public class ProtheticsController {
     private final ProthesisService service;
     private final UserService userService;
+    private final AuditService auditService;
+    private final ProthesisRepository prothesisRepository;
 
     // --- MERGED GET ALL METHOD ---
     @GetMapping
@@ -43,19 +48,40 @@ public class ProtheticsController {
     @PostMapping
     public ResponseEntity<ProthesisResponse> create(@RequestBody ProthesisRequest dto, Principal principal) {
         User user = getCurrentUser(principal);
-        return ResponseEntity.ok(mapToResponse(service.create(dto, user)));
+        Prothesis created = service.create(dto, user);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_CREATE,
+                "PROTHESIS",
+                String.valueOf(created.getId()),
+                "Prothese ajoutee pour " + formatPatientName(created.getPatient())
+        );
+        return ResponseEntity.ok(mapToResponse(created));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ProthesisResponse> update(@PathVariable Long id, @RequestBody ProthesisRequest dto, Principal principal) {
         User user = getCurrentUser(principal);
-        return ResponseEntity.ok(mapToResponse(service.update(id, dto, user)));
+        Prothesis updated = service.update(id, dto, user);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_UPDATE,
+                "PROTHESIS",
+                String.valueOf(updated.getId()),
+                "Prothese modifiee pour " + formatPatientName(updated.getPatient())
+        );
+        return ResponseEntity.ok(mapToResponse(updated));
     }
 
     @PutMapping("/{id}/assign-lab")
     public ResponseEntity<ProthesisResponse> assignLab(@PathVariable Long id, @RequestBody LabAssignmentRequest dto, Principal principal) {
         User user = getCurrentUser(principal);
-        return ResponseEntity.ok(mapToResponse(service.assignToLab(id, dto, user)));
+        Prothesis updated = service.assignToLab(id, dto, user);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_ASSIGN_LAB,
+                "PROTHESIS",
+                String.valueOf(updated.getId()),
+                "Prothese envoyee au laboratoire pour " + formatPatientName(updated.getPatient())
+        );
+        return ResponseEntity.ok(mapToResponse(updated));
     }
 
     @PatchMapping("/{id}/status")
@@ -65,13 +91,28 @@ public class ProtheticsController {
             Principal principal) {
         User user = getCurrentUser(principal);
         Prothesis updated = service.updateStatus(id, status, user);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_STATUS_CHANGE,
+                "PROTHESIS",
+                String.valueOf(updated.getId()),
+                "Statut prothese modifie pour " + formatPatientName(updated.getPatient()) + ": " + updated.getStatus()
+        );
         return ResponseEntity.ok(mapToResponse(updated));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
         User user = getCurrentUser(principal);
+        Prothesis existing = prothesisRepository.findById(id).orElse(null);
         service.delete(id, user);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_DELETE,
+                "PROTHESIS",
+                String.valueOf(id),
+                existing != null
+                        ? "Prothese supprimee pour " + formatPatientName(existing.getPatient())
+                        : "Prothese supprimee: #" + id
+        );
         return ResponseEntity.noContent().build();
     }
 
@@ -115,6 +156,14 @@ public ResponseEntity<List<ProthesisResponse>> getByPatient(
     return ResponseEntity.ok(results.stream()
             .map(this::mapToResponse)
             .collect(Collectors.toList()));
+}
+
+private String formatPatientName(Patient patient) {
+    if (patient == null) return "patient inconnu";
+    String first = patient.getFirstname() != null ? patient.getFirstname().trim() : "";
+    String last = patient.getLastname() != null ? patient.getLastname().trim() : "";
+    String fullName = (first + " " + last).trim();
+    return fullName.isEmpty() ? "patient inconnu" : fullName;
 }
 }
 

@@ -7,6 +7,8 @@ public record AuditLogResponse(
         String eventType,
         String status,
         String message,
+        Long actorUserId,
+        String actorDisplayName,
         String ipAddress,
         String location
 ) {}

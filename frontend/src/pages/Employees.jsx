@@ -16,6 +16,27 @@ import {
 } from "../services/employeeService";
 import "./Patients.css"; // reuse same CSS as Patients
 
+const EMPLOYEE_ROLE_OPTIONS = [
+  {
+    value: "RECEPTION",
+    title: "Accueil et administration",
+    accessLabel: "Reception",
+    description: "Acces accueil, rendez-vous, patients et operations administratives du cabinet.",
+  },
+  {
+    value: "ASSISTANT",
+    title: "Assistance cabinet",
+    accessLabel: "Assistant",
+    description: "Acces assistance cabinet, suivi patient et outils utiles au fauteuil.",
+  },
+  {
+    value: "PARTNER_DENTIST",
+    title: "Acces cabinet et suivi complet",
+    accessLabel: "Dentiste partenaire",
+    description: "Acces dentiste collaborateur avec droits elargis sur les actes et le suivi du cabinet.",
+  },
+];
+
 const Employees = () => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
@@ -52,11 +73,16 @@ const Employees = () => {
     accessRole: "RECEPTION",
   });
   const [isEditing, setIsEditing] = useState(false);
-  const [formStep, setFormStep] = useState(1);
+  const [formStep, setFormStep] = useState(0);
 
   // Delete Confirmation State
   const [showConfirm, setShowConfirm] = useState(false);
   const [empIdToDelete, setEmpIdToDelete] = useState(null);
+
+  const getRoleOption = (roleValue) =>
+    EMPLOYEE_ROLE_OPTIONS.find((roleOption) => roleOption.value === roleValue);
+
+  const getRoleLabel = (roleValue) => getRoleOption(roleValue)?.title || "—";
 
   // Load employees
   useEffect(() => {
@@ -128,7 +154,7 @@ const Employees = () => {
         toast.success("Employé ajouté");
       }
       setShowModal(false);
-      setFormStep(1);
+      setFormStep(0);
       resetForm();
     } catch (err) {
       console.error("❌ Error saving employee:", err.response?.data || err.message);
@@ -224,7 +250,7 @@ const Employees = () => {
             onClick={() => {
               resetForm();
               setIsEditing(false);
-              setFormStep(1);
+              setFormStep(0);
               setShowModal(true);
             }}
           >
@@ -252,7 +278,7 @@ const Employees = () => {
               <td>{emp.firstName || "—"}</td>
               <td>{emp.lastName || "—"}</td>
               <td>{emp.phone || "—"}</td>
-              <td>{emp.accessRole || "—"}</td>
+              <td>{getRoleLabel(emp.accessRole)}</td>
               <td>
                 <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
                   {emp.status === "ACTIVE"
@@ -330,6 +356,33 @@ const Employees = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="modal-form">
+              {formStep === 0 && !isEditing && (
+                <div className="employee-role-step">
+                  <div className="employee-role-step-header">
+                    <h3>Choisir un role</h3>
+                    <p>Selectionnez le niveau d'acces avant de continuer.</p>
+                  </div>
+
+                  <div className="employee-role-grid">
+                    {EMPLOYEE_ROLE_OPTIONS.map((roleOption) => (
+                      <button
+                        key={roleOption.value}
+                        type="button"
+                        className="employee-role-card"
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, accessRole: roleOption.value }));
+                          setFormStep(1);
+                        }}
+                      >
+                        <span className="employee-role-card-title">{roleOption.title}</span>
+                        <span className="employee-role-card-access">{roleOption.accessLabel}</span>
+                        <p>{roleOption.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {formStep === 1 && (
                 <>
                   <span className="field-label">Prénom</span>
@@ -420,6 +473,15 @@ const Employees = () => {
 
               {formStep === 3 && (
                 <>
+                  <div className="employee-role-summary">
+                    <span className="employee-role-summary-label">Role selectionne</span>
+                    <strong>
+                      {getRoleLabel(formData.accessRole)}
+                    </strong>
+                    <span className="employee-role-summary-access">
+                      {getRoleOption(formData.accessRole)?.accessLabel}
+                    </span>
+                  </div>
                   <span className="field-label">Date embauche</span>
                   <input
                     type="date"
@@ -457,15 +519,6 @@ const Employees = () => {
                     <option value="ACTIVE">Actif</option>
                     <option value="INACTIVE">Inactif</option>
                     <option value="ON_LEAVE">En congé</option>
-                  </select>                  <span className="field-label">Rôle d'accès</span>
-                  <select
-                    name="accessRole"
-                    value={formData.accessRole || "RECEPTION"}
-                    onChange={handleChange}
-                  >
-                    <option value="RECEPTION">Reception</option>
-                    <option value="ASSISTANT">Assistant</option>
-                    <option value="PARTNER_DENTIST">Partner Dentist</option>
                   </select>
                   <span className="field-label">Nom d'utilisateur</span>
                   <input
@@ -497,7 +550,7 @@ const Employees = () => {
                   </button>
                 )}
 
-                {formStep < 3 && (
+                {formStep > 0 && formStep < 3 && (
                   <button
                     type="button"
                     className="btn-primary2"

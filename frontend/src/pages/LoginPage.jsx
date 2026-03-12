@@ -7,6 +7,8 @@ import { Eye, EyeOff } from "react-feather";
 import { getApiErrorMessage } from "../utils/error";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
+import femmed from "../assets/femmed.png";
+import femmed2 from "../assets/femmed2.png";
 import transpiamge from "../assets/transpiamge.png";
 import "./Login.css";
 
@@ -17,6 +19,7 @@ const LoginPage = () => {
   const [invalidFields, setInvalidFields] = useState({ identifier: false, password: false });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [activeIllustration, setActiveIllustration] = useState(0);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -63,6 +66,14 @@ const LoginPage = () => {
     }
   }, [isAuthenticated, user, navigate]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveIllustration((prev) => (prev + 1) % 3);
+    }, 5200);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -107,12 +118,25 @@ const LoginPage = () => {
           <div className="promo-content">
           <h1 className="promo-title">
             <span>Organisez</span>
-            <span>votre</span>
-            <span>cabinet</span>
+            <span>votre cabinet</span>
             <span className="promo-title-accent">et plus.</span>
           </h1>
             <div className="promo-illustration">
-              <img src={transpiamge} alt="Illustration dentiste" />
+              <img
+                src={transpiamge}
+                alt="Illustration dentiste homme"
+                className={`promo-illustration-image ${activeIllustration === 0 ? "active" : ""}`}
+              />
+              <img
+                src={femmed}
+                alt="Illustration dentiste femme"
+                className={`promo-illustration-image ${activeIllustration === 1 ? "active" : ""}`}
+              />
+              <img
+                src={femmed2}
+                alt="Illustration dentiste femme"
+                className={`promo-illustration-image ${activeIllustration === 2 ? "active" : ""}`}
+              />
             </div>
           </div>
         </section>

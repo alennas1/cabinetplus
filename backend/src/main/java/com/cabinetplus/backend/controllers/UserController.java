@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -45,6 +46,9 @@ public class UserController {
     private final PlanLimitService planLimitService;
     private final JwtUtil jwtUtil;
     private final AuditService auditService;
+
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
 
     public UserController(
             UserService userService,
@@ -329,8 +333,8 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
 
         Cookie cookie = new Cookie("refresh_token", refreshToken);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false); // local dev
-        cookie.setPath("/auth/refresh");
+        cookie.setSecure(cookieSecure);
+        cookie.setPath("/");
         cookie.setMaxAge(7 * 24 * 60 * 60);
         response.addCookie(cookie);
 

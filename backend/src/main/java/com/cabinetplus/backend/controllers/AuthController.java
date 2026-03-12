@@ -49,6 +49,12 @@ public class AuthController {
     @Value("${jwt.refresh.expiration-ms}")
     private long refreshTokenMs;
 
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
+
+    @Value("${app.cookie.same-site:Lax}")
+    private String cookieSameSite;
+
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
                           UserRepository userRepo, RefreshTokenRepository refreshRepo,
                           PasswordEncoder passwordEncoder, AuditService auditService) {
@@ -64,8 +70,8 @@ public class AuthController {
     private void addRefreshCookie(HttpServletResponse response, String refreshToken, long maxAgeSeconds) {
         ResponseCookie cookie = ResponseCookie.from("refresh_token", refreshToken)
                 .httpOnly(true)   // secure in production
-                .secure(false)
-                .sameSite("Lax")
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
                 .path("/")
                 .maxAge(maxAgeSeconds)
                 .build();
@@ -247,8 +253,8 @@ public class AuthController {
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
-                .secure(false)
-                .sameSite("Lax")
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
                 .path("/")
                 .maxAge(0)
                 .build();
@@ -268,8 +274,8 @@ public class AuthController {
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
-                .secure(false)
-                .sameSite("Lax")
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
                 .path("/")
                 .maxAge(0)
                 .build();

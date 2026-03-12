@@ -18,6 +18,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByPhoneNumberAndIdNot(String phoneNumber, Long id);
     List<User> findByPlanStatus(UserPlanStatus planStatus);
     List<User> findByRole(UserRole role);
+    List<User> findByOwnerDentist(User ownerDentist);
 
     @Query("SELECT u FROM User u WHERE u.expirationDate BETWEEN :start AND :end")
     List<User> findUsersWithExpiringPlans(LocalDateTime start, LocalDateTime end);

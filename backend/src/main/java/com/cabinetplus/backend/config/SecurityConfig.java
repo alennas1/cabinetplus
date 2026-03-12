@@ -3,6 +3,7 @@ package com.cabinetplus.backend.config;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,19 +29,24 @@ import com.cabinetplus.backend.services.AuditService;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-//asd
     private final JwtAuthenticationFilter jwtFilter;
     private final RequestTracingFilter requestTracingFilter;
     private final CustomUserDetailsService userDetailsService;
+    private final List<String> allowedOrigins;
+    private final List<String> allowedOriginPatterns;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtFilter,
             RequestTracingFilter requestTracingFilter,
-            CustomUserDetailsService userDetailsService
+            CustomUserDetailsService userDetailsService,
+            @Value("${app.cors.allowed-origins}") String allowedOrigins,
+            @Value("${app.cors.allowed-origin-patterns}") String allowedOriginPatterns
     ) {
         this.jwtFilter = jwtFilter;
         this.requestTracingFilter = requestTracingFilter;
         this.userDetailsService = userDetailsService;
+        this.allowedOrigins = splitCsv(allowedOrigins);
+        this.allowedOriginPatterns = splitCsv(allowedOriginPatterns);
     }
 
     @Bean
@@ -109,18 +115,10 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Use explicit origins for your live domains
-        configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "https://cabinetplusdz.com",
-            "https://www.cabinetplusdz.com",
-            "https://cabinetplus.vercel.app"
-        ));
+        configuration.setAllowedOrigins(allowedOrigins);
         
         // Use pattern for Vercel dynamic preview branches
-        configuration.setAllowedOriginPatterns(List.of(
-            "https://*.vercel.app"
-        ));
+        configuration.setAllowedOriginPatterns(allowedOriginPatterns);
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         
@@ -142,5 +140,15 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private List<String> splitCsv(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .toList();
     }
 }

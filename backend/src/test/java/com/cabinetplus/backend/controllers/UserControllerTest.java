@@ -6,6 +6,7 @@ import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,16 +32,25 @@ class UserControllerTest {
     private MockMvc mockMvc;
     private UserService userService;
     private PlanService planService;
+    private PlanLimitService planLimitService;
 
     @BeforeEach
     void setUp() {
         userService = mock(UserService.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         planService = mock(PlanService.class);
+        planLimitService = mock(PlanLimitService.class);
         JwtUtil jwtUtil = mock(JwtUtil.class);
         AuditService auditService = mock(AuditService.class);
 
-        UserController controller = new UserController(userService, passwordEncoder, planService, jwtUtil, auditService);
+        UserController controller = new UserController(
+                userService,
+                passwordEncoder,
+                planService,
+                planLimitService,
+                jwtUtil,
+                auditService
+        );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();

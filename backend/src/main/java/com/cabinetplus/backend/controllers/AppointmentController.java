@@ -21,9 +21,11 @@ import org.springframework.web.server.ResponseStatusException;
 import com.cabinetplus.backend.dto.AppointmentRequest;
 import com.cabinetplus.backend.dto.AppointmentResponse;
 import com.cabinetplus.backend.dto.PatientDto;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.AppointmentService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.UserService;
@@ -35,11 +37,13 @@ public class AppointmentController {
     private final AppointmentService appointmentService;
     private final UserService userService;
     private final PatientService patientService;
+    private final AuditService auditService;
 
-    public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService) {
+    public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService, AuditService auditService) {
         this.appointmentService = appointmentService;
         this.userService = userService;
         this.patientService = patientService;
+        this.auditService = auditService;
     }
 
     // Return appointments only for the logged-in practitioner
@@ -86,6 +90,12 @@ public class AppointmentController {
         appointment.setPractitioner(currentUser);
 
         Appointment saved = appointmentService.save(appointment);
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_CREATE,
+                "APPOINTMENT",
+                String.valueOf(saved.getId()),
+                "Rendez-vous ajoute pour " + formatPatientName(patientDto.firstname(), patientDto.lastname())
+        );
 
         return new AppointmentResponse(
                 saved.getId(),
@@ -119,13 +129,34 @@ public class AppointmentController {
 
         updatedAppointment.setId(id);
         updatedAppointment.setPractitioner(currentUser);
-
-        return appointmentService.save(updatedAppointment);
+        Appointment saved = appointmentService.save(updatedAppointment);
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_UPDATE,
+                "APPOINTMENT",
+                String.valueOf(saved.getId()),
+                "Rendez-vous modifie pour " + formatPatientName(
+                        saved.getPatient() != null ? saved.getPatient().getFirstname() : null,
+                        saved.getPatient() != null ? saved.getPatient().getLastname() : null
+                )
+        );
+        return saved;
     }
 
     @DeleteMapping("/{id}")
     public void deleteAppointment(@PathVariable Long id) {
+        Appointment existing = appointmentService.findById(id).orElse(null);
         appointmentService.delete(id);
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_DELETE,
+                "APPOINTMENT",
+                String.valueOf(id),
+                existing != null
+                        ? "Rendez-vous supprime pour " + formatPatientName(
+                                existing.getPatient() != null ? existing.getPatient().getFirstname() : null,
+                                existing.getPatient() != null ? existing.getPatient().getLastname() : null
+                        )
+                        : "Rendez-vous supprime: #" + id
+        );
     }
 
     @GetMapping("/patient/{patientId}")
@@ -174,6 +205,13 @@ public Map<String, Object> getComparisonStats(Principal principal) {
         User currentUser = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         return userService.resolveClinicOwner(currentUser);
+    }
+
+    private String formatPatientName(String firstname, String lastname) {
+        String first = firstname != null ? firstname.trim() : "";
+        String last = lastname != null ? lastname.trim() : "";
+        String fullName = (first + " " + last).trim();
+        return fullName.isEmpty() ? "patient inconnu" : fullName;
     }
 
 }

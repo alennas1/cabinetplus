@@ -216,8 +216,8 @@ const handleQuickPrintJustification = async (template) => {
 const [showQrModal, setShowQrModal] = useState(false);
 
 const [qrTimestamp, setQrTimestamp] = useState(Date.now());
-const MY_IP = "192.168.1.6"; 
-const publicDownloadUrl = `http://${MY_IP}:8080/api/public/pdf/${id}?t=${qrTimestamp}`;const [isDownloading, setIsDownloading] = useState(false);
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const publicDownloadUrl = `${API_URL}/api/public/pdf/${id}?t=${qrTimestamp}`;const [isDownloading, setIsDownloading] = useState(false);
 
 const handleDownloadPdf = async () => {
   setIsDownloading(true);

@@ -1,8 +1,10 @@
 package com.cabinetplus.backend.controllers;
 
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.TreatmentService;
 import com.cabinetplus.backend.services.UserService;
 import org.springframework.http.ResponseEntity;
@@ -18,10 +20,12 @@ public class TreatmentController {
 
     private final TreatmentService treatmentService;
     private final UserService userService;
+    private final AuditService auditService;
 
-    public TreatmentController(TreatmentService treatmentService, UserService userService) {
+    public TreatmentController(TreatmentService treatmentService, UserService userService, AuditService auditService) {
         this.treatmentService = treatmentService;
         this.userService = userService;
+        this.auditService = auditService;
     }
 
     private User getCurrentUser(Principal principal) {
@@ -53,6 +57,12 @@ public class TreatmentController {
         User currentUser = getCurrentUser(principal);
         treatment.setPractitioner(currentUser);
         Treatment saved = treatmentService.save(treatment);
+        auditService.logSuccess(
+                AuditEventType.TREATMENT_CREATE,
+                "TREATMENT",
+                String.valueOf(saved.getId()),
+                "Traitement ajoute pour " + formatPatientName(saved.getPatient())
+        );
         return ResponseEntity.ok(saved);
     }
 
@@ -63,6 +73,12 @@ public class TreatmentController {
                                                      Principal principal) {
         User currentUser = getCurrentUser(principal);
         Optional<Treatment> updated = treatmentService.update(id, treatment, currentUser);
+        updated.ifPresent(saved -> auditService.logSuccess(
+                AuditEventType.TREATMENT_UPDATE,
+                "TREATMENT",
+                String.valueOf(saved.getId()),
+                "Traitement modifie pour " + formatPatientName(saved.getPatient())
+        ));
         return updated.map(ResponseEntity::ok)
                       .orElse(ResponseEntity.notFound().build());
     }
@@ -71,7 +87,17 @@ public class TreatmentController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTreatment(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
+        Optional<Treatment> existing = treatmentService.findByIdAndPractitioner(id, currentUser);
         boolean deleted = treatmentService.deleteByPractitioner(id, currentUser);
+        if (deleted) {
+            auditService.logSuccess(
+                    AuditEventType.TREATMENT_DELETE,
+                    "TREATMENT",
+                    String.valueOf(id),
+                    existing.map(treatment -> "Traitement supprime pour " + formatPatientName(treatment.getPatient()))
+                            .orElse("Traitement supprime: #" + id)
+            );
+        }
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
 
@@ -84,6 +110,14 @@ public class TreatmentController {
         patient.setId(patientId);
         List<Treatment> treatments = treatmentService.findByPatientAndPractitioner(patient, currentUser);
         return ResponseEntity.ok(treatments);
+    }
+
+    private String formatPatientName(Patient patient) {
+        if (patient == null) return "patient inconnu";
+        String first = patient.getFirstname() != null ? patient.getFirstname().trim() : "";
+        String last = patient.getLastname() != null ? patient.getLastname().trim() : "";
+        String fullName = (first + " " + last).trim();
+        return fullName.isEmpty() ? "patient inconnu" : fullName;
     }
 }
 

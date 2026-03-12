@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.services;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -66,8 +67,13 @@ public class AuditService {
         createLog(eventType, AuditStatus.FAILURE, targetType, targetId, message, actor);
     }
 
-    public List<AuditLogResponse> getMyLogs(Long actorUserId) {
-        return auditLogRepository.findTop200ByActorUserIdOrderByOccurredAtDesc(actorUserId)
+    public List<AuditLogResponse> getMyLogs(User currentUser) {
+        if (currentUser == null) {
+            return List.of();
+        }
+
+        List<Long> actorUserIds = resolveVisibleActorIds(currentUser);
+        return auditLogRepository.findTop200ByActorUserIdInOrderByOccurredAtDesc(actorUserIds)
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -144,14 +150,43 @@ public class AuditService {
     }
 
     private AuditLogResponse toResponse(AuditLog log) {
+        String actorDisplayName = resolveActorDisplayName(log.getActorUserId(), log.getActorUsername());
         return new AuditLogResponse(
                 log.getOccurredAt(),
                 log.getEventType(),
                 log.getStatus(),
                 log.getMessage(),
+                log.getActorUserId(),
+                actorDisplayName,
                 log.getIpAddress(),
                 log.getLocation()
         );
+    }
+
+    private List<Long> resolveVisibleActorIds(User currentUser) {
+        User clinicOwner = currentUser.getOwnerDentist() != null ? currentUser.getOwnerDentist() : currentUser;
+        List<Long> actorUserIds = new ArrayList<>();
+        actorUserIds.add(clinicOwner.getId());
+        userRepository.findByOwnerDentist(clinicOwner)
+                .stream()
+                .map(User::getId)
+                .forEach(actorUserIds::add);
+        return actorUserIds.stream().distinct().toList();
+    }
+
+    private String resolveActorDisplayName(Long actorUserId, String fallbackUsername) {
+        if (actorUserId == null) {
+            return fallbackUsername;
+        }
+
+        return userRepository.findById(actorUserId)
+                .map(user -> {
+                    String first = user.getFirstname() != null ? user.getFirstname().trim() : "";
+                    String last = user.getLastname() != null ? user.getLastname().trim() : "";
+                    String fullName = (first + " " + last).trim();
+                    return fullName.isEmpty() ? user.getUsername() : fullName;
+                })
+                .orElse(fallbackUsername);
     }
 
     private String extractLocation(HttpServletRequest request, String ipAddress) {

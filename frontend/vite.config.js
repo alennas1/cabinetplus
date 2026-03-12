@@ -13,7 +13,6 @@ export default defineConfig({
         'apple-touch-icon.png',
         'pwa-192.png',
         'pwa-512.png',
-        'offline.html',
       ],
       manifest: {
         name: 'Cabinet+',
@@ -44,7 +43,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: '/offline.html',
+        navigateFallback: '/index.html',
       },
       devOptions: {
         enabled: true,

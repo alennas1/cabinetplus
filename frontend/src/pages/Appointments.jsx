@@ -492,7 +492,7 @@ export default function Appointments() {
     setAppointments(updated);
 
     toast.success(isEditing ? "Rendez-vous modifié !" : "Rendez-vous ajouté !");
-    closeModal();
+    closeModal(); // Reset form and close modal
   } catch (err) {
     console.error("Error saving appointment:", err);
 

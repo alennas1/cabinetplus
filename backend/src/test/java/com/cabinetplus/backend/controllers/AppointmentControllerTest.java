@@ -5,6 +5,7 @@ import com.cabinetplus.backend.enums.AppointmentStatus;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.AppointmentService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.UserService;
@@ -36,14 +37,16 @@ class AppointmentControllerTest {
     private UserService userService;
     private AppointmentService appointmentService;
     private PatientService patientService;
+    private AuditService auditService;
 
     @BeforeEach
     void setUp() {
         appointmentService = mock(AppointmentService.class);
         userService = mock(UserService.class);
         patientService = mock(PatientService.class);
+        auditService = mock(AuditService.class);
 
-        AppointmentController controller = new AppointmentController(appointmentService, userService, patientService);
+        AppointmentController controller = new AppointmentController(appointmentService, userService, patientService, auditService);
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -73,6 +76,7 @@ class AppointmentControllerTest {
         current.setId(1L);
         current.setUsername("dentist");
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         Appointment existing = new Appointment();
         existing.setId(10L);
@@ -104,6 +108,7 @@ class AppointmentControllerTest {
         current.setId(1L);
         current.setUsername("dentist");
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        when(userService.resolveClinicOwner(current)).thenReturn(current);
         when(appointmentService.findByPractitioner(current)).thenReturn(List.of());
         when(patientService.findById(99L)).thenReturn(Optional.empty());
 
@@ -133,6 +138,7 @@ class AppointmentControllerTest {
         current.setLastname("Doe");
         current.setUsername("dentist");
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        when(userService.resolveClinicOwner(current)).thenReturn(current);
         when(appointmentService.findByPractitioner(current)).thenReturn(List.of());
 
         PatientDto patientDto = new PatientDto(5L, "Ali", "Ben", 32, "Homme", "0550000000", LocalDateTime.now());

@@ -63,10 +63,6 @@ public class AdminDataLoader {
                 dentist.setExpirationDate(LocalDateTime.now().plusDays(basicPlan.getDurationDays()));
             }
 
-            // Phone OTP setup
-            dentist.setPhoneOtp("393077");
-            dentist.setPhoneOtpExpires(LocalDateTime.of(2026, 7, 24, 2, 45, 16, 998876));
-
             // Clinic info
             dentist.setClinicName("Dentist Clinic");
             dentist.setAddress("123 Main Street, City");

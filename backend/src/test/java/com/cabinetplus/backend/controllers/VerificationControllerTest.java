@@ -2,7 +2,7 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
-import com.cabinetplus.backend.services.OtpService;
+import com.cabinetplus.backend.services.PhoneVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -11,11 +11,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -27,14 +25,14 @@ class VerificationControllerTest {
 
     private MockMvc mockMvc;
     private UserRepository userRepository;
-    private OtpService otpService;
+    private PhoneVerificationService phoneVerificationService;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
-        otpService = mock(OtpService.class);
+        phoneVerificationService = mock(PhoneVerificationService.class);
 
-        VerificationController controller = new VerificationController(userRepository, otpService);
+        VerificationController controller = new VerificationController(userRepository, phoneVerificationService);
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
@@ -67,7 +65,7 @@ class VerificationControllerTest {
         user.setUsername("dentist");
         user.setPhoneNumber("0550000000");
         when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
-        doThrow(new RuntimeException("provider down")).when(otpService).sendSmsOtp(anyString(), anyString());
+        doThrow(new RuntimeException("provider down")).when(phoneVerificationService).sendVerificationCode(any());
 
         mockMvc.perform(post("/api/verify/phone/send").with(userPrincipal("dentist")))
                 .andExpect(status().isInternalServerError())
@@ -78,9 +76,9 @@ class VerificationControllerTest {
     void checkPhoneOtpInvalidCodeReturns400AndErrorKey() throws Exception {
         User user = new User();
         user.setUsername("dentist");
-        user.setPhoneOtp("123456");
-        user.setPhoneOtpExpires(LocalDateTime.now().plusMinutes(5));
+        user.setPhoneNumber("0550000000");
         when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(phoneVerificationService.checkVerificationCode(any(), any())).thenReturn(false);
 
         mockMvc.perform(post("/api/verify/phone/check")
                         .with(userPrincipal("dentist"))
@@ -90,14 +88,6 @@ class VerificationControllerTest {
                 .andExpect(jsonPath("$.error").value("Code SMS invalide"));
     }
 
-    @Test
-    void simulatePhoneVerificationNonLocalhostReturns403AndErrorKey() throws Exception {
-        mockMvc.perform(post("/api/verify/phone/simulate")
-                        .with(remoteAddr("10.10.10.10")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("Simulation autorisee uniquement depuis localhost"));
-    }
-
     private static RequestPostProcessor userPrincipal(String username) {
         return request -> {
             request.setUserPrincipal(() -> username);
@@ -105,10 +95,4 @@ class VerificationControllerTest {
         };
     }
 
-    private static RequestPostProcessor remoteAddr(String ip) {
-        return request -> {
-            request.setRemoteAddr(ip);
-            return request;
-        };
-    }
 }

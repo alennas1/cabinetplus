@@ -365,6 +365,100 @@
   visibility: hidden;
 }
 
+.login-reset-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 18, 31, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 1.5rem;
+}
+
+.login-reset-card {
+  width: min(520px, 95vw);
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 1.8rem;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-reset-card h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #0d1828;
+}
+
+.login-reset-sub {
+  margin: 0;
+  color: #5c6877;
+  font-size: 0.95rem;
+}
+
+.login-reset-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.login-reset-form input {
+  min-height: 54px;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  border: 1.5px solid #ccd3db;
+  font-size: 0.98rem;
+}
+
+.login-reset-form input:focus {
+  outline: none;
+  border-color: var(--login-blue);
+}
+
+.login-reset-form button,
+.login-reset-success button {
+  border: none;
+  border-radius: 999px;
+  background: var(--login-blue);
+  color: #fff;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.login-reset-form button:hover:not(:disabled),
+.login-reset-success button:hover:not(:disabled) {
+  background: var(--login-blue-deep);
+}
+
+.login-reset-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-reset-success {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.login-reset-success p {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.98rem;
+}
+
+.login-reset-error {
+  margin: 0;
+  color: #c62828;
+  font-size: 0.95rem;
+}
+
 @media (max-width: 1120px) {
   .login-main {
     grid-template-columns: 1fr;

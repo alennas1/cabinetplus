@@ -61,8 +61,6 @@ public class User {
     @Column(length = 20)
     private String phoneNumber;
 
-
-
     private LocalDateTime createdAt;
     private LocalDateTime expirationDate;
 
@@ -73,10 +71,6 @@ public class User {
     
     @Column(columnDefinition = "TEXT") // TEXT allows for longer addresses
     private String address;
-
-
-private String phoneOtp;
-private LocalDateTime phoneOtpExpires;
 
     // --- Gestion Cabinet PIN (optional) ---
     private boolean gestionCabinetPinEnabled = false;

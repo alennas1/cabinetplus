@@ -6,6 +6,7 @@ import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.PhoneVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -13,6 +14,7 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -43,6 +45,8 @@ class AuthControllerTest {
         refreshTokenRepository = mock(RefreshTokenRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         AuditService auditService = mock(AuditService.class);
+        PhoneVerificationService phoneVerificationService = mock(PhoneVerificationService.class);
+        MockEnvironment environment = new MockEnvironment();
 
         AuthController controller = new AuthController(
                 authenticationManager,
@@ -50,7 +54,9 @@ class AuthControllerTest {
                 userRepository,
                 refreshTokenRepository,
                 passwordEncoder,
-                auditService
+                auditService,
+                phoneVerificationService,
+                environment
         );
 
         ReflectionTestUtils.setField(controller, "accessTokenMs", 60000L);
@@ -68,6 +74,10 @@ class AuthControllerTest {
 
     @Test
     void loginWithInvalidCredentialsReturns401AndErrorKey() throws Exception {
+        User user = new User();
+        user.setUsername("bad");
+        user.setRole(UserRole.DENTIST);
+        when(userRepository.findByUsername("bad")).thenReturn(Optional.of(user));
         when(authenticationManager.authenticate(any()))
                 .thenThrow(new BadCredentialsException("bad credentials"));
 
@@ -75,7 +85,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"bad\",\"password\":\"bad\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Nom d'utilisateur ou mot de passe invalide"));
+                .andExpect(jsonPath("$.error").value("Mot de passe invalide"));
     }
 
     @Test
@@ -90,7 +100,7 @@ class AuthControllerTest {
                 .content("""
                                 {
                                   "username":"already",
-                                  "password":"123456",
+                                  "password":"StrongPass1!",
                                   "firstname":"A",
                                   "lastname":"B",
                                   "phoneNumber":"0550000000",

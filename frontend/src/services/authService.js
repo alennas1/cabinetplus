@@ -168,6 +168,20 @@ export const register = async (userData) => {
   return data;
 };
 
+export const sendPasswordResetCode = async (phoneNumber) => {
+  const { data } = await api.post("/auth/password/reset/send", { phoneNumber });
+  return data;
+};
+
+export const confirmPasswordReset = async ({ phoneNumber, code, newPassword }) => {
+  const { data } = await api.post("/auth/password/reset/confirm", {
+    phoneNumber,
+    code,
+    newPassword,
+  });
+  return data;
+};
+
 export const logout = async () => {
   isLoggingOut = true;
   await api.post("/auth/logout");

@@ -1,9 +1,11 @@
 package com.cabinetplus.backend.controllers;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
+import com.cabinetplus.backend.dto.PasswordResetConfirmRequest;
+import com.cabinetplus.backend.dto.PasswordResetSendRequest;
 import com.cabinetplus.backend.dto.RegisterRequest;
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.AuditEventType;
@@ -28,8 +32,10 @@ import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.PhoneVerificationService;
 
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -42,6 +48,8 @@ public class AuthController {
     private final RefreshTokenRepository refreshRepo;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final PhoneVerificationService phoneVerificationService;
+    private final boolean devProfile;
 
     @Value("${jwt.access.expiration-ms}")
     private long accessTokenMs;
@@ -57,13 +65,17 @@ public class AuthController {
 
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
                           UserRepository userRepo, RefreshTokenRepository refreshRepo,
-                          PasswordEncoder passwordEncoder, AuditService auditService) {
+                          PasswordEncoder passwordEncoder, AuditService auditService,
+                          PhoneVerificationService phoneVerificationService,
+                          Environment environment) {
         this.authManager = authManager;
         this.jwtUtil = jwtUtil;
         this.userRepo = userRepo;
         this.refreshRepo = refreshRepo;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.phoneVerificationService = phoneVerificationService;
+        this.devProfile = Arrays.asList(environment.getActiveProfiles()).contains("dev");
     }
 
     // ---------------- COOKIE HELPER ----------------
@@ -282,6 +294,123 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         return ResponseEntity.ok().build();
+    }
+
+    // ---------------- RESET PASSWORD (SMS) ----------------
+    @PostMapping("/password/reset/send")
+    public ResponseEntity<?> sendPasswordReset(@Valid @RequestBody PasswordResetSendRequest request,
+                                               HttpServletRequest httpRequest) {
+        String formattedNumber = formatPhoneNumber(request.phoneNumber());
+        if (formattedNumber == null || formattedNumber.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Numero de telephone invalide ou manquant."));
+        }
+
+        User user = findUserByPhoneNumber(request.phoneNumber());
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("error", "Numero de telephone introuvable"));
+        }
+
+        try {
+            if (devProfile && isLocalRequest(httpRequest)) {
+                return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
+            }
+            phoneVerificationService.sendVerificationCode(formattedNumber);
+            return ResponseEntity.ok(Map.of("message", "Code SMS envoye"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Service SMS indisponible"));
+        }
+    }
+
+    @PostMapping("/password/reset/confirm")
+    public ResponseEntity<?> confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request,
+                                                  HttpServletRequest httpRequest) {
+        String formattedNumber = formatPhoneNumber(request.phoneNumber());
+        if (formattedNumber == null || formattedNumber.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Numero de telephone invalide ou manquant."));
+        }
+
+        User user = findUserByPhoneNumber(request.phoneNumber());
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("error", "Numero de telephone introuvable"));
+        }
+
+        boolean approved;
+        try {
+            if (devProfile && isLocalRequest(httpRequest)) {
+                approved = true;
+            } else {
+                approved = phoneVerificationService.checkVerificationCode(formattedNumber, request.code());
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Service SMS indisponible"));
+        }
+
+        if (!approved) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Code SMS invalide"));
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setPhoneVerified(true);
+        userRepo.save(user);
+        refreshRepo.deleteAllByUser(user);
+
+        auditService.logSuccessAsUser(
+                user,
+                AuditEventType.USER_PASSWORD_CHANGE,
+                "USER",
+                String.valueOf(user.getId()),
+                "Mot de passe reinitialise par SMS"
+        );
+
+        return ResponseEntity.ok(Map.of("message", "Mot de passe reinitialise"));
+    }
+
+    // ---------------- HELPERS ----------------
+    private String formatPhoneNumber(String number) {
+        if (number == null || number.isBlank()) return null;
+        String clean = number.replaceAll("[^0-9]", "");
+
+        if (clean.startsWith("0") && clean.length() == 10) return "+213" + clean.substring(1);
+        if (clean.startsWith("213") && clean.length() == 12) return "+" + clean;
+        if (clean.length() >= 10) return "+" + clean;
+
+        return null;
+    }
+
+    private User findUserByPhoneNumber(String rawNumber) {
+        if (rawNumber == null || rawNumber.isBlank()) return null;
+        String clean = rawNumber.replaceAll("[^0-9]", "");
+
+        if (clean.startsWith("0") && clean.length() == 10) {
+            String local = clean;
+            String intl = "+213" + clean.substring(1);
+            return userRepo.findFirstByPhoneNumberOrderByIdAsc(local)
+                    .or(() -> userRepo.findFirstByPhoneNumberOrderByIdAsc(intl))
+                    .orElse(null);
+        }
+
+        if (clean.startsWith("213") && clean.length() == 12) {
+            String intl = "+" + clean;
+            String local = "0" + clean.substring(3);
+            return userRepo.findFirstByPhoneNumberOrderByIdAsc(intl)
+                    .or(() -> userRepo.findFirstByPhoneNumberOrderByIdAsc(local))
+                    .orElse(null);
+        }
+
+        if (rawNumber.startsWith("+")) {
+            String intl = "+" + clean;
+            return userRepo.findFirstByPhoneNumberOrderByIdAsc(intl).orElse(null);
+        }
+
+        return userRepo.findFirstByPhoneNumberOrderByIdAsc(rawNumber).orElse(null);
+    }
+
+    private boolean isLocalRequest(HttpServletRequest request) {
+        if (request == null) return false;
+        String remoteAddr = request.getRemoteAddr();
+        return "127.0.0.1".equals(remoteAddr)
+                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
+                || "::1".equals(remoteAddr);
     }
     
 }

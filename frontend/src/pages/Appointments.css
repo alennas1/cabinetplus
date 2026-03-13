@@ -79,6 +79,14 @@ html, body {
   min-width: 120px;
 }
 
+.slot-preview-group.left {
+  justify-content: flex-start;
+}
+
+.slot-preview-group.right {
+  justify-content: flex-end;
+}
+
 .slot-preview-btn {
   padding: 6px 12px;
   border-radius: 10px;

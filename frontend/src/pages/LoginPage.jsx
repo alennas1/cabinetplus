@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
-import { login, getCurrentUser } from "../services/authService";
+import { login, getCurrentUser, sendPasswordResetCode, confirmPasswordReset } from "../services/authService";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "react-feather";
@@ -23,6 +23,14 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeIllustration, setActiveIllustration] = useState(0);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetStep, setResetStep] = useState("phone");
+  const [resetPhone, setResetPhone] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -118,6 +126,70 @@ const LoginPage = () => {
     }
   };
 
+  const openResetModal = () => {
+    setResetOpen(true);
+    setResetStep("phone");
+    setResetPhone("");
+    setResetCode("");
+    setResetNewPassword("");
+    setResetConfirmPassword("");
+    setResetError("");
+  };
+
+  const closeResetModal = () => {
+    setResetOpen(false);
+    setResetLoading(false);
+    setResetError("");
+  };
+
+  const handleSendResetCode = async () => {
+    if (!resetPhone.trim()) {
+      setResetError("Entrez votre numero de telephone.");
+      return;
+    }
+    setResetLoading(true);
+    setResetError("");
+    try {
+      await sendPasswordResetCode(resetPhone.trim());
+      setResetStep("code");
+    } catch (err) {
+      setResetError(getApiErrorMessage(err, "Impossible d'envoyer le code."));
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    if (!resetCode.trim()) {
+      setResetError("Entrez le code SMS.");
+      return;
+    }
+    if (!resetNewPassword.trim()) {
+      setResetError("Entrez un nouveau mot de passe.");
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    setResetLoading(true);
+    setResetError("");
+    try {
+      await confirmPasswordReset({
+        phoneNumber: resetPhone.trim(),
+        code: resetCode.trim(),
+        newPassword: resetNewPassword,
+      });
+      setResetStep("done");
+      setIdentifier(resetPhone.trim());
+    } catch (err) {
+      setResetError(getApiErrorMessage(err, "Code SMS invalide."));
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div className="login-shell">
       <div className="login-main">
@@ -209,7 +281,7 @@ const LoginPage = () => {
               </button>
             </div>
 
-            <button type="button" className="forgot-password-link">
+            <button type="button" className="forgot-password-link" onClick={openResetModal}>
               Mot de passe oublie ?
             </button>
 
@@ -231,6 +303,72 @@ const LoginPage = () => {
           <a href="#">Assistance</a>
         </div>
       </footer>
+
+      {resetOpen && (
+        <div className="login-reset-overlay" onClick={closeResetModal}>
+          <div className="login-reset-card" onClick={(e) => e.stopPropagation()}>
+            <h3>Reinitialiser le mot de passe</h3>
+            <p className="login-reset-sub">
+              Nous envoyons un code SMS pour verifier votre numero.
+            </p>
+
+            {resetStep === "phone" && (
+              <div className="login-reset-form">
+                <input
+                  type="text"
+                  placeholder="Numero de telephone"
+                  value={resetPhone}
+                  onChange={(e) => setResetPhone(e.target.value)}
+                  disabled={resetLoading}
+                />
+                <button type="button" onClick={handleSendResetCode} disabled={resetLoading}>
+                  {resetLoading ? "Envoi..." : "Envoyer le code"}
+                </button>
+              </div>
+            )}
+
+            {resetStep === "code" && (
+              <div className="login-reset-form">
+                <input
+                  type="text"
+                  placeholder="Code SMS"
+                  value={resetCode}
+                  onChange={(e) => setResetCode(e.target.value)}
+                  disabled={resetLoading}
+                />
+                <input
+                  type="password"
+                  placeholder="Nouveau mot de passe"
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  disabled={resetLoading}
+                />
+                <input
+                  type="password"
+                  placeholder="Confirmer le mot de passe"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  disabled={resetLoading}
+                />
+                <button type="button" onClick={handleConfirmReset} disabled={resetLoading}>
+                  {resetLoading ? "Verification..." : "Reinitialiser"}
+                </button>
+              </div>
+            )}
+
+            {resetStep === "done" && (
+              <div className="login-reset-success">
+                <p>Mot de passe reinitialise. Vous pouvez vous connecter.</p>
+                <button type="button" onClick={closeResetModal}>
+                  Retour a la connexion
+                </button>
+              </div>
+            )}
+
+            {resetError && <p className="login-reset-error">{resetError}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -80,6 +80,22 @@ public class VerificationController {
                 if (e.getCode() != null) body.put("twilioCode", e.getCode());
                 return ResponseEntity.status(429).body(body);
             }
+            if (status == 401 || status == 403) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Configuration SMS invalide");
+                body.put("reason", "auth_failed");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+            }
+            if (status == 404) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Configuration SMS invalide");
+                body.put("reason", "service_not_found");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+            }
             var body = new java.util.HashMap<String, Object>();
             body.put("error", "Service SMS indisponible");
             body.put("reason", "upstream_error");
@@ -134,6 +150,22 @@ public class VerificationController {
                 respBody.put("twilioStatus", status);
                 if (e.getCode() != null) respBody.put("twilioCode", e.getCode());
                 return ResponseEntity.status(429).body(respBody);
+            }
+            if (status == 401 || status == 403) {
+                var respBody = new java.util.HashMap<String, Object>();
+                respBody.put("error", "Configuration SMS invalide");
+                respBody.put("reason", "auth_failed");
+                respBody.put("twilioStatus", status);
+                if (e.getCode() != null) respBody.put("twilioCode", e.getCode());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(respBody);
+            }
+            if (status == 404) {
+                var respBody = new java.util.HashMap<String, Object>();
+                respBody.put("error", "Configuration SMS invalide");
+                respBody.put("reason", "service_not_found");
+                respBody.put("twilioStatus", status);
+                if (e.getCode() != null) respBody.put("twilioCode", e.getCode());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(respBody);
             }
             var respBody = new java.util.HashMap<String, Object>();
             respBody.put("error", "Service SMS indisponible");

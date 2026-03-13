@@ -401,6 +401,22 @@ if (deviceId == null || deviceId.isBlank()) {
                 if (e.getCode() != null) body.put("twilioCode", e.getCode());
                 return ResponseEntity.status(429).body(body);
             }
+            if (status == 401 || status == 403) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Configuration SMS invalide");
+                body.put("reason", "auth_failed");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(500).body(body);
+            }
+            if (status == 404) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Configuration SMS invalide");
+                body.put("reason", "service_not_found");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(500).body(body);
+            }
             var body = new java.util.HashMap<String, Object>();
             body.put("error", "Service SMS indisponible");
             body.put("reason", "upstream_error");
@@ -460,6 +476,22 @@ if (deviceId == null || deviceId.isBlank()) {
                 body.put("twilioStatus", status);
                 if (e.getCode() != null) body.put("twilioCode", e.getCode());
                 return ResponseEntity.status(429).body(body);
+            }
+            if (status == 401 || status == 403) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Configuration SMS invalide");
+                body.put("reason", "auth_failed");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(500).body(body);
+            }
+            if (status == 404) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Configuration SMS invalide");
+                body.put("reason", "service_not_found");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(500).body(body);
             }
             var body = new java.util.HashMap<String, Object>();
             body.put("error", "Service SMS indisponible");

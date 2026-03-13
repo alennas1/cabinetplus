@@ -63,6 +63,13 @@ const Security = () => {
     return `${os} é ${browser}`;
   };
 
+  const formatDeviceId = (deviceId) => {
+    if (!deviceId) return null;
+    const value = String(deviceId);
+    if (value.length <= 12) return value;
+    return `${value.slice(0, 4)}...${value.slice(-4)}`;
+  };
+
   const formatSessionTime = (value) => {
     if (!value) return "é";
     const date = new Date(value);
@@ -180,6 +187,11 @@ const Security = () => {
                     <div className="session-meta">
                       Derniére activité : {formatSessionTime(session.lastUsedAt || session.createdAt)}
                     </div>
+                    {session.deviceId && (
+                      <div className="session-meta">
+                        ID appareil : {formatDeviceId(session.deviceId)}
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"

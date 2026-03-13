@@ -3,6 +3,7 @@ package com.cabinetplus.backend.controllers;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
@@ -90,6 +91,29 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
+    private String resolveDeviceId(HttpServletRequest request) {
+    if (request.getCookies() == null) return null;
+
+    for (var cookie : request.getCookies()) {
+        if ("device_id".equals(cookie.getName())) {
+            return cookie.getValue();
+        }
+    }
+    return null;
+}
+
+private void addDeviceCookie(HttpServletResponse response, String deviceId) {
+    ResponseCookie cookie = ResponseCookie.from("device_id", deviceId)
+            .httpOnly(true)
+            .secure(cookieSecure)
+            .sameSite(cookieSameSite)
+            .path("/")
+            .maxAge(60L * 60 * 24 * 365)
+            .build();
+
+    response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+}
+    
     // ---------------- LOGIN ----------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletResponse response, HttpServletRequest request) {
@@ -132,9 +156,17 @@ public class AuthController {
 
             String accessToken = jwtUtil.generateAccessToken(user);
 
+            String deviceId = resolveDeviceId(request);
+
+if (deviceId == null || deviceId.isBlank()) {
+    deviceId = java.util.UUID.randomUUID().toString();
+    addDeviceCookie(response, deviceId);
+}
+            revokeActiveSessionsForDevice(user, deviceId);
             RefreshToken refreshToken = new RefreshToken();
             refreshToken.setUser(user);
             refreshToken.setToken(jwtUtil.generateRefreshToken(resolvedUsername, refreshTokenMs));
+            refreshToken.setDeviceId(deviceId);
             refreshToken.setCreatedAt(LocalDateTime.now());
             refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
             refreshToken.setLastUsedAt(LocalDateTime.now());
@@ -198,9 +230,19 @@ public class AuthController {
 
         String accessToken = jwtUtil.generateAccessToken(saved);
 
+        String deviceId = resolveDeviceId(httpRequest);
+
+if (deviceId == null || deviceId.isBlank()) {
+    deviceId = java.util.UUID.randomUUID().toString();
+    addDeviceCookie(response, deviceId);
+}
+        revokeActiveSessionsForDevice(saved, deviceId);
+
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(saved);
         refreshToken.setToken(jwtUtil.generateRefreshToken(saved.getUsername(), refreshTokenMs));
+        refreshToken.setDeviceId(deviceId);
+
         refreshToken.setCreatedAt(LocalDateTime.now());
         refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
         refreshToken.setLastUsedAt(LocalDateTime.now());
@@ -242,6 +284,7 @@ public class AuthController {
                     }
 
                     // Only generate new access token, no refresh token rotation
+                    ensureDeviceIdCookieAndToken(tokenEntity, request, response);
                     tokenEntity.setLastUsedAt(LocalDateTime.now());
                     fillSessionMetaIfMissing(tokenEntity, request);
                     refreshRepo.save(tokenEntity);
@@ -531,6 +574,37 @@ public class AuthController {
             return null;
         }
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private void revokeActiveSessionsForDevice(User user, String deviceId) {
+        if (user == null || deviceId == null || deviceId.isBlank()) return;
+        var existing = refreshRepo.findActiveSessionsByDevice(user, deviceId, LocalDateTime.now());
+        if (existing == null || existing.isEmpty()) return;
+        for (var token : existing) {
+            token.setRevoked(true);
+        }
+        refreshRepo.saveAll(existing);
+    }
+
+    private void ensureDeviceIdCookieAndToken(RefreshToken tokenEntity, HttpServletRequest request, HttpServletResponse response) {
+        if (tokenEntity == null || response == null) return;
+
+        String tokenDeviceId = tokenEntity.getDeviceId();
+        String cookieDeviceId = resolveDeviceId(request);
+
+        String resolvedDeviceId = (tokenDeviceId != null && !tokenDeviceId.isBlank())
+                ? tokenDeviceId
+                : (cookieDeviceId != null && !cookieDeviceId.isBlank())
+                ? cookieDeviceId
+                : UUID.randomUUID().toString();
+
+        if (tokenDeviceId == null || tokenDeviceId.isBlank()) {
+            tokenEntity.setDeviceId(resolvedDeviceId);
+        }
+
+        if (cookieDeviceId == null || cookieDeviceId.isBlank() || !cookieDeviceId.equals(resolvedDeviceId)) {
+            addDeviceCookie(response, resolvedDeviceId);
+        }
     }
     
 }

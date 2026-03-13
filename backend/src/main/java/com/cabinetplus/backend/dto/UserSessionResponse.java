@@ -10,5 +10,6 @@ public record UserSessionResponse(
         String userAgent,
         String ipAddress,
         String location,
+        String deviceId,
         boolean current
 ) {}

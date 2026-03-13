@@ -82,7 +82,11 @@ const Security = () => {
 
     try {
       await updatePassword({ oldPassword, newPassword, logoutAll: logoutAllDevices });
-      toast.success(logoutAllDevices ? "Mot de passe mis à jour. Tous les appareils ont été déconnectés." : "Mot de passe mis à jour avec succès");
+      toast.success(
+        logoutAllDevices
+          ? "Mot de passe mis Ã  jour. Tous les appareils ont Ã©tÃ© dÃ©connectÃ©s."
+          : "Mot de passe mis Ã  jour avec succÃ¨s"
+      );
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -91,7 +95,7 @@ const Security = () => {
       setSessions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du mot de passe"));
+      toast.error(getApiErrorMessage(err, "Erreur lors de la mise Ã  jour du mot de passe"));
     }
   };
 
@@ -108,6 +112,7 @@ const Security = () => {
       : ua.includes("android")
       ? "Android"
       : "Appareil";
+
     const browser = ua.includes("edg")
       ? "Edge"
       : ua.includes("chrome") && !ua.includes("chromium")
@@ -117,13 +122,21 @@ const Security = () => {
       : ua.includes("safari") && !ua.includes("chrome")
       ? "Safari"
       : "Navigateur";
-    return `${os} • ${browser}`;
+
+    return `${os} â€¢ ${browser}`;
+  };
+
+  const formatDeviceId = (deviceId) => {
+    if (!deviceId) return null;
+    const value = String(deviceId);
+    if (value.length <= 12) return value;
+    return `${value.slice(0, 4)}...${value.slice(-4)}`;
   };
 
   const formatSessionTime = (value) => {
-    if (!value) return "—";
+    if (!value) return "â€”";
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
+    if (Number.isNaN(date.getTime())) return "â€”";
     return date.toLocaleString("fr-FR");
   };
 
@@ -134,14 +147,15 @@ const Security = () => {
       const result = await revokeSession(sessionId);
       const data = await getActiveSessions();
       setSessions(Array.isArray(data) ? data : []);
+
       if (result?.revokedCurrent) {
-        toast.info("Cette session a été déconnectée.");
+        toast.info("Cette session a Ã©tÃ© dÃ©connectÃ©e.");
       } else {
-        toast.success("Session déconnectée.");
+        toast.success("Session dÃ©connectÃ©e.");
       }
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible de déconnecter la session"));
+      toast.error(getApiErrorMessage(err, "Impossible de dÃ©connecter la session"));
     } finally {
       setSessionsBusy(null);
     }
@@ -149,14 +163,17 @@ const Security = () => {
 
   const validateNewPin = () => {
     const trimmed = gcNewPin.trim();
+
     if (!/^\d{4}$/.test(trimmed)) {
       toast.error("Le PIN doit contenir exactement 4 chiffres");
       return null;
     }
+
     if (trimmed !== gcConfirmPin.trim()) {
       toast.error("Les codes PIN ne correspondent pas");
       return null;
     }
+
     return trimmed;
   };
 
@@ -168,6 +185,7 @@ const Security = () => {
 
   const handleEnableGestionCabinetPin = async () => {
     if (!userKey) return;
+
     const trimmed = validateNewPin();
     if (!trimmed) return;
 
@@ -175,17 +193,19 @@ const Security = () => {
       await enableGestionCabinetPin(trimmed);
       setGcPinEnabled(true);
       resetPinFields();
-      toast.success("Sécurisation activée");
+      toast.success("SÃ©curisation activÃ©e");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible d'activer la sécurisation"));
+      toast.error(getApiErrorMessage(err, "Impossible d'activer la sÃ©curisation"));
     }
   };
 
   const handleChangeGestionCabinetPin = async () => {
     if (!userKey) return;
+
     const trimmed = validateNewPin();
     if (!trimmed) return;
+
     if (!gcPassword.trim()) {
       toast.error("Entrez votre mot de passe");
       return;
@@ -195,7 +215,7 @@ const Security = () => {
       await verifyPassword({ password: gcPassword });
       await changeGestionCabinetPin(trimmed, gcPassword);
       resetPinFields();
-      toast.success("PIN mis à jour");
+      toast.success("PIN mis Ã  jour");
     } catch (err) {
       console.error(err);
       toast.error(getApiErrorMessage(err, "Impossible de modifier le PIN"));
@@ -204,8 +224,9 @@ const Security = () => {
 
   const handleDisableGestionCabinetPin = async () => {
     if (!userKey) return;
+
     if (!gcPassword.trim()) {
-      toast.error("Entrez votre mot de passe pour désactiver");
+      toast.error("Entrez votre mot de passe pour dÃ©sactiver");
       return;
     }
 
@@ -214,16 +235,17 @@ const Security = () => {
       await disableGestionCabinetPin(gcPassword);
       setGcPinEnabled(false);
       resetPinFields();
-      toast.success("Sécurisation désactivée");
+      toast.success("SÃ©curisation dÃ©sactivÃ©e");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible de désactiver la sécurisation"));
+      toast.error(getApiErrorMessage(err, "Impossible de dÃ©sactiver la sÃ©curisation"));
     }
   };
 
   return (
     <div className="settings-container">
-      <PageHeader title="Sécurité" subtitle="Changer le mot de passe" />
+      <PageHeader title="SÃ©curitÃ©" subtitle="Changer le mot de passe" />
+
       <div className="security-content">
         <div className="security-field">
           <label>Ancien mot de passe</label>
@@ -234,6 +256,7 @@ const Security = () => {
             onChange={(e) => setOldPassword(e.target.value)}
           />
         </div>
+
         <div className="security-field">
           <label>Nouveau mot de passe</label>
           <input
@@ -243,6 +266,7 @@ const Security = () => {
             onChange={(e) => setNewPassword(e.target.value)}
           />
         </div>
+
         <div className="security-field">
           <label>Confirmer le mot de passe</label>
           <input
@@ -252,20 +276,23 @@ const Security = () => {
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
         </div>
+
         <label className="security-toggle">
           <input
             type="checkbox"
             checked={logoutAllDevices}
             onChange={(e) => setLogoutAllDevices(e.target.checked)}
           />
-          <span>Déconnecter tous les appareils</span>
+          <span>DÃ©connecter tous les appareils</span>
         </label>
+
         <button className="security-btn" onClick={handlePasswordChange}>
-          Mettre à jour le mot de passe
+          Mettre Ã  jour le mot de passe
         </button>
 
         <div className="security-sessions">
-          <PageHeader title="Sessions en ligne" subtitle="Appareils connectés" />
+          <PageHeader title="Sessions en ligne" subtitle="Appareils connectÃ©s" />
+
           {sessionsLoading ? (
             <div className="session-empty">Chargement...</div>
           ) : sessions.length === 0 ? (
@@ -273,26 +300,44 @@ const Security = () => {
           ) : (
             <div className="session-list">
               {sessions.map((session) => (
-                <div key={session.id} className={`session-card ${session.current ? "current" : ""}`}>
+                <div
+                  key={session.id}
+                  className={`session-card ${session.current ? "current" : ""}`}
+                >
                   <div className="session-info">
                     <div className="session-device">
                       {formatDeviceLabel(session.userAgent)}
-                      {session.current && <span className="session-badge">Cet appareil</span>}
+                      {session.current && (
+                        <span className="session-badge">Cet appareil</span>
+                      )}
                     </div>
+
                     <div className="session-meta">
-                      {(session.location || "Localisation inconnue")} • {(session.ipAddress || "IP inconnue")}
+                      {(session.location || "Localisation inconnue")} â€¢{" "}
+                      {(session.ipAddress || "IP inconnue")}
                     </div>
+
                     <div className="session-meta">
-                      Dernière activité : {formatSessionTime(session.lastUsedAt || session.createdAt)}
+                      DerniÃ¨re activitÃ© :{" "}
+                      {formatSessionTime(session.lastUsedAt || session.createdAt)}
                     </div>
+
+                    {session.deviceId && (
+                      <div className="session-meta">
+                        ID appareil : {formatDeviceId(session.deviceId)}
+                      </div>
+                    )}
                   </div>
+
                   <button
                     type="button"
                     className="session-btn"
                     onClick={() => handleRevokeSession(session.id)}
                     disabled={sessionsBusy === session.id}
                   >
-                    {sessionsBusy === session.id ? "Déconnexion..." : "Déconnecter"}
+                    {sessionsBusy === session.id
+                      ? "DÃ©connexion..."
+                      : "DÃ©connecter"}
                   </button>
                 </div>
               ))}
@@ -300,9 +345,11 @@ const Security = () => {
           )}
         </div>
 
-
         <div style={{ marginTop: "10px" }}>
-          <PageHeader title="Code PIN" subtitle="Sécuriser l'accès à Gestion cabinet" />
+          <PageHeader
+            title="Code PIN"
+            subtitle="SÃ©curiser l'accÃ¨s Ã  Gestion cabinet"
+          />
         </div>
 
         {gcPinEnabled ? (
@@ -327,12 +374,19 @@ const Security = () => {
               <PinCodeInput value={gcConfirmPin} onChange={setGcConfirmPin} />
             </div>
 
-            <button className="security-btn" onClick={handleChangeGestionCabinetPin}>
-              Mettre à jour le PIN
+            <button
+              className="security-btn"
+              onClick={handleChangeGestionCabinetPin}
+            >
+              Mettre Ã  jour le PIN
             </button>
 
-            <button className="security-btn" style={{ background: "#ef4444" }} onClick={handleDisableGestionCabinetPin}>
-              Désactiver la sécurisation
+            <button
+              className="security-btn"
+              style={{ background: "#ef4444" }}
+              onClick={handleDisableGestionCabinetPin}
+            >
+              DÃ©sactiver la sÃ©curisation
             </button>
           </>
         ) : (
@@ -347,12 +401,16 @@ const Security = () => {
               <PinCodeInput value={gcConfirmPin} onChange={setGcConfirmPin} />
             </div>
 
-            <button className="security-btn" onClick={handleEnableGestionCabinetPin}>
-              Activer la sécurisation
+            <button
+              className="security-btn"
+              onClick={handleEnableGestionCabinetPin}
+            >
+              Activer la sÃ©curisation
             </button>
           </>
         )}
       </div>
+
       <ToastContainer
         position="bottom-right"
         autoClose={3000}
@@ -368,5 +426,3 @@ const Security = () => {
 };
 
 export default Security;
-
-

@@ -287,10 +287,13 @@ public class UserController {
                         session.getUserAgent(),
                         session.getIpAddress(),
                         session.getLocation(),
+                        session.getDeviceId(),
                         refreshTokenCookie != null && refreshTokenCookie.equals(session.getToken())
                 ))
                 .toList();
     }
+
+    
 
     @DeleteMapping("/me/sessions/{sessionId}")
     public Map<String, Object> revokeSession(
@@ -484,4 +487,3 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         return Boolean.parseBoolean(String.valueOf(value));
     }
 }
-

@@ -65,6 +65,7 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/hand-payments/all",
                     "/api/hand-payments/pending",
+                    "/api/hand-payments/user/**",
                     "/api/hand-payments/confirm/**",
                     "/api/hand-payments/reject/**",
                     "/api/users/dentists",

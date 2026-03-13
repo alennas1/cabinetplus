@@ -63,6 +63,12 @@ export const getAllDentists = async () => {
   return response.data;
 };
 
+/** Get a user by ID (admin) */
+export const getUserById = async (id) => {
+  const response = await api.get(`${BASE_URL}/${id}`);
+  return response.data;
+};
+
 /** Get all admins */
 export const getAllAdmins = async () => {
   const response = await api.get(`${BASE_URL}/admins`);

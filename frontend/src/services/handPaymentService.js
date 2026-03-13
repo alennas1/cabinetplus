@@ -28,6 +28,14 @@ export const getMyHandPayments = async () => {
 };
 
 /**
+ * Get all hand payments for a specific user (ADMIN only)
+ */
+export const getHandPaymentsByUserId = async (userId) => {
+  const response = await api.get(`${BASE_URL}/user/${userId}`);
+  return response.data;
+};
+
+/**
  * Create a new hand payment
  * @param {Object} paymentData - { planId, amount, notes }
  */

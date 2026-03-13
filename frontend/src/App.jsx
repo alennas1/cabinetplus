@@ -39,6 +39,7 @@ import GestionCabinet from "./pages/GestionCabinet";
 import Catalogue from "./pages/Catalogue";
 // --- Admin Pages ---
 import DentistsPage from "./pages/Dentists"; 
+import DentistDetails from "./pages/DentistDetails";
 import PendingPaymentsPage from "./pages/PendingPayments"; 
 import PaymentHistoryPage from "./pages/PaymentHistory"; 
 import ExpiringPlansPage from "./pages/EndingPlans"; 
@@ -271,6 +272,7 @@ const AppContent = () => {
           <Route element={<AdminLayout />}>
             <Route path="/admin-dashboard" element={<DentistsPage />} />
             <Route path="/dentists" element={<DentistsPage />} />
+            <Route path="/dentists/:id" element={<DentistDetails />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
             <Route path="/payment-history" element={<PaymentHistoryPage />} />
             <Route path="/expiring-plans" element={<ExpiringPlansPage />} />

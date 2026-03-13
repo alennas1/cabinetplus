@@ -49,6 +49,14 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getAllPayments() {
     return ResponseEntity.ok(handPaymentService.getAllPendingPayments());
 }
 
+@GetMapping("/user/{userId}")
+public ResponseEntity<List<HandPaymentResponseDTO>> getPaymentsByUserId(@PathVariable Long userId) {
+    User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+
+    return ResponseEntity.ok(handPaymentService.getPaymentsByUser(user));
+}
+
 @GetMapping("/my-payments")
 public ResponseEntity<List<HandPaymentResponseDTO>> getMyPayments(Principal principal) {
     User user = userRepository.findByUsername(principal.getName())

@@ -1,6 +1,7 @@
 // Dentists.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
@@ -17,6 +18,7 @@ const statusMap = {
 
 const Dentists = () => {
   const token = useSelector((state) => state.auth.token);
+  const navigate = useNavigate();
   const [dentists, setDentists] = useState([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -50,7 +52,7 @@ const Dentists = () => {
   }, []);
 
   const handleView = (id) => {
-    toast.info(`Viewing dentist with ID: ${id}`);
+    navigate(`/dentists/${id}`);
   };
 
   const filteredDentists = dentists.filter((d) => {

@@ -50,6 +50,8 @@ class AuditControllerTest {
                 "AUTH_LOGIN",
                 "SUCCESS",
                 "Connexion reussie",
+                null,
+                null,
                 9L,
                 "Dentiste",
                 "41.220.77.14",
@@ -96,7 +98,18 @@ class AuditControllerTest {
 
         when(userService.findByUsername("admin")).thenReturn(Optional.of(user));
         when(auditService.getSecurityLogsForAdmin()).thenReturn(List.of(
-                new AuditLogResponse(LocalDateTime.now(), "USER_ADMIN_CREATE", "SUCCESS", "Creation d'un compte admin", 1L, "Admin", "197.112.5.8", "Localisation indisponible")
+                new AuditLogResponse(
+                        LocalDateTime.now(),
+                        "USER_ADMIN_CREATE",
+                        "SUCCESS",
+                        "Creation d'un compte admin",
+                        null,
+                        null,
+                        1L,
+                        "Admin",
+                        "197.112.5.8",
+                        "Localisation indisponible"
+                )
         ));
 
         List<AuditLogResponse> result = controller.securityLogs(principal);

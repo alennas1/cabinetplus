@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
@@ -17,6 +18,9 @@ import com.cabinetplus.backend.repositories.UserRepository;
 
 @Configuration
 public class AdminDataLoader {
+
+    @Value("${app.seed.default-dentist:false}")
+    private boolean seedDefaultDentist;
 
     @Bean
     @Order(1)
@@ -44,6 +48,11 @@ public class AdminDataLoader {
             });
 
             // ---------------- Create or update default dentist ----------------
+            if (!seedDefaultDentist) {
+                System.out.println(">>> [INFO] Default dentist seed skipped. To re-enable set app.seed.default-dentist=true");
+                return;
+            }
+
             User dentist = userRepo.findByUsername("dentist12").orElse(new User());
             dentist.setUsername("dentist12");
             dentist.setPasswordHash(encoder.encode("dentist123"));

@@ -60,13 +60,13 @@ const Security = () => {
       : ua.includes("safari") && !ua.includes("chrome")
       ? "Safari"
       : "Navigateur";
-    return `${os} • ${browser}`;
+    return `${os} Ã© ${browser}`;
   };
 
   const formatSessionTime = (value) => {
-    if (!value) return "—";
+    if (!value) return "Ã©";
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
+    if (Number.isNaN(date.getTime())) return "Ã©";
     return date.toLocaleString("fr-FR");
   };
 
@@ -78,13 +78,13 @@ const Security = () => {
       const data = await getActiveSessions();
       setSessions(Array.isArray(data) ? data : []);
       if (result?.revokedCurrent) {
-        toast.info("Cette session a été déconnectée.");
+        toast.info("Cette session a Ã©tÃ© dÃ©connectÃ©e.");
       } else {
-        toast.success("Session déconnectée.");
+        toast.success("Session dÃ©connectÃ©e.");
       }
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible de déconnecter la session"));
+      toast.error(getApiErrorMessage(err, "Impossible de dÃ©connecter la session"));
     } finally {
       setSessionsBusy(null);
     }
@@ -103,7 +103,7 @@ const Security = () => {
 
     try {
       await updatePassword({ oldPassword, newPassword, logoutAll: logoutAllDevices }, token);
-      toast.success(logoutAllDevices ? "Mot de passe mis à jour. Tous les appareils ont été déconnectés." : "Mot de passe mis à jour avec succès");
+      toast.success(logoutAllDevices ? "Mot de passe mis Ã© jour. Tous les appareils ont Ã©tÃ© dÃ©connectÃ©s." : "Mot de passe mis Ã© jour avec succÃ©s");
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -112,13 +112,13 @@ const Security = () => {
       setSessions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du mot de passe"));
+      toast.error(getApiErrorMessage(err, "Erreur lors de la mise Ã© jour du mot de passe"));
     }
   };
 
   return (
     <div className="settings-container">
-      <PageHeader title="Sécurité" subtitle="Changer le mot de passe" />
+      <PageHeader title="SÃ©curitÃ©" subtitle="Changer le mot de passe" />
       <div className="security-content">
         <div className="security-field">
           <label>Ancien mot de passe</label>
@@ -153,14 +153,14 @@ const Security = () => {
             checked={logoutAllDevices}
             onChange={(e) => setLogoutAllDevices(e.target.checked)}
           />
-          <span>Déconnecter tous les appareils</span>
+          <span>DÃ©connecter tous les appareils</span>
         </label>
         <button className="security-btn" onClick={handlePasswordChange}>
-          Mettre à jour le mot de passe
+          Mettre Ã© jour le mot de passe
         </button>
 
         <div className="security-sessions">
-          <PageHeader title="Sessions en ligne" subtitle="Appareils connectés" />
+          <PageHeader title="Sessions en ligne" subtitle="Appareils connectÃ©s" />
           {sessionsLoading ? (
             <div className="session-empty">Chargement...</div>
           ) : sessions.length === 0 ? (
@@ -175,10 +175,10 @@ const Security = () => {
                       {session.current && <span className="session-badge">Cet appareil</span>}
                     </div>
                     <div className="session-meta">
-                      {(session.location || "Localisation inconnue")} • {(session.ipAddress || "IP inconnue")}
+                      {(session.location || "Localisation inconnue")} Ã© {(session.ipAddress || "IP inconnue")}
                     </div>
                     <div className="session-meta">
-                      Dernière activité : {formatSessionTime(session.lastUsedAt || session.createdAt)}
+                      DerniÃ©re activitÃ© : {formatSessionTime(session.lastUsedAt || session.createdAt)}
                     </div>
                   </div>
                   <button
@@ -187,7 +187,7 @@ const Security = () => {
                     onClick={() => handleRevokeSession(session.id)}
                     disabled={sessionsBusy === session.id}
                   >
-                    {sessionsBusy === session.id ? "Déconnexion..." : "Déconnecter"}
+                    {sessionsBusy === session.id ? "DÃ©connexion..." : "DÃ©connecter"}
                   </button>
                 </div>
               ))}

@@ -7,6 +7,7 @@ import api, { getCurrentUser, logout as logoutApi } from "../services/authServic
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { applyUserPreferences } from "../utils/workingHours";
+import { getApiErrorMessage } from "../utils/error";
 import "./Verify.css";
 
 const VerificationPage = () => {
@@ -56,7 +57,12 @@ const VerificationPage = () => {
         alert("Un code SMS a ete envoye.");
       }
     } catch (err) {
-      alert("Erreur lors de l'envoi du code. Verifiez le numero.");
+      if (err?.response?.status === 401) {
+        dispatch(logoutRedux());
+        navigate("/login", { replace: true, state: { reason: "session_expired" } });
+        return;
+      }
+      alert(getApiErrorMessage(err, "Erreur lors de l'envoi du code."));
     } finally {
       setLoading(false);
     }
@@ -72,13 +78,19 @@ const VerificationPage = () => {
         markAsVerifiedLocally(updatedUser);
       }
     } catch (err) {
-      alert("Code OTP invalide.");
+      if (err?.response?.status === 401) {
+        dispatch(logoutRedux());
+        navigate("/login", { replace: true, state: { reason: "session_expired" } });
+        return;
+      }
+      alert(getApiErrorMessage(err, "Code OTP invalide."));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (e) => {
+    e?.preventDefault?.();
     try {
       await logoutApi();
     } catch (error) {
@@ -164,7 +176,7 @@ const VerificationPage = () => {
           )}
         </button>
 
-        <button onClick={handleLogout} className="verification-logout-btn">
+        <button type="button" onClick={handleLogout} className="verification-logout-btn">
           <LogOut size={16} style={{ marginRight: "8px" }} />
           Se deconnecter
         </button>

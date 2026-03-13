@@ -534,10 +534,54 @@ if (deviceId == null || deviceId.isBlank()) {
 
     private boolean isLocalRequest(HttpServletRequest request) {
         if (request == null) return false;
-        String remoteAddr = request.getRemoteAddr();
-        return "127.0.0.1".equals(remoteAddr)
-                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
-                || "::1".equals(remoteAddr);
+
+        // Typical local dev: request coming from a localhost frontend (even if backend is in Docker)
+        String origin = request.getHeader("Origin");
+        if (origin != null) {
+            String o = origin.toLowerCase();
+            if (o.startsWith("http://localhost")
+                    || o.startsWith("https://localhost")
+                    || o.startsWith("http://127.0.0.1")
+                    || o.startsWith("https://127.0.0.1")) {
+                return true;
+            }
+        }
+
+        String serverName = request.getServerName();
+        if ("localhost".equalsIgnoreCase(serverName) || "127.0.0.1".equals(serverName)) {
+            return true;
+        }
+
+        String clientIp = extractClientIp(request);
+        if (clientIp == null) return false;
+        clientIp = clientIp.trim();
+        if (clientIp.startsWith("::ffff:")) clientIp = clientIp.substring(7);
+
+        if ("127.0.0.1".equals(clientIp)
+                || "0:0:0:0:0:0:0:1".equals(clientIp)
+                || "::1".equals(clientIp)) {
+            return true;
+        }
+
+        return isPrivateIpv4(clientIp);
+    }
+
+    private boolean isPrivateIpv4(String ip) {
+        if (ip == null || ip.isBlank()) return false;
+        String[] parts = ip.split("\\.");
+        if (parts.length != 4) return false;
+        try {
+            int a = Integer.parseInt(parts[0]);
+            int b = Integer.parseInt(parts[1]);
+
+            if (a == 10) return true;
+            if (a == 192 && b == 168) return true;
+            if (a == 172 && b >= 16 && b <= 31) return true;
+            if (a == 127) return true; // loopback range
+        } catch (NumberFormatException ignore) {
+            return false;
+        }
+        return false;
     }
 
     private void fillSessionMeta(RefreshToken token, HttpServletRequest request) {

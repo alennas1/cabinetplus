@@ -22,7 +22,10 @@ const SidebarAdmin = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
- const handleLogout = async () => {
+ const handleLogout = async (e) => {
+    // Safety: avoid accidental <form> submit -> full page reload.
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     try {
       await logoutApi();
     } catch (error) {
@@ -99,7 +102,7 @@ const SidebarAdmin = () => {
       </ul>
 
       <div className="sidebar-logout">
-        <button onClick={handleLogout} className="logout-btn">
+        <button type="button" onClick={handleLogout} className="logout-btn">
           <LogOut size={20} />
           <span className="link-text">Se deconnecter</span>
         </button>

@@ -13,7 +13,8 @@ const WaitingPage = () => {
     const navigate = useNavigate();
 
     // --- Logout Logic ---
-     const handleLogout = async () => {
+     const handleLogout = async (e) => {
+        e?.preventDefault?.();
         try {
           await logoutApi();
         } catch (error) {
@@ -42,6 +43,7 @@ const WaitingPage = () => {
 
                 {/* --- LOGOUT BUTTON --- */}
                 <button
+                    type="button"
                     onClick={handleLogout}
                     style={styles.logoutButton}
                 >

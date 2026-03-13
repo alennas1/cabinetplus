@@ -184,8 +184,12 @@ export const confirmPasswordReset = async ({ phoneNumber, code, newPassword }) =
 
 export const logout = async () => {
   isLoggingOut = true;
-  await api.post("/auth/logout");
-  clearAccessToken();
+  try {
+    await api.post("/auth/logout");
+  } finally {
+    clearAccessToken();
+    isLoggingOut = false;
+  }
 };
 
 export const getCurrentUser = async () => {

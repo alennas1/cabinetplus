@@ -175,7 +175,10 @@ const Sidebar = () => {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (e) => {
+    // Safety: if this button ever ends up inside a <form>, don't submit and trigger a full page refresh.
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     try {
       await logoutApi();
     } catch (error) {
@@ -320,7 +323,7 @@ const Sidebar = () => {
 
       {/* --- Logout --- */}
       <div className="sidebar-logout">
-        <button onClick={handleLogout} className="logout-btn">
+        <button type="button" onClick={handleLogout} className="logout-btn">
           <LogOut size={20} />
           <span className="link-text">Se déconnecter</span>
         </button>

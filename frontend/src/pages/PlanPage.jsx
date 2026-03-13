@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Shield } from "react-feather";
 import { logout, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
+import { logout as logoutApi } from "../services/authService";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment } from "../services/handPaymentService";
 import { getCurrentUser } from "../services/authService";
@@ -231,9 +232,17 @@ const PlanPage = () => {
 
         <button
           className="plan-logout-btn"
-          onClick={() => {
-            dispatch(logout());
-            navigate("/login");
+          type="button"
+          onClick={async (e) => {
+            e?.preventDefault?.();
+            try {
+              await logoutApi();
+            } catch (error) {
+              console.error("Logout API failed:", error);
+            } finally {
+              dispatch(logout());
+              navigate("/login", { replace: true });
+            }
           }}
         >
           <LogOut size={18} /> Se deconnecter

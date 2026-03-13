@@ -5,6 +5,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { getActiveSessions, revokeSession, updatePassword } from "../services/securityService";
 import { getApiErrorMessage } from "../utils/error";
+import PasswordInput from "../components/PasswordInput";
 import "./Security.css";
 
 const Security = () => {
@@ -126,34 +127,34 @@ const Security = () => {
   return (
     <div className="settings-container">
       <PageHeader title="Sécurité" subtitle="Changer le mot de passe" />
-      <div className="security-content">
-        <div className="security-field">
-          <label>Ancien mot de passe</label>
-          <input
-            type="password"
-            placeholder="Entrez votre ancien mot de passe"
-            value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
-          />
-        </div>
-        <div className="security-field">
-          <label>Nouveau mot de passe</label>
-          <input
-            type="password"
-            placeholder="Entrez le nouveau mot de passe"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-        </div>
-        <div className="security-field">
-          <label>Confirmer le mot de passe</label>
-          <input
-            type="password"
-            placeholder="Confirmez le nouveau mot de passe"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
+        <div className="security-content">
+          <div className="security-field">
+            <label>Ancien mot de passe</label>
+            <PasswordInput
+              placeholder="Entrez votre ancien mot de passe"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="security-field">
+            <label>Nouveau mot de passe</label>
+            <PasswordInput
+              placeholder="Entrez le nouveau mot de passe"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="security-field">
+            <label>Confirmer le mot de passe</label>
+            <PasswordInput
+              placeholder="Confirmez le nouveau mot de passe"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
         <label className="security-toggle">
           <input
             type="checkbox"

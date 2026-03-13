@@ -5,6 +5,7 @@ import { login, getCurrentUser, sendPasswordResetCode, confirmPasswordReset } fr
 import { getUserPreferences } from "../services/userPreferenceService";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "react-feather";
+import PasswordInput from "../components/PasswordInput";
 import { getApiErrorMessage } from "../utils/error";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
@@ -336,19 +337,19 @@ const LoginPage = () => {
                   onChange={(e) => setResetCode(e.target.value)}
                   disabled={resetLoading}
                 />
-                <input
-                  type="password"
-                  placeholder="Nouveau mot de passe"
+                <PasswordInput
                   value={resetNewPassword}
                   onChange={(e) => setResetNewPassword(e.target.value)}
+                  placeholder="Nouveau mot de passe"
                   disabled={resetLoading}
+                  autoComplete="new-password"
                 />
-                <input
-                  type="password"
+                <PasswordInput
                   placeholder="Confirmer le mot de passe"
                   value={resetConfirmPassword}
                   onChange={(e) => setResetConfirmPassword(e.target.value)}
                   disabled={resetLoading}
+                  autoComplete="new-password"
                 />
                 <button type="button" onClick={handleConfirmReset} disabled={resetLoading}>
                   {resetLoading ? "Verification..." : "Reinitialiser"}

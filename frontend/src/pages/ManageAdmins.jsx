@@ -4,6 +4,7 @@ import { Plus, Eye, Trash2, Search } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import PasswordInput from "../components/PasswordInput";
 import { getAllAdmins, createAdmin, deleteAdmin } from "../services/userService";
 import { getApiErrorMessage } from "../utils/error";
 import "./Patients.css";
@@ -147,7 +148,13 @@ const ManageAdmins = () => {
               <span className="field-label">Username *</span>
               <input type="text" name="username" value={formData.username} onChange={handleChange} required />
               <span className="field-label">Mot de passe *</span>
-              <input type="password" name="password" value={formData.password} onChange={handleChange} required={!isEditing} />
+              <PasswordInput
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required={!isEditing}
+                autoComplete="new-password"
+              />
               <span className="field-label">Téléphone</span>
               <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} />
               <label><input type="checkbox" name="canDeleteAdmin" checked={formData.canDeleteAdmin} onChange={handleChange} /> Super Admin</label>

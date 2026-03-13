@@ -229,6 +229,13 @@ public class UserController {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
+        if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Les comptes employes ne peuvent pas modifier le mot de passe. Contactez le proprietaire du cabinet."
+            );
+        }
+
         String oldPassword = passwords.get("oldPassword") != null ? String.valueOf(passwords.get("oldPassword")) : null;
         String newPassword = passwords.get("newPassword") != null ? String.valueOf(passwords.get("newPassword")) : null;
         boolean logoutAll = shouldLogoutAll(passwords.get("logoutAll"));

@@ -365,6 +365,12 @@ if (deviceId == null || deviceId.isBlank()) {
         if (user == null) {
             return ResponseEntity.status(404).body(Map.of("error", "Numero de telephone introuvable"));
         }
+        if (isEmployeeAccount(user)) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "error",
+                    "Les comptes employes ne peuvent pas reinitialiser le mot de passe. Contactez le proprietaire du cabinet."
+            ));
+        }
 
         try {
             if (devProfile && isLocalRequest(httpRequest)) {
@@ -418,6 +424,12 @@ if (deviceId == null || deviceId.isBlank()) {
         User user = findUserByPhoneNumber(request.phoneNumber());
         if (user == null) {
             return ResponseEntity.status(404).body(Map.of("error", "Numero de telephone introuvable"));
+        }
+        if (isEmployeeAccount(user)) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "error",
+                    "Les comptes employes ne peuvent pas reinitialiser le mot de passe. Contactez le proprietaire du cabinet."
+            ));
         }
 
         boolean approved;
@@ -676,6 +688,14 @@ if (deviceId == null || deviceId.isBlank()) {
         String digits = value.replaceAll("[^0-9]", "");
         if (digits.length() <= 4) return "****";
         return "****" + digits.substring(digits.length() - 4);
+    }
+
+    private boolean isEmployeeAccount(User user) {
+        if (user == null) return false;
+        if (user.getRole() != UserRole.DENTIST) return false;
+        // Any linked sub-account (or non-owner clinic role) is treated as an "employee" account for password reset.
+        if (user.getOwnerDentist() != null) return true;
+        return user.getClinicAccessRole() != null && user.getClinicAccessRole() != ClinicAccessRole.DENTIST;
     }
     
 }

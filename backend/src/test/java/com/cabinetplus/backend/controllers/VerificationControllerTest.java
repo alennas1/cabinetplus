@@ -5,6 +5,7 @@ import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,8 +32,10 @@ class VerificationControllerTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         phoneVerificationService = mock(PhoneVerificationService.class);
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[0]);
 
-        VerificationController controller = new VerificationController(userRepository, phoneVerificationService);
+        VerificationController controller = new VerificationController(userRepository, phoneVerificationService, environment);
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)

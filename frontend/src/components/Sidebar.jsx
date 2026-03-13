@@ -22,6 +22,7 @@ import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
 import PinCodeInput from "./PinCodeInput";
+import PasswordInput from "./PasswordInput";
 import {
   changeGestionCabinetPin,
   clearGestionCabinetUnlocked,
@@ -377,14 +378,14 @@ const Sidebar = () => {
                 <div className="flex flex-col gap-4">
                   <div>
                     <div className="text-sm text-gray-700 mb-2">Mot de passe</div>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      inputClassName="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
                       placeholder="Mot de passe"
                       disabled={pinSubmitting}
                       autoFocus
+                      autoComplete="current-password"
                     />
                   </div>
 
@@ -427,14 +428,14 @@ const Sidebar = () => {
                 <div className="flex flex-col gap-4">
                   <div>
                     <div className="text-sm text-gray-700 mb-2">Mot de passe</div>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      inputClassName="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
                       placeholder="Mot de passe"
                       disabled={pinSubmitting}
                       autoFocus
+                      autoComplete="current-password"
                     />
                   </div>
 

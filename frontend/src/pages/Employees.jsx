@@ -5,6 +5,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import PasswordInput from "../components/PasswordInput";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
 
@@ -542,12 +543,12 @@ const Employees = () => {
                     required
                   />
                   <span className="field-label">Mot de passe</span>
-                  <input
-                    type="password"
+                  <PasswordInput
                     name="password"
                     value={formData.password || ""}
                     onChange={handleChange}
                     required={!isEditing}
+                    autoComplete="new-password"
                   />
                 </>
               )}

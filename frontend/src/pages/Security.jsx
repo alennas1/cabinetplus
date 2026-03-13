@@ -12,11 +12,16 @@ import {
   getGestionCabinetPinStatus,
 } from "../services/pinGuardService";
 import PinCodeInput from "../components/PinCodeInput";
+import PasswordInput from "../components/PasswordInput";
 import "./Security.css";
 
 const Security = () => {
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.username;
+  const isClinicEmployeeAccount =
+    user?.role === "DENTIST" &&
+    user?.clinicAccessRole &&
+    user.clinicAccessRole !== "DENTIST";
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -247,48 +252,56 @@ const Security = () => {
       <PageHeader title="Sécurité" subtitle="Changer le mot de passe" />
 
       <div className="security-content">
-        <div className="security-field">
-          <label>Ancien mot de passe</label>
-          <input
-            type="password"
-            placeholder="Entrez votre ancien mot de passe"
-            value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
-          />
-        </div>
+        {isClinicEmployeeAccount ? (
+          <div className="session-empty" style={{ marginBottom: "18px" }}>
+            Votre mot de passe est géré par le propriétaire du cabinet.
+          </div>
+        ) : (
+          <>
+            <div className="security-field">
+              <label>Ancien mot de passe</label>
+              <PasswordInput
+                placeholder="Entrez votre ancien mot de passe"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
 
-        <div className="security-field">
-          <label>Nouveau mot de passe</label>
-          <input
-            type="password"
-            placeholder="Entrez le nouveau mot de passe"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-        </div>
+            <div className="security-field">
+              <label>Nouveau mot de passe</label>
+              <PasswordInput
+                placeholder="Entrez le nouveau mot de passe"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
 
-        <div className="security-field">
-          <label>Confirmer le mot de passe</label>
-          <input
-            type="password"
-            placeholder="Confirmez le nouveau mot de passe"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
+            <div className="security-field">
+              <label>Confirmer le mot de passe</label>
+              <PasswordInput
+                placeholder="Confirmez le nouveau mot de passe"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
 
-        <label className="security-toggle">
-          <input
-            type="checkbox"
-            checked={logoutAllDevices}
-            onChange={(e) => setLogoutAllDevices(e.target.checked)}
-          />
-          <span>Déconnecter tous les appareils</span>
-        </label>
+            <label className="security-toggle">
+              <input
+                type="checkbox"
+                checked={logoutAllDevices}
+                onChange={(e) => setLogoutAllDevices(e.target.checked)}
+              />
+              <span>Déconnecter tous les appareils</span>
+            </label>
 
-        <button className="security-btn" onClick={handlePasswordChange}>
-          Mettre à jour le mot de passe
-        </button>
+            <button className="security-btn" onClick={handlePasswordChange}>
+              Mettre à jour le mot de passe
+            </button>
+          </>
+        )}
 
         <div className="security-sessions">
           <PageHeader title="Sessions en ligne" subtitle="Appareils connectés" />
@@ -356,11 +369,11 @@ const Security = () => {
           <>
             <div className="security-field">
               <label>Mot de passe</label>
-              <input
-                type="password"
+              <PasswordInput
                 placeholder="Entrez votre mot de passe"
                 value={gcPassword}
                 onChange={(e) => setGcPassword(e.target.value)}
+                autoComplete="current-password"
               />
             </div>
 

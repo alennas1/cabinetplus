@@ -19,6 +19,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import PasswordInput from "../components/PasswordInput";
 import "./Patient.css";
 import "./Profile.css";
 
@@ -255,11 +256,19 @@ const EmployeeDetails = () => {
               ))}
             </select>
           ) : (
-            <input
-              type={type}
-              value={tempValue}
-              onChange={(e) => setTempValue(e.target.value)}
-            />
+            type === "password" ? (
+              <PasswordInput
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                autoComplete="new-password"
+              />
+            ) : (
+              <input
+                type={type}
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+              />
+            )
           )}
           <Check size={18} className="icon action confirm" onClick={() => saveField(field)} />
           <X size={18} className="icon action cancel" onClick={cancelEdit} />

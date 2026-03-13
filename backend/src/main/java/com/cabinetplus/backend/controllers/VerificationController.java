@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.services.PhoneVerificationService;
+import com.twilio.exception.ApiException;
 
 @RestController
 @RequestMapping("/api/verify")
@@ -47,6 +48,31 @@ public class VerificationController {
             phoneVerificationService.sendVerificationCode(formattedNumber);
 
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye au " + formattedNumber));
+        } catch (ApiException e) {
+            int status = e.getStatusCode();
+            logger.warn("Twilio Verify send failed (to={}, status={})", formattedNumber, status, e);
+            if (status == 400) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Numero de telephone invalide");
+                body.put("reason", "twilio_rejected");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.badRequest().body(body);
+            }
+            if (status == 429) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Trop de demandes. Reessayez plus tard.");
+                body.put("reason", "rate_limited");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(429).body(body);
+            }
+            var body = new java.util.HashMap<String, Object>();
+            body.put("error", "Service SMS indisponible");
+            body.put("reason", "upstream_error");
+            body.put("twilioStatus", status);
+            if (e.getCode() != null) body.put("twilioCode", e.getCode());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
         } catch (Exception e) {
             logger.error("Error sending SMS OTP: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -69,6 +95,31 @@ public class VerificationController {
         boolean approved;
         try {
             approved = phoneVerificationService.checkVerificationCode(formattedNumber, code);
+        } catch (ApiException e) {
+            int status = e.getStatusCode();
+            logger.warn("Twilio Verify check failed (to={}, status={})", formattedNumber, status, e);
+            if (status == 400) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Code SMS invalide");
+                body.put("reason", "twilio_rejected");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.badRequest().body(body);
+            }
+            if (status == 429) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Trop de demandes. Reessayez plus tard.");
+                body.put("reason", "rate_limited");
+                body.put("twilioStatus", status);
+                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                return ResponseEntity.status(429).body(body);
+            }
+            var body = new java.util.HashMap<String, Object>();
+            body.put("error", "Service SMS indisponible");
+            body.put("reason", "upstream_error");
+            body.put("twilioStatus", status);
+            if (e.getCode() != null) body.put("twilioCode", e.getCode());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
         } catch (Exception e) {
             logger.error("Error verifying SMS OTP: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

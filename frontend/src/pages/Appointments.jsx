@@ -72,6 +72,9 @@ export default function Appointments() {
   const [previewDirection, setPreviewDirection] = useState("next");
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [isShiftingAppointments, setIsShiftingAppointments] = useState(false);
+  const planningSlotRefs = useRef([]);
+  const planningHighlightTimeoutRef = useRef(null);
+  const [planningHighlightIndex, setPlanningHighlightIndex] = useState(null);
   const [shiftForm, setShiftForm] = useState({
     direction: "forward",
     duration: 15,
@@ -717,9 +720,14 @@ export default function Appointments() {
     setOpenedFromSlot(false);
   };
 
-  const slots = React.useMemo(() => buildSlotsForDate(getSelectedDayBaseDate()), [appointments, selectedDate, customDate, slotDuration, workingHours]);
+  const selectedDayBaseDate = useMemo(() => getSelectedDayBaseDate(), [selectedDate, customDate]);
 
-  const weekStart = React.useMemo(() => addDays(getSelectedDayBaseDate(), weekOffset), [weekOffset, selectedDate, customDate]);
+  const slots = useMemo(
+    () => buildSlotsForDate(selectedDayBaseDate),
+    [appointments, selectedDayBaseDate, slotDuration, workingHours]
+  );
+
+  const weekStart = useMemo(() => addDays(selectedDayBaseDate, weekOffset), [weekOffset, selectedDayBaseDate]);
   const weekDays = React.useMemo(() => Array.from({ length: 4 }).map((_, i) => addDays(weekStart, i)), [weekStart]);
   const weekDayStart = React.useMemo(() => buildDateAtMinutes(weekStart, workingHours.startMinutes), [weekStart, workingHours]);
   const weekDayEnd = React.useMemo(() => {
@@ -802,16 +810,15 @@ export default function Appointments() {
   };
 
   const appointmentNumbersForSelectedDay = React.useMemo(() => {
-    const selectedDay = getSelectedDayBaseDate();
     const selectedDayAppointments = appointments
-      .filter((appt) => isSameDay(new Date(appt.dateTimeStart), selectedDay))
+      .filter((appt) => isSameDay(new Date(appt.dateTimeStart), selectedDayBaseDate))
       .sort((a, b) => new Date(a.dateTimeStart) - new Date(b.dateTimeStart));
 
     return selectedDayAppointments.reduce((map, appt, index) => {
       map[appt.id] = index + 1;
       return map;
     }, {});
-  }, [appointments, selectedDate, customDate]);
+  }, [appointments, selectedDayBaseDate]);
 
   const appointmentNumbersByWeekDay = React.useMemo(() => {
     return weekDays.reduce((map, day) => {
@@ -829,23 +836,51 @@ export default function Appointments() {
     }, {});
   }, [appointmentsByDay, weekDays]);
   const todayBaseDate = useMemo(() => startOfDay(new Date()), []);
-  const todaySlots = useMemo(
-    () => buildSlotsForDate(todayBaseDate),
-    [appointments, slotDuration, workingHours, todayBaseDate]
+
+  // "Accès rapide" follows the currently selected day in day view; in 4-day view it stays on today.
+  const previewBaseDate = useMemo(
+    () => (viewMode === "day" ? selectedDayBaseDate : todayBaseDate),
+    [viewMode, selectedDayBaseDate, todayBaseDate]
   );
+  const previewSlots = useMemo(
+    () => buildSlotsForDate(previewBaseDate),
+    [appointments, slotDuration, workingHours, previewBaseDate]
+  );
+  const previewIsToday = useMemo(() => isSameDay(previewBaseDate, new Date()), [previewBaseDate]);
 
   const firstScheduledSlotIndex = useMemo(
-    () => todaySlots.findIndex((slot) => slot.appointments?.some((a) => a.status === "SCHEDULED")),
-    [todaySlots]
+    () => previewSlots.findIndex((slot) => slot.appointments?.some((a) => a.status === "SCHEDULED")),
+    [previewSlots]
   );
 
+  const getSlotStartIndexForTime = (slotList, time) => {
+    if (!slotList?.length) return 0;
+    if (!time) return 0;
+
+    const insideIdx = slotList.findIndex((slot) => slot.start <= time && slot.end > time);
+    if (insideIdx >= 0) return insideIdx;
+
+    const afterIdx = slotList.findIndex((slot) => slot.start >= time);
+    return afterIdx >= 0 ? afterIdx : 0;
+  };
+
   const nextAvailableSlotIndex = useMemo(() => {
-    if (!todaySlots.length) return -1;
+    if (!previewSlots.length) return -1;
+    if (!previewIsToday) {
+      return previewSlots.findIndex((slot) => !slot.appointments?.length);
+    }
+
+    const dayAppointments = appointments.filter((appt) =>
+      isSameDay(new Date(appt.dateTimeStart), previewBaseDate)
+    );
+    // If the day is totally empty, jump to the start of the working day (not "now").
+    if (dayAppointments.length === 0) return 0;
+
     const todayCompleted = appointments
       .filter((appt) => {
         if (appt.status !== "COMPLETED") return false;
         const start = new Date(appt.dateTimeStart);
-        return isSameDay(start, todayBaseDate);
+        return isSameDay(start, previewBaseDate);
       })
       .map((appt) => new Date(appt.dateTimeEnd));
 
@@ -854,49 +889,131 @@ export default function Appointments() {
       const lastCompletedEnd = new Date(
         Math.max(...todayCompleted.map((d) => d.getTime()))
       );
-      const idx = todaySlots.findIndex((slot) => slot.start >= lastCompletedEnd);
-      startIdx = idx >= 0 ? idx : 0;
+      startIdx = getSlotStartIndexForTime(previewSlots, lastCompletedEnd);
     } else {
       const now = new Date();
-      const idx = todaySlots.findIndex((slot) => slot.start >= now);
-      startIdx = idx >= 0 ? idx : 0;
+      startIdx = getSlotStartIndexForTime(previewSlots, now);
     }
-    for (let i = startIdx; i < todaySlots.length; i += 1) {
-      if (!todaySlots[i].appointments?.length) return i;
+    for (let i = startIdx; i < previewSlots.length; i += 1) {
+      if (!previewSlots[i].appointments?.length) return i;
     }
     return -1;
-  }, [todaySlots, appointments, todayBaseDate]);
+  }, [previewSlots, appointments, previewBaseDate, previewIsToday]);
+
+  const planningFirstScheduledSlotIndex = useMemo(
+    () => slots.findIndex((slot) => slot.appointments?.some((a) => a.status === "SCHEDULED")),
+    [slots]
+  );
+
+  const planningNextAvailableSlotIndex = useMemo(() => {
+    if (!slots.length) return -1;
+
+    const isViewingToday = isSameDay(selectedDayBaseDate, new Date());
+    if (!isViewingToday) {
+      return slots.findIndex((slot) => !slot.appointments?.length);
+    }
+
+    const dayAppointments = appointments.filter((appt) =>
+      isSameDay(new Date(appt.dateTimeStart), selectedDayBaseDate)
+    );
+    // If the day is totally empty, jump to the start of the working day (not "now").
+    if (dayAppointments.length === 0) return 0;
+
+    const completedEnds = appointments
+      .filter((appt) => {
+        if (appt.status !== "COMPLETED") return false;
+        const start = new Date(appt.dateTimeStart);
+        return isSameDay(start, selectedDayBaseDate);
+      })
+      .map((appt) => new Date(appt.dateTimeEnd));
+
+    const targetTime =
+      completedEnds.length > 0
+        ? new Date(Math.max(...completedEnds.map((d) => d.getTime())))
+        : new Date();
+
+    const startIdx = getSlotStartIndexForTime(slots, targetTime);
+    for (let i = startIdx; i < slots.length; i += 1) {
+      if (!slots[i].appointments?.length) return i;
+    }
+    return -1;
+  }, [slots, appointments, selectedDayBaseDate]);
+
+  const setPlanningHighlight = (idx) => {
+    if (planningHighlightTimeoutRef.current) {
+      clearTimeout(planningHighlightTimeoutRef.current);
+      planningHighlightTimeoutRef.current = null;
+    }
+    setPlanningHighlightIndex(idx);
+    planningHighlightTimeoutRef.current = setTimeout(() => {
+      setPlanningHighlightIndex(null);
+      planningHighlightTimeoutRef.current = null;
+    }, 1100);
+  };
+
+  const scrollToPlanningSlot = (idx) => {
+    if (idx === null || idx === undefined || idx < 0 || idx >= slots.length) return;
+    const el = planningSlotRefs.current[idx];
+    if (el?.scrollIntoView) {
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    }
+    setPlanningHighlight(idx);
+  };
+
+  const goToPlanningCurrentPatientSlot = () => {
+    if (planningFirstScheduledSlotIndex >= 0) {
+      scrollToPlanningSlot(planningFirstScheduledSlotIndex);
+    }
+  };
+
+  const goToPlanningNextAvailableSlot = () => {
+    if (planningNextAvailableSlotIndex >= 0) {
+      scrollToPlanningSlot(planningNextAvailableSlotIndex);
+    }
+  };
+
+  useEffect(() => {
+    planningSlotRefs.current = new Array(slots.length);
+  }, [slots.length]);
+
+  useEffect(() => {
+    return () => {
+      if (planningHighlightTimeoutRef.current) {
+        clearTimeout(planningHighlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   
 
-  const activeSlot = activeSlotIndex !== null ? todaySlots[activeSlotIndex] : null;
+  const activeSlot = activeSlotIndex !== null ? previewSlots[activeSlotIndex] : null;
   const canGoPrevSlot = activeSlotIndex !== null && activeSlotIndex > 0;
   const canGoNextSlot =
-    activeSlotIndex !== null && activeSlotIndex < todaySlots.length - 1;
+    activeSlotIndex !== null && activeSlotIndex < previewSlots.length - 1;
 
   const setActiveSlotAndFocus = (idx) => {
-    if (idx === null || idx === undefined || idx < 0 || idx >= todaySlots.length) return;
+    if (idx === null || idx === undefined || idx < 0 || idx >= previewSlots.length) return;
     setActiveSlotIndex(idx);
   };
 
   const goToPrevAppointmentSlot = () => {
-    if (!todaySlots.length) return;
+    if (!previewSlots.length) return;
     const current = activeSlotIndex ?? 0;
     const nextPos = Math.max(0, current - 1);
     setActiveSlotAndFocus(nextPos);
   };
 
   const goToNextAppointmentSlot = () => {
-    if (!todaySlots.length) return;
+    if (!previewSlots.length) return;
     const current = activeSlotIndex ?? 0;
-    const nextPos = Math.min(current + 1, todaySlots.length - 1);
+    const nextPos = Math.min(current + 1, previewSlots.length - 1);
     setActiveSlotAndFocus(nextPos);
   };
 
   const goToCurrentPatientSlot = () => {
     if (firstScheduledSlotIndex >= 0) {
       setActiveSlotAndFocus(firstScheduledSlotIndex);
-    } else if (todaySlots.length) {
+    } else if (previewSlots.length) {
       setActiveSlotAndFocus(0);
     }
   };
@@ -907,7 +1024,8 @@ export default function Appointments() {
     }
   };
 
-  const renderSlotCard = (slot, idx) => {
+  const renderSlotCard = (slot, idx, options = {}) => {
+    const { slotRef, isHighlighted } = options;
     if (!slot) {
       return (
         <div className="slot empty">
@@ -924,7 +1042,10 @@ export default function Appointments() {
           slot.appointments.length ? "SCHEDULED" : "empty"
         } ${
           slot.appointments.some((a) => a.status === "COMPLETED") ? "COMPLETED" : ""
-        } ${slot.appointments.some((a) => a.status === "CANCELLED") ? "CANCELLED" : ""}`}
+        } ${slot.appointments.some((a) => a.status === "CANCELLED") ? "CANCELLED" : ""} ${
+          isHighlighted ? "jump-highlight" : ""
+        }`}
+        ref={slotRef}
         onClick={() => {
           setActiveSlotIndex(idx);
           handleSlotClick(slot);
@@ -1002,15 +1123,15 @@ export default function Appointments() {
   };
 
   useEffect(() => {
-    if (!todaySlots.length) {
+    if (!previewSlots.length) {
       setActiveSlotIndex(null);
       return;
     }
     if (autoAdvanceFromIndex !== null) return;
-    if (activeSlotIndex !== null && activeSlotIndex < todaySlots.length) return;
+    if (activeSlotIndex !== null && activeSlotIndex < previewSlots.length) return;
     setActiveSlotIndex(0);
   }, [
-    todaySlots,
+    previewSlots,
     activeSlotIndex,
     autoAdvanceFromIndex,
   ]);
@@ -1038,10 +1159,10 @@ export default function Appointments() {
 
   useEffect(() => {
     if (autoAdvanceFromIndex === null) return;
-    const nextIdx = Math.min(autoAdvanceFromIndex + 1, todaySlots.length - 1);
+    const nextIdx = Math.min(autoAdvanceFromIndex + 1, previewSlots.length - 1);
     setActiveSlotIndex(nextIdx >= 0 ? nextIdx : null);
     setAutoAdvanceFromIndex(null);
-  }, [autoAdvanceFromIndex, todaySlots]);
+  }, [autoAdvanceFromIndex, previewSlots]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -1068,7 +1189,7 @@ export default function Appointments() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showModal, activeSlotIndex, todaySlots.length]);
+  }, [showModal, activeSlotIndex, previewSlots.length]);
 
   if (loading) {
     return (
@@ -1130,7 +1251,7 @@ export default function Appointments() {
           <div className="slot-preview-stage">
             {previewPrevIndex !== null && (
               <div className={`slot-preview-item exit ${previewDirection}`}>
-                {renderSlotCard(todaySlots[previewPrevIndex], previewPrevIndex)}
+                {renderSlotCard(previewSlots[previewPrevIndex], previewPrevIndex)}
               </div>
             )}
             {previewIndex !== null && (
@@ -1139,7 +1260,7 @@ export default function Appointments() {
                   previewPrevIndex !== null ? `enter ${previewDirection}` : "static"
                 }`}
               >
-                {renderSlotCard(todaySlots[previewIndex], previewIndex)}
+                {renderSlotCard(previewSlots[previewIndex], previewIndex)}
               </div>
             )}
           </div>
@@ -1211,11 +1332,37 @@ export default function Appointments() {
         </div>
 
         {viewMode === "day" ? (
-          <div className="appointments-slots">
-            {slots.map((slot, idx) => (
-              renderSlotCard(slot, idx)
-            ))}
-          </div>
+          <>
+            <div className="planning-jump">
+              <button
+                type="button"
+                className="slot-preview-btn"
+                onClick={goToPlanningCurrentPatientSlot}
+                disabled={planningFirstScheduledSlotIndex < 0}
+              >
+                Patient en cours
+              </button>
+              <button
+                type="button"
+                className="slot-preview-btn"
+                onClick={goToPlanningNextAvailableSlot}
+                disabled={planningNextAvailableSlotIndex < 0}
+              >
+                Créneau libre
+              </button>
+            </div>
+
+            <div className="appointments-slots">
+              {slots.map((slot, idx) =>
+                renderSlotCard(slot, idx, {
+                  slotRef: (el) => {
+                    planningSlotRefs.current[idx] = el;
+                  },
+                  isHighlighted: idx === planningHighlightIndex,
+                })
+              )}
+            </div>
+          </>
         ) : (
           <div className="four-day-grid">
             <div className="four-day-header">

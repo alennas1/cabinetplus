@@ -582,6 +582,31 @@ html, body {
   scroll-behavior: smooth;
 }
 
+.planning-jump {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 12px;
+  flex-wrap: wrap;
+}
+
+@keyframes slotJumpHighlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.0);
+  }
+  35% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.0);
+  }
+}
+
+.slot.jump-highlight {
+  border-color: #3b82f6;
+  animation: slotJumpHighlight 900ms ease-out;
+}
+
 .slot {
   display: flex;
   justify-content: flex-start;

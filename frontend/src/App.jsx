@@ -107,12 +107,18 @@ const AppContent = () => {
 
   useEffect(() => {
     if (!isOffline || !navigator.onLine) return;
-    const interval = window.setInterval(async () => {
+
+    const tryReconnect = async () => {
       const status = await initializeSession();
       if (status !== null) {
         window.location.reload();
       }
-    }, 8000);
+    };
+
+    // Attempt immediately, then retry quickly while offline is shown.
+    tryReconnect();
+    const interval = window.setInterval(tryReconnect, 1000);
+
     return () => window.clearInterval(interval);
   }, [isOffline]);
 

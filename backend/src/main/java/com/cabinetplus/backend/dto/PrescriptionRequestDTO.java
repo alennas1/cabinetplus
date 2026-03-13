@@ -14,8 +14,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PrescriptionRequestDTO {
 
-    @NotNull(message = "L'identifiant du patient est obligatoire") // âœ… CORRECT: @NotNull is for Numbers/Longs
-private Long patientId;
+    @NotNull(message = "L'identifiant du patient est obligatoire") // OK: @NotNull is for Numbers/Longs
+    private Long patientId;
 
     // Optional: allow server to set or keep existing date
     private LocalDate date;

@@ -3,6 +3,7 @@ package com.cabinetplus.backend.controllers;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,7 +63,9 @@ public class PublicPdfController {
         // 1. Fetch Data (Public access - no User check)
         Patient patient = patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient introuvable"));
         
-        List<Treatment> treatments = treatmentRepository.findByPatientId(id);
+        List<Treatment> treatments = treatmentRepository.findByPatientId(id).stream()
+                .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()))
+                .collect(Collectors.toList());
         List<Appointment> appointments = appointmentRepository.findByPatientId(id);
         List<Payment> payments = paymentRepository.findByPatientId(id);
         // Note: Prescriptions are fetched to match your controller, even if not printed in the main logic

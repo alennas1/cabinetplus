@@ -14,6 +14,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -45,6 +47,8 @@ public class Treatment {
     private LocalDateTime date;
     private Double price;
     private String notes;
+    private String status = "PLANNED";
+    private LocalDateTime updatedAt;
 
     // 👇 store selected teeth as integers
     @ElementCollection(fetch = FetchType.EAGER)
@@ -54,4 +58,20 @@ public class Treatment {
 )
 @Column(name = "tooth_number")
 private List<Integer> teeth = new ArrayList<>();
+
+    @PrePersist
+    private void onCreate() {
+        if (status == null || status.trim().isEmpty()) {
+            status = "PLANNED";
+        }
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    private void onUpdate() {
+        if (status == null || status.trim().isEmpty()) {
+            status = "PLANNED";
+        }
+        updatedAt = LocalDateTime.now();
+    }
 }

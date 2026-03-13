@@ -266,6 +266,7 @@ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevE
     // Existing treatment totals
     List<Treatment> treatments = treatmentRepository.findByDentistAndDateBetween(dentist, start, end);
     Map<String, Double> totalsByCatalog = treatments.stream()
+            .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()))
             .collect(Collectors.groupingBy(
                     t -> t.getTreatmentCatalog().getName(),
                     Collectors.summingDouble(Treatment::getPrice)

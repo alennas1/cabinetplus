@@ -2,6 +2,8 @@ package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.AppointmentRequest;
 import com.cabinetplus.backend.dto.AppointmentResponse;
+import com.cabinetplus.backend.dto.AppointmentShiftRequest;
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Appointment;
@@ -65,6 +68,8 @@ public class AppointmentController {
 
         // Overlap check
         List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
+                .filter(a -> !"CANCELLED".equalsIgnoreCase(String.valueOf(a.getStatus())))
+                .filter(a -> !"CANCELED".equalsIgnoreCase(String.valueOf(a.getStatus())))
                 .filter(a ->
                         a.getDateTimeStart().isBefore(request.dateTimeEnd()) &&
                         a.getDateTimeEnd().isAfter(request.dateTimeStart())
@@ -117,6 +122,8 @@ public class AppointmentController {
         // Overlap check (ignore current appointment)
         List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
                 .filter(a -> !a.getId().equals(id)) // ignore itself
+                .filter(a -> !"CANCELLED".equalsIgnoreCase(String.valueOf(a.getStatus())))
+                .filter(a -> !"CANCELED".equalsIgnoreCase(String.valueOf(a.getStatus())))
                 .filter(a ->
                         a.getDateTimeStart().isBefore(request.dateTimeEnd()) &&
                         a.getDateTimeEnd().isAfter(request.dateTimeStart())
@@ -160,6 +167,112 @@ public class AppointmentController {
                 currentUser.getFirstname(),
                 currentUser.getLastname()
         );
+    }
+
+    @PostMapping("/shift")
+    public void shiftAppointments(@RequestBody AppointmentShiftRequest request, Principal principal) {
+        User currentUser = getClinicUser(principal);
+
+        if (request == null || request.date() == null || request.minutes() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Paramètres manquants pour le décalage");
+        }
+
+        int rawMinutes = Math.max(0, request.minutes());
+        final int deltaMinutes = "backward".equalsIgnoreCase(request.direction())
+                ? -rawMinutes
+                : rawMinutes;
+
+        int startMinutes = request.workingDayStartMinutes() != null ? request.workingDayStartMinutes() : 0;
+        int endMinutes = request.workingDayEndMinutes() != null ? request.workingDayEndMinutes() : 24 * 60;
+
+        LocalDate baseDate = request.date();
+        LocalDateTime dayStart = baseDate.atStartOfDay().plusMinutes(startMinutes);
+        LocalDateTime dayEnd = endMinutes >= 24 * 60
+                ? baseDate.plusDays(1).atStartOfDay()
+                : baseDate.atStartOfDay().plusMinutes(endMinutes);
+
+        List<Appointment> dayAppointments = appointmentService.findByPractitioner(currentUser).stream()
+                .filter(a -> a.getDateTimeStart() != null)
+                .filter(a -> a.getDateTimeStart().toLocalDate().equals(baseDate))
+                .collect(Collectors.toList());
+
+        List<Appointment> candidates = dayAppointments.stream()
+                .filter(a -> a.getStatus() == null || a.getStatus().name().equals("SCHEDULED"))
+                .collect(Collectors.toList());
+
+        List<Appointment> filteredCandidates;
+        if ("range".equalsIgnoreCase(request.scope())) {
+            LocalTime startTime = parseTime(request.startTime());
+            LocalTime endTime = parseTime(request.endTime());
+            if (startTime == null || endTime == null || !endTime.isAfter(startTime)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Intervalle horaire invalide");
+            }
+            filteredCandidates = candidates.stream()
+                    .filter(a -> {
+                        LocalTime apptTime = a.getDateTimeStart().toLocalTime();
+                        return !apptTime.isBefore(startTime) && apptTime.isBefore(endTime);
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            filteredCandidates = candidates;
+        }
+
+        if (filteredCandidates.isEmpty()) {
+            return;
+        }
+
+        class ShiftItem {
+            final Appointment appt;
+            final LocalDateTime newStart;
+            final LocalDateTime newEnd;
+            ShiftItem(Appointment appt, LocalDateTime newStart, LocalDateTime newEnd) {
+                this.appt = appt;
+                this.newStart = newStart;
+                this.newEnd = newEnd;
+            }
+        }
+
+        List<ShiftItem> shifted = filteredCandidates.stream()
+                .map(a -> new ShiftItem(
+                        a,
+                        a.getDateTimeStart().plusMinutes(deltaMinutes),
+                        a.getDateTimeEnd().plusMinutes(deltaMinutes)
+                ))
+                .collect(Collectors.toList());
+
+        boolean outOfBounds = shifted.stream().anyMatch(item ->
+                item.newStart.isBefore(dayStart) || item.newEnd.isAfter(dayEnd)
+        );
+        if (outOfBounds) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Impossible de décaler : certains rendez-vous sortiraient des horaires. Modifiez vos horaires dans Préférences."
+            );
+        }
+
+        List<Appointment> blockers = dayAppointments.stream()
+                .filter(a -> filteredCandidates.stream().noneMatch(c -> c.getId().equals(a.getId())))
+                .filter(a -> !isCancelled(a))
+                .collect(Collectors.toList());
+
+        boolean overlaps = shifted.stream().anyMatch(item ->
+                blockers.stream().anyMatch(other ->
+                        item.newStart.isBefore(other.getDateTimeEnd()) &&
+                        item.newEnd.isAfter(other.getDateTimeStart())
+                )
+        );
+        if (overlaps) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Impossible de décaler : chevauchement avec d'autres rendez-vous."
+            );
+        }
+
+        shifted.forEach(item -> {
+            item.appt.setDateTimeStart(item.newStart);
+            item.appt.setDateTimeEnd(item.newEnd);
+            appointmentService.save(item.appt);
+        });
     }
 
     @DeleteMapping("/{id}")
@@ -225,6 +338,21 @@ public Map<String, Object> getComparisonStats(Principal principal) {
         User currentUser = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         return userService.resolveClinicOwner(currentUser);
+    }
+
+    private LocalTime parseTime(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return LocalTime.parse(value);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private boolean isCancelled(Appointment appointment) {
+        if (appointment == null || appointment.getStatus() == null) return false;
+        String status = appointment.getStatus().name();
+        return "CANCELLED".equalsIgnoreCase(status) || "CANCELED".equalsIgnoreCase(status);
     }
 
     private String formatPatientName(String firstname, String lastname) {

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -138,7 +139,9 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     User clinicUser = getClinicUser(principal);
     Patient patient = patientRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Patient introuvable"));
-    List<Treatment> treatments = treatmentRepository.findByPatientId(id);
+    List<Treatment> treatments = treatmentRepository.findByPatientId(id).stream()
+            .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()))
+            .collect(Collectors.toList());
     List<Appointment> appointments = appointmentRepository.findByPatientId(id);
     List<Payment> payments = paymentRepository.findByPatientId(id);
     List<Prothesis> protheses = prothesisRepository.findByPatient(patient);

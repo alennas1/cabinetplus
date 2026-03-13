@@ -40,3 +40,8 @@ export const getCompletedAppointmentsStats = async () => {
   const response = await api.get(`${API_URL}/stats/completed-today`);
   return response.data;
 };
+
+export const shiftAppointments = async (payload) => {
+  const response = await api.post(`${API_URL}/shift`, payload);
+  return response.data;
+};

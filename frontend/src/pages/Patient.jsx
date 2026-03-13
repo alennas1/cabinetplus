@@ -1,4 +1,4 @@
-// src/pages/Patient.jsx
+﻿// src/pages/Patient.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -76,6 +76,10 @@ const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"];
   COMPLETED: "Terminé",
   CANCELLED: "Annulé",
 };
+const treatmentStatusLabels = {
+  PLANNED: "Planifié",
+  DONE: "Terminé",
+};
 const [showPatientModal, setShowPatientModal] = useState(false); // for Add/Edit Patient
 const [showJustificationModal, setShowJustificationModal] = useState(false); // for Justification modal
 const [justificationTypes, setJustificationTypes] = useState([]); // list of justification templates
@@ -102,6 +106,7 @@ const [isSavingAppointment, setIsSavingAppointment] = useState(false);
 const [isConfirmingAction, setIsConfirmingAction] = useState(false);
 const [busyAppointmentStatusId, setBusyAppointmentStatusId] = useState(null);
 const [busyProthesisStatusId, setBusyProthesisStatusId] = useState(null);
+const [busyTreatmentStatusId, setBusyTreatmentStatusId] = useState(null);
 
 const [protheses, setProtheses] = useState([]);
 const [prothesisCatalog, setProthesisCatalog] = useState([]); // <--- Add this line
@@ -207,6 +212,35 @@ const handleCompleteAppointment = async (a) => {
     toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du rendez-vous"));
   } finally {
     setBusyAppointmentStatusId(null);
+  }
+};
+const handleCompleteTreatment = async (t) => {
+  if (busyTreatmentStatusId === t.id) return;
+  try {
+    setBusyTreatmentStatusId(t.id);
+    const payload = {
+      ...t,
+      patient: { id },
+      treatmentCatalog: { id: t.treatmentCatalog?.id || t.treatmentCatalogId },
+      status: "DONE",
+    };
+
+    const updatedTreatment = await updateTreatment(t.id, payload);
+
+    const catalogObj = treatmentCatalog.find(
+      (tc) => tc.id === updatedTreatment.treatmentCatalog?.id
+    );
+    updatedTreatment.treatmentCatalog = catalogObj || updatedTreatment.treatmentCatalog;
+
+    setTreatments((prev) =>
+      prev.map((item) => (item.id === updatedTreatment.id ? updatedTreatment : item))
+    );
+    toast.success("Traitement terminé !");
+  } catch (err) {
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du traitement"));
+  } finally {
+    setBusyTreatmentStatusId(null);
   }
 };
 const handleQuickPrintJustification = async (template) => {
@@ -455,8 +489,19 @@ const handleDeleteJustification = (j) => {
    notes: "", 
    teeth: [],   // <-- new field
    date: "",
+   status: "DONE",
    paid: false,
  });
+
+const completedTreatments = useMemo(
+  () => treatments.filter((t) => (t.status || "PLANNED") === "DONE"),
+  [treatments]
+);
+
+const plannedTreatments = useMemo(
+  () => treatments.filter((t) => (t.status || "PLANNED") !== "DONE"),
+  [treatments]
+);
 
 useEffect(() => {
   if (treatmentForm.treatmentCatalogId) {
@@ -724,7 +769,7 @@ const formatPhone = (phone) =>
   phone ? phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4") : "";
 
 // Add this inside the Patient component body
-const teethTreatmentMap = treatments.reduce((acc, t) => {
+const teethTreatmentMap = completedTreatments.reduce((acc, t) => {
   if (t.teeth && Array.isArray(t.teeth)) {
     t.teeth.forEach(toothId => {
       if (!acc[toothId]) acc[toothId] = [];
@@ -810,8 +855,8 @@ const handleSubmit = async (e) => {
   }, [id]);
 
   // --- STATS ---
-  // Sum of treatment prices
-const totalTreatment = treatments?.reduce((sum, t) => sum + Number(t.price || 0), 0);
+// Sum of completed treatment prices (planned = ignored)
+const totalTreatment = completedTreatments?.reduce((sum, t) => sum + Number(t.price || 0), 0);
 
 // Sum of prothesis finalPrice
 const totalProthesis = protheses?.reduce((sum, p) => sum + Number(p.finalPrice || 0), 0);
@@ -936,6 +981,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       price: "",
       notes: "",
       date: "",
+      status: "DONE",
       paid: false,
     });
     setIsEditingTreatment(false);
@@ -960,6 +1006,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       notes: t.notes || "",
       teeth: t.teeth || [],   // <-- important
       date: new Date().toISOString(),
+      status: t.status || "PLANNED",
     });
     setIsEditingTreatment(true);
     setShowTreatmentModal(true);
@@ -988,6 +1035,7 @@ setTreatmentForm({
   notes: "", 
   teeth: [],   // <-- important
   date: "", 
+  status: "DONE",
   paid: false 
 });    setIsEditingTreatment(false);
     setShowTreatmentModal(true);
@@ -1405,6 +1453,57 @@ const handleDeleteAppointment = (a) => {
   <>
   <div className="button-container">
     <button className="btn-primary-app" onClick={handleAddTreatment}><Plus size={16} />Ajouter</button></div>
+    {plannedTreatments.length > 0 && (
+      <>
+        <h4>Traitements planifiés (non comptés)</h4>
+        <table className="treatment-table">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Dents</th>
+              <th>Date</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plannedTreatments.map((t) => (
+              <tr key={t.id}>
+                <td>{t.treatmentCatalog?.name}</td>
+                <td>
+                  {t.teeth && t.teeth.length > 0 ? t.teeth.join(", ") : "—"}
+                </td>
+                <td>{formatDate(t.date)}</td>
+                <td>{t.notes || "—"}</td>
+                <td className="actions-cell">
+                  <button
+                    className="action-btn complete"
+                    onClick={() => handleCompleteTreatment(t)}
+                    title="Terminer"
+                  >
+                    <Check size={16} />
+                  </button>
+                  <button
+                    className="action-btn edit"
+                    onClick={() => handleEditTreatment(t)}
+                    title="Modifier"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    className="action-btn delete"
+                    onClick={() => handleDeleteTreatment(t)}
+                    title="Supprimer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    )}
     <table className="treatment-table">
       <thead>
         <tr>
@@ -1413,11 +1512,13 @@ const handleDeleteAppointment = (a) => {
           <th>Date</th>
           <th>Prix</th>
           <th>Notes</th>
+          <th>Statut</th>
+          <th>Modifié le</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {treatments.map(t => (
+        {completedTreatments.map(t => (
           <tr key={t.id}>
             <td>{t.treatmentCatalog?.name}</td>
             <td>
@@ -1428,6 +1529,12 @@ const handleDeleteAppointment = (a) => {
             <td>{formatDate(t.date)}</td>
             <td>{formatMoneyWithLabel(t.price)}</td>
             <td>{t.notes || "—"}</td>
+            <td>
+              <span className={`status-chip ${(t.status || "PLANNED").toLowerCase()}`}>
+                {treatmentStatusLabels[t.status] || t.status || "Planifié"}
+              </span>
+            </td>
+            <td>{formatDate(t.updatedAt || t.date)}</td>
             <td className="actions-cell">
 
   <button
@@ -1449,9 +1556,9 @@ const handleDeleteAppointment = (a) => {
 
           </tr>
         ))}
-        {treatments.length === 0 && (
+        {completedTreatments.length === 0 && (
           <tr>
-            <td colSpan="5" style={{ textAlign: "center" }}>Aucun traitement</td>
+            <td colSpan="8" style={{ textAlign: "center" }}>Aucun traitement terminé</td>
           </tr>
         )}
       </tbody>
@@ -2075,6 +2182,30 @@ const handleDeleteAppointment = (a) => {
       value={treatmentForm.notes}
       onChange={handleTreatmentChange}
     />
+
+    <div className="paid-toggle-container">
+      <span className="paid-label">Statut</span>
+      <label className={`chip-toggle ${treatmentForm.status === "PLANNED" ? "active" : ""}`}>
+        <input
+          type="radio"
+          name="status"
+          value="PLANNED"
+          checked={treatmentForm.status === "PLANNED"}
+          onChange={handleTreatmentChange}
+        />
+        Planifié
+      </label>
+      <label className={`chip-toggle ${treatmentForm.status === "DONE" ? "active" : ""}`}>
+        <input
+          type="radio"
+          name="status"
+          value="DONE"
+          checked={treatmentForm.status === "DONE"}
+          onChange={handleTreatmentChange}
+        />
+        Terminé
+      </label>
+    </div>
 
     <div className="paid-toggle-container">
       <span className="paid-label">Marqué comme </span>

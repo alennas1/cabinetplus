@@ -518,7 +518,8 @@
 }
 
 .status-chip.scheduled,
-.status-chip.pending {
+.status-chip.pending,
+.status-chip.planned {
   background-color: #fef3c7;
   color: #92400e;
   border-color: #fde68a;
@@ -532,7 +533,8 @@
 
 .status-chip.completed,
 .status-chip.received,
-.status-chip.fitted {
+.status-chip.fitted,
+.status-chip.done {
   background-color: #dcfce7;
   color: #15803d;
   border-color: #bbf7d0;

@@ -22,6 +22,176 @@ html, body {
   gap: 16px;
 }
 
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+/* =========================
+   Slot Preview
+========================= */
+.slot-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slot-preview .slot {
+  width: 100%;
+  margin: 0;
+}
+
+.slot-preview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slot-preview-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slot-preview-group.center {
+  justify-content: center;
+  flex: 1;
+}
+
+.slot-preview-group.left,
+.slot-preview-group.right {
+  min-width: 120px;
+}
+
+.slot-preview-btn {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.slot-preview-btn:hover {
+  background: #f9fafb;
+}
+
+.slot-preview-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slot-preview-stage {
+  position: relative;
+  height: 64px;
+  overflow: hidden;
+}
+
+.slot-preview-item {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+.slot-preview-item.static {
+  position: relative;
+}
+
+.slot-preview-item.enter.next {
+  animation: slotPreviewInFromRight 220ms ease forwards;
+}
+
+.slot-preview-item.exit.next {
+  animation: slotPreviewOutToLeft 220ms ease forwards;
+}
+
+.slot-preview-item.enter.prev {
+  animation: slotPreviewInFromLeft 220ms ease forwards;
+}
+
+.slot-preview-item.exit.prev {
+  animation: slotPreviewOutToRight 220ms ease forwards;
+}
+
+@keyframes slotPreviewInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0%);
+  }
+}
+
+@keyframes slotPreviewOutToLeft {
+  from {
+    transform: translateX(0%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes slotPreviewInFromLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0%);
+  }
+}
+
+@keyframes slotPreviewOutToRight {
+  from {
+    transform: translateX(0%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.slot-preview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.slot-preview-btn {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.slot-preview-btn:hover {
+  background: #f9fafb;
+}
+
+.slot-preview-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* =========================
    Controls
 ========================= */
@@ -63,6 +233,21 @@ html, body {
   padding: 8px 16px; /* increase top/bottom padding */
   line-height: 1.5;  /* optional for better vertical alignment */
   flex-shrink: 0;
+}
+
+.appointments-controls .btn-secondary {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  font-weight: 600;
+  cursor: pointer;
+  height: 40px;
+}
+
+.appointments-controls .btn-secondary:hover {
+  background: #f9fafb;
 }
 
 .appointments-controls button.active {
@@ -151,10 +336,7 @@ html, body {
   color: #1d4ed8;
 }
 
-.four-day-header-cell.weekend {
-  background: #fcfcfd;
-  color: #374151;
-}
+
 
 .four-day-body {
   display: flex;
@@ -389,6 +571,7 @@ html, body {
   flex: 1; /* fill vertical space */
   overflow-y: auto; /* scroll if too many slots */
   padding-right: 4px;
+  scroll-behavior: smooth;
 }
 
 .slot {
@@ -402,6 +585,9 @@ html, body {
   cursor: pointer; /* clickable */
   width: 100%;
   box-sizing: border-box;
+  position: relative;
+  height: 64px;
+  overflow: hidden;
 }
 
 .slot-time {
@@ -423,6 +609,7 @@ html, body {
   background: #f3f4f6; /* optional: highlight on hover */
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
+
 /* Slot times */
 .slot-time {
   width: 200px; /* fixed width for hours */
@@ -585,6 +772,20 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.time-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.time-range-row input[type="time"] {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 0.95rem;
 }
 
 .time-input-group input,

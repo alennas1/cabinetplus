@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { getActiveSessions, revokeSession, updatePassword, verifyPassword } from "../services/securityService";
-import { getApiErrorMessage } from "../utils/error";
 import {
-  changeGestionCabinetPin,
-  disableGestionCabinetPin,
-  enableGestionCabinetPin,
-  getGestionCabinetPinStatus,
-} from "../services/pinGuardService";
-import PinCodeInput from "../components/PinCodeInput";
+  confirmPhoneChangeOtp,
+  getActiveSessions,
+  revokeSession,
+  sendPhoneChangeOtp,
+  updatePassword,
+} from "../services/securityService";
+import { getCurrentUser } from "../services/authService";
+import { setCredentials } from "../store/authSlice";
+import { getApiErrorMessage } from "../utils/error";
 import PasswordInput from "../components/PasswordInput";
 import "./Security.css";
 
 const Security = () => {
+  const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.username;
   const isClinicEmployeeAccount =
@@ -31,27 +33,20 @@ const Security = () => {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsBusy, setSessionsBusy] = useState(null);
 
-  const [gcPinEnabled, setGcPinEnabled] = useState(false);
-  const [gcPassword, setGcPassword] = useState("");
-  const [gcNewPin, setGcNewPin] = useState("");
-  const [gcConfirmPin, setGcConfirmPin] = useState("");
+  const [phoneChangeNumber, setPhoneChangeNumber] = useState("");
+  const [phoneChangeCode, setPhoneChangeCode] = useState("");
+  const [phoneChangePassword, setPhoneChangePassword] = useState("");
+  const [phoneChangeOtpSent, setPhoneChangeOtpSent] = useState(false);
+  const [phoneChangeBusy, setPhoneChangeBusy] = useState(false);
+  const [phoneChangeCooldown, setPhoneChangeCooldown] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const status = await getGestionCabinetPinStatus();
-        if (!cancelled) setGcPinEnabled(!!status?.enabled);
-      } catch {
-        if (!cancelled) setGcPinEnabled(false);
-      }
-    };
-    if (userKey) run();
-    else setGcPinEnabled(false);
-    return () => {
-      cancelled = true;
-    };
-  }, [userKey]);
+    if (phoneChangeCooldown <= 0) return;
+    const id = window.setInterval(() => {
+      setPhoneChangeCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [phoneChangeCooldown]);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,28 +161,7 @@ const Security = () => {
     }
   };
 
-  const validateNewPin = () => {
-    const trimmed = gcNewPin.trim();
-
-    if (!/^\d{4}$/.test(trimmed)) {
-      toast.error("Le PIN doit contenir exactement 4 chiffres");
-      return null;
-    }
-
-    if (trimmed !== gcConfirmPin.trim()) {
-      toast.error("Les codes PIN ne correspondent pas");
-      return null;
-    }
-
-    return trimmed;
-  };
-
-  const resetPinFields = () => {
-    setGcPassword("");
-    setGcNewPin("");
-    setGcConfirmPin("");
-  };
-
+  /* PIN management removed from this page (it is handled elsewhere).
   const handleEnableGestionCabinetPin = async () => {
     if (!userKey) return;
 
@@ -246,12 +220,146 @@ const Security = () => {
       toast.error(getApiErrorMessage(err, "Impossible de désactiver la sécurisation"));
     }
   };
+  */
+
+  const handleSendPhoneChangeOtp = async () => {
+    if (!phoneChangeNumber.trim()) {
+      toast.error("Entrez le nouveau numero de telephone");
+      return;
+    }
+    if (phoneChangeBusy || phoneChangeCooldown > 0) return;
+
+    try {
+      setPhoneChangeBusy(true);
+      await sendPhoneChangeOtp(phoneChangeNumber.trim());
+      setPhoneChangeOtpSent(true);
+      setPhoneChangeCooldown(60);
+      toast.success("Code SMS envoye");
+    } catch (err) {
+      const retryAfter = Number(err?.response?.data?.retryAfterSeconds);
+      if (err?.response?.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+        setPhoneChangeCooldown(retryAfter);
+        toast.info(getApiErrorMessage(err, "Veuillez patienter avant de renvoyer un code."));
+      } else {
+        toast.error(getApiErrorMessage(err, "Impossible d'envoyer le code SMS"));
+      }
+    } finally {
+      setPhoneChangeBusy(false);
+    }
+  };
+
+  const handleConfirmPhoneChangeOtp = async () => {
+    if (!phoneChangeOtpSent) return;
+    if (!phoneChangeCode.trim()) {
+      toast.error("Entrez le code SMS");
+      return;
+    }
+    if (!phoneChangePassword.trim()) {
+      toast.error("Entrez votre mot de passe");
+      return;
+    }
+    if (phoneChangeBusy) return;
+
+    try {
+      setPhoneChangeBusy(true);
+      await confirmPhoneChangeOtp({
+        phoneNumber: phoneChangeNumber.trim(),
+        code: phoneChangeCode.trim(),
+        password: phoneChangePassword.trim(),
+      });
+      const refreshed = await getCurrentUser();
+      dispatch(setCredentials({ user: refreshed, token: true }));
+      setPhoneChangeNumber("");
+      setPhoneChangeCode("");
+      setPhoneChangePassword("");
+      setPhoneChangeOtpSent(false);
+      toast.success("Numero de telephone mis a jour");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Code SMS invalide"));
+    } finally {
+      setPhoneChangeBusy(false);
+    }
+  };
 
   return (
     <div className="settings-container">
       <PageHeader title="Sécurité" subtitle="Changer le mot de passe" />
 
       <div className="security-content">
+        {user?.role === "DENTIST" && !isClinicEmployeeAccount && (
+          <>
+            <PageHeader
+              title="Numero de telephone"
+              subtitle="Changer votre numero (verification SMS)"
+            />
+
+            <div className="security-field">
+              <label>Numero actuel</label>
+              <input type="text" value={user?.phoneNumber || ""} disabled />
+            </div>
+
+            <div className="security-field">
+              <label>Nouveau numero</label>
+              <input
+                type="tel"
+                placeholder="Ex: 0555..."
+                value={phoneChangeNumber}
+                onChange={(e) => setPhoneChangeNumber(e.target.value)}
+                autoComplete="tel"
+              />
+            </div>
+
+            <button
+              type="button"
+              className="security-btn"
+              onClick={handleSendPhoneChangeOtp}
+              disabled={phoneChangeBusy || phoneChangeCooldown > 0}
+            >
+              {phoneChangeBusy
+                ? "Envoi..."
+                : phoneChangeCooldown > 0
+                ? `Renvoyer dans ${phoneChangeCooldown}s`
+                : phoneChangeOtpSent
+                ? "Renvoyer le code"
+                : "Envoyer le code"}
+            </button>
+
+            {phoneChangeOtpSent && (
+              <>
+                <div className="security-field">
+                  <label>Code SMS</label>
+                  <input
+                    type="text"
+                    placeholder="Entrez le code"
+                    value={phoneChangeCode}
+                    onChange={(e) => setPhoneChangeCode(e.target.value)}
+                    inputMode="numeric"
+                  />
+                </div>
+
+                <div className="security-field">
+                  <label>Mot de passe</label>
+                  <PasswordInput
+                    placeholder="Entrez votre mot de passe"
+                    value={phoneChangePassword}
+                    onChange={(e) => setPhoneChangePassword(e.target.value)}
+                    autoComplete="current-password"
+                    disabled={phoneChangeBusy}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="security-btn"
+                  onClick={handleConfirmPhoneChangeOtp}
+                  disabled={phoneChangeBusy}
+                >
+                  {phoneChangeBusy ? "Verification..." : "Verifier et enregistrer"}
+                </button>
+              </>
+            )}
+          </>
+        )}
         {isClinicEmployeeAccount ? (
           <div className="session-empty" style={{ marginBottom: "18px" }}>
             Votre mot de passe est géré par le propriétaire du cabinet.
@@ -358,6 +466,7 @@ const Security = () => {
           )}
         </div>
 
+        {false && (<>
         <div style={{ marginTop: "10px" }}>
           <PageHeader
             title="Code PIN"
@@ -422,6 +531,7 @@ const Security = () => {
             </button>
           </>
         )}
+        </>)}
       </div>
 
       <ToastContainer

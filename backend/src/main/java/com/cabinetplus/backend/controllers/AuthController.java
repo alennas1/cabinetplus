@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.controllers;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Map;
@@ -68,6 +69,9 @@ public class AuthController {
 
     @Value("${app.cookie.same-site:Lax}")
     private String cookieSameSite;
+
+    @Value("${app.otp.cooldown-seconds:60}")
+    private long otpCooldownSeconds;
 
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
                           UserRepository userRepo, RefreshTokenRepository refreshRepo,
@@ -372,25 +376,45 @@ if (deviceId == null || deviceId.isBlank()) {
             ));
         }
 
+        Map<String, Object> cooldown = checkCooldown(user.getPasswordResetOtpLastSentAt());
+        if (cooldown != null) {
+            return ResponseEntity.status(429).body(cooldown);
+        }
+
         try {
             if (devProfile && isLocalRequest(httpRequest)) {
+                user.setPasswordResetOtpLastSentAt(LocalDateTime.now());
+                userRepo.save(user);
                 return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
             }
             phoneVerificationService.sendVerificationCode(formattedNumber);
+            user.setPasswordResetOtpLastSentAt(LocalDateTime.now());
+            userRepo.save(user);
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye"));
         } catch (IllegalStateException e) {
             logger.error("Twilio Verify not configured for password reset send (to={})", maskPhone(formattedNumber), e);
             return ResponseEntity.status(500).body(Map.of("error", "Service SMS indisponible", "reason", "not_configured"));
         } catch (ApiException e) {
             int status = e.getStatusCode();
+            Integer twilioCode = e.getCode();
             logger.warn("Twilio Verify send failed for password reset (to={}, status={})", maskPhone(formattedNumber), status, e);
+
+            if (twilioCode != null && twilioCode == 60410) {
+                var body = new java.util.HashMap<String, Object>();
+                body.put("error", "Envoi SMS temporairement bloque. Reessayez plus tard.");
+                body.put("reason", "fraud_guard_blocked");
+                body.put("twilioStatus", status);
+                body.put("twilioCode", twilioCode);
+                body.put("retryAfterSeconds", 60 * 60 * 12);
+                return ResponseEntity.status(429).body(body);
+            }
 
             if (status == 400) {
                 var body = new java.util.HashMap<String, Object>();
                 body.put("error", "Numero de telephone invalide");
                 body.put("reason", "twilio_rejected");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.badRequest().body(body);
             }
             if (status == 429) {
@@ -398,7 +422,7 @@ if (deviceId == null || deviceId.isBlank()) {
                 body.put("error", "Trop de demandes. Reessayez plus tard.");
                 body.put("reason", "rate_limited");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.status(429).body(body);
             }
             if (status == 401 || status == 403) {
@@ -406,7 +430,7 @@ if (deviceId == null || deviceId.isBlank()) {
                 body.put("error", "Configuration SMS invalide");
                 body.put("reason", "auth_failed");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.status(500).body(body);
             }
             if (status == 404) {
@@ -414,14 +438,14 @@ if (deviceId == null || deviceId.isBlank()) {
                 body.put("error", "Configuration SMS invalide");
                 body.put("reason", "service_not_found");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.status(500).body(body);
             }
             var body = new java.util.HashMap<String, Object>();
             body.put("error", "Service SMS indisponible");
             body.put("reason", "upstream_error");
             body.put("twilioStatus", status);
-            if (e.getCode() != null) body.put("twilioCode", e.getCode());
+            if (twilioCode != null) body.put("twilioCode", twilioCode);
             return ResponseEntity.status(502).body(body);
         } catch (Exception e) {
             logger.error("Unexpected error during password reset send (to={})", maskPhone(formattedNumber), e);
@@ -460,13 +484,14 @@ if (deviceId == null || deviceId.isBlank()) {
             return ResponseEntity.status(500).body(Map.of("error", "Service SMS indisponible", "reason", "not_configured"));
         } catch (ApiException e) {
             int status = e.getStatusCode();
+            Integer twilioCode = e.getCode();
             logger.warn("Twilio Verify check failed for password reset (to={}, status={})", maskPhone(formattedNumber), status, e);
             if (status == 400) {
                 var body = new java.util.HashMap<String, Object>();
                 body.put("error", "Code SMS invalide");
                 body.put("reason", "twilio_rejected");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.badRequest().body(body);
             }
             if (status == 429) {
@@ -474,7 +499,7 @@ if (deviceId == null || deviceId.isBlank()) {
                 body.put("error", "Trop de demandes. Reessayez plus tard.");
                 body.put("reason", "rate_limited");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.status(429).body(body);
             }
             if (status == 401 || status == 403) {
@@ -482,7 +507,7 @@ if (deviceId == null || deviceId.isBlank()) {
                 body.put("error", "Configuration SMS invalide");
                 body.put("reason", "auth_failed");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.status(500).body(body);
             }
             if (status == 404) {
@@ -490,14 +515,14 @@ if (deviceId == null || deviceId.isBlank()) {
                 body.put("error", "Configuration SMS invalide");
                 body.put("reason", "service_not_found");
                 body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
+                if (twilioCode != null) body.put("twilioCode", twilioCode);
                 return ResponseEntity.status(500).body(body);
             }
             var body = new java.util.HashMap<String, Object>();
             body.put("error", "Service SMS indisponible");
             body.put("reason", "upstream_error");
             body.put("twilioStatus", status);
-            if (e.getCode() != null) body.put("twilioCode", e.getCode());
+            if (twilioCode != null) body.put("twilioCode", twilioCode);
             return ResponseEntity.status(502).body(body);
         } catch (Exception e) {
             logger.error("Unexpected error during password reset confirm (to={})", maskPhone(formattedNumber), e);
@@ -596,6 +621,21 @@ if (deviceId == null || deviceId.isBlank()) {
         }
 
         return isPrivateIpv4(clientIp);
+    }
+
+    private Map<String, Object> checkCooldown(LocalDateTime lastSentAt) {
+        if (lastSentAt == null) return null;
+        LocalDateTime now = LocalDateTime.now();
+        long elapsed = Duration.between(lastSentAt, now).getSeconds();
+        if (elapsed < otpCooldownSeconds) {
+            long retryAfterSeconds = Math.max(otpCooldownSeconds - elapsed, 1);
+            return Map.of(
+                    "error", "Veuillez patienter avant de renvoyer un code.",
+                    "reason", "cooldown",
+                    "retryAfterSeconds", retryAfterSeconds
+            );
+        }
+        return null;
     }
 
     private boolean isPrivateIpv4(String ip) {

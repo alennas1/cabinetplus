@@ -35,3 +35,21 @@ export const revokeSession = async (sessionId) => {
   const response = await api.delete(`/api/users/me/sessions/${sessionId}`);
   return response.data;
 };
+
+/**
+ * Send OTP to verify a new phone number before saving it on the account.
+ * @param {string} phoneNumber
+ */
+export const sendPhoneChangeOtp = async (phoneNumber) => {
+  const response = await api.post("/api/verify/phone-change/send", { phoneNumber });
+  return response.data;
+};
+
+/**
+ * Confirm OTP and update the account phone number.
+ * @param {Object} data - { phoneNumber, code }
+ */
+export const confirmPhoneChangeOtp = async (data) => {
+  const response = await api.post("/api/verify/phone-change/confirm", data);
+  return response.data;
+};

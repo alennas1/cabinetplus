@@ -18,6 +18,15 @@ const VerificationPage = () => {
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [phoneCode, setPhoneCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [phoneSendCooldown, setPhoneSendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (phoneSendCooldown <= 0) return;
+    const id = window.setInterval(() => {
+      setPhoneSendCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [phoneSendCooldown]);
 
   useEffect(() => {
     if (!user) return;
@@ -46,6 +55,7 @@ const VerificationPage = () => {
   };
 
   const handleSendPhoneCode = async () => {
+    if (phoneSendCooldown > 0) return;
     setLoading(true);
     try {
       const { data } = await api.post("/api/verify/phone/send");
@@ -54,6 +64,7 @@ const VerificationPage = () => {
         markAsVerifiedLocally(updatedUser);
       } else {
         setPhoneCodeSent(true);
+        setPhoneSendCooldown(60);
         alert("Un code SMS a ete envoye.");
       }
     } catch (err) {
@@ -61,6 +72,10 @@ const VerificationPage = () => {
         dispatch(logoutRedux());
         navigate("/login", { replace: true, state: { reason: "session_expired" } });
         return;
+      }
+      const retryAfter = Number(err?.response?.data?.retryAfterSeconds);
+      if (err?.response?.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+        setPhoneSendCooldown(retryAfter);
       }
       alert(getApiErrorMessage(err, "Erreur lors de l'envoi du code."));
     } finally {
@@ -133,10 +148,16 @@ const VerificationPage = () => {
                 )}
                 <button
                   className="auth-form-button"
-                  disabled={loading}
+                  disabled={loading || (!phoneCodeSent && phoneSendCooldown > 0)}
                   onClick={phoneCodeSent ? handleSubmitPhoneCode : handleSendPhoneCode}
                 >
-                  {loading ? "Chargement..." : phoneCodeSent ? "Soumettre le code" : "Demarrer la verification"}
+                  {loading
+                    ? "Chargement..."
+                    : phoneCodeSent
+                    ? "Soumettre le code"
+                    : phoneSendCooldown > 0
+                    ? `Renvoyer dans ${phoneSendCooldown}s`
+                    : "Demarrer la verification"}
                 </button>
               </div>
             )}

@@ -32,6 +32,15 @@ const LoginPage = () => {
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetError, setResetError] = useState("");
+  const [resetSendCooldown, setResetSendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resetSendCooldown <= 0) return;
+    const id = window.setInterval(() => {
+      setResetSendCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [resetSendCooldown]);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -135,12 +144,14 @@ const LoginPage = () => {
     setResetNewPassword("");
     setResetConfirmPassword("");
     setResetError("");
+    setResetSendCooldown(0);
   };
 
   const closeResetModal = () => {
     setResetOpen(false);
     setResetLoading(false);
     setResetError("");
+    setResetSendCooldown(0);
   };
 
   const handleSendResetCode = async () => {
@@ -148,12 +159,18 @@ const LoginPage = () => {
       setResetError("Entrez votre numero de telephone.");
       return;
     }
+    if (resetSendCooldown > 0) return;
     setResetLoading(true);
     setResetError("");
     try {
       await sendPasswordResetCode(resetPhone.trim());
       setResetStep("code");
+      setResetSendCooldown(60);
     } catch (err) {
+      const retryAfter = Number(err?.response?.data?.retryAfterSeconds);
+      if (err?.response?.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+        setResetSendCooldown(retryAfter);
+      }
       setResetError(getApiErrorMessage(err, "Impossible d'envoyer le code."));
     } finally {
       setResetLoading(false);
@@ -322,8 +339,12 @@ const LoginPage = () => {
                   onChange={(e) => setResetPhone(e.target.value)}
                   disabled={resetLoading}
                 />
-                <button type="button" onClick={handleSendResetCode} disabled={resetLoading}>
-                  {resetLoading ? "Envoi..." : "Envoyer le code"}
+                <button type="button" onClick={handleSendResetCode} disabled={resetLoading || resetSendCooldown > 0}>
+                  {resetLoading
+                    ? "Envoi..."
+                    : resetSendCooldown > 0
+                    ? `Renvoyer dans ${resetSendCooldown}s`
+                    : "Envoyer le code"}
                 </button>
               </div>
             )}
@@ -353,6 +374,9 @@ const LoginPage = () => {
                 />
                 <button type="button" onClick={handleConfirmReset} disabled={resetLoading}>
                   {resetLoading ? "Verification..." : "Reinitialiser"}
+                </button>
+                <button type="button" onClick={handleSendResetCode} disabled={resetLoading || resetSendCooldown > 0}>
+                  {resetSendCooldown > 0 ? `Renvoyer dans ${resetSendCooldown}s` : "Renvoyer le code"}
                 </button>
               </div>
             )}

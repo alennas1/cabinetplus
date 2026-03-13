@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -32,10 +33,11 @@ class VerificationControllerTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         phoneVerificationService = mock(PhoneVerificationService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[0]);
 
-        VerificationController controller = new VerificationController(userRepository, phoneVerificationService, environment);
+        VerificationController controller = new VerificationController(userRepository, phoneVerificationService, passwordEncoder, environment);
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)

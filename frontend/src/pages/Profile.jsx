@@ -49,6 +49,10 @@ const Profile = () => {
   }, []);
 
   const handleEdit = (field) => {
+    if (field === "phoneNumber") {
+      toast.info("Le numero de telephone se modifie depuis la page Securite.");
+      return;
+    }
     setEditingField(field);
     const value = profile[field] || "";
     setTempValue(field === "phoneNumber" ? formatPhoneNumber(value) : value);
@@ -79,9 +83,8 @@ const Profile = () => {
         return;
       }
 
-      const updatedProfile = { ...profile, [field]: valueToSave };
-      await updateUserProfile(updatedProfile);
-      setProfile(updatedProfile);
+      await updateUserProfile({ [field]: valueToSave });
+      setProfile((prev) => ({ ...prev, [field]: valueToSave }));
       setEditingField(null);
       toast.success(`${fieldLabels[field]} mis à jour avec succès`);
     } catch (err) {
@@ -98,6 +101,8 @@ const Profile = () => {
 
       {field === "profession" ? (
         <span className="field-value">{profile.profession}</span>
+      ) : field === "phoneNumber" ? (
+        <span className="field-value">{formatPhoneNumber(profile.phoneNumber) || "â€”"}</span>
       ) : editingField === field ? (
         <>
           <input

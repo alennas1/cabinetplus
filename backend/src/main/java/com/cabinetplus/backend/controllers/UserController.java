@@ -213,7 +213,12 @@ public class UserController {
 
         if (updates.containsKey("firstname")) user.setFirstname((String) updates.get("firstname"));
         if (updates.containsKey("lastname")) user.setLastname((String) updates.get("lastname"));
-        if (updates.containsKey("phoneNumber")) user.setPhoneNumber((String) updates.get("phoneNumber"));
+        if (updates.containsKey("phoneNumber")) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Le numero de telephone se modifie depuis la page Securite (verification SMS requise)."
+            );
+        }
         if (updates.containsKey("clinicName")) user.setClinicName((String) updates.get("clinicName"));
         if (updates.containsKey("address")) user.setAddress((String) updates.get("address"));
 

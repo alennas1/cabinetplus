@@ -156,6 +156,8 @@ public class AuditService {
                 log.getEventType(),
                 log.getStatus(),
                 log.getMessage(),
+                log.getTargetType(),
+                log.getTargetId(),
                 log.getActorUserId(),
                 actorDisplayName,
                 log.getIpAddress(),

@@ -51,8 +51,8 @@ public class ProtheticsController {
         Prothesis created = service.create(dto, user);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_CREATE,
-                "PROTHESIS",
-                String.valueOf(created.getId()),
+                "PATIENT",
+                created.getPatient() != null ? String.valueOf(created.getPatient().getId()) : null,
                 "Prothese ajoutee pour " + formatPatientName(created.getPatient())
         );
         return ResponseEntity.ok(mapToResponse(created));
@@ -64,8 +64,8 @@ public class ProtheticsController {
         Prothesis updated = service.update(id, dto, user);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_UPDATE,
-                "PROTHESIS",
-                String.valueOf(updated.getId()),
+                "PATIENT",
+                updated.getPatient() != null ? String.valueOf(updated.getPatient().getId()) : null,
                 "Prothese modifiee pour " + formatPatientName(updated.getPatient())
         );
         return ResponseEntity.ok(mapToResponse(updated));
@@ -77,8 +77,8 @@ public class ProtheticsController {
         Prothesis updated = service.assignToLab(id, dto, user);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_ASSIGN_LAB,
-                "PROTHESIS",
-                String.valueOf(updated.getId()),
+                "PATIENT",
+                updated.getPatient() != null ? String.valueOf(updated.getPatient().getId()) : null,
                 "Prothese envoyee au laboratoire pour " + formatPatientName(updated.getPatient())
         );
         return ResponseEntity.ok(mapToResponse(updated));
@@ -93,8 +93,8 @@ public class ProtheticsController {
         Prothesis updated = service.updateStatus(id, status, user);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_STATUS_CHANGE,
-                "PROTHESIS",
-                String.valueOf(updated.getId()),
+                "PATIENT",
+                updated.getPatient() != null ? String.valueOf(updated.getPatient().getId()) : null,
                 "Statut prothese modifie pour " + formatPatientName(updated.getPatient()) + ": " + updated.getStatus()
         );
         return ResponseEntity.ok(mapToResponse(updated));
@@ -107,8 +107,10 @@ public class ProtheticsController {
         service.delete(id, user);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_DELETE,
-                "PROTHESIS",
-                String.valueOf(id),
+                "PATIENT",
+                existing != null && existing.getPatient() != null
+                        ? String.valueOf(existing.getPatient().getId())
+                        : null,
                 existing != null
                         ? "Prothese supprimee pour " + formatPatientName(existing.getPatient())
                         : "Prothese supprimee: #" + id

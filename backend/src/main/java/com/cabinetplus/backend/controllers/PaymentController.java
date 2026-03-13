@@ -33,8 +33,8 @@ public class PaymentController {
         Patient patient = patientRepository.findById(request.patientId()).orElse(null);
         auditService.logSuccess(
                 AuditEventType.PAYMENT_CREATE,
-                "PAYMENT",
-                String.valueOf(created.id()),
+                "PATIENT",
+                String.valueOf(request.patientId()),
                 patient != null
                         ? "Paiement ajoute pour " + formatPatientName(patient)
                         : "Paiement ajoute pour le patient #" + request.patientId()
@@ -55,8 +55,10 @@ public class PaymentController {
         paymentService.delete(paymentId);
         auditService.logSuccess(
                 AuditEventType.PAYMENT_DELETE,
-                "PAYMENT",
-                String.valueOf(paymentId),
+                "PATIENT",
+                existing != null && existing.getPatient() != null
+                        ? String.valueOf(existing.getPatient().getId())
+                        : null,
                 existing != null && existing.getPatient() != null
                         ? "Paiement supprime pour " + formatPatientName(existing.getPatient())
                         : "Paiement supprime: #" + paymentId

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ChevronDown, RefreshCw, Search } from "react-feather";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { getMyAuditLogs } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
@@ -135,6 +136,7 @@ const monthsList = Array.from({ length: 12 }).map((_, i) => {
 
 const AuditLogs = () => {
   const currentUser = useSelector((state) => state.auth.user);
+  const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -173,6 +175,23 @@ const AuditLogs = () => {
       return "Moi-meme";
     }
     return log.actorDisplayName || "-";
+  };
+
+  const renderPatientCell = (log) => {
+    const label = getDisplayDetails(log);
+    const patientId = log?.targetType === "PATIENT" ? log?.targetId : null;
+    if (patientId && label && label !== "-") {
+      return (
+        <button
+          type="button"
+          className="table-link"
+          onClick={() => navigate(`/patients/${patientId}`)}
+        >
+          {label}
+        </button>
+      );
+    }
+    return label;
   };
 
   const filteredLogs = useMemo(() => {
@@ -481,7 +500,7 @@ const AuditLogs = () => {
                   <td>{formatDateTime(log.occurredAt)}</td>
                   <td>{getActionLabel(log.eventType)}</td>
                   <td>{getEntityLabel(log.eventType)}</td>
-                  <td>{getDisplayDetails(log)}</td>
+                  <td>{renderPatientCell(log)}</td>
                   <td>
                     <span className={`status-badge ${badgeClass}`}>
                       {STATUS_LABELS[status] || status}

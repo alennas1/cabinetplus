@@ -59,8 +59,8 @@ public class TreatmentController {
         Treatment saved = treatmentService.save(treatment);
         auditService.logSuccess(
                 AuditEventType.TREATMENT_CREATE,
-                "TREATMENT",
-                String.valueOf(saved.getId()),
+                "PATIENT",
+                saved.getPatient() != null ? String.valueOf(saved.getPatient().getId()) : null,
                 "Traitement ajoute pour " + formatPatientName(saved.getPatient())
         );
         return ResponseEntity.ok(saved);
@@ -75,8 +75,8 @@ public class TreatmentController {
         Optional<Treatment> updated = treatmentService.update(id, treatment, currentUser);
         updated.ifPresent(saved -> auditService.logSuccess(
                 AuditEventType.TREATMENT_UPDATE,
-                "TREATMENT",
-                String.valueOf(saved.getId()),
+                "PATIENT",
+                saved.getPatient() != null ? String.valueOf(saved.getPatient().getId()) : null,
                 "Traitement modifie pour " + formatPatientName(saved.getPatient())
         ));
         return updated.map(ResponseEntity::ok)
@@ -92,8 +92,9 @@ public class TreatmentController {
         if (deleted) {
             auditService.logSuccess(
                     AuditEventType.TREATMENT_DELETE,
-                    "TREATMENT",
-                    String.valueOf(id),
+                    "PATIENT",
+                    existing.map(treatment -> treatment.getPatient() != null ? String.valueOf(treatment.getPatient().getId()) : null)
+                            .orElse(null),
                     existing.map(treatment -> "Traitement supprime pour " + formatPatientName(treatment.getPatient()))
                             .orElse("Traitement supprime: #" + id)
             );

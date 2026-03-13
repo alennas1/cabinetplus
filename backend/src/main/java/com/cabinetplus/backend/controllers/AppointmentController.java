@@ -97,8 +97,8 @@ public class AppointmentController {
         Appointment saved = appointmentService.save(appointment);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_CREATE,
-                "APPOINTMENT",
-                String.valueOf(saved.getId()),
+                "PATIENT",
+                String.valueOf(patientDto.id()),
                 "Rendez-vous ajoute pour " + formatPatientName(patientDto.firstname(), patientDto.lastname())
         );
 
@@ -152,8 +152,8 @@ public class AppointmentController {
         Appointment saved = appointmentService.save(existing);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_UPDATE,
-                "APPOINTMENT",
-                String.valueOf(saved.getId()),
+                "PATIENT",
+                String.valueOf(patientDto.id()),
                 "Rendez-vous modifie pour " + formatPatientName(patientDto.firstname(), patientDto.lastname())
         );
         return new AppointmentResponse(
@@ -281,8 +281,10 @@ public class AppointmentController {
         appointmentService.delete(id);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_DELETE,
-                "APPOINTMENT",
-                String.valueOf(id),
+                "PATIENT",
+                existing != null && existing.getPatient() != null
+                        ? String.valueOf(existing.getPatient().getId())
+                        : null,
                 existing != null
                         ? "Rendez-vous supprime pour " + formatPatientName(
                                 existing.getPatient() != null ? existing.getPatient().getFirstname() : null,

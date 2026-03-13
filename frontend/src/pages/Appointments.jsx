@@ -841,15 +841,31 @@ export default function Appointments() {
 
   const nextAvailableSlotIndex = useMemo(() => {
     if (!todaySlots.length) return -1;
-    const now = new Date();
+    const todayCompleted = appointments
+      .filter((appt) => {
+        if (appt.status !== "COMPLETED") return false;
+        const start = new Date(appt.dateTimeStart);
+        return isSameDay(start, todayBaseDate);
+      })
+      .map((appt) => new Date(appt.dateTimeEnd));
+
     let startIdx = 0;
-    const idx = todaySlots.findIndex((slot) => slot.start >= now);
-    startIdx = idx >= 0 ? idx : 0;
+    if (todayCompleted.length > 0) {
+      const lastCompletedEnd = new Date(
+        Math.max(...todayCompleted.map((d) => d.getTime()))
+      );
+      const idx = todaySlots.findIndex((slot) => slot.start >= lastCompletedEnd);
+      startIdx = idx >= 0 ? idx : 0;
+    } else {
+      const now = new Date();
+      const idx = todaySlots.findIndex((slot) => slot.start >= now);
+      startIdx = idx >= 0 ? idx : 0;
+    }
     for (let i = startIdx; i < todaySlots.length; i += 1) {
       if (!todaySlots[i].appointments?.length) return i;
     }
     return -1;
-  }, [todaySlots]);
+  }, [todaySlots, appointments, todayBaseDate]);
 
   
 

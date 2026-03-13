@@ -224,6 +224,19 @@
   background: #f9fcff;
 }
 
+.table-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.table-link:hover {
+  text-decoration: underline;
+}
+
 /* Action buttons */
 .btn-edit,
 .btn-delete {

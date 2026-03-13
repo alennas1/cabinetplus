@@ -92,7 +92,7 @@ public class AuthController {
 
     // ---------------- LOGIN ----------------
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
+    public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletResponse response, HttpServletRequest request) {
         String identifier = body.get("username");
         String password = body.get("password");
 
@@ -137,6 +137,8 @@ public class AuthController {
             refreshToken.setToken(jwtUtil.generateRefreshToken(resolvedUsername, refreshTokenMs));
             refreshToken.setCreatedAt(LocalDateTime.now());
             refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
+            refreshToken.setLastUsedAt(LocalDateTime.now());
+            fillSessionMeta(refreshToken, request);
             refreshRepo.save(refreshToken);
 
             addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
@@ -161,7 +163,7 @@ public class AuthController {
 
     // ---------------- REGISTER ----------------
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse response, HttpServletRequest httpRequest) {
         if (userRepo.findByUsername(request.username()).isPresent()) {
             auditService.logFailure(AuditEventType.AUTH_REGISTER, "USER", request.username(), "Nom d'utilisateur deja utilise");
             return ResponseEntity.badRequest().body(Map.of("error", "Ce nom d'utilisateur est deja utilise"));
@@ -201,6 +203,8 @@ public class AuthController {
         refreshToken.setToken(jwtUtil.generateRefreshToken(saved.getUsername(), refreshTokenMs));
         refreshToken.setCreatedAt(LocalDateTime.now());
         refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
+        refreshToken.setLastUsedAt(LocalDateTime.now());
+        fillSessionMeta(refreshToken, httpRequest);
         refreshRepo.save(refreshToken);
 
         addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
@@ -221,7 +225,8 @@ public class AuthController {
     // ---------------- SESSION ----------------
     @PostMapping("/session")
     public ResponseEntity<?> session(@CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
-                                     HttpServletResponse response) {
+                                     HttpServletResponse response,
+                                     HttpServletRequest request) {
         if (refreshTokenCookie == null) {
             return ResponseEntity.ok(Map.of("accessToken", ""));
         }
@@ -237,6 +242,9 @@ public class AuthController {
                     }
 
                     // Only generate new access token, no refresh token rotation
+                    tokenEntity.setLastUsedAt(LocalDateTime.now());
+                    fillSessionMetaIfMissing(tokenEntity, request);
+                    refreshRepo.save(tokenEntity);
                     String newAccessToken = jwtUtil.generateAccessToken(user);
                     return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
                 })
@@ -411,6 +419,118 @@ public class AuthController {
         return "127.0.0.1".equals(remoteAddr)
                 || "0:0:0:0:0:0:0:1".equals(remoteAddr)
                 || "::1".equals(remoteAddr);
+    }
+
+    private void fillSessionMeta(RefreshToken token, HttpServletRequest request) {
+        if (request == null || token == null) return;
+        token.setUserAgent(trim(request.getHeader("User-Agent"), 255));
+        String ipAddress = trim(extractClientIp(request), 100);
+        token.setIpAddress(ipAddress);
+        token.setLocation(trim(extractLocation(request, ipAddress), 120));
+    }
+
+    private void fillSessionMetaIfMissing(RefreshToken token, HttpServletRequest request) {
+        if (token == null || request == null) return;
+        if (token.getUserAgent() == null || token.getUserAgent().isBlank()) {
+            token.setUserAgent(trim(request.getHeader("User-Agent"), 255));
+        }
+        if (token.getIpAddress() == null || token.getIpAddress().isBlank()) {
+            String ipAddress = trim(extractClientIp(request), 100);
+            token.setIpAddress(ipAddress);
+            token.setLocation(trim(extractLocation(request, ipAddress), 120));
+        }
+    }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    private String extractLocation(HttpServletRequest request, String ipAddress) {
+        String city = headerOrNull(request, "X-City");
+        String region = headerOrNull(request, "X-Region");
+        String country = firstNonBlank(
+                headerOrNull(request, "CF-IPCountry"),
+                headerOrNull(request, "X-Country-Code"),
+                headerOrNull(request, "X-Country"),
+                headerOrNull(request, "X-AppEngine-Country"),
+                headerOrNull(request, "X-Geo-Country")
+        );
+
+        StringBuilder location = new StringBuilder();
+        if (city != null) location.append(city);
+        if (region != null) {
+            if (!location.isEmpty()) location.append(", ");
+            location.append(region);
+        }
+        if (country != null) {
+            if (!location.isEmpty()) location.append(", ");
+            location.append(country);
+        }
+        if (!location.isEmpty()) return location.toString();
+
+        if (isPrivateOrLocalIp(ipAddress)) {
+            return "Reseau local";
+        }
+        return "Localisation indisponible";
+    }
+
+    private String headerOrNull(HttpServletRequest request, String headerName) {
+        String value = request.getHeader(headerName);
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private boolean isPrivateOrLocalIp(String ipAddress) {
+        if (ipAddress == null || ipAddress.isBlank()) return true;
+
+        String ip = ipAddress.trim();
+        String lower = ip.toLowerCase();
+        if (lower.startsWith("10.")
+                || lower.startsWith("192.168.")
+                || lower.startsWith("fc")
+                || lower.startsWith("fd")
+                || "127.0.0.1".equals(lower)
+                || "0:0:0:0:0:0:0:1".equals(lower)
+                || "::1".equals(lower)) {
+            return true;
+        }
+
+        if (!lower.contains(".")) {
+            return false;
+        }
+
+        String[] parts = lower.split("\\.");
+        if (parts.length != 4) {
+            return false;
+        }
+
+        try {
+            int first = Integer.parseInt(parts[0]);
+            int second = Integer.parseInt(parts[1]);
+            return first == 172 && second >= 16 && second <= 31;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    private String trim(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
     
 }

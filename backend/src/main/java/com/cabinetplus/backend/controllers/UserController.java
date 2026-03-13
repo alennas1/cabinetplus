@@ -6,10 +6,13 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.UserDto;
+import com.cabinetplus.backend.dto.UserSessionResponse;
 import com.cabinetplus.backend.dto.UserPreferencesRequest;
 import com.cabinetplus.backend.dto.UserPreferencesResponse;
 import com.cabinetplus.backend.dto.PlanUsageDto;
@@ -28,7 +32,9 @@ import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.Plan;
+import com.cabinetplus.backend.models.RefreshToken;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.PlanLimitService;
@@ -48,9 +54,13 @@ public class UserController {
     private final PlanLimitService planLimitService;
     private final JwtUtil jwtUtil;
     private final AuditService auditService;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Value("${app.cookie.secure:false}")
     private boolean cookieSecure;
+
+    @Value("${app.cookie.same-site:Lax}")
+    private String cookieSameSite;
 
     public UserController(
             UserService userService,
@@ -58,7 +68,8 @@ public class UserController {
             PlanService planService,
             PlanLimitService planLimitService,
             JwtUtil jwtUtil,
-            AuditService auditService
+            AuditService auditService,
+            RefreshTokenRepository refreshTokenRepository
     ) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
@@ -66,6 +77,7 @@ public class UserController {
         this.planLimitService = planLimitService;
         this.jwtUtil = jwtUtil;
         this.auditService = auditService;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     // ===============================
@@ -213,12 +225,13 @@ public class UserController {
     // ===============================
     @PutMapping("/me/password")
     public User updatePassword(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-                               @RequestBody Map<String, String> passwords) {
+                               @RequestBody Map<String, Object> passwords) {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
-        String oldPassword = passwords.get("oldPassword");
-        String newPassword = passwords.get("newPassword");
+        String oldPassword = passwords.get("oldPassword") != null ? String.valueOf(passwords.get("oldPassword")) : null;
+        String newPassword = passwords.get("newPassword") != null ? String.valueOf(passwords.get("newPassword")) : null;
+        boolean logoutAll = shouldLogoutAll(passwords.get("logoutAll"));
 
         if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
             throw new AccessDeniedException("Ancien mot de passe incorrect");
@@ -226,6 +239,9 @@ public class UserController {
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         User saved = userService.save(user);
+        if (logoutAll) {
+            refreshTokenRepository.deleteAllByUser(saved);
+        }
         auditService.logSuccessAsUser(saved, AuditEventType.USER_PASSWORD_CHANGE, "USER", String.valueOf(saved.getId()), "Mot de passe modifie");
         return saved;
     }
@@ -248,6 +264,69 @@ public class UserController {
         }
 
         return Map.of("valid", true);
+    }
+
+    // ===============================
+    // SESSIONS
+    // ===============================
+    @GetMapping("/me/sessions")
+    public List<UserSessionResponse> getMySessions(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+            @CookieValue(name = "refresh_token", required = false) String refreshTokenCookie
+    ) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        List<RefreshToken> sessions = refreshTokenRepository.findActiveSessions(user, LocalDateTime.now());
+        return sessions.stream()
+                .map(session -> new UserSessionResponse(
+                        session.getId(),
+                        session.getCreatedAt(),
+                        session.getLastUsedAt(),
+                        session.getExpiresAt(),
+                        session.getUserAgent(),
+                        session.getIpAddress(),
+                        session.getLocation(),
+                        refreshTokenCookie != null && refreshTokenCookie.equals(session.getToken())
+                ))
+                .toList();
+    }
+
+    @DeleteMapping("/me/sessions/{sessionId}")
+    public Map<String, Object> revokeSession(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+            @PathVariable Long sessionId,
+            @CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
+            HttpServletResponse response
+    ) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        RefreshToken token = refreshTokenRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session introuvable"));
+
+        if (token.getUser() == null || !token.getUser().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Session introuvable");
+        }
+
+        token.setRevoked(true);
+        refreshTokenRepository.save(token);
+
+        boolean revokedCurrent = refreshTokenCookie != null && refreshTokenCookie.equals(token.getToken());
+        if (revokedCurrent) {
+            ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
+                    .httpOnly(true)
+                    .secure(cookieSecure)
+                    .sameSite(cookieSameSite)
+                    .path("/")
+                    .maxAge(0)
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        }
+
+        auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGOUT, "SESSION", String.valueOf(token.getId()), "Deconnexion d'une session");
+
+        return Map.of("revokedCurrent", revokedCurrent);
     }
 
     // ===============================
@@ -397,6 +476,12 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                 user.getMoneyFormat(),
                 user.getCurrencyLabel()
         );
+    }
+
+    private boolean shouldLogoutAll(Object value) {
+        if (value == null) return false;
+        if (value instanceof Boolean booleanValue) return booleanValue;
+        return Boolean.parseBoolean(String.valueOf(value));
     }
 }
 

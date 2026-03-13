@@ -4,6 +4,7 @@ import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PlanLimitService;
@@ -42,6 +43,7 @@ class UserControllerTest {
         planLimitService = mock(PlanLimitService.class);
         JwtUtil jwtUtil = mock(JwtUtil.class);
         AuditService auditService = mock(AuditService.class);
+        RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
 
         UserController controller = new UserController(
                 userService,
@@ -49,7 +51,8 @@ class UserControllerTest {
                 planService,
                 planLimitService,
                 jwtUtil,
-                auditService
+                auditService,
+                refreshTokenRepository
         );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();

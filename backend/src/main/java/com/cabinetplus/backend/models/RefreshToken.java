@@ -25,5 +25,12 @@ public class RefreshToken {
 
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
+    private LocalDateTime lastUsedAt;
+    @Column(length = 255)
+    private String userAgent;
+    @Column(length = 100)
+    private String ipAddress;
+    @Column(length = 120)
+    private String location;
     private boolean revoked = false;
 }

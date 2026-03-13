@@ -1,10 +1,12 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +19,8 @@ import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import com.twilio.exception.ApiException;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/api/verify")
 public class VerificationController {
@@ -25,15 +29,17 @@ public class VerificationController {
 
     private final UserRepository userRepo;
     private final PhoneVerificationService phoneVerificationService;
+    private final boolean devProfile;
 
-    public VerificationController(UserRepository userRepo, PhoneVerificationService phoneVerificationService) {
+    public VerificationController(UserRepository userRepo, PhoneVerificationService phoneVerificationService, Environment environment) {
         this.userRepo = userRepo;
         this.phoneVerificationService = phoneVerificationService;
+        this.devProfile = Arrays.asList(environment.getActiveProfiles()).contains("dev");
     }
 
     // ------------------- SEND PHONE OTP -------------------
     @PostMapping("/phone/send")
-    public ResponseEntity<?> sendPhoneOtp(Principal principal) {
+    public ResponseEntity<?> sendPhoneOtp(Principal principal, HttpServletRequest httpRequest) {
         logger.info("Request received: /api/verify/phone/send");
         User user = getUser(principal);
         if (user == null) return unauthorizedResponse();
@@ -44,6 +50,9 @@ public class VerificationController {
         }
 
         try {
+            if (devProfile && isLocalRequest(httpRequest)) {
+                return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
+            }
             logger.info("Attempting to send SMS OTP to: {}", formattedNumber);
             phoneVerificationService.sendVerificationCode(formattedNumber);
 
@@ -82,7 +91,7 @@ public class VerificationController {
 
     // ------------------- CHECK PHONE OTP -------------------
     @PostMapping("/phone/check")
-    public ResponseEntity<?> checkPhoneOtp(Principal principal, @RequestBody Map<String, String> body) {
+    public ResponseEntity<?> checkPhoneOtp(Principal principal, @RequestBody Map<String, String> body, HttpServletRequest httpRequest) {
         User user = getUser(principal);
         if (user == null) return unauthorizedResponse();
 
@@ -94,32 +103,36 @@ public class VerificationController {
 
         boolean approved;
         try {
-            approved = phoneVerificationService.checkVerificationCode(formattedNumber, code);
+            if (devProfile && isLocalRequest(httpRequest)) {
+                approved = true;
+            } else {
+                approved = phoneVerificationService.checkVerificationCode(formattedNumber, code);
+            }
         } catch (ApiException e) {
             int status = e.getStatusCode();
             logger.warn("Twilio Verify check failed (to={}, status={})", formattedNumber, status, e);
             if (status == 400) {
-                var body = new java.util.HashMap<String, Object>();
-                body.put("error", "Code SMS invalide");
-                body.put("reason", "twilio_rejected");
-                body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
-                return ResponseEntity.badRequest().body(body);
+                var respBody = new java.util.HashMap<String, Object>();
+                respBody.put("error", "Code SMS invalide");
+                respBody.put("reason", "twilio_rejected");
+                respBody.put("twilioStatus", status);
+                if (e.getCode() != null) respBody.put("twilioCode", e.getCode());
+                return ResponseEntity.badRequest().body(respBody);
             }
             if (status == 429) {
-                var body = new java.util.HashMap<String, Object>();
-                body.put("error", "Trop de demandes. Reessayez plus tard.");
-                body.put("reason", "rate_limited");
-                body.put("twilioStatus", status);
-                if (e.getCode() != null) body.put("twilioCode", e.getCode());
-                return ResponseEntity.status(429).body(body);
+                var respBody = new java.util.HashMap<String, Object>();
+                respBody.put("error", "Trop de demandes. Reessayez plus tard.");
+                respBody.put("reason", "rate_limited");
+                respBody.put("twilioStatus", status);
+                if (e.getCode() != null) respBody.put("twilioCode", e.getCode());
+                return ResponseEntity.status(429).body(respBody);
             }
-            var body = new java.util.HashMap<String, Object>();
-            body.put("error", "Service SMS indisponible");
-            body.put("reason", "upstream_error");
-            body.put("twilioStatus", status);
-            if (e.getCode() != null) body.put("twilioCode", e.getCode());
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+            var respBody = new java.util.HashMap<String, Object>();
+            respBody.put("error", "Service SMS indisponible");
+            respBody.put("reason", "upstream_error");
+            respBody.put("twilioStatus", status);
+            if (e.getCode() != null) respBody.put("twilioCode", e.getCode());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(respBody);
         } catch (Exception e) {
             logger.error("Error verifying SMS OTP: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -159,5 +172,13 @@ public class VerificationController {
     private ResponseEntity<?> unauthorizedResponse() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "Session expiree. Veuillez vous reconnecter."));
+    }
+
+    private boolean isLocalRequest(HttpServletRequest request) {
+        if (request == null) return false;
+        String remoteAddr = request.getRemoteAddr();
+        return "127.0.0.1".equals(remoteAddr)
+                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
+                || "::1".equals(remoteAddr);
     }
 }

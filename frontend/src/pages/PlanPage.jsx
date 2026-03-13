@@ -11,6 +11,7 @@ import { getUserPreferences } from "../services/userPreferenceService";
 import { applyUserPreferences } from "../utils/workingHours";
 import { formatMoney, formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Plan.css";
 
 const getPlanFeatures = (plan) => [
@@ -44,6 +45,7 @@ const PlanPage = () => {
   const token = useSelector((state) => state.auth.token);
 
   const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
   const [plansError, setPlansError] = useState("");
   const [isYearly, setIsYearly] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -52,6 +54,7 @@ const PlanPage = () => {
 
   useEffect(() => {
     const fetchPlans = async () => {
+      setPlansLoading(true);
       try {
         const [data, usage] = await Promise.all([getAllPlansClient(), getCurrentPlanUsage()]);
         setPlans(data.filter((p) => p.active));
@@ -60,10 +63,24 @@ const PlanPage = () => {
       } catch (err) {
         console.error("Error fetching plans:", err);
         setPlansError("Impossible de charger les plans pour le moment.");
+        setPlans([]);
+        setPlanUsage(null);
+      } finally {
+        setPlansLoading(false);
       }
     };
     fetchPlans();
   }, []);
+
+  if (plansLoading) {
+    return (
+      <DentistPageSkeleton
+        title="Plans"
+        subtitle="Chargement des plans disponibles..."
+        variant="plan"
+      />
+    );
+  }
 
   const handleHandPayment = async () => {
     try {

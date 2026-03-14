@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Edit2, Trash2, Eye, Search, Filter } from "react-feather";
+import { Plus, Edit2, Trash2, Eye, Search, Filter, X } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import {
   getTreatments,
   createTreatment,
@@ -13,8 +14,10 @@ import {
   deleteTreatment,
 } from "../services/treatmentCatalogueService";
 import { getApiErrorMessage } from "../utils/error";
-import { formatMoneyWithLabel } from "../utils/format";
+import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
+import MoneyInput from "../components/MoneyInput";
+import { parseMoneyInput } from "../utils/moneyInput";
 import "./Patients.css";
 
 const Treatments = () => {
@@ -103,7 +106,7 @@ const Treatments = () => {
 
     const payload = {
       ...formData,
-      defaultPrice: Number(formData.defaultPrice),
+      defaultPrice: parseMoneyInput(formData.defaultPrice),
     };
 
     try {
@@ -113,7 +116,7 @@ const Treatments = () => {
         setTreatments(
           treatments.map((t) => (t.id === updated.id ? updated : t))
         );
-        toast.success("Traitement mis à jour");
+        toast.success("Traitement mis à  jour");
       } else {
         const newTreatment = await createTreatment(payload, token);
         setTreatments([...treatments, newTreatment]);
@@ -137,7 +140,7 @@ const Treatments = () => {
       code: treatment.code || "",
       name: treatment.name || "",
       description: treatment.description || "",
-      defaultPrice: treatment.defaultPrice || "",
+      defaultPrice: treatment.defaultPrice != null ? formatMoney(treatment.defaultPrice) : "",
       isFlatFee: !!treatment.isFlatFee,
     });
     setIsEditing(true);
@@ -184,6 +187,7 @@ const Treatments = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/catalogue" />
       <PageHeader title="Traitements" subtitle="Liste des traitements" align="left" />
 
       {/* Controls */}
@@ -294,16 +298,28 @@ const Treatments = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{isEditing ? "Modifier Traitement" : "Ajouter Traitement"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditing ? "Modifier Traitement" : "Ajouter Traitement"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
+            </p>
             <form className="modal-form" onSubmit={handleSubmit}>
               <span className="field-label">Nom</span>
-              <input type="text" name="name" value={formData.name} onChange={handleChange} required />
+              <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ex: Détartrage" required />
 
               <span className="field-label">Description</span>
-              <input type="text" name="description" value={formData.description} onChange={handleChange} />
+              <input type="text" name="description" value={formData.description} onChange={handleChange} placeholder="Description optionnelle..." />
 
               <span className="field-label">Prix ({getCurrencyLabelPreference()})</span>
-              <input type="number" name="defaultPrice" value={formData.defaultPrice || ""} onChange={handleChange} min="0" step="0.01" required />
+              <MoneyInput
+                name="defaultPrice"
+                value={formData.defaultPrice || ""}
+                onChangeValue={(v) => setFormData((s) => ({ ...s, defaultPrice: v }))}
+                placeholder="Ex: 2500"
+                required
+              />
 
               <span className="field-label" style={{ marginTop: "8px", display: "block" }}>Type</span>
               <div className="type-toggle">
@@ -324,7 +340,7 @@ const Treatments = () => {
               </div>
 
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre � jour" : "Ajouter"}</button>
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
@@ -336,7 +352,10 @@ const Treatments = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer le traitement ?</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Supprimer le traitement ?</h2>
+              <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+            </div>
             <p className="text-gray-600 mb-6">Êtes-vous sûr ? Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100" disabled={isDeletingTreatment}>Annuler</button>
@@ -350,7 +369,11 @@ const Treatments = () => {
       {viewTreatment && (
         <div className="modal-overlay" onClick={() => setViewTreatment(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Détails du traitement</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="mb-0">Détails du traitement</h2>
+              <X className="cursor-pointer" onClick={() => setViewTreatment(null)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Informations en lecture seule.</p>
             <div className="view-field"><strong>Nom:</strong> {viewTreatment.name || "—"}</div>
             <div className="view-field"><strong>Description:</strong> {viewTreatment.description || "—"}</div>
             <div className="view-field"><strong>Prix:</strong> {viewTreatment.defaultPrice ? formatMoneyWithLabel(viewTreatment.defaultPrice) : "—"}</div>

@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
+import BackButton from "../components/BackButton";
 import { getMyAuditLogs } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatHour } from "../utils/workingHours";
@@ -259,6 +260,7 @@ const AuditLogs = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/settings" />
       <PageHeader
         title="Journal d activite"
         subtitle="Historique des actions qui impactent vos patients, votre cabinet et votre compte"

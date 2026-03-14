@@ -26,6 +26,8 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
+import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import "./Patient.css";
 import "./Profile.css";
@@ -112,8 +114,7 @@ const LaboratoryDetails = () => {
   };
 
   const formatPhoneNumber = (phone) => {
-    if (!phone) return "";
-    return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
+    return formatPhoneNumberDisplay(phone) || "";
   };
 
   const formatMonth = (yearMonth) => {
@@ -189,12 +190,6 @@ const LaboratoryDetails = () => {
   };
 
   const handleFieldInputChange = (field, value) => {
-    if (field === "phoneNumber") {
-      const digits = value.replace(/\D/g, "");
-      const formatted = digits.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
-      setTempValue(formatted);
-      return;
-    }
     setTempValue(value);
   };
 
@@ -205,12 +200,16 @@ const LaboratoryDetails = () => {
 
   const handleSaveField = async (field) => {
     try {
+      if (field === "phoneNumber" && (tempValue || "").trim() && !isValidPhoneNumber(tempValue)) {
+        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+        return;
+      }
       const updatedPayload = {
         name: laboratory.name,
         contactPerson: laboratory.contactPerson || "",
         phoneNumber: laboratory.phoneNumber || "",
         address: laboratory.address || "",
-        [field]: field === "phoneNumber" ? tempValue.replace(/\s/g, "") : tempValue,
+        [field]: field === "phoneNumber" ? normalizePhoneInput(tempValue) : tempValue,
       };
 
       const updated = await updateLaboratory(id, updatedPayload);
@@ -230,11 +229,19 @@ const LaboratoryDetails = () => {
       </div>
       {editingField === field ? (
         <>
-          <input
-            type="text"
-            value={tempValue}
-            onChange={(e) => handleFieldInputChange(field, e.target.value)}
-          />
+          {field === "phoneNumber" ? (
+            <PhoneInput
+              value={tempValue}
+              onChangeValue={(v) => setTempValue(v)}
+              placeholder="Ex: 05 51 51 51 51"
+            />
+          ) : (
+            <input
+              type="text"
+              value={tempValue}
+              onChange={(e) => handleFieldInputChange(field, e.target.value)}
+            />
+          )}
           <Check size={18} className="icon action confirm" onClick={() => handleSaveField(field)} />
           <X size={18} className="icon action cancel" onClick={handleCancelEdit} />
         </>
@@ -361,16 +368,18 @@ const LaboratoryDetails = () => {
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
     try {
+      const amountValue = parseFloat(paymentData.amount);
       const updatedLab = await addLaboratoryPayment(id, {
-        amount: parseFloat(paymentData.amount),
+        amount: amountValue,
         paymentDate: paymentData.paymentDate,
         notes: paymentData.notes,
       });
       setLaboratory(updatedLab);
-      toast.success("Paiement enregistré");
+      toast.success(`Paiement laboratoire enregistré (${formatCurrency(amountValue)})`);
       resetPaymentForm();
     } catch (err) {
-      toast.error("Erreur lors de l'enregistrement du paiement");
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement du paiement"));
     }
   };
 
@@ -416,7 +425,13 @@ const LaboratoryDetails = () => {
   return (
     <div className="patient-container">
       <div style={{ marginBottom: "16px" }}>
-        <button className="btn-secondary-app" onClick={() => navigate("/gestion-cabinet/laboratories")}>
+        <button
+          className="btn-secondary-app"
+          onClick={() => {
+            if (window.history.length > 1) navigate(-1);
+            else navigate("/gestion-cabinet/laboratories", { replace: true });
+          }}
+        >
           <ArrowLeft size={16} /> Retour
         </button>
       </div>
@@ -542,8 +557,12 @@ const LaboratoryDetails = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
               <h2>Paiement laboratoire</h2>
-              <X onClick={resetPaymentForm} style={{ cursor: "pointer" }} />
+              <X className="cursor-pointer" onClick={resetPaymentForm} />
             </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Enregistrez un paiement pour ce laboratoire.
+            </p>
 
             <form onSubmit={handlePaymentSubmit} className="modal-form">
               <label className="field-label">Montant payé ({getCurrencyLabelPreference()})</label>
@@ -553,6 +572,7 @@ const LaboratoryDetails = () => {
                 step="0.01"
                 value={paymentData.amount}
                 onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                placeholder="Ex: 15000"
                 required
               />
 

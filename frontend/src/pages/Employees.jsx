@@ -5,9 +5,12 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import PasswordInput from "../components/PasswordInput";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 
 import {
   getEmployees,
@@ -106,11 +109,16 @@ const Employees = () => {
   }, [token]);
 
   // Filtered employees
-  const filteredEmployees = employees.filter((e) =>
-    `${e.firstName} ${e.lastName} ${e.phone}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const filteredEmployees = employees.filter((e) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const searchDigits = normalizePhoneInput(search);
+    const phoneDigits = normalizePhoneInput(e.phone);
+    return (
+      `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+      (searchDigits && phoneDigits.includes(searchDigits))
+    );
+  });
 
   // Pagination logic
   const indexOfLast = currentPage * employeesPerPage;
@@ -128,13 +136,18 @@ const Employees = () => {
     e.preventDefault();
     if (isSubmitting) return;
 
+    if ((formData.phone || "").trim() && !isValidPhoneNumber(formData.phone)) {
+      toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+      return;
+    }
+
     const cleanedPayload = {
       firstName: formData.firstName,
       lastName: formData.lastName,
       gender: formData.gender,
       dateOfBirth: formData.dateOfBirth || null,
       nationalId: formData.nationalId,
-      phone: formData.phone,
+      phone: formData.phone ? normalizePhoneInput(formData.phone) : null,
       email: formData.email,
       address: formData.address,
       hireDate: formData.hireDate || null,
@@ -172,7 +185,7 @@ const Employees = () => {
   };
 
   const handleEdit = (emp) => {
-    setFormData(emp);
+    setFormData({ ...emp, phone: formatPhoneNumber(emp.phone) || "" });
     setIsEditing(true);
     setFormStep(1);
     setShowModal(true);
@@ -236,6 +249,7 @@ const Employees = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/gestion-cabinet" />
       <PageHeader
         title="Employés"
         subtitle="Liste des employés enregistrés"
@@ -289,7 +303,7 @@ const Employees = () => {
             <tr key={emp.id} onClick={() => navigate(`/gestion-cabinet/employees/${emp.id}`)} style={{ cursor: "pointer" }}>
               <td>{emp.firstName || "—"}</td>
               <td>{emp.lastName || "—"}</td>
-              <td>{emp.phone || "—"}</td>
+              <td>{formatPhoneNumber(emp.phone) || "—"}</td>
 	              <td>
 	                <span className="employee-role-card-access">{getRoleAccessLabel(emp.accessRole)}</span>
 	              </td>
@@ -366,8 +380,14 @@ const Employees = () => {
               <h2>
                 {isEditing ? "Voir / Modifier Employé" : "Ajouter Employé"}
               </h2>
-              <X onClick={() => setShowModal(false)} style={{ cursor: 'pointer' }} />
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
             </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing
+                ? "Consultez ou modifiez les informations, puis enregistrez."
+                : "Ajoutez un employé au cabinet en suivant les étapes ci-dessous."}
+            </p>
 
             <form onSubmit={handleSubmit} className="modal-form">
               {formStep === 0 && !isEditing && (
@@ -405,6 +425,7 @@ const Employees = () => {
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleChange}
+                    placeholder="Ex: Ahmed"
                     required
                   />
                   <span className="field-label">Nom</span>
@@ -413,14 +434,15 @@ const Employees = () => {
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleChange}
+                    placeholder="Ex: Benali"
                     required
                   />
                   <span className="field-label">Téléphone</span>
-                  <input
-                    type="text"
+                  <PhoneInput
                     name="phone"
                     value={formData.phone}
-                    onChange={handleChange}
+                    onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
+                    placeholder="Ex: 05 51 51 51 51"
                   />
                   <span className="field-label">Email</span>
                   <input
@@ -428,6 +450,7 @@ const Employees = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
+                    placeholder="Ex: nom@domaine.com"
                   />
                   <div className="form-field">
                     <span className="field-label">Sexe</span>
@@ -474,6 +497,7 @@ const Employees = () => {
                     name="nationalId"
                     value={formData.nationalId}
                     onChange={handleChange}
+                    placeholder="Ex: 123456789012"
                   />
                   <span className="field-label">Adresse</span>
                   <input
@@ -481,6 +505,7 @@ const Employees = () => {
                     name="address"
                     value={formData.address}
                     onChange={handleChange}
+                    placeholder="Ex: 12 rue ..."
                   />
                 </>
               )}
@@ -516,6 +541,7 @@ const Employees = () => {
                     name="contractType"
                     value={formData.contractType}
                     onChange={handleChange}
+                    placeholder="Ex: CDI"
                   />
                   <span className="field-label">Salaire</span>
                   <input
@@ -523,6 +549,7 @@ const Employees = () => {
                     name="salary"
                     value={formData.salary}
                     onChange={handleChange}
+                    placeholder="Ex: 80000"
                   />
                   <span className="field-label">Statut</span>
                   <select
@@ -540,6 +567,7 @@ const Employees = () => {
                     name="username"
                     value={formData.username || ""}
                     onChange={handleChange}
+                    placeholder="Ex: abenali"
                     required
                   />
                   <span className="field-label">Mot de passe</span>
@@ -547,6 +575,7 @@ const Employees = () => {
                     name="password"
                     value={formData.password || ""}
                     onChange={handleChange}
+                    placeholder={isEditing ? "Laisser vide pour conserver" : "Choisir un mot de passe"}
                     required={!isEditing}
                     autoComplete="new-password"
                   />

@@ -75,6 +75,26 @@ const AppContent = () => {
   const navigate = useNavigate();
   const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
 
+  // Lock background scroll whenever a modal overlay is present.
+  useEffect(() => {
+    const updateBodyLock = () => {
+      const hasModal =
+        document.querySelector(".modal-overlay, .modal-backdrop, .doc-selector-overlay") ||
+        document.querySelector('[class*="fixed"][class*="inset-0"][class*="z-[9999]"]');
+      document.body.classList.toggle("modal-open", !!hasModal);
+    };
+
+    updateBodyLock();
+
+    const observer = new MutationObserver(() => updateBodyLock());
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+
+    return () => {
+      observer.disconnect();
+      document.body.classList.remove("modal-open");
+    };
+  }, []);
+
   // --- Session Expired Listener ---
   useEffect(() => {
     const handleSessionExpired = () => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { AlertCircle, ChevronLeft } from "react-feather";
+import { AlertCircle, ChevronLeft, X } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getAllPlansClient } from "../services/clientPlanService";
@@ -181,7 +181,13 @@ const HandPaymentHistory = () => {
 
   return (
     <div className="patients-container plans-payments-page">
-      <button className="back-btn" onClick={() => navigate("/settings")}>
+      <button
+        className="back-btn"
+        onClick={() => {
+          if (window.history.length > 1) navigate(-1);
+          else navigate("/settings", { replace: true });
+        }}
+      >
         <ChevronLeft size={18} /> Retour aux parametres
       </button>
 
@@ -307,7 +313,11 @@ const HandPaymentHistory = () => {
       {showRenewModal && (
         <div className="modal-overlay" onClick={() => setShowRenewModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Renouveler</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>Renouveler</h2>
+              <X className="cursor-pointer" onClick={() => setShowRenewModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Vérifiez le récapitulatif puis confirmez l’envoi de la demande.</p>
             <form
               className="modal-form"
               onSubmit={(e) => {
@@ -352,7 +362,11 @@ const HandPaymentHistory = () => {
       {showUpgradeModal && (
         <div className="modal-overlay" onClick={() => setShowUpgradeModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Changer</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>Changer</h2>
+              <X className="cursor-pointer" onClick={() => setShowUpgradeModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Choisissez l’offre et les options, puis confirmez l’envoi de la demande.</p>
             <form
               className="modal-form"
               onSubmit={(e) => {

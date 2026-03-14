@@ -13,6 +13,7 @@ html, body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  --appt-form-gap: 10px;
 }
 
 .appointments-container {
@@ -32,6 +33,10 @@ html, body {
   color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.section-title.section-title-spaced {
+  margin-top: 50px;
 }
 
 .section-title::after {
@@ -414,21 +419,27 @@ html, body {
 
 
 .btn-primary2 {
-  background-color: #3498db;
-  color: white;
-  padding: 8px 16px;
+  background-color: #3b82f6;
+  color: #fff;
+  padding: 10px 16px;
   border-radius: 8px;
   border: none;
   cursor: pointer;
 }
+.btn-primary2:hover {
+  background-color: #2563eb;
+}
 
 .btn-cancel {
-  background: #eee;
-  color: #333;
-  padding: 8px 16px;
+  background: #fff;
+  color: #4b5563;
+  padding: 10px 16px;
   border-radius: 8px;
-  border: none;
+  border: 1px solid #e5e7eb;
   cursor: pointer;
+}
+.btn-cancel:hover {
+  background: #f9fafb;
 }
 
 .btn-delete {
@@ -526,40 +537,53 @@ html, body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 999;
+  z-index: 9999;
 }
 
 .modal-content {
   background: #fff;
   padding: 24px;
-  border-radius: 14px;
-  width: 500px;
+  border-radius: 16px;
+  width: 512px;
   max-width: 90%;
-  max-height: 90vh;
+  max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
 
 .modal-form input,
-.modal-form select {
+.modal-form select,
+.modal-form textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 10px;
   margin-bottom: 12px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 0.95rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.appt-form-grid {
+  gap: var(--appt-form-gap);
+}
+
+.appt-form-grid input,
+.appt-form-grid select,
+.appt-form-grid textarea {
+  margin-bottom: 0;
 }
 
 .modal-form input:focus,
 .modal-form select:focus,
 .modal-form textarea:focus {
   outline: none;
-  border-color: #3498db;
-  box-shadow: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
 
 .modal-actions {

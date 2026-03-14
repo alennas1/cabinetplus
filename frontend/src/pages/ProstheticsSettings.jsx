@@ -4,6 +4,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 
 import {
   getAllProstheticsCatalogue,
@@ -11,10 +12,12 @@ import {
   updateProstheticCatalogue,
   deleteProstheticCatalogue,
 } from "../services/prostheticsCatalogueService";
-import { getAllMaterials } from "../services/materialService";
+import { createMaterial, getAllMaterials } from "../services/materialService";
 import { getApiErrorMessage } from "../utils/error";
-import { formatMoneyWithLabel } from "../utils/format";
+import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
+import MoneyInput from "../components/MoneyInput";
+import { parseMoneyInput } from "../utils/moneyInput";
 
 import "./Patients.css";
 
@@ -27,6 +30,12 @@ const ProstheticsSettings = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCreateMaterialModal, setShowCreateMaterialModal] = useState(false);
+  const [isCreatingMaterial, setIsCreatingMaterial] = useState(false);
+  const [newMaterialName, setNewMaterialName] = useState("");
+  const [materialQuery, setMaterialQuery] = useState("");
+  const [showMaterialSuggestions, setShowMaterialSuggestions] = useState(false);
+  const [filteredMaterialOptions, setFilteredMaterialOptions] = useState([]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -71,8 +80,103 @@ const ProstheticsSettings = () => {
       defaultLabCost: "",
       isFlatFee: false,
     });
+    setMaterialQuery("");
+    setShowMaterialSuggestions(false);
+    setFilteredMaterialOptions([]);
     setIsEditing(false);
     setEditingId(null);
+  };
+
+  const handleCreateMaterialInline = async (e) => {
+    e.preventDefault();
+    if (isCreatingMaterial) return;
+
+    const name = (newMaterialName || "").trim();
+    if (!name) {
+      toast.error("Veuillez saisir un nom de matériau");
+      return;
+    }
+
+    try {
+      setIsCreatingMaterial(true);
+      const created = await createMaterial({ name });
+      const refreshed = await getAllMaterials();
+      setMaterials(Array.isArray(refreshed) ? refreshed : []);
+      setFormData((prev) => ({ ...prev, materialId: String(created.id) }));
+      setMaterialQuery(created?.name || name);
+      setShowMaterialSuggestions(false);
+      setFilteredMaterialOptions([]);
+      toast.success("Matériau ajouté");
+      setShowCreateMaterialModal(false);
+      setNewMaterialName("");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout du matériau"));
+    } finally {
+      setIsCreatingMaterial(false);
+    }
+  };
+
+  const normalizeMaterialName = (value) =>
+    (value || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+
+  const handleQuickAddMaterialFromQuery = async () => {
+    if (isCreatingMaterial) return;
+
+    const name = (materialQuery || "").trim();
+    if (!name) {
+      toast.error("Veuillez saisir un nom de matériau");
+      return;
+    }
+
+    setShowMaterialSuggestions(false);
+    setFilteredMaterialOptions([]);
+
+    const normalized = normalizeMaterialName(name);
+    const existing = (materials || []).find((m) => normalizeMaterialName(m?.name) === normalized);
+    if (existing?.id != null) {
+      setFormData((prev) => ({ ...prev, materialId: String(existing.id) }));
+      setMaterialQuery(existing?.name || name);
+      return;
+    }
+
+    try {
+      setIsCreatingMaterial(true);
+      const created = await createMaterial({ name });
+      const refreshed = await getAllMaterials();
+      setMaterials(Array.isArray(refreshed) ? refreshed : []);
+      setFormData((prev) => ({ ...prev, materialId: String(created.id) }));
+      setMaterialQuery(created?.name || name);
+      setShowMaterialSuggestions(false);
+      setFilteredMaterialOptions([]);
+      toast.success("Matériau ajouté");
+      setShowCreateMaterialModal(false);
+      setNewMaterialName("");
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        try {
+          const refreshed = await getAllMaterials();
+          setMaterials(Array.isArray(refreshed) ? refreshed : []);
+          const match = (Array.isArray(refreshed) ? refreshed : []).find(
+            (m) => normalizeMaterialName(m?.name) === normalized
+          );
+          if (match?.id != null) {
+            setFormData((prev) => ({ ...prev, materialId: String(match.id) }));
+            setMaterialQuery(match?.name || name);
+            toast.info("Matériau déjà existant");
+            return;
+          }
+        } catch {
+          // ignore and fallback to generic error toast
+        }
+      }
+
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout du matériau"));
+    } finally {
+      setIsCreatingMaterial(false);
+    }
   };
 
   const handleOpenCreate = () => {
@@ -82,12 +186,15 @@ const ProstheticsSettings = () => {
 
   const handleEditClick = (item) => {
     const matchingMaterial = materials.find((m) => m.name === item.materialName);
+    setMaterialQuery(matchingMaterial?.name || item.materialName || "");
+    setShowMaterialSuggestions(false);
+    setFilteredMaterialOptions([]);
 
     setFormData({
       name: item.name || "",
       materialId: matchingMaterial ? String(matchingMaterial.id) : "",
-      defaultPrice: item.defaultPrice ?? "",
-      defaultLabCost: item.defaultLabCost ?? "",
+      defaultPrice: item.defaultPrice != null ? formatMoney(item.defaultPrice) : "",
+      defaultLabCost: item.defaultLabCost != null ? formatMoney(item.defaultLabCost) : "",
       isFlatFee: !!item.isFlatFee,
     });
 
@@ -102,10 +209,16 @@ const ProstheticsSettings = () => {
 
     try {
       setIsSubmitting(true);
+
+      if (!isEditing && !formData.materialId) {
+        toast.error("Veuillez sélectionner un matériau");
+        return;
+      }
+
       const payload = {
         ...formData,
-        defaultPrice: parseFloat(formData.defaultPrice),
-        defaultLabCost: formData.defaultLabCost === "" ? 0 : parseFloat(formData.defaultLabCost),
+        defaultPrice: parseMoneyInput(formData.defaultPrice),
+        defaultLabCost: formData.defaultLabCost === "" ? 0 : parseMoneyInput(formData.defaultLabCost),
         materialId: formData.materialId ? parseInt(formData.materialId, 10) : null,
       };
 
@@ -172,6 +285,7 @@ const ProstheticsSettings = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/catalogue" />
       <PageHeader
         title="Catalogue des protheses"
         subtitle="Gerez les types de protheses proposees par le cabinet"
@@ -263,6 +377,10 @@ const ProstheticsSettings = () => {
               <X className="cursor-pointer" onClick={() => { setIsModalOpen(false); resetForm(); }} />
             </div>
 
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez les informations de la prothèse puis enregistrez." : "Ajoutez une prothèse au catalogue, puis enregistrez."}
+            </p>
+
             <form onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Nom de la prothese</span>
               <input
@@ -271,43 +389,93 @@ const ProstheticsSettings = () => {
                 style={{ width: "100%", marginBottom: "15px" }}
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Ex: Couronne zircone"
                 required
               />
 
               <span className="field-label">Materiau</span>
-              <select
-                className="input-standard"
-                style={{ width: "100%", marginBottom: "15px", height: "40px" }}
-                value={formData.materialId}
-                onChange={(e) => setFormData({ ...formData, materialId: e.target.value })}
-                required={!isEditing}
-              >
-                <option value="">{isEditing ? "Conserver le materiau actuel" : "Selectionner un materiau..."}</option>
-                {materials.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative mt-1">
+                <input
+                  type="text"
+                  value={materialQuery}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMaterialQuery(val);
+                    setFormData((prev) => ({ ...prev, materialId: "" }));
+
+                    if (val) {
+                      const lowered = val.toLowerCase();
+                      const filtered = (materials || [])
+                        .filter((m) => m.name?.toLowerCase().includes(lowered))
+                        .slice(0, 6);
+                      setFilteredMaterialOptions(filtered);
+                      setShowMaterialSuggestions(true);
+                    } else {
+                      setFilteredMaterialOptions([]);
+                      setShowMaterialSuggestions(false);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (filteredMaterialOptions.length > 0) setShowMaterialSuggestions(true);
+                  }}
+                  onBlur={() => setTimeout(() => setShowMaterialSuggestions(false), 120)}
+                  placeholder={isEditing ? "Conserver le materiau actuel" : "Nom du materiau..."}
+                  className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 !mb-0"
+                  autoComplete="off"
+                />
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleQuickAddMaterialFromQuery}
+                  disabled={isCreatingMaterial}
+                  className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Ajouter un matériau"
+                  title="Ajouter un matériau"
+                >
+                  <Plus size={16} />
+                </button>
+
+                {showMaterialSuggestions && filteredMaterialOptions.length > 0 && (
+                  <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
+                    {filteredMaterialOptions.map((m) => (
+                      <li
+                        key={m.id}
+                        onMouseDown={() => {
+                          setFormData((prev) => ({ ...prev, materialId: String(m.id) }));
+                          setMaterialQuery(m.name || "");
+                          setShowMaterialSuggestions(false);
+                          setFilteredMaterialOptions([]);
+                        }}
+                        className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
+                      >
+                        <div className="text-sm font-bold text-gray-800">{m.name}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="mt-1 mb-3 text-[11px] text-gray-500">
+                Le bouton + ajoute un matériau au <span className="font-medium">catalogue</span>.
+              </div>
 
               <span className="field-label">Prix par defaut ({getCurrencyLabelPreference()})</span>
-              <input
-                type="number"
+              <MoneyInput
                 className="input-standard"
                 style={{ width: "100%", marginBottom: "15px" }}
                 value={formData.defaultPrice}
-                onChange={(e) => setFormData({ ...formData, defaultPrice: e.target.value })}
+                onChangeValue={(v) => setFormData({ ...formData, defaultPrice: v })}
+                placeholder="Ex: 25000"
                 required
               />
 
               <span className="field-label">Cout labo par defaut ({getCurrencyLabelPreference()})</span>
-              <input
-                type="number"
+              <MoneyInput
                 className="input-standard"
                 style={{ width: "100%", marginBottom: "15px" }}
                 value={formData.defaultLabCost}
-                onChange={(e) => setFormData({ ...formData, defaultLabCost: e.target.value })}
-                min="0"
+                onChangeValue={(v) => setFormData({ ...formData, defaultLabCost: v })}
+                placeholder="Ex: 15000"
               />
 
               <span className="field-label" style={{ marginTop: "10px", display: "block" }}>
@@ -341,6 +509,52 @@ const ProstheticsSettings = () => {
                     setIsModalOpen(false);
                     resetForm();
                   }}
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showCreateMaterialModal && (
+        <div
+          className="modal-overlay"
+          style={{ zIndex: 10000 }}
+          onClick={() => setShowCreateMaterialModal(false)}
+        >
+          <div className="modal-content" style={{ maxWidth: "480px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2>Ajouter un matériau</h2>
+              <X className="cursor-pointer" onClick={() => setShowCreateMaterialModal(false)} />
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Ce matériau sera ajouté au catalogue, puis sélectionné automatiquement.
+            </p>
+
+            <form className="modal-form" onSubmit={handleCreateMaterialInline}>
+              <span className="field-label">Nom du matériau</span>
+              <input
+                type="text"
+                className="input-standard"
+                style={{ width: "100%", marginBottom: "15px" }}
+                value={newMaterialName}
+                onChange={(e) => setNewMaterialName(e.target.value)}
+                placeholder="Ex: Zircone"
+                required
+              />
+
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2" disabled={isCreatingMaterial}>
+                  {isCreatingMaterial ? "Ajout..." : "Ajouter"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowCreateMaterialModal(false)}
+                  disabled={isCreatingMaterial}
                 >
                   Annuler
                 </button>

@@ -19,6 +19,7 @@ import { getUserById } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel } from "../utils/format";
+import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
 import "./Patient.css";
 import "./Profile.css";
 
@@ -55,8 +56,8 @@ const DentistDetails = () => {
   const formatPhoneNumber = (phone) => {
     if (!phone) return "—";
     const digits = String(phone).replace(/\D/g, "");
-    if (digits.length !== 10) return phone;
-    return digits.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
+    if (digits.length !== 10 || !digits.startsWith("0")) return phone;
+    return digits.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4 $5");
   };
 
   useEffect(() => {
@@ -171,7 +172,13 @@ const DentistDetails = () => {
   return (
     <div className="patient-container">
       <div style={{ marginBottom: "16px" }}>
-        <button className="btn-secondary-app" onClick={() => navigate("/dentists")}>
+        <button
+          className="btn-secondary-app"
+          onClick={() => {
+            if (window.history.length > 1) navigate(-1);
+            else navigate("/dentists", { replace: true });
+          }}
+        >
           <ArrowLeft size={16} /> Retour
         </button>
       </div>

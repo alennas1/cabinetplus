@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Search, Edit2, Trash2, Filter } from "react-feather";
+import { Plus, Search, Edit2, Trash2, Filter, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
-import { getItemDefaults } from "../services/itemDefaultService";
+import BackButton from "../components/BackButton";
+import { createItemDefault, getItemDefaults } from "../services/itemDefaultService";
 import {
   createInventoryItem,
   updateInventoryItem,
@@ -13,8 +14,21 @@ import {
   getInventoryItems,
 } from "../services/itemService";
 import { getApiErrorMessage } from "../utils/error";
-import { formatMoneyWithLabel } from "../utils/format";
+import { formatMoneyWithLabel, formatMoney } from "../utils/format";
+import MoneyInput from "../components/MoneyInput";
+import { parseMoneyInput } from "../utils/moneyInput";
 import "./Patients.css";
+
+const ITEM_CATEGORIES = {
+  CONSUMABLE: "Consommable",
+  TOOL: "Outil",
+  PPE: "Équipement de protection individuelle",
+  LAB_SUPPLIES: "Fournitures de laboratoire",
+  MEDICATION: "Médicament",
+  IMAGING: "Imagerie",
+  CLEANING: "Nettoyage",
+  OFFICE_SUPPLIES: "Fournitures de bureau",
+};
 
 const Inventory = () => {
 
@@ -24,6 +38,19 @@ const Inventory = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const itemDefaultSearchRef = useRef(null);
+  const [itemDefaultQuery, setItemDefaultQuery] = useState("");
+  const [showItemDefaultSuggestions, setShowItemDefaultSuggestions] = useState(false);
+  const [filteredItemDefaultOptions, setFilteredItemDefaultOptions] = useState([]);
+
+  const [showCreateItemDefaultModal, setShowCreateItemDefaultModal] = useState(false);
+  const [isCreatingItemDefault, setIsCreatingItemDefault] = useState(false);
+  const [newItemDefaultForm, setNewItemDefaultForm] = useState({
+    name: "",
+    category: "CONSUMABLE",
+    defaultPrice: "",
+    description: "",
+  });
 
   // Delete confirmation modal
   const [showConfirm, setShowConfirm] = useState(false);
@@ -33,8 +60,8 @@ const Inventory = () => {
   const [formData, setFormData] = useState({
     itemDefaultId: "",
     quantity: 1,
-    unitPrice: 0,
-    price: 0,
+    unitPrice: "",
+    price: "",
     expiryDate: "",
   });
 
@@ -63,6 +90,20 @@ const Inventory = () => {
     }
   };
 
+  useEffect(() => {
+    if (!showItemDefaultSuggestions) return;
+
+    const onMouseDown = (event) => {
+      if (!itemDefaultSearchRef.current) return;
+      if (!itemDefaultSearchRef.current.contains(event.target)) {
+        setShowItemDefaultSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [showItemDefaultSuggestions]);
+
   const fetchInventoryItems = async () => {
     try {
       setLoading(true);
@@ -76,24 +117,99 @@ const Inventory = () => {
     }
   };
 
-  const handleItemDefaultChange = (e) => {
-    const selectedId = e.target.value;
-    const selectedItem = itemDefaults.find((i) => i.id.toString() === selectedId);
-    setFormData((prev) => ({
-      ...prev,
-      itemDefaultId: selectedId,
-      unitPrice: selectedItem?.defaultPrice || 0,
-      price: (selectedItem?.defaultPrice || 0) * prev.quantity,
-    }));
+  const selectItemDefault = (itemDefault) => {
+    if (!itemDefault) return;
+
+    setFormData((prev) => {
+      const quantity = Number(prev.quantity) || 0;
+      const unitPriceNumber = Number(itemDefault.defaultPrice || 0);
+      return {
+        ...prev,
+        itemDefaultId: String(itemDefault.id),
+        unitPrice: formatMoney(unitPriceNumber),
+        price: formatMoney(unitPriceNumber * quantity),
+      };
+    });
+
+    setItemDefaultQuery(itemDefault.name || "");
+    setShowItemDefaultSuggestions(false);
+    setFilteredItemDefaultOptions([]);
+  };
+
+  const handleUnitPriceChange = (value) => {
+    setFormData((prev) => {
+      const quantity = Number(prev.quantity) || 0;
+      const unitPrice = parseMoneyInput(value);
+      return {
+        ...prev,
+        unitPrice: value,
+        price: formatMoney(quantity * unitPrice),
+      };
+    });
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     const updated = { ...formData, [name]: value };
-    if (name === "quantity" || name === "unitPrice") {
-      updated.price = (Number(updated.quantity) || 0) * (Number(updated.unitPrice) || 0);
+    if (name === "quantity") {
+      updated.price = formatMoney((Number(updated.quantity) || 0) * parseMoneyInput(updated.unitPrice));
     }
     setFormData(updated);
+  };
+
+  const handleCreateItemDefaultInline = async (e) => {
+    e.preventDefault();
+    if (isCreatingItemDefault) return;
+
+    const name = (newItemDefaultForm.name || "").trim();
+    if (!name) {
+      toast.error("Veuillez saisir un nom d'article");
+      return;
+    }
+
+    try {
+      setIsCreatingItemDefault(true);
+      const payload = {
+        name,
+        category: newItemDefaultForm.category || "CONSUMABLE",
+        defaultPrice: parseMoneyInput(newItemDefaultForm.defaultPrice),
+        description: (newItemDefaultForm.description || "").trim(),
+      };
+
+      const created = await createItemDefault(payload);
+      const refreshed = await getItemDefaults();
+      setItemDefaults(Array.isArray(refreshed) ? refreshed : []);
+
+      setFormData((prev) => {
+        const quantity = Number(prev.quantity) || 0;
+        const unitPriceNumber =
+          created?.defaultPrice != null ? Number(created.defaultPrice) : payload.defaultPrice;
+        return {
+          ...prev,
+          itemDefaultId: String(created.id),
+          unitPrice: formatMoney(unitPriceNumber),
+          price: formatMoney(quantity * unitPriceNumber),
+        };
+      });
+
+      setItemDefaultQuery(created?.name || name);
+      setShowItemDefaultSuggestions(false);
+      setFilteredItemDefaultOptions([]);
+
+      toast.success("Article ajouté au catalogue");
+      setShowCreateItemDefaultModal(false);
+      setNewItemDefaultForm({
+        name: "",
+        category: "CONSUMABLE",
+        defaultPrice: "",
+        description: "",
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout au catalogue"));
+    } finally {
+      setIsCreatingItemDefault(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -109,7 +225,7 @@ const Inventory = () => {
       const payload = {
         itemDefaultId: Number(formData.itemDefaultId),
         quantity: Number(formData.quantity),
-        unitPrice: Number(formData.unitPrice),
+        unitPrice: parseMoneyInput(formData.unitPrice),
         expiryDate: formData.expiryDate || null,
         createdAt: new Date().toISOString(),
 
@@ -122,7 +238,7 @@ const Inventory = () => {
         newItem = await updateInventoryItem(editingItem.id, payload);
         const updatedItem = { ...newItem, itemDefaultName: itemDefault?.name };
         setInventoryItems(prev => prev.map(i => i.id === editingItem.id ? updatedItem : i));
-        toast.success("Article mis à jour avec succès");
+        toast.success("Article mis à  jour avec succès");
       } else {
         newItem = await createInventoryItem(payload);
         const addedItem = { ...newItem, itemDefaultName: itemDefault?.name };
@@ -135,8 +251,8 @@ const Inventory = () => {
       setFormData({
         itemDefaultId: "",
         quantity: 1,
-        unitPrice: 0,
-        price: 0,
+        unitPrice: "",
+        price: "",
         expiryDate: "",
       });
     } catch (err) {
@@ -149,11 +265,14 @@ const Inventory = () => {
 
   const handleEdit = (item) => {
     setEditingItem(item);
+    setItemDefaultQuery(item?.itemDefaultName || "");
+    setShowItemDefaultSuggestions(false);
+    setFilteredItemDefaultOptions([]);
     setFormData({
       itemDefaultId: item.itemDefaultId,
       quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      price: item.price,
+      unitPrice: item.unitPrice != null ? formatMoney(item.unitPrice) : "",
+      price: item.price != null ? formatMoney(item.price) : "",
       expiryDate: item.expiryDate || "",
     });
     setShowModal(true);
@@ -207,6 +326,7 @@ const Inventory = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/gestion-cabinet" />
       <PageHeader title="Inventaire" subtitle="Gérez vos articles en stock" />
 
       {/* Controls */}
@@ -247,8 +367,11 @@ const Inventory = () => {
           <button
             className="btn-primary"
             onClick={() => {
-              setFormData({ itemDefaultId: "", quantity: 1, unitPrice: 0, price: 0, expiryDate: "" });
+              setFormData({ itemDefaultId: "", quantity: 1, unitPrice: "", price: "", expiryDate: "" });
               setEditingItem(null);
+              setItemDefaultQuery("");
+              setShowItemDefaultSuggestions(false);
+              setFilteredItemDefaultOptions([]);
               setShowModal(true);
             }}
           >
@@ -308,36 +431,174 @@ const Inventory = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>{editingItem ? "Modifier Article" : "Ajouter Article"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{editingItem ? "Modifier Article" : "Ajouter Article"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {editingItem ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
+            </p>
             <form onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Article par défaut</span>
-              <select
-                name="itemDefaultId"
-                value={formData.itemDefaultId}
-                onChange={handleItemDefaultChange}
-                required
-              >
-                <option value="">Sélectionner un article</option>
-                {itemDefaults.map(i => (
-                  <option key={i.id} value={i.id}>{i.name} ({formatMoneyWithLabel(i.defaultPrice)})</option>
-                ))}
-              </select>
+              <div className="relative mt-1" ref={itemDefaultSearchRef}>
+                <input
+                  type="text"
+                  value={itemDefaultQuery}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setItemDefaultQuery(val);
+                    setFormData((prev) => ({ ...prev, itemDefaultId: "", unitPrice: "", price: "" }));
+
+                    if (val) {
+                      const lowered = val.toLowerCase();
+                      const filtered = (itemDefaults || [])
+                        .filter((i) => i.name?.toLowerCase().includes(lowered))
+                        .slice(0, 6);
+                      setFilteredItemDefaultOptions(filtered);
+                      setShowItemDefaultSuggestions(true);
+                    } else {
+                      setFilteredItemDefaultOptions([]);
+                      setShowItemDefaultSuggestions(false);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (filteredItemDefaultOptions.length > 0) setShowItemDefaultSuggestions(true);
+                  }}
+                  onBlur={() => setTimeout(() => setShowItemDefaultSuggestions(false), 120)}
+                  placeholder="Rechercher un article..."
+                  className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 !mb-0"
+                  autoComplete="off"
+                  required
+                />
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setNewItemDefaultForm((s) => ({ ...s, name: itemDefaultQuery }));
+                    setShowCreateItemDefaultModal(true);
+                  }}
+                  className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Ajouter au catalogue"
+                  title="Ajouter au catalogue"
+                >
+                  <Plus size={16} />
+                </button>
+
+                {showItemDefaultSuggestions && filteredItemDefaultOptions.length > 0 && (
+                  <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
+                    {filteredItemDefaultOptions.map((i) => (
+                      <li
+                        key={i.id}
+                        onMouseDown={() => selectItemDefault(i)}
+                        className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
+                      >
+                        <div className="text-sm font-bold text-gray-800">
+                          {i.name}{" "}
+                          <span className="text-xs font-normal text-gray-500">
+                            ({formatMoneyWithLabel(i.defaultPrice)})
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="mt-1 mb-3 text-[11px] text-gray-500">
+                Le bouton + ajoute un article au <span className="font-medium">catalogue</span>.
+              </div>
 
               <span className="field-label">Quantité</span>
-              <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" required />
+              <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" placeholder="Ex: 10" required />
 
               <span className="field-label">Prix unitaire</span>
-              <input type="number" name="unitPrice" value={formData.unitPrice} onChange={handleChange} min="0" step="0.01" required />
+              <MoneyInput
+                name="unitPrice"
+                value={formData.unitPrice}
+                onChangeValue={handleUnitPriceChange}
+                placeholder="Ex: 2500"
+                required
+              />
 
               <span className="field-label">Prix total</span>
-              <input type="number" name="price" value={formData.price} readOnly />
+              <input type="text" name="price" value={formData.price} readOnly />
 
               <span className="field-label">Date d'expiration</span>
               <input type="date" name="expiryDate" value={formData.expiryDate} onChange={handleChange} />
 
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : editingItem ? "Mettre � jour" : "Ajouter"}</button>
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : editingItem ? "Mettre à jour" : "Ajouter"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showCreateItemDefaultModal && (
+        <div
+          className="modal-overlay"
+          style={{ zIndex: 10000 }}
+          onClick={() => setShowCreateItemDefaultModal(false)}
+        >
+          <div className="modal-content" style={{ maxWidth: "520px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-2">
+              <h2>Ajouter au catalogue</h2>
+              <X className="cursor-pointer" onClick={() => setShowCreateItemDefaultModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Cet article sera ajouté au catalogue (liste globale). Ensuite, vous pourrez le sélectionner et l'ajouter à l'inventaire.
+            </p>
+
+            <form className="modal-form" onSubmit={handleCreateItemDefaultInline}>
+              <label>Nom de l'article</label>
+              <input
+                type="text"
+                value={newItemDefaultForm.name}
+                onChange={(e) => setNewItemDefaultForm((s) => ({ ...s, name: e.target.value }))}
+                placeholder="Ex: Composite"
+                required
+              />
+
+              <label>Catégorie</label>
+              <select
+                value={newItemDefaultForm.category}
+                onChange={(e) => setNewItemDefaultForm((s) => ({ ...s, category: e.target.value }))}
+                required
+              >
+                {Object.entries(ITEM_CATEGORIES).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+
+              <label>Prix par défaut</label>
+              <MoneyInput
+                value={newItemDefaultForm.defaultPrice}
+                onChangeValue={(v) => setNewItemDefaultForm((s) => ({ ...s, defaultPrice: v }))}
+                placeholder="Ex: 2500"
+                required
+              />
+
+              <label>Description</label>
+              <textarea
+                value={newItemDefaultForm.description}
+                onChange={(e) => setNewItemDefaultForm((s) => ({ ...s, description: e.target.value }))}
+                rows={3}
+                placeholder="Notes optionnelles..."
+              />
+
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2" disabled={isCreatingItemDefault}>
+                  {isCreatingItemDefault ? "Ajout..." : "Ajouter"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowCreateItemDefaultModal(false)}
+                  disabled={isCreatingItemDefault}
+                >
+                  Annuler
+                </button>
               </div>
             </form>
           </div>
@@ -348,7 +609,10 @@ const Inventory = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer l'article ?</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Supprimer l'article ?</h2>
+              <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+            </div>
             <p className="text-gray-600 mb-6">Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
               <button

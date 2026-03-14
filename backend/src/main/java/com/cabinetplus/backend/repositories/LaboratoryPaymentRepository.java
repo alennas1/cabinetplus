@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.repositories;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.Query;
@@ -26,6 +27,16 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
     """)
     Double sumAmountByLaboratoryIdAndCreatedBy(@Param("laboratoryId") Long laboratoryId,
                                                @Param("createdBy") User createdBy);
+
+    @Query("""
+        select coalesce(sum(lp.amount), 0)
+        from LaboratoryPayment lp
+        where lp.createdBy = :createdBy
+          and lp.paymentDate between :start and :end
+    """)
+    Double sumAmountByCreatedByAndPaymentDateBetween(@Param("createdBy") User createdBy,
+                                                     @Param("start") LocalDateTime start,
+                                                     @Param("end") LocalDateTime end);
 
     java.util.Optional<LaboratoryPayment> findByIdAndLaboratoryIdAndCreatedBy(Long id, Long laboratoryId, User createdBy);
 }

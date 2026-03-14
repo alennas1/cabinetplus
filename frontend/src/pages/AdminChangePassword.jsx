@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
+import BackButton from "../components/BackButton";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { getActiveSessions, revokeSession, updatePassword } from "../services/securityService";
@@ -126,6 +127,7 @@ const Security = () => {
 
   return (
     <div className="settings-container">
+      <BackButton fallbackTo="/settings-admin" />
       <PageHeader title="Sécurité" subtitle="Changer le mot de passe" />
         <div className="security-content">
           <div className="security-field">

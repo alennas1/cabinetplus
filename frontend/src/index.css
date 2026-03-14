@@ -1,6 +1,185 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* =========================
+   App modal style (shared)
+   Matches the Ordonnance "Ajouter au catalogue" modal look
+========================= */
+.modal-overlay,
+.modal-backdrop,
+.doc-selector-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  overscroll-behavior: contain;
+}
+
+.modal-content,
+.modal,
+.doc-selector-container {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  width: 512px;
+  max-width: 95%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  font-family: "Montserrat", sans-serif;
+  overscroll-behavior: contain;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal-content h2,
+.modal-content h3,
+.modal h2,
+.modal h3,
+.doc-selector-container h2,
+.doc-selector-container h3 {
+  margin: 0 0 16px;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-content label,
+.modal label,
+.doc-selector-container label,
+.modal-form .field-label {
+  display: block;
+  font-size: 14px;
+  color: #4b5563;
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+
+.modal-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.modal-content select,
+.modal-content textarea,
+.modal input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.modal select,
+.modal textarea,
+.doc-selector-container input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.doc-selector-container select,
+.doc-selector-container textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* Compact time inputs (e.g. hour field) inside modals */
+.modal-content input.time-compact:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.modal input.time-compact:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.doc-selector-container input.time-compact:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  width: 70px;
+  padding: 6px;
+  text-align: center;
+  height: 36px;
+}
+
+.modal-content input::placeholder,
+.modal-content textarea::placeholder,
+.modal input::placeholder,
+.modal textarea::placeholder,
+.doc-selector-container input::placeholder,
+.doc-selector-container textarea::placeholder {
+  color: #9ca3af;
+}
+
+.modal-content input:focus,
+.modal-content select:focus,
+.modal-content textarea:focus,
+.modal input:focus,
+.modal select:focus,
+.modal textarea:focus,
+.doc-selector-container input:focus,
+.doc-selector-container select:focus,
+.doc-selector-container textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.inline-plus-input {
+  position: relative;
+}
+
+/* Use with .catalog-search or other full-width inputs */
+.inline-plus-target {
+  padding-right: 48px;
+}
+
+.inline-plus-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.inline-plus-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #1d4ed8;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-primary2 {
+  background: #3b82f6;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-primary2:hover {
+  background: #2563eb;
+}
+
+.btn-cancel {
+  background: #fff;
+  color: #4b5563;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-cancel:hover {
+  background: #f9fafb;
+}
 .footer {
   text-align: center;
   font-size: 13px;

@@ -140,7 +140,7 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
     Patient patient = patientRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Patient introuvable"));
     List<Treatment> treatments = treatmentRepository.findByPatientId(id).stream()
-            .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()))
+            .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(t.getStatus()))
             .collect(Collectors.toList());
     List<Appointment> appointments = appointmentRepository.findByPatientId(id);
     List<Payment> payments = paymentRepository.findByPatientId(id);

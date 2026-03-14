@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
+import BackButton from "../components/BackButton";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import {
@@ -14,6 +15,8 @@ import { getCurrentUser } from "../services/authService";
 import { setCredentials } from "../store/authSlice";
 import { getApiErrorMessage } from "../utils/error";
 import PasswordInput from "../components/PasswordInput";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import "./Security.css";
 
 const Security = () => {
@@ -227,11 +230,15 @@ const Security = () => {
       toast.error("Entrez le nouveau numero de telephone");
       return;
     }
+    if (!isValidPhoneNumber(phoneChangeNumber)) {
+      toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+      return;
+    }
     if (phoneChangeBusy || phoneChangeCooldown > 0) return;
 
     try {
       setPhoneChangeBusy(true);
-      await sendPhoneChangeOtp(phoneChangeNumber.trim());
+      await sendPhoneChangeOtp(normalizePhoneInput(phoneChangeNumber));
       setPhoneChangeOtpSent(true);
       setPhoneChangeCooldown(60);
       toast.success("Code SMS envoye");
@@ -263,7 +270,7 @@ const Security = () => {
     try {
       setPhoneChangeBusy(true);
       await confirmPhoneChangeOtp({
-        phoneNumber: phoneChangeNumber.trim(),
+        phoneNumber: normalizePhoneInput(phoneChangeNumber),
         code: phoneChangeCode.trim(),
         password: phoneChangePassword.trim(),
       });
@@ -283,6 +290,7 @@ const Security = () => {
 
   return (
     <div className="settings-container">
+      <BackButton fallbackTo="/settings" />
       <PageHeader title="Sécurité" subtitle="Changer le mot de passe" />
 
       <div className="security-content">
@@ -295,17 +303,15 @@ const Security = () => {
 
             <div className="security-field">
               <label>Numero actuel</label>
-              <input type="text" value={user?.phoneNumber || ""} disabled />
+              <input type="text" value={formatPhoneNumber(user?.phoneNumber) || ""} disabled />
             </div>
 
             <div className="security-field">
               <label>Nouveau numero</label>
-              <input
-                type="tel"
-                placeholder="Ex: 0555..."
+              <PhoneInput
+                placeholder="Ex: 05 51 51 51 51"
                 value={phoneChangeNumber}
-                onChange={(e) => setPhoneChangeNumber(e.target.value)}
-                autoComplete="tel"
+                onChangeValue={setPhoneChangeNumber}
               />
             </div>
 

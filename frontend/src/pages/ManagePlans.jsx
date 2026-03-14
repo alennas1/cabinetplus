@@ -3,12 +3,14 @@ import { useSelector } from 'react-redux';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import PageHeader from '../components/PageHeader';
+import BackButton from "../components/BackButton";
 import {
   Plus,
   Edit2,
   Trash2,
   CheckCircle,
   XCircle,
+  X,
   Search
 } from 'react-feather';
 import {
@@ -47,7 +49,14 @@ const PlanFormModal = ({
 }) => (
   <div className="modal-overlay" onClick={closeModal}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-      <h2>{modalMode === 'create' ? "Créer un Nouveau Plan" : `Modifier le Plan: ${currentPlan.name}`}</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2>{modalMode === 'create' ? "Créer un Nouveau Plan" : `Modifier le Plan: ${currentPlan.name}`}</h2>
+        <X className="cursor-pointer" onClick={closeModal} />
+      </div>
+
+      <p className="text-sm text-gray-600 mb-4">
+        {modalMode === "create" ? "Renseignez les informations du plan puis enregistrez." : "Modifiez les informations du plan puis enregistrez."}
+      </p>
 
       <form onSubmit={handleSubmit} className="modal-form">
         <span className="field-label">Code (ex: BASIC, PRO)</span>
@@ -295,6 +304,7 @@ const ManagePlans = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/settings-admin" />
       <PageHeader title="Gestion des Plans" subtitle="Gérez vos offres." align="left" />
 
       <div className="patients-controls">

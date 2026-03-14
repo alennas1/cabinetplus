@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Edit2, Trash2, Eye, Search } from "react-feather";
+import { Plus, Edit2, Trash2, Eye, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import {
   getJustificationTemplates,
   createJustificationTemplate,
@@ -135,7 +136,7 @@ const JustificationContentPage = () => {
       if (isEditing) {
         const updated = await updateJustificationTemplate(formData.id, payload);
         setTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
-        toast.success("Modèle mis à jour");
+        toast.success("Modèle mis à  jour");
       } else {
         const created = await createJustificationTemplate(payload);
         setTemplates([...templates, created]);
@@ -202,6 +203,7 @@ const JustificationContentPage = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/catalogue" />
       <PageHeader title="Modèles de Justification" subtitle="Gérez vos documents types" align="left" />
 
       <div className="patients-controls">
@@ -269,7 +271,13 @@ const JustificationContentPage = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{isEditing ? "Modifier le modèle" : "Nouveau modèle"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditing ? "Modifier le modèle" : "Nouveau modèle"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez le modèle puis enregistrez." : "Créez un nouveau modèle puis enregistrez."}
+            </p>
             <form className="modal-form" onSubmit={handleSubmit}>
               <span className="field-label">Titre du document</span>
               <input
@@ -287,7 +295,7 @@ const JustificationContentPage = () => {
               </div>
               <div ref={editableRef} className="editable-div" contentEditable suppressContentEditableWarning style={{ minHeight: "250px", border: "1px solid #ddd", padding: "15px", borderRadius: "8px" }}></div>
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre � jour" : "Cr�er"}</button>
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Créer"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
@@ -298,9 +306,13 @@ const JustificationContentPage = () => {
       {viewTemplate && (
         <div className="modal-overlay" onClick={() => setViewTemplate(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ color: "#2c3e50", borderBottom: "1px solid #eee", paddingBottom: "10px" }}>{viewTemplate.title}</h2>
-            <div style={{ marginTop: "20px", padding: "20px", background: "#f9f9f9", borderRadius: "8px" }}>
-                <p style={{ whiteSpace: "pre-wrap", lineHeight: "1.6" }}>{viewTemplate.content}</p>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="mb-0">{viewTemplate.title}</h2>
+              <X className="cursor-pointer" onClick={() => setViewTemplate(null)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Aperçu du modèle (lecture seule).</p>
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <p className="whitespace-pre-wrap leading-relaxed">{viewTemplate.content}</p>
             </div>
             <button className="btn-cancel" style={{ marginTop: "20px", width: "100%" }} onClick={() => setViewTemplate(null)}>Fermer</button>
           </div>
@@ -310,7 +322,10 @@ const JustificationContentPage = () => {
       {showConfirm && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: "400px", textAlign: "center" }}>
-            <h2 style={{ color: "#e74c3c" }}>Confirmer la suppression</h2>
+            <div className="flex justify-between items-center mb-2" style={{ textAlign: "left" }}>
+              <h2 style={{ color: "#e74c3c", margin: 0 }}>Confirmer la suppression</h2>
+              <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+            </div>
             <p>Voulez-vous supprimer ce modèle ?</p>
             <div className="modal-actions" style={{ justifyContent: "center", marginTop: "20px" }}>
               <button onClick={() => setShowConfirm(false)} className="btn-cancel" disabled={isDeletingTemplate}>Non</button>

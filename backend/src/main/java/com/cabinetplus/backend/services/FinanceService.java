@@ -22,6 +22,7 @@ import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.ExpenseRepository;
 import com.cabinetplus.backend.repositories.ItemRepository;
+import com.cabinetplus.backend.repositories.LaboratoryPaymentRepository;
 import com.cabinetplus.backend.repositories.PaymentRepository;
 import com.cabinetplus.backend.repositories.TreatmentRepository;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
@@ -36,6 +37,7 @@ public class FinanceService {
     private final ItemRepository itemRepository;
     private final ExpenseRepository expenseRepository;
     private final ProthesisRepository prothesisRepository;
+    private final LaboratoryPaymentRepository laboratoryPaymentRepository;
 
     // ==============================
     // ===== GRAPH DATA ============
@@ -61,14 +63,16 @@ public class FinanceService {
                 double income = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
                 double totalInventaire = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
                 double totalOtherExpenses = expenseRepository.sumAmountByDentist(dentist, start.toLocalDate(), end.toLocalDate()).orElse(0.0);
-                double netRevenue = income - (totalOtherExpenses + totalInventaire);
+                double totalLabPayments = laboratoryPaymentRepository
+                        .sumAmountByCreatedByAndPaymentDateBetween(dentist, start, end);
+                double netRevenue = income - (totalOtherExpenses + totalInventaire + totalLabPayments);
 
                 String dayName = date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
 
                 revenueAmounts.put(dayName, income);
                 netAmounts.put(dayName, netRevenue);
 
-                expenseAmounts.put(dayName, totalOtherExpenses); // only non-inventaire expenses
+                expenseAmounts.put(dayName, totalOtherExpenses + totalLabPayments); // non-inventaire + labo
                 inventaireAmounts.put(dayName, totalInventaire); // separate
             }
             break;
@@ -82,14 +86,16 @@ public class FinanceService {
                 double income = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
                 double totalInventaire = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
                 double totalOtherExpenses = expenseRepository.sumAmountByDentist(dentist, start.toLocalDate(), end.toLocalDate()).orElse(0.0);
-                double netRevenue = income - (totalOtherExpenses + totalInventaire);
+                double totalLabPayments = laboratoryPaymentRepository
+                        .sumAmountByCreatedByAndPaymentDateBetween(dentist, start, end);
+                double netRevenue = income - (totalOtherExpenses + totalInventaire + totalLabPayments);
 
                 String monthName = date.getMonth().toString();
 
                 revenueAmounts.put(monthName, income);
                 netAmounts.put(monthName, netRevenue);
 
-                expenseAmounts.put(monthName, totalOtherExpenses);
+                expenseAmounts.put(monthName, totalOtherExpenses + totalLabPayments);
                 inventaireAmounts.put(monthName, totalInventaire);
             }
             break;
@@ -103,14 +109,16 @@ public class FinanceService {
                 double income = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
                 double totalInventaire = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
                 double totalOtherExpenses = expenseRepository.sumAmountByDentist(dentist, start.toLocalDate(), end.toLocalDate()).orElse(0.0);
-                double netRevenue = income - (totalOtherExpenses + totalInventaire);
+                double totalLabPayments = laboratoryPaymentRepository
+                        .sumAmountByCreatedByAndPaymentDateBetween(dentist, start, end);
+                double netRevenue = income - (totalOtherExpenses + totalInventaire + totalLabPayments);
 
                 String yearName = String.valueOf(date.getYear());
 
                 revenueAmounts.put(yearName, income);
                 netAmounts.put(yearName, netRevenue);
 
-                expenseAmounts.put(yearName, totalOtherExpenses);
+                expenseAmounts.put(yearName, totalOtherExpenses + totalLabPayments);
                 inventaireAmounts.put(yearName, totalInventaire);
             }
             break;
@@ -183,17 +191,17 @@ public class FinanceService {
 double revenueduCurr = treatmentRepository.sumPriceByDentist(dentist, start, end).orElse(0.0)
                      + getProthesisRevenue(dentist, start, end); // includes prothesis revenue
 
-double revenueCurr   = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
-double enattenteCurr = revenueduCurr - revenueCurr;
-double revenuenetCurr = revenueCurr - getTotalExpenses(dentist, start, end);
+ double revenueCurr   = paymentRepository.sumAmountByDentist(dentist, start, end).orElse(0.0);
+ double enattenteCurr = revenueduCurr - revenueCurr;
+ double revenuenetCurr = revenueCurr - getTotalExpenses(dentist, start, end);
 
 // ==== Revenue (previous) ====
 double revenueduPrev = treatmentRepository.sumPriceByDentist(dentist, prevStart, prevEnd).orElse(0.0)
                      + getProthesisRevenue(dentist, prevStart, prevEnd); // includes prothesis revenue
 
-double revenuePrev   = paymentRepository.sumAmountByDentist(dentist, prevStart, prevEnd).orElse(0.0);
-double enattentePrev = revenueduPrev - revenuePrev;
-double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevEnd);
+ double revenuePrev   = paymentRepository.sumAmountByDentist(dentist, prevStart, prevEnd).orElse(0.0);
+ double enattentePrev = revenueduPrev - revenuePrev;
+ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevEnd);
    FinanceCardsResponseDTO.RevenueDTO revenueDTO =
         new FinanceCardsResponseDTO.RevenueDTO(
                 toValueComparison(revenueduCurr, revenueduPrev),
@@ -208,13 +216,17 @@ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevE
     double totalItemExpensesCurr = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
     double totalOtherExpensesCurr = expenseRepository.sumAmountByDentist(dentist,
             start.toLocalDate(), end.toLocalDate()).orElse(0.0);
-    double totalExpensesCurr = totalItemExpensesCurr + totalOtherExpensesCurr;
+    double totalLabPaymentsCurr = laboratoryPaymentRepository
+            .sumAmountByCreatedByAndPaymentDateBetween(dentist, start, end);
+    double totalExpensesCurr = totalItemExpensesCurr + totalOtherExpensesCurr + totalLabPaymentsCurr;
 
     // ==== Expenses (previous) ====
     double totalItemExpensesPrev = itemRepository.sumPriceByDentist(dentist, prevStart, prevEnd).orElse(0.0);
     double totalOtherExpensesPrev = expenseRepository.sumAmountByDentist(dentist,
             prevStart.toLocalDate(), prevEnd.toLocalDate()).orElse(0.0);
-    double totalExpensesPrev = totalItemExpensesPrev + totalOtherExpensesPrev;
+    double totalLabPaymentsPrev = laboratoryPaymentRepository
+            .sumAmountByCreatedByAndPaymentDateBetween(dentist, prevStart, prevEnd);
+    double totalExpensesPrev = totalItemExpensesPrev + totalOtherExpensesPrev + totalLabPaymentsPrev;
 
     FinanceCardsResponseDTO.ExpenseDTO expenseDTO =
         new FinanceCardsResponseDTO.ExpenseDTO(
@@ -237,8 +249,9 @@ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevE
     private double getTotalExpenses(User dentist, LocalDateTime start, LocalDateTime end) {
     double totalItemExpenses = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
     double totalOtherExpenses = expenseRepository.sumAmountByDentist(dentist, start.toLocalDate(), end.toLocalDate()).orElse(0.0);
-    double totalLabCosts = getProthesisLabCosts(dentist, start, end); // <-- added
-    return totalItemExpenses + totalOtherExpenses + totalLabCosts;
+    double totalLabPayments = laboratoryPaymentRepository
+            .sumAmountByCreatedByAndPaymentDateBetween(dentist, start, end);
+    return totalItemExpenses + totalOtherExpenses + totalLabPayments;
 }
 
  private Map<String, String> computeRevenueTypes(User dentist, String timeframe) {
@@ -266,7 +279,7 @@ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevE
     // Existing treatment totals
     List<Treatment> treatments = treatmentRepository.findByDentistAndDateBetween(dentist, start, end);
     Map<String, Double> totalsByCatalog = treatments.stream()
-            .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()))
+            .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(t.getStatus()))
             .collect(Collectors.groupingBy(
                     t -> t.getTreatmentCatalog().getName(),
                     Collectors.summingDouble(Treatment::getPrice)
@@ -314,6 +327,13 @@ double revenuenetPrev = revenuePrev - getTotalExpenses(dentist, prevStart, prevE
         List<Item> items = itemRepository.findByCreatedByAndCreatedAtBetween(dentist, start, end);
         double totalItems = items.stream().mapToDouble(Item::getPrice).sum();
         totals.put("Inventaire", totalItems);
+
+        // Laboratory payments
+        Double totalLabPayments = laboratoryPaymentRepository
+                .sumAmountByCreatedByAndPaymentDateBetween(dentist, start, end);
+        if (totalLabPayments != null && totalLabPayments > 0) {
+            totals.put("Laboratoire", totalLabPayments);
+        }
 
         // Other expenses
         List<Expense> expenses = expenseRepository.findByCreatedByAndDateBetween(

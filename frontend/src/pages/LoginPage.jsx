@@ -7,6 +7,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "react-feather";
 import PasswordInput from "../components/PasswordInput";
 import { getApiErrorMessage } from "../utils/error";
+import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
 import { formatDateByPreference } from "../utils/dateFormat";
@@ -159,11 +161,15 @@ const LoginPage = () => {
       setResetError("Entrez votre numero de telephone.");
       return;
     }
+    if (!isValidPhoneNumber(resetPhone)) {
+      setResetError("Numero de telephone invalide (ex: 05 51 51 51 51).");
+      return;
+    }
     if (resetSendCooldown > 0) return;
     setResetLoading(true);
     setResetError("");
     try {
-      await sendPasswordResetCode(resetPhone.trim());
+      await sendPasswordResetCode(normalizePhoneInput(resetPhone));
       setResetStep("code");
       setResetSendCooldown(60);
     } catch (err) {
@@ -195,12 +201,12 @@ const LoginPage = () => {
     setResetError("");
     try {
       await confirmPasswordReset({
-        phoneNumber: resetPhone.trim(),
+        phoneNumber: normalizePhoneInput(resetPhone),
         code: resetCode.trim(),
         newPassword: resetNewPassword,
       });
       setResetStep("done");
-      setIdentifier(resetPhone.trim());
+      setIdentifier(normalizePhoneInput(resetPhone));
     } catch (err) {
       setResetError(getApiErrorMessage(err, "Code SMS invalide."));
     } finally {
@@ -332,11 +338,10 @@ const LoginPage = () => {
 
             {resetStep === "phone" && (
               <div className="login-reset-form">
-                <input
-                  type="text"
-                  placeholder="Numero de telephone"
+                <PhoneInput
+                  placeholder="Numero de telephone (ex: 05 51 51 51 51)"
                   value={resetPhone}
-                  onChange={(e) => setResetPhone(e.target.value)}
+                  onChangeValue={setResetPhone}
                   disabled={resetLoading}
                 />
                 <button type="button" onClick={handleSendResetCode} disabled={resetLoading || resetSendCooldown > 0}>

@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Edit2, Check, X, User, Phone, Home } from "react-feather"; // Removed Mail icon
 import PageHeader from "../components/PageHeader";
+import BackButton from "../components/BackButton";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { getUserProfile, updateUserProfile } from "../services/userService";
+import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
 import "./Profile.css";
 
 const fieldLabels = {
@@ -30,10 +32,7 @@ const Profile = () => {
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
 
-  const formatPhoneNumber = (phone) => {
-    if (!phone) return "";
-    return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
-  };
+  const formatPhoneNumber = (phone) => formatPhoneNumberDisplay(phone) || "";
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -102,7 +101,7 @@ const Profile = () => {
       {field === "profession" ? (
         <span className="field-value">{profile.profession}</span>
       ) : field === "phoneNumber" ? (
-        <span className="field-value">{formatPhoneNumber(profile.phoneNumber) || "â€”"}</span>
+        <span className="field-value">{formatPhoneNumber(profile.phoneNumber) || "—"}</span>
       ) : editingField === field ? (
         <>
           <input
@@ -126,6 +125,7 @@ const Profile = () => {
 
   return (
     <div className="profile-container">
+      <BackButton fallbackTo="/settings" />
       <PageHeader title="Profil" subtitle="Gérer vos informations personnelles" />
       <div className="profile-content">
         {Object.keys(fieldLabels).map(renderField)}

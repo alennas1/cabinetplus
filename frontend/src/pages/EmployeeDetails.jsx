@@ -18,6 +18,8 @@ import { updateWorkingHour } from "../services/workingHoursService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
+import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PasswordInput from "../components/PasswordInput";
 import "./Patient.css";
@@ -49,10 +51,7 @@ const EmployeeDetails = () => {
   };
 
   const formatPhoneNumber = (phone) => {
-    if (!phone) return "";
-    const digits = String(phone).replace(/\D/g, "");
-    if (digits.length !== 10) return phone;
-    return digits.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
+    return formatPhoneNumberDisplay(phone) || "";
   };
 
   const translateStatus = (status) => {
@@ -181,6 +180,10 @@ const EmployeeDetails = () => {
       setTempValue("");
       return;
     }
+    if (field === "phone") {
+      setTempValue(formatPhoneNumberDisplay(employee?.phone) || "");
+      return;
+    }
     setTempValue(employee?.[field] == null ? "" : String(employee[field]));
   };
 
@@ -195,6 +198,16 @@ const EmployeeDetails = () => {
     let nextValue = tempValue;
     if (field === "salary") {
       nextValue = tempValue === "" ? null : Number(tempValue);
+    }
+    if (field === "phone") {
+      if ((tempValue || "").trim() === "") {
+        nextValue = null;
+      } else if (!isValidPhoneNumber(tempValue)) {
+        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+        return;
+      } else {
+        nextValue = normalizePhoneInput(tempValue);
+      }
     }
     if (["dateOfBirth", "hireDate", "endDate"].includes(field)) {
       nextValue = tempValue || null;
@@ -263,11 +276,19 @@ const EmployeeDetails = () => {
                 autoComplete="new-password"
               />
             ) : (
-              <input
-                type={type}
-                value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
-              />
+              field === "phone" ? (
+                <PhoneInput
+                  value={tempValue}
+                  onChangeValue={(v) => setTempValue(v)}
+                  placeholder="Ex: 05 51 51 51 51"
+                />
+              ) : (
+                <input
+                  type={type}
+                  value={tempValue}
+                  onChange={(e) => setTempValue(e.target.value)}
+                />
+              )
             )
           )}
           <Check size={18} className="icon action confirm" onClick={() => saveField(field)} />
@@ -303,7 +324,13 @@ const EmployeeDetails = () => {
   return (
     <div className="patient-container">
       <div style={{ marginBottom: "16px" }}>
-        <button className="btn-secondary-app" onClick={() => navigate("/gestion-cabinet/employees")}>
+        <button
+          className="btn-secondary-app"
+          onClick={() => {
+            if (window.history.length > 1) navigate(-1);
+            else navigate("/gestion-cabinet/employees", { replace: true });
+          }}
+        >
           <ArrowLeft size={16} /> Retour
         </button>
       </div>
@@ -509,11 +536,10 @@ const EmployeeDetails = () => {
           <div className="modal">
             <div className="modal-header">
               <h3>Modifier horaires</h3>
-              <button className="close-btn" onClick={() => setIsHoursModalOpen(false)}>
-                <X size={18} />
-              </button>
+              <X className="cursor-pointer" onClick={() => setIsHoursModalOpen(false)} />
             </div>
             <div className="modal-body">
+              <p className="text-sm text-gray-600 mb-4">Ajustez les horaires puis sauvegardez.</p>
               <table className="treatment-table">
                 <thead>
                   <tr>

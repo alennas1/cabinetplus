@@ -7,6 +7,7 @@ import PageHeader from "../components/PageHeader";
 import { getUsersExpiringInDays } from "../services/userService";
 import { Eye, ChevronDown, Search } from "react-feather";
 import { formatDateByPreference } from "../utils/dateFormat";
+import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
 
 const statusMap = {
   PENDING: "En attente",
@@ -60,10 +61,11 @@ const EndingPlans = () => {
         return false;
       }
       if (!search) return true;
+      const searchDigits = normalizePhoneInput(search);
       return (
         u.firstname.toLowerCase().includes(search.toLowerCase()) ||
         u.lastname.toLowerCase().includes(search.toLowerCase()) ||
-        (u.phoneNumber && u.phoneNumber.includes(search))
+        (searchDigits && normalizePhoneInput(u.phoneNumber).includes(searchDigits))
       );
     })
     .sort((a, b) => new Date(a.expirationDate || 0) - new Date(b.expirationDate || 0));
@@ -136,7 +138,7 @@ const EndingPlans = () => {
         return (
           <tr key={u.id} onClick={() => handleView(u.id)} style={{ cursor: "pointer" }}>
             <td>{`${u.firstname} ${u.lastname}`}</td>
-            <td>{u.phoneNumber || "-"}</td>
+            <td>{formatPhoneNumber(u.phoneNumber) || "-"}</td>
             <td>
               <span
                 className={`status-badge ${

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Edit2, Trash2, Eye, Search, Filter } from "react-feather";
+import { Plus, Edit2, Trash2, Eye, Search, Filter, X } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import {
   getMedications,
   createMedication,
@@ -181,6 +182,7 @@ const Medications = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/catalogue" />
       <PageHeader title="Médicaments" subtitle="Gestion de la pharmacie" align="left" />
 
       {/* Controls */}
@@ -300,7 +302,13 @@ const Medications = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 className="mb-4">{isEditing ? "Modifier Médicament" : "Ajouter Médicament"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="mb-0">{isEditing ? "Modifier Médicament" : "Ajouter Médicament"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez les informations du médicament puis enregistrez." : "Ajoutez un médicament au catalogue, puis enregistrez."}
+            </p>
             <form className="modal-form" onSubmit={handleSubmit}>
               <div className="mb-3">
                 <span className="field-label">Nom Commercial (Marque)</span>
@@ -345,7 +353,10 @@ const Medications = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer le médicament ?</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Supprimer le médicament ?</h2>
+              <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+            </div>
             <p className="text-gray-600 mb-6">Êtes-vous sûr ? Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100" disabled={isDeletingMedication}>Annuler</button>
@@ -359,7 +370,11 @@ const Medications = () => {
       {viewMedication && (
         <div className="modal-overlay" onClick={() => setViewMedication(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 className="mb-4">Détails du médicament</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="mb-0">Détails du médicament</h2>
+              <X className="cursor-pointer" onClick={() => setViewMedication(null)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Informations en lecture seule.</p>
             <div className="view-field"><strong>Nom Commercial:</strong> {viewMedication.name || "—"}</div>
             <div className="view-field"><strong>Nom Générique:</strong> {viewMedication.genericName || "—"}</div>
             <div className="view-field"><strong>Forme:</strong> {DOSAGE_FORMS[viewMedication.dosageForm] || viewMedication.dosageForm || "—"}</div>

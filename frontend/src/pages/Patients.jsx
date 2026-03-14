@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Filter } from "react-feather";
+import { Plus, Filter, X } from "react-feather";
 import { Edit2, Trash2,Eye,Search   } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { FaMale, FaFemale } from "react-icons/fa";
@@ -17,6 +17,8 @@ import {
 } from "../services/patientService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import "./Patients.css";
 
 
@@ -94,10 +96,7 @@ const formatDate = (dateStr) => {
   return label === "-" ? "" : label;
 };
 
-const formatPhone = (phone) => {
-  if (!phone) return "";
-  return phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4");
-};
+const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
   // Load patients
   useEffect(() => {
@@ -135,21 +134,31 @@ const formatPhone = (phone) => {
 
   // Handle form input
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === "phone") {
+      setFormData({ ...formData, phone: normalizePhoneInput(value) });
+      return;
+    }
+    setFormData({ ...formData, [name]: value });
   };
 
   // Add / update
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (!isValidPhoneNumber(formData.phone)) {
+      toast.error("Numéro de téléphone invalide");
+      return;
+    }
     setIsSubmitting(true);
     try {
+      const payload = { ...formData, phone: normalizePhoneInput(formData.phone) };
       if (isEditing) {
-        const updated = await updatePatient(formData.id, formData, token);
+        const updated = await updatePatient(formData.id, payload, token);
         setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
         toast.success("Patient mis a jour");
       } else {
-        const newPatient = await createPatient(formData, token);
+        const newPatient = await createPatient(payload, token);
         setPatients((prev) => [...prev, newPatient]);
         toast.success("Patient ajoute");
         setShowModal(false);
@@ -185,7 +194,7 @@ const formatPhone = (phone) => {
   };
 
   const handleEdit = (patient) => {
-    setFormData(patient);
+    setFormData({ ...patient, phone: formatPhoneNumber(patient.phone) || "" });
     setIsEditing(true);
     setShowModal(true);
   };
@@ -386,9 +395,9 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
       <td>{p.age ?? "N/A"} ans</td>
 <td>
   {p.sex === "Homme" ? (
-    <span className="sex-icon male">♂</span>
+    <span className="sex-icon-square male" title="Homme" aria-label="Homme">♂</span>
   ) : p.sex === "Femme" ? (
-    <span className="sex-icon female">♀</span>
+    <span className="sex-icon-square female" title="Femme" aria-label="Femme">♀</span>
   ) : (
     "—"
   )}
@@ -468,8 +477,109 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
       className="modal-content"
       onClick={(e) => e.stopPropagation()} // prevents closing when clicking inside
     >
-            <h2>{isEditing ? "Modifier Patient" : "Ajouter Patient"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditing ? "Modifier Patient" : "Ajouter Patient"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez les informations du patient puis enregistrez." : "Renseignez les informations du patient puis enregistrez."}
+            </p>
             <form onSubmit={handleSubmit} className="modal-form">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="field-label">Prénom</span>
+                  <input
+                    type="text"
+                    name="firstname"
+                    placeholder="Entrez le prénom..."
+                    value={formData.firstname}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <span className="field-label">Nom</span>
+                  <input
+                    type="text"
+                    name="lastname"
+                    placeholder="Entrez le nom..."
+                    value={formData.lastname}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="field-label">Téléphone</span>
+                  <PhoneInput
+                    name="phone"
+                    placeholder="Ex: 05 51 51 51 51"
+                    value={formData.phone}
+                    onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <span className="field-label">Âge</span>
+                  <input
+                    type="number"
+                    name="age"
+                    placeholder="Entrez l'age..."
+                    value={formData.age}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+
+              <div className="form-field">
+                <span className="field-label">Sexe</span>
+                <div className="flex flex-wrap gap-2">
+                  <label
+                    className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                      formData.sex === "Homme"
+                        ? "bg-blue-50 border-blue-200 text-blue-700"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="sex"
+                      value="Homme"
+                      checked={formData.sex === "Homme"}
+                      onChange={handleChange}
+                      className="sr-only"
+                      required
+                    />
+                    Homme
+                  </label>
+
+                  <label
+                    className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                      formData.sex === "Femme"
+                        ? "bg-rose-50 border-rose-200 text-rose-700"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="sex"
+                      value="Femme"
+                      checked={formData.sex === "Femme"}
+                      onChange={handleChange}
+                      className="sr-only"
+                      required
+                    />
+                    Femme
+                  </label>
+                </div>
+              </div>
+
+              {false && (
+                <>
                                                           <span className="field-label">Prénom</span>
 
               <input
@@ -530,14 +640,16 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
               </div>
                               <span className="field-label">Téléphone</span>
 
-              <input
-                type="text"
+              <PhoneInput
                 name="phone"
-                placeholder="Ex: 0551555555"
+                placeholder="Ex: 05 51 51 51 51"
                 value={formData.phone}
-                onChange={handleChange}
+                onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
                 required
               />
+
+                </>
+              )}
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2" disabled={isSubmitting}>

@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Search, Edit2, Filter, Trash2 } from "react-feather";
+import { Plus, Search, Edit2, Filter, Trash2, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import {
   getExpenses,
   createExpense,
@@ -13,7 +14,9 @@ import {
 } from "../services/expenseService";
 import { getEmployees } from "../services/employeeService";
 import { getApiErrorMessage } from "../utils/error";
-import { formatMoneyWithLabel } from "../utils/format";
+import { formatMoneyWithLabel, formatMoney } from "../utils/format";
+import MoneyInput from "../components/MoneyInput";
+import { parseMoneyInput } from "../utils/moneyInput";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -127,12 +130,13 @@ const Expenses = () => {
     if (isSubmitting) return;
     try {
       setIsSubmitting(true);
+      const payload = { ...formData, amount: parseMoneyInput(formData.amount) };
       if (isEditing) {
-        const updated = await updateExpense(editingExpense.id, formData);
+        const updated = await updateExpense(editingExpense.id, payload);
         setExpenses(expenses.map((e) => (e.id === updated.id ? updated : e)));
         toast.success("Dépense mise à jour");
       } else {
-        const newExpense = await createExpense(formData);
+        const newExpense = await createExpense(payload);
         setExpenses([...expenses, newExpense]);
         toast.success("Dépense ajoutée");
       }
@@ -150,7 +154,10 @@ const Expenses = () => {
   };
 
   const handleEdit = (expense) => {
-    setFormData(expense);
+    setFormData({
+      ...expense,
+      amount: expense?.amount != null ? formatMoney(expense.amount) : "",
+    });
     setSelectedEmployeeId(expense.employeeId || "");
     setEditingExpense(expense);
     setIsEditing(true);
@@ -191,6 +198,7 @@ const Expenses = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/gestion-cabinet" />
       <PageHeader title="Dépenses" subtitle="Gérez vos dépenses" />
 
       {/* Controls */}
@@ -296,10 +304,16 @@ const Expenses = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{isEditing ? "Modifier Dépense" : "Ajouter Dépense"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditing ? "Modifier Dépense" : "Ajouter Dépense"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
+            </p>
             <form onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Titre</span>
-              <input type="text" name="title" value={formData.title} onChange={handleChange} required />
+              <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="Ex: Fournitures" required />
 
               <span className="field-label">Catégorie</span>
               <select name="category" value={formData.category} onChange={handleChange} required>
@@ -309,13 +323,19 @@ const Expenses = () => {
               </select>
 
               <span className="field-label">Montant</span>
-              <input type="number" name="amount" value={formData.amount} onChange={handleChange} min="0" step="0.01" required />
+              <MoneyInput
+                name="amount"
+                value={formData.amount}
+                onChangeValue={(v) => setFormData((s) => ({ ...s, amount: v }))}
+                placeholder="Ex: 15000"
+                required
+              />
 
               <span className="field-label">Date</span>
               <input type="date" name="date" value={formData.date} onChange={handleChange} />
 
               <span className="field-label">Description</span>
-              <textarea name="description" value={formData.description} onChange={handleChange} />
+              <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Notes optionnelles..." />
 
               {/* Employee Dropdown */}
               <span className="field-label">Employé</span>

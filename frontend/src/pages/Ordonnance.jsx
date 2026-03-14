@@ -1,6 +1,6 @@
 // src/pages/Ordonnance.jsx
-import React, { useState, useEffect } from "react";
-import { Edit2, Trash2, Printer, ArrowLeft, Plus } from "react-feather";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Edit2, Trash2, Printer, ArrowLeft, Plus, X } from "react-feather";
 import { createPrescription, getPrescriptionById, updatePrescription, openPrescriptionPdfInNewTab } from "../services/prescriptionService";
 import { getMedications, createMedication } from "../services/medicationService";
 import { toast, ToastContainer } from "react-toastify";
@@ -49,6 +49,35 @@ const DOSAGE_FORMS = {
 };
   const isEditMode = ordonnanceId && ordonnanceId !== "create";
 
+  const initialSnapshotRef = useRef(null);
+
+  const buildSnapshot = (payload) => {
+    const meds = (payload.medications || [])
+      .map((m) => ({
+        medicationId: String(m.medicationId ?? ""),
+        name: (m.name || "").trim(),
+        genericName: (m.genericName || "").trim(),
+        strength: (m.strength || "").trim(),
+        amount: String(m.amount ?? ""),
+        unit: (m.unit || "").trim(),
+        frequency: (m.frequency || "").trim(),
+        duration: (m.duration || "").trim(),
+        instruction: (m.instruction || m.instructions || "").trim(),
+      }))
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+
+    return JSON.stringify({
+      notes: (payload.notes || "").trim(),
+      medications: meds,
+    });
+  };
+
+  const navigateBackSafely = () => {
+    const fallback = `/patients/${patient?.id || patientId}`;
+    if (window.history.length > 1) navigate(-1);
+    else navigate(fallback, { replace: true });
+  };
+
   const [medForm, setMedForm] = useState({
     name: "",
     genericName: "", // New attribute
@@ -83,10 +112,20 @@ useEffect(() => {
         }));
         setMedications(normalizedMeds);
         setNotes(data.notes);
+
+        if (initialSnapshotRef.current == null) {
+          initialSnapshotRef.current = buildSnapshot({ notes: data.notes, medications: normalizedMeds });
+        }
       })
       .catch((err) => console.error("Error fetching prescription:", err));
   }
 }, [isEditMode, ordonnanceId]);
+
+useEffect(() => {
+  if (initialSnapshotRef.current != null) return;
+  initialSnapshotRef.current = buildSnapshot({ notes, medications });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
   // Load Patient & Medication Options
   useEffect(() => {
     getPatientById(patientId)
@@ -266,10 +305,26 @@ useEffect(() => {
     }
   }
 
+  const isDirty = useMemo(() => {
+    const baseline = initialSnapshotRef.current;
+    const current = buildSnapshot({ notes, medications });
+    const listOrNotesDirty = baseline != null && baseline !== current;
+
+    const medFormDirty = Object.entries(medForm).some(([key, value]) => {
+      if (key === "unit") return false; // default shouldn't trigger dirty
+      return String(value || "").trim() !== "";
+    });
+
+    return listOrNotesDirty || medFormDirty || !!editingId;
+  }, [editingId, medForm, medications, notes]);
+
   return (
     <div className="patients-container">
       <button
-        onClick={() => setShowConfirm(true)}
+        onClick={() => {
+          if (isDirty) setShowConfirm(true);
+          else navigateBackSafely();
+        }}
         className="mb-3 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:shadow-sm flex items-center gap-2 text-sm"
       >
         <ArrowLeft size={16} /> Retour
@@ -494,11 +549,14 @@ useEffect(() => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Quitter ?</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-lg font-semibold text-gray-800">Quitter ?</h2>
+              <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+            </div>
             <p className="text-gray-600 mb-6">Les modifications non enregistrées seront perdues.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-50">Rester</button>
-              <button onClick={() => navigate(`/patients/${patient?.id || patientId}`)} className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600">Quitter</button>
+              <button onClick={navigateBackSafely} className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600">Quitter</button>
             </div>
           </div>
         </div>
@@ -506,9 +564,12 @@ useEffect(() => {
 {showCreateMedModal && (
   <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
     <div className="bg-white rounded-2xl shadow-lg p-6 max-w-lg w-full">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Ajouter au catalogue
-	      </h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold text-gray-800 mb-0">
+          Ajouter au catalogue
+        </h2>
+        <X className="cursor-pointer" onClick={() => setShowCreateMedModal(false)} />
+      </div>
 	      <p className="text-sm text-gray-600 mb-4">
 	        Ce médicament sera ajouté à la liste globale. Ensuite, vous pourrez le sélectionner et l'ajouter à l'ordonnance.
 	      </p>

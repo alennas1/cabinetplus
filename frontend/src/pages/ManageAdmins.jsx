@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Eye, Trash2, Search } from "react-feather";
+import { Plus, Eye, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import BackButton from "../components/BackButton";
 import PasswordInput from "../components/PasswordInput";
 import { getAllAdmins, createAdmin, deleteAdmin } from "../services/userService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import "./Patients.css";
 
 const ManageAdmins = () => {
@@ -60,12 +63,16 @@ const ManageAdmins = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      if ((formData.phoneNumber || "").trim() && !isValidPhoneNumber(formData.phoneNumber)) {
+        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+        return;
+      }
       const payload = {
         firstname: formData.firstname,
         lastname: formData.lastname,
         username: formData.username,
         password: formData.password,
-        phoneNumber: formData.phoneNumber || null,
+        phoneNumber: formData.phoneNumber ? normalizePhoneInput(formData.phoneNumber) : null,
         role: "ADMIN",
         canDeleteAdmin: formData.canDeleteAdmin,
         createdAt: new Date().toISOString(),
@@ -97,6 +104,7 @@ const ManageAdmins = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/settings-admin" />
       <PageHeader title="Admins" subtitle="Liste des administrateurs" align="left" />
       <div className="patients-controls">
         <div className="search-group">
@@ -125,7 +133,7 @@ const ManageAdmins = () => {
               <td>{admin.firstname || "—"}</td>
               <td>{admin.lastname || "—"}</td>
               <td>{admin.username || "—"}</td>
-              <td>{admin.phoneNumber || "—"}</td>
+              <td>{formatPhoneNumber(admin.phoneNumber) || "—"}</td>
               <td>{admin.canDeleteAdmin ? "Oui" : "Non"}</td>
               <td className="actions-cell">
                 <button className="action-btn view" onClick={(e) => { e.stopPropagation(); setFormData(admin); setIsEditing(true); setShowModal(true); }}><Eye size={16} /></button>
@@ -139,25 +147,39 @@ const ManageAdmins = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{isEditing ? "Voir Admin" : "Ajouter Admin"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditing ? "Voir Admin" : "Ajouter Admin"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Informations en lecture seule." : "Renseignez les informations puis cliquez sur Ajouter."}
+            </p>
             <form onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Prénom *</span>
-              <input type="text" name="firstname" value={formData.firstname} onChange={handleChange} required />
+              <input type="text" name="firstname" value={formData.firstname} onChange={handleChange} placeholder="Ex: Ahmed" required disabled={isEditing} />
               <span className="field-label">Nom *</span>
-              <input type="text" name="lastname" value={formData.lastname} onChange={handleChange} required />
+              <input type="text" name="lastname" value={formData.lastname} onChange={handleChange} placeholder="Ex: Benali" required disabled={isEditing} />
               <span className="field-label">Username *</span>
-              <input type="text" name="username" value={formData.username} onChange={handleChange} required />
+              <input type="text" name="username" value={formData.username} onChange={handleChange} placeholder="Ex: abenali" required disabled={isEditing} />
               <span className="field-label">Mot de passe *</span>
               <PasswordInput
                 name="password"
-                value={formData.password}
+                value={formData.password || ""}
                 onChange={handleChange}
+                placeholder={isEditing ? "" : "Choisir un mot de passe"}
                 required={!isEditing}
                 autoComplete="new-password"
+                disabled={isEditing}
               />
               <span className="field-label">Téléphone</span>
-              <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} />
-              <label><input type="checkbox" name="canDeleteAdmin" checked={formData.canDeleteAdmin} onChange={handleChange} /> Super Admin</label>
+              <PhoneInput
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChangeValue={(v) => setFormData((s) => ({ ...s, phoneNumber: v }))}
+                placeholder="Ex: 05 51 51 51 51"
+                disabled={isEditing}
+              />
+              <label><input type="checkbox" name="canDeleteAdmin" checked={formData.canDeleteAdmin} onChange={handleChange} disabled={isEditing} /> Super Admin</label>
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2">{isEditing ? "Fermer" : "Ajouter"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>

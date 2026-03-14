@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Clock, Moon, Settings as SettingsIcon } from "react-feather";
+import { useLocation } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import { getApiErrorMessage } from "../utils/error";
 import {
   DATE_FORMATS,
@@ -27,6 +29,8 @@ import { getUserPreferences, updateUserPreferences } from "../services/userPrefe
 import "./Preference.css";
 
 const Preference = ({ showWorkingHours = true }) => {
+  const location = useLocation();
+  const showBackButton = location.pathname.startsWith("/settings/");
   const initialPreference = useMemo(() => getWorkingHoursPreference(), []);
   const [mode, setMode] = useState(initialPreference.mode);
   const [startTime, setStartTime] = useState(initialPreference.startTime);
@@ -153,6 +157,7 @@ const Preference = ({ showWorkingHours = true }) => {
 
   return (
     <div className="settings-container">
+      {showBackButton && <BackButton fallbackTo="/settings" />}
       <PageHeader
         title="Preferences"
         subtitle={

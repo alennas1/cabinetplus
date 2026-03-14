@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft } from "react-feather";
+import { ArrowLeft, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import {
   generateDraftJustification,
@@ -22,7 +22,26 @@ const Justification = () => {
   const [justificationId, setJustificationId] = useState(null);
   const [loadingDraft, setLoadingDraft] = useState(true);
   const [patient, setPatient] = useState(null);
-  const [showConfirm, setShowConfirm] = useState(false); // Modale de confirmation
+  const [showConfirm, setShowConfirm] = useState(false);
+  const initialSnapshotRef = useRef(null);
+
+  const buildSnapshot = (payload) =>
+    JSON.stringify({
+      title: (payload.title || "").trim(),
+      content: (payload.draft || "").trim(),
+    });
+
+  const navigateBackSafely = () => {
+    const fallback = `/patients/${patientId}`;
+    if (window.history.length > 1) navigate(-1);
+    else navigate(fallback, { replace: true });
+  };
+
+  useEffect(() => {
+    if (initialSnapshotRef.current != null) return;
+    initialSnapshotRef.current = buildSnapshot({ title, draft });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Chargement des données du patient
@@ -39,6 +58,9 @@ const Justification = () => {
         setLoadingDraft(true);
         const draftText = await generateDraftJustification(Number(patientId), Number(templateId));
         setDraft(draftText);
+        if (initialSnapshotRef.current == null) {
+          initialSnapshotRef.current = buildSnapshot({ title, draft: draftText });
+        }
       } catch (error) {
         toast.error("Impossible de générer le brouillon");
       } finally {
@@ -83,13 +105,23 @@ const Justification = () => {
     }
   };
 
+  const isDirty = useMemo(() => {
+    const baseline = initialSnapshotRef.current;
+    if (baseline == null) return false;
+    const current = buildSnapshot({ title, draft });
+    return baseline !== current;
+  }, [draft, title]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6 flex items-start justify-center">
       <div className="w-full max-w-5xl bg-white shadow-lg rounded-2xl p-6 relative">
         
-        {/* Bouton Retour avec confirmation */}
+        {/* Bouton Retour */}
         <button
-          onClick={() => setShowConfirm(true)}
+          onClick={() => {
+            if (isDirty) setShowConfirm(true);
+            else navigateBackSafely();
+          }}
           className="px-3 py-2 rounded-lg border border-gray-200 bg-white hover:shadow-sm flex items-center gap-2 text-sm"
         >
           <ArrowLeft size={16} /> Retour
@@ -177,6 +209,7 @@ const Justification = () => {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   rows={16}
+                  placeholder="Rédigez ici la justification..."
                 />
               )}
             </div>
@@ -188,11 +221,14 @@ const Justification = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Quitter ?</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-lg font-semibold text-gray-800">Quitter ?</h2>
+              <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+            </div>
             <p className="text-gray-600 mb-6">Les modifications non enregistrées seront perdues.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-50">Rester</button>
-              <button onClick={() => navigate(`/patients/${patientId}`)} className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600">Quitter</button>
+              <button onClick={navigateBackSafely} className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600">Quitter</button>
             </div>
           </div>
         </div>

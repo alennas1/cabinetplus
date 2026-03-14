@@ -8,6 +8,7 @@ import PageHeader from "../components/PageHeader";
 import { getAllDentists } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { Eye, ChevronDown, Search } from "react-feather";
+import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
 
 const statusMap = {
   PENDING: "En attente",
@@ -60,10 +61,11 @@ const Dentists = () => {
       return false;
     }
     if (!search) return true;
+    const searchDigits = normalizePhoneInput(search);
     return (
       d.firstname.toLowerCase().includes(search.toLowerCase()) ||
       d.lastname.toLowerCase().includes(search.toLowerCase()) ||
-      (d.phoneNumber && d.phoneNumber.includes(search))
+      (searchDigits && normalizePhoneInput(d.phoneNumber).includes(searchDigits))
     );
   });
 
@@ -150,7 +152,7 @@ const Dentists = () => {
                 <tr key={d.id} onClick={() => handleView(d.id)} style={{ cursor: "pointer" }}>
                   <td>{d.firstname}</td>
                   <td>{d.lastname}</td>
-                  <td>{d.phoneNumber || "-"}</td>
+                  <td>{formatPhoneNumber(d.phoneNumber) || "-"}</td>
                   <td>
                     <span
                       className={`status-badge ${

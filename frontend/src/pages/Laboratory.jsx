@@ -6,6 +6,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import {
   getAllLaboratories,
   createLaboratory,
@@ -13,6 +14,8 @@ import {
   deleteLaboratory,
 } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import "./Patients.css";
 
 const Laboratories = () => {
@@ -76,12 +79,17 @@ const Laboratories = () => {
     if (isSubmitting) return;
     try {
       setIsSubmitting(true);
+      if ((formData.phoneNumber || "").trim() && !isValidPhoneNumber(formData.phoneNumber)) {
+        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+        return;
+      }
+      const payload = { ...formData, phoneNumber: normalizePhoneInput(formData.phoneNumber) };
       if (isEditing) {
-        const updated = await updateLaboratory(formData.id, formData);
+        const updated = await updateLaboratory(formData.id, payload);
         setLaboratories(laboratories.map((lab) => (lab.id === updated.id ? updated : lab)));
         toast.success("Laboratoire mis à jour");
       } else {
-        const created = await createLaboratory(formData);
+        const created = await createLaboratory(payload);
         setLaboratories([...laboratories, created]);
         toast.success("Laboratoire ajouté");
       }
@@ -99,7 +107,7 @@ const Laboratories = () => {
       id: lab.id,
       name: lab.name || "",
       contactPerson: lab.contactPerson || "",
-      phoneNumber: lab.phoneNumber || "",
+      phoneNumber: formatPhoneNumber(lab.phoneNumber) || "",
       address: lab.address || "",
     });
     setIsEditing(true);
@@ -143,6 +151,7 @@ const Laboratories = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/gestion-cabinet" />
       <PageHeader title="Laboratoires" subtitle="Gestion des partenaires prothésistes" align="left" />
 
       <div className="patients-controls">
@@ -198,7 +207,7 @@ const Laboratories = () => {
               <tr key={lab.id} onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.id}`)} style={{ cursor: "pointer" }}>
                 <td style={{ fontWeight: "bold" }}>{lab.name}</td>
                 <td>{lab.contactPerson || "—"}</td>
-                <td>{lab.phoneNumber || "—"}</td>
+                <td>{formatPhoneNumber(lab.phoneNumber) || "—"}</td>
                 <td>{lab.address || "—"}</td>
                 <td className="actions-cell" style={{ textAlign: "right" }}>
                   <button
@@ -258,31 +267,40 @@ const Laboratories = () => {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
               <h2>{isEditing ? "Modifier Laboratoire" : "Nouveau Laboratoire"}</h2>
               <X
+                className="cursor-pointer"
                 onClick={() => {
                   setShowModal(false);
                   resetForm();
                 }}
-                style={{ cursor: "pointer" }}
               />
             </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez les informations du laboratoire puis enregistrez." : "Ajoutez un laboratoire partenaire au catalogue, puis enregistrez."}
+            </p>
 
             <form onSubmit={handleSubmit} className="modal-form">
               <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
                 <div className="field-group">
                   <span className="field-label">Nom du Laboratoire *</span>
-                  <input type="text" name="name" value={formData.name} onChange={handleChange} required />
+                  <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ex: Labo Central" required />
                 </div>
                 <div className="field-group">
                   <span className="field-label">Personne de contact</span>
-                  <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} />
+                  <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} placeholder="Ex: Dr. Karim" />
                 </div>
                 <div className="field-group">
                   <span className="field-label">Téléphone</span>
-                  <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} />
+                  <PhoneInput
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChangeValue={(v) => setFormData((s) => ({ ...s, phoneNumber: v }))}
+                    placeholder="Ex: 05 51 51 51 51"
+                  />
                 </div>
                 <div className="field-group">
                   <span className="field-label">Adresse</span>
-                  <input type="text" name="address" value={formData.address} onChange={handleChange} />
+                  <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="Ex: 12 rue ..." />
                 </div>
               </div>
 

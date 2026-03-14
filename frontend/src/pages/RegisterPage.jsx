@@ -9,9 +9,9 @@ import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { applyUserPreferences } from "../utils/workingHours";
+import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import "./Register.css";
-
-const DZ_PHONE_REGEX = /^(?:0[5-7]\d{8}|(?:\+?213)[5-7]\d{8})$/;
 const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,100}$/;
 
 const RegisterPage = () => {
@@ -108,10 +108,10 @@ const RegisterPage = () => {
       nextInvalid.phoneNumber = true;
       return { message: "Le numero de telephone est obligatoire.", invalid: nextInvalid };
     }
-    if (!DZ_PHONE_REGEX.test(formData.phoneNumber.trim())) {
+    if (!isValidPhoneNumber(formData.phoneNumber)) {
       nextInvalid.phoneNumber = true;
       return {
-        message: "Numero de telephone algerien invalide (ex: 0550123456 ou +213550123456).",
+        message: "Numero de telephone invalide (ex: 05 51 51 51 51).",
         invalid: nextInvalid,
       };
     }
@@ -152,7 +152,7 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
-      await register(formData);
+      await register({ ...formData, phoneNumber: normalizePhoneInput(formData.phoneNumber) });
       const { accessToken } = await login(formData.username, formData.password);
       const currentUser = await getCurrentUser();
       dispatch(setAuthLoading(true));
@@ -267,13 +267,12 @@ const RegisterPage = () => {
 
           <div className="register-field-group">
             <label htmlFor="phoneNumber">Numero de telephone</label>
-            <input
+            <PhoneInput
               id="phoneNumber"
-              type="tel"
               name="phoneNumber"
-              placeholder="Numero de telephone"
+              placeholder="Ex: 05 51 51 51 51"
               value={formData.phoneNumber}
-              onChange={handleChange}
+              onChangeValue={(v) => setFormData((prev) => ({ ...prev, phoneNumber: v }))}
               className={invalidFields.phoneNumber ? "invalid" : ""}
               required
               disabled={loading}

@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Search, Edit2,Filter, Trash2 } from "react-feather";
+import { Plus, Search, Edit2,Filter, Trash2, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
 import {
   getItemDefaults,
   createItemDefault,
@@ -12,7 +13,9 @@ import {
   deleteItemDefault,
 } from "../services/itemDefaultService";
 import { getApiErrorMessage } from "../utils/error";
-import { formatMoneyWithLabel } from "../utils/format";
+import { formatMoneyWithLabel, formatMoney } from "../utils/format";
+import MoneyInput from "../components/MoneyInput";
+import { parseMoneyInput } from "../utils/moneyInput";
 import "./Patients.css"; // Using the same Patients.css
 
 const ITEM_CATEGORIES = {
@@ -114,12 +117,13 @@ const Items = () => {
     if (isSubmitting) return;
     try {
       setIsSubmitting(true);
+      const payload = { ...formData, defaultPrice: parseMoneyInput(formData.defaultPrice) };
       if (isEditing) {
-        const updated = await updateItemDefault(editingItem.id, formData, token);
+        const updated = await updateItemDefault(editingItem.id, payload, token);
         setItems(items.map((i) => (i.id === updated.id ? updated : i)));
-        toast.success("Article mis à jour");
+        toast.success("Article mis à  jour");
       } else {
-        const newItem = await createItemDefault(formData, token);
+        const newItem = await createItemDefault(payload, token);
         setItems([...items, newItem]);
         toast.success("Article ajouté");
       }
@@ -136,7 +140,10 @@ const Items = () => {
   };
 
   const handleEdit = (item) => {
-    setFormData(item);
+    setFormData({
+      ...item,
+      defaultPrice: item?.defaultPrice != null ? formatMoney(item.defaultPrice) : "",
+    });
     setEditingItem(item);
     setIsEditing(true);
     setShowModal(true);
@@ -166,6 +173,7 @@ const Items = () => {
 
   return (
     <div className="patients-container">
+      <BackButton fallbackTo="/catalogue" />
       <PageHeader title="Articles" subtitle="Gérez vos articles par défaut" />
 
       {/* Controls */}
@@ -272,10 +280,16 @@ const Items = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{isEditing ? "Modifier Article" : "Ajouter Article"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditing ? "Modifier Article" : "Ajouter Article"}</h2>
+              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditing ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
+            </p>
             <form onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Nom</span>
-              <input type="text" name="name" value={formData.name} onChange={handleChange} required />
+              <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ex: Composite" required />
 
               <span className="field-label">Catégorie</span>
               <select name="category" value={formData.category} onChange={handleChange} required>
@@ -285,13 +299,19 @@ const Items = () => {
               </select>
 
               <span className="field-label">Prix par défaut</span>
-              <input type="number" name="defaultPrice" value={formData.defaultPrice} onChange={handleChange} min="0" step="0.01" required />
+              <MoneyInput
+                name="defaultPrice"
+                value={formData.defaultPrice}
+                onChangeValue={(v) => setFormData((s) => ({ ...s, defaultPrice: v }))}
+                placeholder="Ex: 2500"
+                required
+              />
 
               <span className="field-label">Description</span>
-              <textarea name="description" value={formData.description} onChange={handleChange} />
+              <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Notes optionnelles..." />
 
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre � jour" : "Ajouter"}</button>
+                <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
@@ -303,7 +323,10 @@ const Items = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer l'article ?</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Supprimer l'article ?</h2>
+              <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+            </div>
             <p className="text-gray-600 mb-6">Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100" disabled={isDeletingItem}>Annuler</button>

@@ -19,7 +19,7 @@ import {
 import { 
   getAppointmentsByPatient, createAppointment, updateAppointment, deleteAppointment 
 } from "../services/appointmentService";
-import { getTreatments as getTreatmentCatalog } from "../services/treatmentCatalogueService";
+import { getTreatments as getTreatmentCatalog, createTreatment as createTreatmentCatalogItem } from "../services/treatmentCatalogueService";
 import {
   TIME_FORMATS,
   formatHour,
@@ -27,8 +27,9 @@ import {
   getTimeFormatPreference,
   getWorkingHoursWindow,
 } from "../utils/workingHours";
-import { formatDateByPreference } from "../utils/dateFormat";
-import { formatMoneyWithLabel } from "../utils/format";
+import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel, formatMoney } from "../utils/format";
+import { parseMoneyInput } from "../utils/moneyInput";
 
 import { getPrescriptionsByPatient,deletePrescription } from "../services/prescriptionService"; // make sure you have this
 
@@ -43,7 +44,8 @@ import {
 import { 
   getProtheticsByPatient, createProthetics, updateProthetics, deleteProthetics, updateProtheticsStatus
 } from "../services/prostheticsService";
-import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
+import { getAllProstheticsCatalogue, createProstheticCatalogue } from "../services/prostheticsCatalogueService";
+import { createMaterial, getAllMaterials } from "../services/materialService";
 import {
   deleteDocument,
   getDocumentBlobUrl,
@@ -51,9 +53,13 @@ import {
   uploadPatientDocument,
 } from "../services/documentService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import MoneyInput from "../components/MoneyInput";
+import PhoneInput from "../components/PhoneInput";
+import BackButton from "../components/BackButton";
 import "./Patient.css";
-import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud } from "react-feather";
+import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud, Search, ArrowRight } from "react-feather";
 
 const QUARTER_MINUTES = ["00", "15", "30", "45"];
 
@@ -78,6 +84,7 @@ const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"];
 };
 const treatmentStatusLabels = {
   PLANNED: "Planifié",
+  IN_PROGRESS: "En cours",
   DONE: "Terminé",
 };
 const [showPatientModal, setShowPatientModal] = useState(false); // for Add/Edit Patient
@@ -96,9 +103,79 @@ const allowedDocumentExtensions = [".pdf", ".jpg", ".jpeg", ".png", ".dcm", ".ti
 const blockedDocumentExtensions = [".exe", ".js", ".php", ".sh", ".bat", ".msi"];
 const maxDocumentFileSizeBytes = 25 * 1024 * 1024;
 
-const [activeTab, setActiveTab] = useState("treatments"); // default tab
+ const [activeTab, setActiveTab] = useState("treatments"); // default tab
 
-const [showTeethHistoryModal, setShowTeethHistoryModal] = useState(false);
+ const [tabFilters, setTabFilters] = useState(() => ({
+   treatments: {
+     search: "",
+     filterBy: "name",
+     status: "",
+     selectedFilter: "all",
+     selectedMonth: "",
+     customRange: { start: "", end: "" },
+   },
+   protheses: {
+     search: "",
+     filterBy: "prothesisName",
+     status: "",
+     selectedFilter: "all",
+     selectedMonth: "",
+     customRange: { start: "", end: "" },
+   },
+   payments: {
+     search: "",
+     filterBy: "amount",
+     status: "",
+     selectedFilter: "all",
+     selectedMonth: "",
+     customRange: { start: "", end: "" },
+   },
+   appointments: {
+     search: "",
+     filterBy: "notes",
+     status: "",
+     selectedFilter: "all",
+     selectedMonth: "",
+     customRange: { start: "", end: "" },
+   },
+   prescriptions: {
+     search: "",
+     filterBy: "rxId",
+     status: "",
+     selectedFilter: "all",
+     selectedMonth: "",
+     customRange: { start: "", end: "" },
+   },
+   justifications: {
+     search: "",
+     filterBy: "title",
+     status: "",
+     selectedFilter: "all",
+     selectedMonth: "",
+     customRange: { start: "", end: "" },
+   },
+   documents: {
+     search: "",
+     filterBy: "title",
+     status: "",
+     selectedFilter: "all",
+     selectedMonth: "",
+     customRange: { start: "", end: "" },
+   },
+ }));
+
+ const updateTabFilter = (tabKey, patch) => {
+   setTabFilters((prev) => {
+     const current = prev[tabKey] || prev.treatments;
+     const nextPartial = typeof patch === "function" ? patch(current) : patch;
+     return { ...prev, [tabKey]: { ...current, ...nextPartial } };
+   });
+ };
+
+ const [showTeethHistoryModal, setShowTeethHistoryModal] = useState(false);
+ const [showTeethPreviewModal, setShowTeethPreviewModal] = useState(false);
+ const [teethPreviewSelection, setTeethPreviewSelection] = useState([]);
+ const [teethPreviewTitle, setTeethPreviewTitle] = useState("");
 const [isSavingProthesis, setIsSavingProthesis] = useState(false);
 const [isSavingTreatment, setIsSavingTreatment] = useState(false);
 const [isSavingPayment, setIsSavingPayment] = useState(false);
@@ -112,6 +189,25 @@ const [protheses, setProtheses] = useState([]);
 const [prothesisCatalog, setProthesisCatalog] = useState([]); // <--- Add this line
 const [showProthesisModal, setShowProthesisModal] = useState(false);
 const [isEditingProthesis, setIsEditingProthesis] = useState(false);
+const [prothesisQuery, setProthesisQuery] = useState("");
+const [filteredProthesisOptions, setFilteredProthesisOptions] = useState([]);
+const [showProthesisSuggestions, setShowProthesisSuggestions] = useState(false);
+const [showCreateProthesisCatalogModal, setShowCreateProthesisCatalogModal] = useState(false);
+const [isCreatingProthesisCatalog, setIsCreatingProthesisCatalog] = useState(false);
+const [materials, setMaterials] = useState([]);
+const [showCreateMaterialModal, setShowCreateMaterialModal] = useState(false);
+const [isCreatingMaterial, setIsCreatingMaterial] = useState(false);
+const [newMaterialName, setNewMaterialName] = useState("");
+const [materialQuery, setMaterialQuery] = useState("");
+const [showMaterialSuggestions, setShowMaterialSuggestions] = useState(false);
+const [filteredMaterialOptions, setFilteredMaterialOptions] = useState([]);
+const [newProthesisCatalogForm, setNewProthesisCatalogForm] = useState({
+  name: "",
+  materialId: "",
+  defaultPrice: "",
+  defaultLabCost: "",
+  isFlatFee: false,
+});
 const normalizeProtheses = (data) => {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.content)) return data.content;
@@ -144,7 +240,7 @@ const handleProthesisChange = (e) => {
       setProthesisForm(prev => ({
         ...prev,
         catalogId: numericId,
-        price: calculatedPrice
+        price: formatMoney(calculatedPrice)
       }));
     } else {
       setProthesisForm(prev => ({ ...prev, catalogId: "", price: "" }));
@@ -159,6 +255,9 @@ const handleProthesisChange = (e) => {
   }
 };
 const handleEditProthesis = (p) => {
+  const selected = prothesisCatalog.find((c) => c.id === Number(p.catalogId || ""));
+  setProthesisQuery(selected?.name || "");
+  setShowProthesisSuggestions(false);
   setProthesisForm({
     id: p.id,
     catalogId: p.catalogId || "",
@@ -236,6 +335,36 @@ const handleCompleteTreatment = async (t) => {
       prev.map((item) => (item.id === updatedTreatment.id ? updatedTreatment : item))
     );
     toast.success("Traitement terminé !");
+  } catch (err) {
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du traitement"));
+  } finally {
+    setBusyTreatmentStatusId(null);
+  }
+};
+
+const handleStartTreatment = async (t) => {
+  if (busyTreatmentStatusId === t.id) return;
+  try {
+    setBusyTreatmentStatusId(t.id);
+    const payload = {
+      ...t,
+      patient: { id },
+      treatmentCatalog: { id: t.treatmentCatalog?.id || t.treatmentCatalogId },
+      status: "IN_PROGRESS",
+    };
+
+    const updatedTreatment = await updateTreatment(t.id, payload);
+
+    const catalogObj = treatmentCatalog.find(
+      (tc) => tc.id === updatedTreatment.treatmentCatalog?.id
+    );
+    updatedTreatment.treatmentCatalog = catalogObj || updatedTreatment.treatmentCatalog;
+
+    setTreatments((prev) =>
+      prev.map((item) => (item.id === updatedTreatment.id ? updatedTreatment : item))
+    );
+    toast.info("Traitement mis en cours");
   } catch (err) {
     console.error(err);
     toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du traitement"));
@@ -325,11 +454,28 @@ useEffect(() => {
       
       setProthesisForm(prev => ({
         ...prev,
-        price: newPrice
+        price: formatMoney(newPrice)
       }));
     }
   }
 }, [prothesisForm.teeth]); // Triggered whenever the teeth array changes
+
+useEffect(() => {
+  if (!showCreateProthesisCatalogModal) return;
+  if (materials.length > 0) return;
+
+  const fetchMaterials = async () => {
+    try {
+      const data = await getAllMaterials();
+      setMaterials(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des matériaux"));
+    }
+  };
+
+  fetchMaterials();
+}, [showCreateProthesisCatalogModal, materials.length]);
 
 const [justifications, setJustifications] = useState([]);
 useEffect(() => {
@@ -482,6 +628,17 @@ const handleDeleteJustification = (j) => {
   const [treatments, setTreatments] = useState([]);
   const [treatmentCatalog, setTreatmentCatalog] = useState([]);
   const [showTreatmentModal, setShowTreatmentModal] = useState(false);
+  const [showCreateTreatmentCatalogModal, setShowCreateTreatmentCatalogModal] = useState(false);
+  const [isCreatingTreatmentCatalog, setIsCreatingTreatmentCatalog] = useState(false);
+  const [treatmentQuery, setTreatmentQuery] = useState("");
+  const [filteredTreatmentOptions, setFilteredTreatmentOptions] = useState([]);
+  const [showTreatmentSuggestions, setShowTreatmentSuggestions] = useState(false);
+  const [newTreatmentCatalogForm, setNewTreatmentCatalogForm] = useState({
+    name: "",
+    description: "",
+    defaultPrice: "",
+    isFlatFee: false,
+  });
  const [treatmentForm, setTreatmentForm] = useState({ 
    id: null, 
    treatmentCatalogId: null, 
@@ -494,12 +651,20 @@ const handleDeleteJustification = (j) => {
  });
 
 const completedTreatments = useMemo(
-  () => treatments.filter((t) => (t.status || "PLANNED") === "DONE"),
+  () =>
+    treatments.filter((t) => {
+      const status = (t.status || "PLANNED").toUpperCase();
+      return status === "DONE" || status === "IN_PROGRESS";
+    }),
   [treatments]
 );
 
 const plannedTreatments = useMemo(
-  () => treatments.filter((t) => (t.status || "PLANNED") !== "DONE"),
+  () =>
+    treatments.filter((t) => {
+      const status = (t.status || "PLANNED").toUpperCase();
+      return status !== "DONE" && status !== "IN_PROGRESS";
+    }),
   [treatments]
 );
 
@@ -511,7 +676,7 @@ useEffect(() => {
       const newPrice = selected.defaultPrice * (toothCount || 1);
       setTreatmentForm((prev) => ({
         ...prev,
-        price: newPrice,
+        price: formatMoney(newPrice),
       }));
     }
   }
@@ -520,6 +685,10 @@ useEffect(() => {
  
  const handleSaveProthesis = async (e) => {
    e.preventDefault();
+   if (!prothesisForm.catalogId) {
+     toast.error("Veuillez sélectionner une prothèse dans le catalogue.");
+     return;
+   }
    if (isSavingProthesis) return;
    setIsSavingProthesis(true);
    try {
@@ -529,7 +698,7 @@ useEffect(() => {
       catalogId: prothesisForm.catalogId,
       teeth: prothesisForm.teeth,
       notes: prothesisForm.notes,
-      finalPrice: Number(prothesisForm.price) // Send the edited price
+      finalPrice: parseMoneyInput(prothesisForm.price) // Send the edited price
     };
 
     let saved;
@@ -545,7 +714,7 @@ useEffect(() => {
     if (prothesisForm.paid && !isEditingProthesis) {
       await createPayment({
         patientId: id,
-        amount: Number(prothesisForm.price),
+        amount: parseMoneyInput(prothesisForm.price),
         method: "CASH",
         date: new Date().toISOString(),
       });
@@ -568,7 +737,14 @@ useEffect(() => {
 
 
 
-const handleDeleteProthetics = (prothesis) => {
+const getNextProthesisStatus = (currentStatus) => {
+  const currentIndex = prothesisStatusOrder.indexOf(currentStatus);
+  if (currentIndex < 0) return prothesisStatusOrder[0] || null;
+  if (currentIndex >= prothesisStatusOrder.length - 1) return null;
+  return prothesisStatusOrder[currentIndex + 1] || null;
+};
+
+ const handleDeleteProthetics = (prothesis) => {
   // Check if prothesis exists and has an id
   if (!prothesis || !prothesis.id) {
     toast.error("Erreur: ID de prothèse introuvable");
@@ -600,18 +776,15 @@ const handleDeleteProthetics = (prothesis) => {
 };
 
 
-const handleCycleProthesisStatus = async (p) => {
-  if (busyProthesisStatusId === p.id) return;
-  const currentIndex = prothesisStatusOrder.indexOf(p.status);
-  const nextStatus =
-    prothesisStatusOrder[
-      currentIndex >= 0 ? (currentIndex + 1) % prothesisStatusOrder.length : 0
-    ];
-
-  try {
-    setBusyProthesisStatusId(p.id);
-    const updated = await updateProtheticsStatus(p.id, nextStatus);
-    setProtheses((prev) => prev.map((item) => (item.id === p.id ? updated : item)));
+ const handleCycleProthesisStatus = async (p) => {
+   if (busyProthesisStatusId === p.id) return;
+  const nextStatus = getNextProthesisStatus(p.status || prothesisStatusOrder[0]);
+  if (!nextStatus) return;
+ 
+   try {
+     setBusyProthesisStatusId(p.id);
+     const updated = await updateProtheticsStatus(p.id, nextStatus);
+     setProtheses((prev) => prev.map((item) => (item.id === p.id ? updated : item)));
     toast.success(`Statut mis a jour: ${prothesisStatusLabels[nextStatus] || nextStatus}`);
   } catch (err) {
     console.error(err);
@@ -690,13 +863,115 @@ const openJustificationModal = async () => {
   }
 };
 
-const closeJustificationModal = () => setShowJustificationModal(false);
-// --- HELPERS ---
-const formatDate = (dateStr) => {
-  if (!dateStr) return "";
-  const label = formatDateByPreference(dateStr);
-  return label === "-" ? "" : label;
-};
+ const closeJustificationModal = () => setShowJustificationModal(false);
+ // --- HELPERS ---
+ const formatDate = (dateStr) => {
+   if (!dateStr) return "";
+   const label = formatDateByPreference(dateStr);
+   return label === "-" ? "" : label;
+ };
+
+ const openTeethPreview = (teeth, title) => {
+   const normalized = (Array.isArray(teeth) ? teeth : [])
+     .map((t) => Number(t))
+     .filter((t) => Number.isFinite(t));
+   setTeethPreviewSelection(normalized);
+   setTeethPreviewTitle(title || "Schéma dentaire");
+   setShowTeethPreviewModal(true);
+ };
+
+ const parseDateValue = (value) => {
+   if (!value) return null;
+   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+   if (typeof value === "number") {
+     const d = new Date(value);
+     return Number.isNaN(d.getTime()) ? null : d;
+   }
+
+   const raw = String(value);
+   const dateOnlyMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+   if (dateOnlyMatch) {
+     const [, y, m, d] = dateOnlyMatch;
+     const date = new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0);
+     return Number.isNaN(date.getTime()) ? null : date;
+   }
+
+   const date = new Date(raw);
+   return Number.isNaN(date.getTime()) ? null : date;
+ };
+
+ const normalizeText = (value) =>
+   String(value ?? "")
+     .toLowerCase()
+     .normalize("NFD")
+     .replace(/[\u0300-\u036f]/g, "")
+     .trim();
+
+ const isSameLocalDay = (a, b) =>
+   a &&
+   b &&
+   a.getFullYear() === b.getFullYear() &&
+   a.getMonth() === b.getMonth() &&
+   a.getDate() === b.getDate();
+
+ const applyListFilters = (items, config, filters) => {
+   const list = Array.isArray(items) ? items : [];
+   const search = normalizeText(filters?.search);
+   const selectedFilter = filters?.selectedFilter || "all";
+   const selectedMonth = filters?.selectedMonth || "";
+   const customStart = filters?.customRange?.start || "";
+   const customEnd = filters?.customRange?.end || "";
+   const statusValue = String(filters?.status || "");
+   const filterBy = filters?.filterBy || (config?.defaultFilterBy ?? "");
+
+   const today = new Date();
+   const todayKey = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+   let rangeStart = null;
+   let rangeEnd = null;
+   if (customStart) rangeStart = parseDateValue(customStart);
+   if (customEnd) {
+     const endDate = parseDateValue(customEnd);
+     if (endDate) rangeEnd = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+   }
+
+   const monthMatch = selectedMonth.match(/^(\d{4})-(\d{2})$/);
+   const monthYear = monthMatch ? Number(monthMatch[1]) : null;
+   const monthIndex = monthMatch ? Number(monthMatch[2]) - 1 : null;
+
+   return list.filter((item) => {
+     if (statusValue && config?.getStatus) {
+       const itemStatus = String(config.getStatus(item) || "");
+       if (itemStatus !== statusValue) return false;
+     }
+
+     if (search) {
+       const getter =
+         (config?.searchGetters && config.searchGetters[filterBy]) ||
+         (config?.searchGetters && config.searchGetters[config.defaultFilterBy]);
+       const hay = normalizeText(getter ? getter(item) : "");
+       if (!hay.includes(search)) return false;
+     }
+
+     if (selectedFilter !== "all" && config?.getDate) {
+       const d = parseDateValue(config.getDate(item));
+       if (!d) return false;
+
+       if (selectedFilter === "today") {
+         if (!isSameLocalDay(d, todayKey)) return false;
+       } else if (selectedFilter === "custom") {
+         if (monthYear != null && monthIndex != null) {
+           if (d.getFullYear() !== monthYear || d.getMonth() !== monthIndex) return false;
+         } else {
+           if (rangeStart && d < rangeStart) return false;
+           if (rangeEnd && d > rangeEnd) return false;
+         }
+       }
+     }
+
+     return true;
+   });
+ };
   const hourBounds24 = useMemo(() => {
     const earliest = Math.floor(workingHours.startMinutes / 60);
     const latest = Math.floor((workingHours.endMinutes - 1) / 60);
@@ -765,8 +1040,7 @@ const formatDate = (dateStr) => {
   }, [minuteDropdownOpen, allowedMinuteOptions.length]);
 
 
-const formatPhone = (phone) =>
-  phone ? phone.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4") : "";
+const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
 // Add this inside the Patient component body
 const teethTreatmentMap = completedTreatments.reduce((acc, t) => {
@@ -804,8 +1078,12 @@ const handleChange = (e) => {
 const handleSubmit = async (e) => {
   e.preventDefault();
   try {
+    if (!isValidPhoneNumber(formData.phone)) {
+      toast.error("Numéro de téléphone invalide");
+      return;
+    }
     if (isEditing) {
-      const updated = await updatePatient(patient.id, formData);
+      const updated = await updatePatient(patient.id, { ...formData, phone: normalizePhoneInput(formData.phone) });
       setPatient(updated);
       toast.success("Patient mis à jour !");
     } else {
@@ -829,7 +1107,7 @@ const handleSubmit = async (e) => {
           lastname: patientData.lastname || "",
           age: patientData.age || "",
           sex: patientData.sex || "",
-          phone: patientData.phone || "",
+          phone: formatPhoneNumber(patientData.phone) || "",
         });
 
         const treatmentsData = await getTreatmentsByPatient(id);
@@ -877,13 +1155,315 @@ const sortedPayments = useMemo(
   [payments]
 );
 
-const sortedAppointments = useMemo(
-  () =>
-    [...appointments].sort(
-      (a, b) => new Date(b.dateTimeStart || 0) - new Date(a.dateTimeStart || 0)
-    ),
-  [appointments]
-);
+ const sortedAppointments = useMemo(
+   () =>
+     [...appointments].sort(
+       (a, b) => new Date(b.dateTimeStart || 0) - new Date(a.dateTimeStart || 0)
+     ),
+   [appointments]
+ );
+
+ const monthsList = Array.from({ length: 12 }).map((_, i) => {
+   const date = new Date();
+   date.setMonth(date.getMonth() - i);
+   const monthStr = String(date.getMonth() + 1).padStart(2, "0");
+   const label = formatMonthYearByPreference(date);
+   return {
+     label: label ? label.charAt(0).toUpperCase() + label.slice(1) : "",
+     value: `${date.getFullYear()}-${monthStr}`,
+   };
+ });
+
+ const tabFilterConfig = {
+   treatments: {
+     defaultFilterBy: "name",
+     filterByOptions: [
+       { value: "name", label: "Par Nom" },
+       { value: "notes", label: "Par Notes" },
+     ],
+     searchGetters: {
+       name: (t) => t?.treatmentCatalog?.name || "",
+       notes: (t) => t?.notes || "",
+     },
+     statusLabel: "Statut",
+     statusOptions: Object.entries(treatmentStatusLabels).map(([value, label]) => ({ value, label })),
+     getStatus: (t) => String(t?.status || "PLANNED").toUpperCase(),
+     getDate: (t) => t?.date || t?.updatedAt,
+   },
+   protheses: {
+     defaultFilterBy: "prothesisName",
+     filterByOptions: [
+       { value: "prothesisName", label: "Par Travail" },
+       { value: "materialName", label: "Par Matériau" },
+     ],
+     searchGetters: {
+       prothesisName: (p) => p?.prothesisName || "",
+       materialName: (p) => p?.materialName || "",
+     },
+     statusLabel: "État",
+     statusOptions: Object.entries(prothesisStatusLabels).map(([value, label]) => ({ value, label })),
+     getStatus: (p) => String(p?.status || ""),
+     getDate: (p) => p?.dateCreated || p?.createdAt || p?.updatedAt,
+   },
+   payments: {
+     defaultFilterBy: "amount",
+     filterByOptions: [
+       { value: "amount", label: "Par Montant" },
+       { value: "method", label: "Par Méthode" },
+     ],
+     searchGetters: {
+       amount: (p) => p?.amount ?? "",
+       method: (p) => paymentMethodLabels[p?.method] || p?.method || "",
+     },
+     statusLabel: "Méthode",
+     statusOptions: Object.entries(paymentMethodLabels).map(([value, label]) => ({ value, label })),
+     getStatus: (p) => String(p?.method || ""),
+     getDate: (p) => p?.date || p?.paymentDate || p?.createdAt,
+   },
+   appointments: {
+     defaultFilterBy: "notes",
+     filterByOptions: [
+       { value: "notes", label: "Par Notes" },
+       { value: "date", label: "Par Date" },
+     ],
+     searchGetters: {
+       notes: (a) => a?.notes || "",
+       date: (a) => a?.dateTimeStart || "",
+     },
+     statusLabel: "État",
+     statusOptions: Object.entries(statusLabels).map(([value, label]) => ({ value, label })),
+     getStatus: (a) => String(a?.status || ""),
+     getDate: (a) => a?.dateTimeStart,
+   },
+   prescriptions: {
+     defaultFilterBy: "rxId",
+     filterByOptions: [
+       { value: "rxId", label: "Par ID" },
+       { value: "date", label: "Par Date" },
+     ],
+     searchGetters: {
+       rxId: (o) => o?.rxId || "",
+       date: (o) => o?.date || "",
+     },
+     getDate: (o) => o?.date,
+   },
+   justifications: {
+     defaultFilterBy: "title",
+     filterByOptions: [
+       { value: "title", label: "Par Titre" },
+       { value: "date", label: "Par Date" },
+     ],
+     searchGetters: {
+       title: (j) => j?.title || "",
+       date: (j) => j?.createdAt || j?.date || "",
+     },
+     getDate: (j) => j?.createdAt || j?.date,
+   },
+   documents: {
+     defaultFilterBy: "title",
+     filterByOptions: [
+       { value: "title", label: "Par Titre" },
+       { value: "filename", label: "Par Fichier" },
+     ],
+     searchGetters: {
+       title: (d) => d?.title || "",
+       filename: (d) => d?.filename || "",
+     },
+     getDate: (d) => d?.uploadedAt || d?.createdAt,
+   },
+ };
+
+ const filteredPlannedTreatments = useMemo(
+   () => applyListFilters(plannedTreatments, tabFilterConfig.treatments, tabFilters.treatments),
+   [plannedTreatments, tabFilters.treatments]
+ );
+
+ const filteredCompletedTreatments = useMemo(
+   () => applyListFilters(completedTreatments, tabFilterConfig.treatments, tabFilters.treatments),
+   [completedTreatments, tabFilters.treatments]
+ );
+
+ const filteredProtheses = useMemo(
+   () => applyListFilters(protheses, tabFilterConfig.protheses, tabFilters.protheses),
+   [protheses, tabFilters.protheses]
+ );
+
+ const filteredPayments = useMemo(
+   () => applyListFilters(sortedPayments, tabFilterConfig.payments, tabFilters.payments),
+   [sortedPayments, tabFilters.payments]
+ );
+
+ const filteredAppointments = useMemo(
+   () => applyListFilters(sortedAppointments, tabFilterConfig.appointments, tabFilters.appointments),
+   [sortedAppointments, tabFilters.appointments]
+ );
+
+ const filteredOrdonnances = useMemo(
+   () => applyListFilters(ordonnances, tabFilterConfig.prescriptions, tabFilters.prescriptions),
+   [ordonnances, tabFilters.prescriptions]
+ );
+
+ const filteredJustifications = useMemo(
+   () => applyListFilters(justifications, tabFilterConfig.justifications, tabFilters.justifications),
+   [justifications, tabFilters.justifications]
+ );
+
+ const filteredDocuments = useMemo(
+   () => applyListFilters(documents, tabFilterConfig.documents, tabFilters.documents),
+   [documents, tabFilters.documents]
+ );
+
+ const renderTabToolbar = (tabKey, { onAdd, addLabel = "Ajouter" } = {}) => {
+   const filters = tabFilters[tabKey] || tabFilters.treatments;
+   const config = tabFilterConfig[tabKey] || tabFilterConfig.treatments;
+   const hasStatus = !!config.getStatus && Array.isArray(config.statusOptions) && config.statusOptions.length > 0;
+
+   const dateBtnClass = (active) =>
+      [
+        "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+        active ? "bg-blue-600 border-blue-600 text-white" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100",
+      ].join(" ");
+
+   return (
+     <div className="mb-3 rounded-xl border border-gray-200 bg-transparent p-3 shadow-none">
+       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+         <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
+           <div className="relative w-full md:max-w-xs">
+             <Search
+               size={16}
+               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+             />
+             <input
+               type="text"
+               value={filters.search}
+               onChange={(e) => updateTabFilter(tabKey, { search: e.target.value })}
+               placeholder="Rechercher..."
+               className="block w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+             />
+           </div>
+
+           <div className="flex flex-wrap items-center gap-2">
+             {Array.isArray(config.filterByOptions) && config.filterByOptions.length > 0 && (
+               <select
+                 value={filters.filterBy}
+                 onChange={(e) => updateTabFilter(tabKey, { filterBy: e.target.value })}
+                 className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+               >
+                 {config.filterByOptions.map((opt) => (
+                   <option key={opt.value} value={opt.value}>
+                     {opt.label}
+                   </option>
+                 ))}
+               </select>
+             )}
+
+             {hasStatus && (
+               <select
+                 value={filters.status}
+                 onChange={(e) => updateTabFilter(tabKey, { status: e.target.value })}
+                 className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+               >
+                 <option value="">{config.statusLabel ? `${config.statusLabel} (Tous)` : "Tous"}</option>
+                 {config.statusOptions.map((opt) => (
+                   <option key={opt.value} value={opt.value}>
+                     {opt.label}
+                   </option>
+                 ))}
+               </select>
+             )}
+           </div>
+         </div>
+
+         {onAdd && (
+           <div className="flex justify-end">
+             <button className="btn-primary-app" onClick={onAdd}>
+               <Plus size={16} /> {addLabel}
+             </button>
+           </div>
+         )}
+       </div>
+
+       {config.getDate && (
+         <div className="mt-3 flex flex-wrap items-center gap-2">
+           <button
+             type="button"
+             className={dateBtnClass(filters.selectedFilter === "all")}
+             onClick={() =>
+               updateTabFilter(tabKey, {
+                 selectedFilter: "all",
+                 selectedMonth: "",
+                 customRange: { start: "", end: "" },
+               })
+             }
+           >
+             Tout
+           </button>
+           <button
+             type="button"
+             className={dateBtnClass(filters.selectedFilter === "today")}
+             onClick={() =>
+               updateTabFilter(tabKey, {
+                 selectedFilter: "today",
+                 selectedMonth: "",
+                 customRange: { start: "", end: "" },
+               })
+             }
+           >
+             Aujourd&apos;hui
+           </button>
+
+           <select
+             value={filters.selectedMonth}
+             onChange={(e) => {
+               const monthValue = e.target.value;
+               updateTabFilter(tabKey, {
+                 selectedMonth: monthValue,
+                 selectedFilter: monthValue ? "custom" : "all",
+                 customRange: { start: "", end: "" },
+               });
+             }}
+             className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+           >
+             <option value="">Choisir un mois</option>
+             {monthsList.map((m) => (
+               <option key={m.value} value={m.value}>
+                 {m.label}
+               </option>
+             ))}
+           </select>
+
+           <div className="flex flex-wrap items-center gap-2">
+             <span className="text-xs font-medium text-gray-500">Plage personnalisée :</span>
+             <input
+               type="date"
+               value={filters.customRange?.start || ""}
+               onChange={(e) =>
+                 updateTabFilter(tabKey, (current) => ({
+                   selectedFilter: "custom",
+                   selectedMonth: "",
+                   customRange: { ...current.customRange, start: e.target.value },
+                 }))
+               }
+               className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+             />
+             <input
+               type="date"
+               value={filters.customRange?.end || ""}
+               onChange={(e) =>
+                 updateTabFilter(tabKey, (current) => ({
+                   selectedFilter: "custom",
+                   selectedMonth: "",
+                   customRange: { ...current.customRange, end: e.target.value },
+                 }))
+               }
+               className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+             />
+           </div>
+         </div>
+       )}
+     </div>
+   );
+ };
 
  const handleTreatmentChange = (e) => {
    const { name, value, type, checked } = e.target;
@@ -894,8 +1474,8 @@ const sortedAppointments = useMemo(
 
      if (selected) {
        const multiplier = selected.isFlatFee ? 1 : (treatmentForm.teeth.length || 1);
-       const calculatedPrice = selected.defaultPrice * multiplier;
-       setTreatmentForm({ ...treatmentForm, treatmentCatalogId: numericValue, price: calculatedPrice });
+     const calculatedPrice = selected.defaultPrice * multiplier;
+       setTreatmentForm({ ...treatmentForm, treatmentCatalogId: numericValue, price: formatMoney(calculatedPrice) });
      } else {
        setTreatmentForm({ ...treatmentForm, treatmentCatalogId: numericValue, price: "" });
      }
@@ -906,9 +1486,207 @@ const sortedAppointments = useMemo(
    }
  };
 
+const handleCreateTreatmentCatalogInline = async (e) => {
+  e.preventDefault();
+  if (isCreatingTreatmentCatalog) return;
+  setIsCreatingTreatmentCatalog(true);
+
+  try {
+    const payload = {
+      name: (newTreatmentCatalogForm.name || "").trim(),
+      description: (newTreatmentCatalogForm.description || "").trim(),
+      defaultPrice: parseMoneyInput(newTreatmentCatalogForm.defaultPrice),
+      isFlatFee: !!newTreatmentCatalogForm.isFlatFee,
+    };
+
+    const created = await createTreatmentCatalogItem(payload);
+
+    const catalog = await getTreatmentCatalog();
+    setTreatmentCatalog(catalog);
+
+    setTreatmentQuery(created.name || "");
+    setShowTreatmentSuggestions(false);
+    setTreatmentForm((prev) => {
+      const multiplier = created.isFlatFee ? 1 : (prev.teeth.length || 1);
+      const calculatedPrice = Number(created.defaultPrice || 0) * multiplier;
+      return {
+        ...prev,
+        treatmentCatalogId: created.id,
+        price: formatMoney(calculatedPrice),
+      };
+    });
+
+    toast.success("Traitement ajouté au catalogue");
+    setShowCreateTreatmentCatalogModal(false);
+    setNewTreatmentCatalogForm({
+      name: "",
+      description: "",
+      defaultPrice: "",
+      isFlatFee: false,
+    });
+  } catch (err) {
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout au catalogue"));
+  } finally {
+    setIsCreatingTreatmentCatalog(false);
+  }
+};
+
+const handleCreateProthesisCatalogInline = async (e) => {
+  e.preventDefault();
+  if (isCreatingProthesisCatalog) return;
+  setIsCreatingProthesisCatalog(true);
+
+  try {
+    const payload = {
+      name: (newProthesisCatalogForm.name || "").trim(),
+      materialId: newProthesisCatalogForm.materialId
+        ? Number(newProthesisCatalogForm.materialId)
+        : null,
+      defaultPrice: parseMoneyInput(newProthesisCatalogForm.defaultPrice),
+      defaultLabCost:
+        newProthesisCatalogForm.defaultLabCost === ""
+          ? 0
+          : parseMoneyInput(newProthesisCatalogForm.defaultLabCost),
+      isFlatFee: !!newProthesisCatalogForm.isFlatFee,
+    };
+
+    const created = await createProstheticCatalogue(payload);
+
+    const catalogData = await getAllProstheticsCatalogue();
+    setProthesisCatalog(catalogData);
+
+    setProthesisQuery(created.name || "");
+    setShowProthesisSuggestions(false);
+    setProthesisForm((prev) => {
+      const multiplier = created.isFlatFee ? 1 : (prev.teeth.length || 1);
+      const calculatedPrice = Number(created.defaultPrice || 0) * multiplier;
+      return {
+        ...prev,
+        catalogId: created.id,
+        price: formatMoney(calculatedPrice),
+      };
+    });
+
+    toast.success("Prothèse ajoutée au catalogue");
+    setShowCreateProthesisCatalogModal(false);
+    setNewProthesisCatalogForm({
+      name: "",
+      materialId: "",
+      defaultPrice: "",
+      defaultLabCost: "",
+      isFlatFee: false,
+    });
+    setMaterialQuery("");
+    setShowMaterialSuggestions(false);
+    setFilteredMaterialOptions([]);
+  } catch (err) {
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout au catalogue"));
+  } finally {
+    setIsCreatingProthesisCatalog(false);
+  }
+};
+
+const handleCreateMaterialInline = async (e) => {
+  e.preventDefault();
+  if (isCreatingMaterial) return;
+
+  const name = (newMaterialName || "").trim();
+  if (!name) {
+    toast.error("Veuillez saisir un nom de matériau");
+    return;
+  }
+
+  try {
+    setIsCreatingMaterial(true);
+    const created = await createMaterial({ name });
+    const refreshed = await getAllMaterials();
+    setMaterials(Array.isArray(refreshed) ? refreshed : []);
+    setNewProthesisCatalogForm((s) => ({ ...s, materialId: String(created.id) }));
+    toast.success("Matériau ajouté");
+    setShowCreateMaterialModal(false);
+    setNewMaterialName("");
+    setMaterialQuery(created?.name || name);
+    setShowMaterialSuggestions(false);
+    setFilteredMaterialOptions([]);
+  } catch (err) {
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout du matériau"));
+  } finally {
+    setIsCreatingMaterial(false);
+  }
+};
+
+const normalizeMaterialName = (value) =>
+  (value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+const handleQuickAddMaterialFromQuery = async () => {
+  if (isCreatingMaterial) return;
+
+  const name = (materialQuery || "").trim();
+  if (!name) {
+    toast.error("Veuillez saisir un nom de matériau");
+    return;
+  }
+
+  setShowMaterialSuggestions(false);
+  setFilteredMaterialOptions([]);
+
+  const normalized = normalizeMaterialName(name);
+  const existing = (materials || []).find((m) => normalizeMaterialName(m?.name) === normalized);
+  if (existing?.id != null) {
+    setNewProthesisCatalogForm((s) => ({ ...s, materialId: String(existing.id) }));
+    setMaterialQuery(existing?.name || name);
+    return;
+  }
+
+  try {
+    setIsCreatingMaterial(true);
+    const created = await createMaterial({ name });
+    const refreshed = await getAllMaterials();
+    setMaterials(Array.isArray(refreshed) ? refreshed : []);
+    setNewProthesisCatalogForm((s) => ({ ...s, materialId: String(created.id) }));
+    toast.success("Matériau ajouté");
+    setNewMaterialName("");
+    setMaterialQuery(created?.name || name);
+  } catch (err) {
+    console.error(err);
+
+    if (err?.response?.status === 409) {
+      try {
+        const refreshed = await getAllMaterials();
+        setMaterials(Array.isArray(refreshed) ? refreshed : []);
+        const match = (Array.isArray(refreshed) ? refreshed : []).find(
+          (m) => normalizeMaterialName(m?.name) === normalized
+        );
+        if (match?.id != null) {
+          setNewProthesisCatalogForm((s) => ({ ...s, materialId: String(match.id) }));
+          setMaterialQuery(match?.name || name);
+          toast.info("Matériau déjà existant");
+          return;
+        }
+      } catch (refreshErr) {
+        console.error(refreshErr);
+      }
+    }
+
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout du matériau"));
+  } finally {
+    setIsCreatingMaterial(false);
+  }
+};
+
 
 const handleCreateOrUpdateTreatment = async (e) => {
   e.preventDefault();
+  if (!treatmentForm.treatmentCatalogId) {
+    toast.error("Veuillez sélectionner un traitement dans le catalogue.");
+    return;
+  }
   if (isSavingTreatment) return;
   setIsSavingTreatment(true);
   try {
@@ -917,6 +1695,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
     if (isEditingTreatment) {
       const payload = {
         ...treatmentForm,
+        price: parseMoneyInput(treatmentForm.price),
         patient: { id },
         treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
       };
@@ -938,6 +1717,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
     } else {
       const payload = {
         ...treatmentForm,
+        price: parseMoneyInput(treatmentForm.price),
         patient: { id },
         treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
         date: new Date().toISOString(),
@@ -961,7 +1741,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
     if (treatmentForm.paid) {
       const paymentPayload = {
         patientId: id,
-        amount: Number(treatmentForm.price),
+        amount: parseMoneyInput(treatmentForm.price),
         method: "CASH",
         date: new Date().toISOString(),
       };
@@ -996,9 +1776,12 @@ const handleCreateOrUpdateTreatment = async (e) => {
 
 
 
-  const handleEditTreatment = (t) => {
+const handleEditTreatment = (t) => {
        // <--- add this
 
+    const selected = treatmentCatalog.find((c) => c.id === Number(t.treatmentCatalog?.id || ""));
+    setTreatmentQuery(selected?.name || "");
+    setShowTreatmentSuggestions(false);
     setTreatmentForm({
       id: t.id,
       treatmentCatalogId: t.treatmentCatalog?.id || null,
@@ -1038,6 +1821,8 @@ setTreatmentForm({
   status: "DONE",
   paid: false 
 });    setIsEditingTreatment(false);
+    setTreatmentQuery("");
+    setShowTreatmentSuggestions(false);
     setShowTreatmentModal(true);
   };
 
@@ -1054,7 +1839,7 @@ setTreatmentForm({
     try {
       const newPayment = await createPayment({
         patientId: id,
-        amount: Number(paymentForm.amount),
+        amount: parseMoneyInput(paymentForm.amount),
         method: paymentForm.method,
         date: new Date().toISOString(),
       });
@@ -1283,15 +2068,20 @@ const handleDeleteAppointment = (a) => {
 
   return (
     <div className="patient-container">
+      <BackButton fallbackTo="/patients" />
        {/* --- PATIENT INFO --- */}
-<div className="patient-top">
+ <div className="patient-top">
   <div className="patient-info-left">
    <div className="patient-name">
   {patient.firstname} {patient.lastname}
   {patient.sex === "Homme" ? (
-    <span className="sex-icon male">♂</span>
+    <span className="sex-icon-square male" title="Homme" aria-label="Homme">
+      ♂
+    </span>
   ) : patient.sex === "Femme" ? (
-    <span className="sex-icon female">♀</span>
+    <span className="sex-icon-square female" title="Femme" aria-label="Femme">
+      ♀
+    </span>
   ) : (
     "—"
   )}
@@ -1451,9 +2241,8 @@ const handleDeleteAppointment = (a) => {
 
     {activeTab === "treatments" && (
   <>
-  <div className="button-container">
-    <button className="btn-primary-app" onClick={handleAddTreatment}><Plus size={16} />Ajouter</button></div>
-    {plannedTreatments.length > 0 && (
+    {renderTabToolbar("treatments", { onAdd: handleAddTreatment })}
+    {filteredPlannedTreatments.length > 0 && (
       <>
         <h4>Traitements planifiés (non comptés)</h4>
         <table className="treatment-table">
@@ -1467,15 +2256,36 @@ const handleDeleteAppointment = (a) => {
             </tr>
           </thead>
           <tbody>
-            {plannedTreatments.map((t) => (
+  {filteredPlannedTreatments.map((t) => (
               <tr key={t.id}>
                 <td>{t.treatmentCatalog?.name}</td>
                 <td>
-                  {t.teeth && t.teeth.length > 0 ? t.teeth.join(", ") : "—"}
+                  {t.teeth && t.teeth.length > 0 ? (
+                    <button
+                      type="button"
+                      className="action-btn view"
+                      onClick={() =>
+                        openTeethPreview(t.teeth, `Traitement planifié: ${t.treatmentCatalog?.name || ""}`)
+                      }
+                      title={t.teeth.join(", ")}
+                      aria-label="Voir le schéma dentaire"
+                    >
+                      <Eye size={16} />
+                    </button>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td>{formatDate(t.date)}</td>
                 <td>{t.notes || "—"}</td>
                 <td className="actions-cell">
+                  <button
+                    className="action-btn progress"
+                    onClick={() => handleStartTreatment(t)}
+                    title="Mettre en cours"
+                  >
+                    <Activity size={16} />
+                  </button>
                   <button
                     className="action-btn complete"
                     onClick={() => handleCompleteTreatment(t)}
@@ -1518,13 +2328,23 @@ const handleDeleteAppointment = (a) => {
         </tr>
       </thead>
       <tbody>
-        {completedTreatments.map(t => (
+        {filteredCompletedTreatments.map(t => (
           <tr key={t.id}>
             <td>{t.treatmentCatalog?.name}</td>
             <td>
-          {t.teeth && t.teeth.length > 0
-            ? t.teeth.join(", ")   // ✅ display list like "11, 12, 13"
-            : "—"}
+          {t.teeth && t.teeth.length > 0 ? (
+            <button
+              type="button"
+              className="action-btn view"
+              onClick={() => openTeethPreview(t.teeth, `Traitement: ${t.treatmentCatalog?.name || ""}`)}
+              title={t.teeth.join(", ")}
+              aria-label="Voir le schéma dentaire"
+            >
+              <Eye size={16} />
+            </button>
+          ) : (
+            "—"
+          )}
         </td>
             <td>{formatDate(t.date)}</td>
             <td>{formatMoneyWithLabel(t.price)}</td>
@@ -1556,7 +2376,7 @@ const handleDeleteAppointment = (a) => {
 
           </tr>
         ))}
-        {completedTreatments.length === 0 && (
+        {filteredCompletedTreatments.length === 0 && (
           <tr>
             <td colSpan="8" style={{ textAlign: "center" }}>Aucun traitement terminé</td>
           </tr>
@@ -1568,24 +2388,22 @@ const handleDeleteAppointment = (a) => {
 
 {activeTab === "protheses" && (
   <>
-    <div className="button-container">
-      <button 
-        className="btn-primary-app" 
-        onClick={() => {
-          setProthesisForm({ id: null, catalogId: "", price: "", notes: "", teeth: [], paid: false });
-          setIsEditingProthesis(false);
-          setShowProthesisModal(true);
-        }}
-      >
-        <Plus size={16} /> Ajouter 
-      </button>
-    </div>
+    {renderTabToolbar("protheses", {
+      onAdd: () => {
+        setProthesisForm({ id: null, catalogId: "", price: "", notes: "", teeth: [], paid: false });
+        setIsEditingProthesis(false);
+        setProthesisQuery("");
+        setShowProthesisSuggestions(false);
+        setShowProthesisModal(true);
+      },
+    })}
     <table className="treatment-table">
       <thead>
         <tr>
           <th>Type</th>
           <th>Dents</th>
           <th>Matériau</th>
+          <th>Date</th>
           <th>Prix</th>
           <th>État</th>
           <th>Actions</th>
@@ -1593,7 +2411,7 @@ const handleDeleteAppointment = (a) => {
       </thead>
       {/* Replace the Protheses Table Body */}
 <tbody>
-  {(Array.isArray(protheses) ? protheses : []).map((p) => (
+  {filteredProtheses.map((p) => (
     <tr key={p.id}>
       
       {/* Type */}
@@ -1601,27 +2419,60 @@ const handleDeleteAppointment = (a) => {
 
       {/* Dents */}
       <td>
-        {p.teeth?.length > 0
-          ? p.teeth.join(", ")
-          : "Pas de dents"}
+        {p.teeth?.length > 0 ? (
+          <button
+            type="button"
+            className="action-btn view"
+            onClick={() => openTeethPreview(p.teeth, `Prothèse: ${p.prothesisName || ""}`)}
+            title={p.teeth.join(", ")}
+            aria-label="Voir le schéma dentaire"
+          >
+            <Eye size={16} />
+          </button>
+        ) : (
+          "—"
+        )}
       </td>
 
       {/* Matériau */}
       <td>{p.materialName || "-"}</td>
+
+      {/* Date */}
+      <td>{formatDate(p.dateCreated || p.createdAt || p.updatedAt)}</td>
 
       {/* Prix */}
       <td>{formatMoneyWithLabel(p.finalPrice)}</td>
 
       {/* État */}
       <td>
-        <button
-          type="button"
-          className={`status-chip clickable ${p.status?.toLowerCase()}`}
-          onClick={() => handleCycleProthesisStatus(p)}
-          title="Cliquer pour changer l'etat"
-        >
-          {prothesisStatusLabels[p.status] || p.status}
-        </button>
+        {(() => {
+          const currentStatus = p.status || prothesisStatusOrder[0];
+          const nextStatus = getNextProthesisStatus(currentStatus);
+          const nextLabel = nextStatus ? (prothesisStatusLabels[nextStatus] || nextStatus) : "";
+          return (
+            <div className="flex items-center justify-center gap-2">
+              <span className={`status-chip ${String(currentStatus || "").toLowerCase()}`}>
+                {prothesisStatusLabels[currentStatus] || currentStatus}
+              </span>
+              {nextStatus && (
+                <button
+                  type="button"
+                  className="action-btn progress"
+                  onClick={() => handleCycleProthesisStatus(p)}
+                  disabled={busyProthesisStatusId === p.id}
+                  title={`Passer à : ${nextLabel}`}
+                  aria-label={`Passer à : ${nextLabel}`}
+                  style={{
+                    opacity: busyProthesisStatusId === p.id ? 0.6 : 1,
+                    cursor: busyProthesisStatusId === p.id ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <ArrowRight size={16} />
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </td>
 
       {/* Actions */}
@@ -1644,9 +2495,9 @@ const handleDeleteAppointment = (a) => {
 
     </tr>
   ))}
-  {(Array.isArray(protheses) ? protheses : []).length === 0 && (
+  {filteredProtheses.length === 0 && (
     <tr>
-      <td colSpan="6" style={{ textAlign: "center" }}>Aucune prothèse</td>
+      <td colSpan="7" style={{ textAlign: "center" }}>Aucune prothèse</td>
     </tr>
   )}
 </tbody>
@@ -1656,9 +2507,13 @@ const handleDeleteAppointment = (a) => {
 
 {activeTab === "payments" && (
   <>
-  <div className="button-container">
-    <button className="btn-primary-app" onClick={() => { setPaymentForm({ id: null, amount: "", method: "CASH" }); setIsEditingPayment(false); setShowPaymentModal(true); }}><Plus size={16} />Ajouter</button>
-    </div>
+    {renderTabToolbar("payments", {
+      onAdd: () => {
+        setPaymentForm({ id: null, amount: "", method: "CASH" });
+        setIsEditingPayment(false);
+        setShowPaymentModal(true);
+      },
+    })}
     <table className="treatment-table">
       <thead>
         <tr>
@@ -1669,11 +2524,11 @@ const handleDeleteAppointment = (a) => {
         </tr>
       </thead>
      <tbody>
-  {sortedPayments.map(p => (
+  {filteredPayments.map(p => (
     <tr key={p.id}>
       <td>{formatMoneyWithLabel(p.amount)}</td>
       <td>{paymentMethodLabels[p.method] || p.method}</td>
-      <td>{formatDate(p.date)}</td>
+      <td>{formatDate(p.date || p.paymentDate || p.createdAt)}</td>
       <td className="actions-cell">
         <button
           className="action-btn delete"
@@ -1685,7 +2540,7 @@ const handleDeleteAppointment = (a) => {
       </td>
     </tr>
   ))}
-  {sortedPayments.length === 0 && (
+  {filteredPayments.length === 0 && (
     <tr>
       <td colSpan="4" style={{ textAlign: "center" }}>Aucun versement</td>
     </tr>
@@ -1697,26 +2552,21 @@ const handleDeleteAppointment = (a) => {
 
 {activeTab === "appointments" && (
   <>
-    <div className="button-container">
-	      <button
-	        className="btn-primary-app"
-	        onClick={() => {
-	          setAppointmentForm({
-              id: null,
-              date: "",
-              hour: "",
-              minute: "",
-              period: "AM",
-              notes: "",
-              duration: 30,
-            });
-	          setIsEditingAppointment(false);
-	          setShowAppointmentModal(true);
-	        }}
-	      >
-        <Plus size={16} />Ajouter
-      </button>
-    </div>
+    {renderTabToolbar("appointments", {
+      onAdd: () => {
+        setAppointmentForm({
+          id: null,
+          date: "",
+          hour: "",
+          minute: "",
+          period: "AM",
+          notes: "",
+          duration: 30,
+        });
+        setIsEditingAppointment(false);
+        setShowAppointmentModal(true);
+      },
+    })}
 
     <table className="treatment-table">
       <thead>
@@ -1729,7 +2579,7 @@ const handleDeleteAppointment = (a) => {
         </tr>
       </thead>
       <tbody>
-        {sortedAppointments.map(a => (
+        {filteredAppointments.map(a => (
           <tr key={a.id}>
             <td>{formatDate(a.dateTimeStart)}</td>
             <td>{a.dateTimeStart ? formatHour(a.dateTimeStart) : ""}</td>
@@ -1779,7 +2629,7 @@ const handleDeleteAppointment = (a) => {
 
           </tr>
         ))}
-        {appointments.length === 0 && (
+        {filteredAppointments.length === 0 && (
           <tr>
             <td colSpan="5" style={{ textAlign: "center" }}>Aucun rendez-vous</td>
           </tr>
@@ -1791,11 +2641,7 @@ const handleDeleteAppointment = (a) => {
 
 {activeTab === "justifications" && (
   <>
-    <div className="button-container">
-      <button className="btn-primary-app" onClick={openJustificationModal}>
-        <Plus size={16} /> Ajouter
-      </button>
-    </div>
+    {renderTabToolbar("justifications", { onAdd: openJustificationModal })}
     <table className="treatment-table">
       <thead>
         <tr>
@@ -1805,7 +2651,7 @@ const handleDeleteAppointment = (a) => {
         </tr>
       </thead>
       <tbody>
-        {justifications.map((j) => (
+        {filteredJustifications.map((j) => (
           <tr key={j.id}>
             <td>{j.title || "Sans titre"}</td>
             <td>{formatDate(j.createdAt || j.date)}</td>
@@ -1827,7 +2673,7 @@ const handleDeleteAppointment = (a) => {
             </td>
           </tr>
         ))}
-        {justifications.length === 0 && (
+        {filteredJustifications.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>Aucun justificatif généré</td>
           </tr>
@@ -1839,17 +2685,12 @@ const handleDeleteAppointment = (a) => {
 
 {activeTab === "documents" && (
   <>
-    <div className="button-container">
-      <button
-        className="btn-primary-app"
-        onClick={() => {
-          resetDocumentForm();
-          setShowDocumentModal(true);
-        }}
-      >
-        <Plus size={16} /> Ajouter
-      </button>
-    </div>
+    {renderTabToolbar("documents", {
+      onAdd: () => {
+        resetDocumentForm();
+        setShowDocumentModal(true);
+      },
+    })}
     <table className="treatment-table">
       <thead>
         <tr>
@@ -1859,10 +2700,10 @@ const handleDeleteAppointment = (a) => {
         </tr>
       </thead>
       <tbody>
-        {documents.map((documentItem) => (
+        {filteredDocuments.map((documentItem) => (
           <tr key={documentItem.id}>
             <td>{documentItem.title || documentItem.filename || "Sans titre"}</td>
-            <td>{formatDate(documentItem.uploadedAt)}</td>
+            <td>{formatDate(documentItem.uploadedAt || documentItem.createdAt)}</td>
             <td className="actions-cell">
               <button
                 className="action-btn view"
@@ -1881,7 +2722,7 @@ const handleDeleteAppointment = (a) => {
             </td>
           </tr>
         ))}
-        {documents.length === 0 && (
+        {filteredDocuments.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>Aucune pièce jointe</td>
           </tr>
@@ -1919,7 +2760,20 @@ const handleDeleteAppointment = (a) => {
     resetDocumentForm();
   }}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-      <h2>Ajouter une pièce jointe</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2>Ajouter une pièce jointe</h2>
+        <X
+          size={20}
+          className="cursor-pointer"
+          onClick={() => {
+            setShowDocumentModal(false);
+            resetDocumentForm();
+          }}
+        />
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Ajoutez un titre puis importez un fichier (PDF, image, etc.).
+      </p>
       <form className="modal-form" onSubmit={handleSaveDocument}>
         <label>Titre</label>
         <input
@@ -1992,75 +2846,107 @@ const handleDeleteAppointment = (a) => {
       className="modal-content"
       onClick={(e) => e.stopPropagation()} // prevents closing when clicking inside
     >
-      <h2>{isEditing ? "Modifier Patient" : "Ajouter Patient"}</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2>{isEditing ? "Modifier Patient" : "Ajouter Patient"}</h2>
+        <X size={20} className="cursor-pointer" onClick={() => setShowModal(false)} />
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        {isEditing ? "Modifiez les informations du patient puis enregistrez." : "Renseignez les informations du patient puis enregistrez."}
+      </p>
       <form onSubmit={handleSubmit} className="modal-form">
-        <span className="field-label">Prénom</span>
-        <input
-          type="text"
-          name="firstname"
-          placeholder="Entrez le prénom..."
-          value={formData.firstname}
-          onChange={handleChange}
-          required
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <span className="field-label">Prénom</span>
+            <input
+              type="text"
+              name="firstname"
+              placeholder="Entrez le prénom..."
+              value={formData.firstname}
+              onChange={handleChange}
+              required
+            />
+          </div>
 
-        <span className="field-label">Nom</span>
-        <input
-          type="text"
-          name="lastname"
-          placeholder="Entrez le nom..."
-          value={formData.lastname}
-          onChange={handleChange}
-          required
-        />
+          <div>
+            <span className="field-label">Nom</span>
+            <input
+              type="text"
+              name="lastname"
+              placeholder="Entrez le nom..."
+              value={formData.lastname}
+              onChange={handleChange}
+              required
+            />
+          </div>
+        </div>
 
-        <span className="field-label">Âge</span>
-        <input
-          type="number"
-          name="age"
-          placeholder="Entrez l'age..."
-          value={formData.age}
-          onChange={handleChange}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <span className="field-label">Téléphone</span>
+            <PhoneInput
+              name="phone"
+              placeholder="Ex: 05 51 51 51 51"
+              value={formData.phone}
+              onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
+              required
+            />
+          </div>
+
+          <div>
+            <span className="field-label">Âge</span>
+            <input
+              type="number"
+              name="age"
+              placeholder="Entrez l'age..."
+              value={formData.age}
+              onChange={handleChange}
+            />
+          </div>
+        </div>
 
         {/* Sex radio buttons */}
         <div className="form-field">
           <span className="field-label">Sexe</span>
-          <div className="radio-group">
-            <label className="radio-option">
+          <div className="flex flex-wrap gap-2">
+            <label
+              className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                formData.sex === "Homme"
+                  ? "bg-blue-50 border-blue-200 text-blue-700"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
               <input
                 type="radio"
                 name="sex"
                 value="Homme"
                 checked={formData.sex === "Homme"}
                 onChange={handleChange}
+                className="sr-only"
                 required
               />
-              <span>Homme</span>
+              Homme
             </label>
-            <label className="radio-option">
+
+            <label
+              className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                formData.sex === "Femme"
+                  ? "bg-rose-50 border-rose-200 text-rose-700"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
               <input
                 type="radio"
                 name="sex"
                 value="Femme"
                 checked={formData.sex === "Femme"}
                 onChange={handleChange}
+                className="sr-only"
                 required
               />
-              <span>Femme</span>
+              Femme
             </label>
           </div>
         </div>
-
-        <span className="field-label">Téléphone</span>
-        <input
-          type="text"
-          name="phone"
-          placeholder="Ex: 0551555555"
-          value={formData.phone}
-          onChange={handleChange}
-          required
-        />
 
         <div className="modal-actions">
           <button type="submit" className="btn-primary2">
@@ -2135,7 +3021,13 @@ const handleDeleteAppointment = (a) => {
       {showTreatmentModal && (
   <div className="modal-overlay treatment-modal" onClick={() => setShowTreatmentModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>{isEditingTreatment ? "Modifier traitement" : "Ajouter traitement"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditingTreatment ? "Modifier traitement" : "Ajouter traitement"}</h2>
+              <X size={20} className="cursor-pointer" onClick={() => setShowTreatmentModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Sélectionnez les dents, puis renseignez le traitement.
+            </p>
 <form className="treatment-modal-form" onSubmit={handleCreateOrUpdateTreatment}>
   {/* LEFT SIDE */}
   <div className="modal-form-left">
@@ -2151,75 +3043,154 @@ const handleDeleteAppointment = (a) => {
 
   {/* RIGHT SIDE */}
   <div className="modal-form-right">
-     <label>Traitement</label>
-  <select
-  name="treatmentCatalogId"
-  value={treatmentForm.treatmentCatalogId || ""}
-  onChange={handleTreatmentChange}
-  required
->
-  <option value="">-- Sélectionner dans le catalogue --</option>
+    <div>
+      <label className="text-xs text-gray-600 font-bold uppercase">Rechercher Traitement</label>
+      <div className="relative mt-1">
+        <input
+          type="text"
+          value={treatmentQuery}
+          onChange={(e) => {
+            const val = e.target.value;
+            setTreatmentQuery(val);
+            setTreatmentForm((s) => ({ ...s, treatmentCatalogId: null, price: "" }));
 
-  {treatmentCatalog.map(item => (
-    <option key={item.id} value={item.id}>
-      {item.name} ({formatMoneyWithLabel(item.defaultPrice)})
-    </option>
-  ))}
-</select>
+            if (val) {
+              const filtered = (treatmentCatalog || [])
+                .filter((t) => t.name?.toLowerCase().includes(val.toLowerCase()))
+                .slice(0, 6);
+              setFilteredTreatmentOptions(filtered);
+              setShowTreatmentSuggestions(true);
+            } else {
+              setShowTreatmentSuggestions(false);
+            }
+          }}
+          onFocus={() => {
+            if (filteredTreatmentOptions.length > 0) setShowTreatmentSuggestions(true);
+          }}
+          onBlur={() => setTimeout(() => setShowTreatmentSuggestions(false), 120)}
+          placeholder="Nom du traitement..."
+          className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+        />
+
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowCreateTreatmentCatalogModal(true)}
+                className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Ajouter au catalogue"
+                title="Ajouter au catalogue"
+              >
+                <Plus size={16} />
+              </button>
+
+        {showTreatmentSuggestions && filteredTreatmentOptions.length > 0 && (
+          <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
+            {filteredTreatmentOptions.map((t) => (
+              <li
+                key={t.id}
+                onMouseDown={() => {
+                  setTreatmentForm((prev) => {
+                    const multiplier = t.isFlatFee ? 1 : (prev.teeth.length || 1);
+                    const calculatedPrice = Number(t.defaultPrice || 0) * multiplier;
+                    return { ...prev, treatmentCatalogId: t.id, price: formatMoney(calculatedPrice) };
+                  });
+                  setTreatmentQuery(t.name || "");
+                  setShowTreatmentSuggestions(false);
+                }}
+                className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
+              >
+                <div className="text-sm font-bold text-gray-800">
+                  {t.name}{" "}
+                  <span className="text-xs font-normal text-gray-500">
+                    ({formatMoneyWithLabel(t.defaultPrice)} · {t.isFlatFee ? "Forfait" : "Unitaire"})
+                  </span>
+                </div>
+                {t.description && <div className="text-xs text-blue-600 italic">{t.description}</div>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="mt-1 text-[11px] text-gray-500">
+        Le bouton + ajoute un traitement au <span className="font-medium">catalogue</span>.
+      </div>
+    </div>
 
     <label>Prix</label>
-    <input
-      type="number"
-      name="price"
-      value={treatmentForm.price}
-      onChange={handleTreatmentChange}
-      required
-    />
+    <div className="price-with-toggle">
+      <MoneyInput
+        name="price"
+        value={treatmentForm.price}
+        onChangeValue={(v) => setTreatmentForm((s) => ({ ...s, price: v }))}
+        placeholder="Ex: 2500"
+        required
+      />
 
+      <label className={`status-chip toggle done price-paid-toggle ${treatmentForm.paid ? "" : "inactive"}`}>
+        <input
+          type="checkbox"
+          checked={!!treatmentForm.paid}
+          onChange={(e) => setTreatmentForm({ ...treatmentForm, paid: e.target.checked })}
+          className="sr-only"
+        />
+        Payé
+      </label>
+    </div>
+    <div className="mt-1 text-[11px] text-gray-500">
+      Payé ajoute automatiquement un versement du même montant.
+    </div>
+<div className="paid-toggle-container">
+      <span className="paid-label">Statut</span>
+      <div className="paid-toggle-options">
+        <label
+          className={`status-chip toggle planned ${treatmentForm.status === "PLANNED" ? "" : "inactive"}`}
+        >
+          <input
+            type="radio"
+            name="status"
+            value="PLANNED"
+            checked={treatmentForm.status === "PLANNED"}
+            onChange={handleTreatmentChange}
+            className="sr-only"
+            required
+          />
+          Planifié
+        </label>
+        <label className={`status-chip toggle in_progress ${treatmentForm.status === "IN_PROGRESS" ? "" : "inactive"}`}>
+          <input
+            type="radio"
+            name="status"
+            value="IN_PROGRESS"
+            checked={treatmentForm.status === "IN_PROGRESS"}
+            onChange={handleTreatmentChange}
+            className="sr-only"
+            required
+          />
+          En cours
+        </label>
+        <label className={`status-chip toggle done ${treatmentForm.status === "DONE" ? "" : "inactive"}`}>
+          <input
+            type="radio"
+            name="status"
+            value="DONE"
+            checked={treatmentForm.status === "DONE"}
+            onChange={handleTreatmentChange}
+            className="sr-only"
+            required
+          />
+          Terminé
+        </label>
+      </div>
+    </div>
     <label>Notes</label>
     <textarea
       name="notes"
       value={treatmentForm.notes}
       onChange={handleTreatmentChange}
+      placeholder="Notes optionnelles..."
     />
 
-    <div className="paid-toggle-container">
-      <span className="paid-label">Statut</span>
-      <label className={`chip-toggle ${treatmentForm.status === "PLANNED" ? "active" : ""}`}>
-        <input
-          type="radio"
-          name="status"
-          value="PLANNED"
-          checked={treatmentForm.status === "PLANNED"}
-          onChange={handleTreatmentChange}
-        />
-        Planifié
-      </label>
-      <label className={`chip-toggle ${treatmentForm.status === "DONE" ? "active" : ""}`}>
-        <input
-          type="radio"
-          name="status"
-          value="DONE"
-          checked={treatmentForm.status === "DONE"}
-          onChange={handleTreatmentChange}
-        />
-        Terminé
-      </label>
-    </div>
-
-    <div className="paid-toggle-container">
-      <span className="paid-label">Marqué comme </span>
-      <label className={`chip-toggle ${treatmentForm.paid ? "active" : ""}`}>
-        <input
-          type="checkbox"
-          checked={!!treatmentForm.paid}
-          onChange={(e) =>
-            setTreatmentForm({ ...treatmentForm, paid: e.target.checked })
-          }
-        />
-        Payé
-      </label>
-    </div>
+    
 
     <div className="modal-actions">
       <button type="submit" className="btn-primary2" disabled={isSavingTreatment}>
@@ -2243,7 +3214,13 @@ const handleDeleteAppointment = (a) => {
 {showProthesisModal && (
   <div className="modal-overlay treatment-modal" onClick={() => setShowProthesisModal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-      <h2>{isEditingProthesis ? "Modifier Prothèse" : "Ajouter Prothèse"}</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2>{isEditingProthesis ? "Modifier Prothèse" : "Ajouter Prothèse"}</h2>
+        <X size={20} className="cursor-pointer" onClick={() => setShowProthesisModal(false)} />
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Sélectionnez les dents, puis renseignez la prothèse.
+      </p>
 
       <form className="treatment-modal-form" onSubmit={handleSaveProthesis}>
         
@@ -2262,55 +3239,126 @@ const handleDeleteAppointment = (a) => {
         {/* RIGHT SIDE */}
         <div className="modal-form-right">
           
-          <label>Prothèse</label>
-         <select 
-  required
-  name="catalogId"           // important!
-  value={prothesisForm.catalogId || ""} 
-  onChange={handleProthesisChange} // use your function here
->
-  <option value="">-- Sélectionner dans le catalogue --</option>
-  {prothesisCatalog?.map(item => (
-    <option key={item.id} value={item.id}>
-      {item.name} - {item.materialName} ({formatMoneyWithLabel(item.defaultPrice)})
-    </option>
-  ))}
-</select>
+          <div>
+            <label className="text-xs text-gray-600 font-bold uppercase">Rechercher Prothèse</label>
+            <div className="relative mt-1">
+              <input
+                type="text"
+                value={prothesisQuery}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setProthesisQuery(val);
+                  setProthesisForm((s) => ({ ...s, catalogId: "", price: "" }));
+
+                  if (val) {
+                    const lowered = val.toLowerCase();
+                    const filtered = (prothesisCatalog || [])
+                      .filter(
+                        (p) =>
+                          p.name?.toLowerCase().includes(lowered) ||
+                          p.materialName?.toLowerCase().includes(lowered)
+                      )
+                      .slice(0, 6);
+                    setFilteredProthesisOptions(filtered);
+                    setShowProthesisSuggestions(true);
+                  } else {
+                    setShowProthesisSuggestions(false);
+                  }
+                }}
+                onFocus={() => {
+                  if (filteredProthesisOptions.length > 0) setShowProthesisSuggestions(true);
+                }}
+                onBlur={() => setTimeout(() => setShowProthesisSuggestions(false), 120)}
+                placeholder="Nom ou matériau..."
+                className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              />
+
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowCreateProthesisCatalogModal(true)}
+                className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Ajouter au catalogue"
+                title="Ajouter au catalogue"
+              >
+                <Plus size={16} />
+              </button>
+
+              {showProthesisSuggestions && filteredProthesisOptions.length > 0 && (
+                <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
+                  {filteredProthesisOptions.map((p) => (
+                    <li
+                      key={p.id}
+                      onMouseDown={() => {
+                        setProthesisForm((prev) => {
+                          const multiplier = p.isFlatFee ? 1 : (prev.teeth.length || 1);
+                          const calculatedPrice = Number(p.defaultPrice || 0) * multiplier;
+                          return { ...prev, catalogId: p.id, price: formatMoney(calculatedPrice) };
+                        });
+                        setProthesisQuery(p.name || "");
+                        setShowProthesisSuggestions(false);
+                      }}
+                      className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
+                    >
+                      <div className="text-sm font-bold text-gray-800">
+                        {p.name}{" "}
+                        <span className="text-xs font-normal text-gray-500">
+                          ({p.materialName || "—"} · {formatMoneyWithLabel(p.defaultPrice)} ·{" "}
+                          {p.isFlatFee ? "Forfait" : "Unitaire"})
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="mt-1 text-[11px] text-gray-500">
+              Le bouton + ajoute une prothèse au <span className="font-medium">catalogue</span>.
+            </div>
+          </div>
 
           <label>Prix</label>
-          <input
-  type="number"
-  name="price"
-  value={prothesisForm.price}
-  onChange={handleProthesisChange}
-  required
-/>
+          {!isEditingProthesis ? (
+            <>
+              <div className="price-with-toggle">
+                <MoneyInput
+                  name="price"
+                  value={prothesisForm.price}
+                  onChangeValue={(v) => setProthesisForm((s) => ({ ...s, price: v }))}
+                  placeholder="Ex: 25000"
+                  required
+                />
+
+                <label className={`status-chip toggle done price-paid-toggle ${prothesisForm.paid ? "" : "inactive"}`}>
+                  <input
+                    type="checkbox"
+                    checked={!!prothesisForm.paid}
+                    onChange={(e) => setProthesisForm({ ...prothesisForm, paid: e.target.checked })}
+                    className="sr-only"
+                  />
+                  Payé
+                </label>
+              </div>
+              <div className="mt-1 text-[11px] text-gray-500">
+                Payé ajoute automatiquement un versement du même montant.
+              </div>
+            </>
+          ) : (
+            <MoneyInput
+              name="price"
+              value={prothesisForm.price}
+              onChangeValue={(v) => setProthesisForm((s) => ({ ...s, price: v }))}
+              placeholder="Ex: 25000"
+              required
+            />
+          )}
           <label>Notes</label>
           <textarea
             name="notes"
             value={prothesisForm.notes}
             onChange={handleProthesisChange}
+            placeholder="Notes optionnelles..."
           />
-
-          {!isEditingProthesis && (
-            <div className="paid-toggle-container">
-              <span className="paid-label">Marqué comme </span>
-
-              <label className={`chip-toggle ${prothesisForm.paid ? "active" : ""}`}>
-                <input
-                  type="checkbox"
-                  checked={!!prothesisForm.paid}
-                  onChange={(e) =>
-                    setProthesisForm({
-                      ...prothesisForm,
-                      paid: e.target.checked
-                    })
-                  }
-                />
-                Payé
-              </label>
-            </div>
-          )}
 
           <div className="modal-actions">
             <button type="submit" className="btn-primary2" disabled={isSavingProthesis}>
@@ -2331,14 +3379,287 @@ const handleDeleteAppointment = (a) => {
     </div>
   </div>
 )}
+
+{showCreateTreatmentCatalogModal && (
+  <div
+    className="modal-overlay"
+    style={{ zIndex: 10000 }}
+    onClick={() => setShowCreateTreatmentCatalogModal(false)}
+  >
+    <div className="modal-content" style={{ maxWidth: "520px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="flex justify-between items-center mb-2">
+        <h2>Ajouter au catalogue</h2>
+        <X size={20} className="cursor-pointer" onClick={() => setShowCreateTreatmentCatalogModal(false)} />
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Ce traitement sera ajouté au catalogue (liste globale). Ensuite, vous pourrez le sélectionner et l'ajouter au patient.
+      </p>
+
+      <form className="modal-form" onSubmit={handleCreateTreatmentCatalogInline}>
+        <label>Nom du traitement</label>
+        <input
+          type="text"
+          value={newTreatmentCatalogForm.name}
+          onChange={(e) => setNewTreatmentCatalogForm((s) => ({ ...s, name: e.target.value }))}
+          placeholder="Ex: Détartrage"
+          required
+        />
+
+        <label>Prix par défaut</label>
+        <MoneyInput
+          value={newTreatmentCatalogForm.defaultPrice}
+          onChangeValue={(v) => setNewTreatmentCatalogForm((s) => ({ ...s, defaultPrice: v }))}
+          placeholder="Ex: 2500"
+          required
+        />
+
+        <label>Type</label>
+        <select
+          value={newTreatmentCatalogForm.isFlatFee ? "FLAT" : "UNIT"}
+          onChange={(e) => setNewTreatmentCatalogForm((s) => ({ ...s, isFlatFee: e.target.value === "FLAT" }))}
+        >
+          <option value="UNIT">Unitaire</option>
+          <option value="FLAT">Forfait</option>
+        </select>
+
+        <label>Description</label>
+        <textarea
+          value={newTreatmentCatalogForm.description}
+          onChange={(e) => setNewTreatmentCatalogForm((s) => ({ ...s, description: e.target.value }))}
+          rows={3}
+          placeholder="Notes optionnelles..."
+        />
+
+        <div className="modal-actions">
+          <button type="submit" className="btn-primary2" disabled={isCreatingTreatmentCatalog}>
+            {isCreatingTreatmentCatalog ? "Ajout..." : "Ajouter"}
+          </button>
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={() => setShowCreateTreatmentCatalogModal(false)}
+            disabled={isCreatingTreatmentCatalog}
+          >
+            Annuler
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
+{showCreateProthesisCatalogModal && (
+  <div
+    className="modal-overlay"
+    style={{ zIndex: 10000 }}
+    onClick={() => {
+      setShowCreateProthesisCatalogModal(false);
+      setMaterialQuery("");
+      setShowMaterialSuggestions(false);
+      setFilteredMaterialOptions([]);
+    }}
+  >
+    <div className="modal-content" style={{ maxWidth: "560px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="flex justify-between items-center mb-2">
+        <h2>Ajouter au catalogue</h2>
+        <X
+          size={20}
+          className="cursor-pointer"
+          onClick={() => {
+            setShowCreateProthesisCatalogModal(false);
+            setMaterialQuery("");
+            setShowMaterialSuggestions(false);
+            setFilteredMaterialOptions([]);
+          }}
+        />
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Cette prothèse sera ajoutée au catalogue (liste globale). Ensuite, vous pourrez la sélectionner et l'ajouter au patient.
+      </p>
+
+      <form className="modal-form" onSubmit={handleCreateProthesisCatalogInline}>
+        <label>Nom de la prothèse</label>
+        <input
+          type="text"
+          value={newProthesisCatalogForm.name}
+          onChange={(e) => setNewProthesisCatalogForm((s) => ({ ...s, name: e.target.value }))}
+          placeholder="Ex: Couronne zircone"
+          required
+        />
+
+        <label>Matériau</label>
+        <div className="relative mt-1 mb-3">
+          <input
+            type="text"
+            value={materialQuery}
+            onChange={(e) => {
+              const val = e.target.value;
+              setMaterialQuery(val);
+              setNewProthesisCatalogForm((s) => ({ ...s, materialId: "" }));
+
+              if (val) {
+                const lowered = val.toLowerCase();
+                const filtered = (materials || [])
+                  .filter((m) => m.name?.toLowerCase().includes(lowered))
+                  .slice(0, 6);
+                setFilteredMaterialOptions(filtered);
+                setShowMaterialSuggestions(true);
+              } else {
+                setFilteredMaterialOptions([]);
+                setShowMaterialSuggestions(false);
+              }
+            }}
+            onFocus={() => {
+              if (filteredMaterialOptions.length > 0) setShowMaterialSuggestions(true);
+            }}
+            onBlur={() => setTimeout(() => setShowMaterialSuggestions(false), 120)}
+            placeholder="Nom du matériau (optionnel)..."
+            className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 !mb-0"
+            autoComplete="off"
+          />
+
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleQuickAddMaterialFromQuery}
+            disabled={isCreatingMaterial}
+            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Ajouter un matériau"
+            title="Ajouter un matériau"
+          >
+            <Plus size={16} />
+          </button>
+
+          {showMaterialSuggestions && filteredMaterialOptions.length > 0 && (
+            <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
+              {filteredMaterialOptions.map((m) => (
+                <li
+                  key={m.id}
+                  onMouseDown={() => {
+                    setNewProthesisCatalogForm((s) => ({ ...s, materialId: String(m.id) }));
+                    setMaterialQuery(m.name || "");
+                    setShowMaterialSuggestions(false);
+                    setFilteredMaterialOptions([]);
+                  }}
+                  className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
+                >
+                  <div className="text-sm font-bold text-gray-800">{m.name}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <label>Prix par défaut</label>
+        <MoneyInput
+          value={newProthesisCatalogForm.defaultPrice}
+          onChangeValue={(v) => setNewProthesisCatalogForm((s) => ({ ...s, defaultPrice: v }))}
+          placeholder="Ex: 25000"
+          required
+        />
+
+        <label>Coût labo par défaut</label>
+        <MoneyInput
+          value={newProthesisCatalogForm.defaultLabCost}
+          onChangeValue={(v) => setNewProthesisCatalogForm((s) => ({ ...s, defaultLabCost: v }))}
+          placeholder="Ex: 15000"
+        />
+
+        <label>Type</label>
+        <select
+          value={newProthesisCatalogForm.isFlatFee ? "FLAT" : "UNIT"}
+          onChange={(e) => setNewProthesisCatalogForm((s) => ({ ...s, isFlatFee: e.target.value === "FLAT" }))}
+        >
+          <option value="UNIT">Unitaire</option>
+          <option value="FLAT">Forfait</option>
+        </select>
+
+        <div className="modal-actions">
+          <button type="submit" className="btn-primary2" disabled={isCreatingProthesisCatalog}>
+            {isCreatingProthesisCatalog ? "Ajout..." : "Ajouter"}
+          </button>
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={() => {
+              setShowCreateProthesisCatalogModal(false);
+              setMaterialQuery("");
+              setShowMaterialSuggestions(false);
+              setFilteredMaterialOptions([]);
+            }}
+            disabled={isCreatingProthesisCatalog}
+          >
+            Annuler
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
+{showCreateMaterialModal && (
+  <div
+    className="modal-overlay"
+    style={{ zIndex: 10001 }}
+    onClick={() => setShowCreateMaterialModal(false)}
+  >
+    <div className="modal-content" style={{ maxWidth: "480px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="flex justify-between items-center mb-2">
+        <h2>Ajouter un matériau</h2>
+        <X size={20} className="cursor-pointer" onClick={() => setShowCreateMaterialModal(false)} />
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Ce matériau sera ajouté au catalogue (liste globale), puis sélectionné automatiquement.
+      </p>
+
+      <form className="modal-form" onSubmit={handleCreateMaterialInline}>
+        <label>Nom du matériau</label>
+        <input
+          type="text"
+          value={newMaterialName}
+          onChange={(e) => setNewMaterialName(e.target.value)}
+          placeholder="Ex: Zircone"
+          required
+        />
+
+        <div className="modal-actions">
+          <button type="submit" className="btn-primary2" disabled={isCreatingMaterial}>
+            {isCreatingMaterial ? "Ajout..." : "Ajouter"}
+          </button>
+          <button
+            type="button"
+            className="btn-cancel"
+            onClick={() => setShowCreateMaterialModal(false)}
+            disabled={isCreatingMaterial}
+          >
+            Annuler
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
       {/* Payment Modal */}
       {showPaymentModal && (
         <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>{isEditingPayment ? "Modifier versement" : "Ajouter versement"}</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>{isEditingPayment ? "Modifier versement" : "Ajouter versement"}</h2>
+              <X size={20} className="cursor-pointer" onClick={() => setShowPaymentModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              {isEditingPayment ? "Modifiez le versement puis enregistrez." : "Ajoutez un versement puis enregistrez."}
+            </p>
             <form className="modal-form" onSubmit={handleCreatePayment}>
               <label>Montant</label>
-              <input type="number" name="amount" value={paymentForm.amount} onChange={handlePaymentChange} required />
+              <MoneyInput
+                name="amount"
+                value={paymentForm.amount}
+                onChangeValue={(v) => setPaymentForm((s) => ({ ...s, amount: v }))}
+                placeholder="Ex: 15000"
+                required
+              />
               <label>Méthode</label>
               <select name="method" value={paymentForm.method} onChange={handlePaymentChange} required>
                 <option value="CASH">Espèces</option>
@@ -2362,7 +3683,13 @@ const handleDeleteAppointment = (a) => {
 {showAppointmentModal && (
   <div className="modal-overlay" onClick={() => setShowAppointmentModal(false)}>
     <div className="modal-content" onClick={e => e.stopPropagation()}>
-      <h2>{isEditingAppointment ? "Modifier rendez-vous" : "Ajouter rendez-vous"}</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2>{isEditingAppointment ? "Modifier rendez-vous" : "Ajouter rendez-vous"}</h2>
+        <X size={20} className="cursor-pointer" onClick={() => setShowAppointmentModal(false)} />
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        {isEditingAppointment ? "Modifiez le rendez-vous puis enregistrez." : "Ajoutez un rendez-vous puis enregistrez."}
+      </p>
       <form className="modal-form" onSubmit={handleCreateOrUpdateAppointment}>
 
         <label>Date</label>
@@ -2379,6 +3706,7 @@ const handleDeleteAppointment = (a) => {
 	          <div className="time-input-group">
 	            <input
 	              type="number"
+	              className="time-compact"
 	              placeholder="HH"
 	              min={use12HourFormat ? 1 : hourBounds24.earliest}
 	              max={use12HourFormat ? 12 : hourBounds24.latest}
@@ -2464,6 +3792,7 @@ const handleDeleteAppointment = (a) => {
           name="notes"
           value={appointmentForm.notes}
           onChange={handleAppointmentChange}
+          placeholder="Notes optionnelles..."
         />
 
         <div className="modal-actions">
@@ -2482,7 +3811,12 @@ const handleDeleteAppointment = (a) => {
   <div
     className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]"
   >
-    <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
+    <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full relative">
+      <X
+        size={20}
+        className="cursor-pointer absolute right-3 top-3 text-gray-500 hover:text-gray-800"
+        onClick={() => setShowConfirm(false)}
+      />
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
         Confirmer la suppression
       </h2>
@@ -2515,58 +3849,77 @@ const handleDeleteAppointment = (a) => {
   </div>
 )}
 {activeTab === "prescriptions" && (
-    <div className="button-container">
-    <button
-      className="btn-primary-app"
-      onClick={() => navigate(`/patients/${id}/ordonnance/create`)}
-    >
-      <Plus size={16} /> Ajouter
-    </button>
-  </div>
-)}
-
-{activeTab === "prescriptions" && (
-  <table className="treatment-table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Date</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {ordonnances.map((o) => (
-        <tr key={o.id}>
-          <td>{o.rxId}</td>
-          <td>{formatDate(o.date)}</td>
-          <td className="actions-cell">
-            <button
-              className="action-btn view"
-              onClick={() => navigate(`/patients/${id}/ordonnance/${o.id}`)}
-              title="Voir"
-            >
-              <Eye size={16} />
-            </button>
-
-            <button
-              className="action-btn delete"
-              onClick={() => handleDeletePrescription(o)}
-              title="Supprimer"
-            >
-              <Trash2 size={16} />
-            </button>
-          </td>
-        </tr>
-      ))}
-      {ordonnances.length === 0 && (
+  <>
+    {renderTabToolbar("prescriptions", {
+      onAdd: () => navigate(`/patients/${id}/ordonnance/create`),
+    })}
+    <table className="treatment-table">
+      <thead>
         <tr>
-          <td colSpan="3" style={{ textAlign: "center" }}>
-            Aucune ordonnance
-          </td>
+          <th>ID</th>
+          <th>Date</th>
+          <th>Actions</th>
         </tr>
-      )}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {filteredOrdonnances.map((o) => (
+          <tr key={o.id}>
+            <td>{o.rxId}</td>
+            <td>{formatDate(o.date)}</td>
+            <td className="actions-cell">
+              <button
+                className="action-btn view"
+                onClick={() => navigate(`/patients/${id}/ordonnance/${o.id}`)}
+                title="Voir"
+              >
+                <Eye size={16} />
+              </button>
+
+              <button
+                className="action-btn delete"
+                onClick={() => handleDeletePrescription(o)}
+                title="Supprimer"
+              >
+                <Trash2 size={16} />
+              </button>
+            </td>
+          </tr>
+        ))}
+        {filteredOrdonnances.length === 0 && (
+          <tr>
+            <td colSpan="3" style={{ textAlign: "center" }}>
+              Aucune ordonnance
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </>
+)}
+{showTeethPreviewModal && (
+  <div className="modal-overlay" onClick={() => setShowTeethPreviewModal(false)}>
+    <div className="modal-content relative" style={{ maxWidth: "820px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 style={{ margin: 0 }}>{teethPreviewTitle || "Schéma dentaire"}</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Les dents sélectionnées sont mises en évidence.
+          </p>
+        </div>
+        <X size={20} className="cursor-pointer" onClick={() => setShowTeethPreviewModal(false)} />
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "center", padding: "16px", backgroundColor: "#f9fafb", borderRadius: "12px" }}>
+        <ToothGraph selectedTeeth={teethPreviewSelection} readOnly={true} />
+      </div>
+
+      <div className="modal-actions" style={{ marginTop: "16px" }}>
+        <button type="button" className="btn-cancel" onClick={() => setShowTeethPreviewModal(false)}>
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
 )}
 {showTeethHistoryModal && (
   <div className="modal-overlay" onClick={() => setShowTeethHistoryModal(false)}>

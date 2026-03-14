@@ -239,7 +239,11 @@ const Devise = () => {
                             <X className="cursor-pointer" onClick={() => setIsModalOpen(false)} />
                         </div>
 
-                        <div style={{ display: 'flex', gap: '20px', height: '500px' }}>
+                        <p className="text-sm text-gray-600 mb-4">
+                          Sélectionnez des éléments du catalogue, puis enregistrez le devis.
+                        </p>
+
+                        <div style={{ display: 'flex', gap: '20px', height: 'min(420px, 62vh)' }}>
                             {/* Catalog Selection Pane */}
                             <div style={{ flex: 1, borderRight: '1px solid #eee', paddingRight: '15px', overflowY: 'auto' }}>
 
@@ -299,7 +303,7 @@ const Devise = () => {
                                 <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex: Devis Implantologie" required />
 
                                 {/* Build Pane List */}
-                                <div style={{ flex: 1, overflowY: 'auto', marginTop: '10px', padding: '10px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                                <div style={{ flex: 1, overflowY: 'auto', marginTop: '8px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
                                     {selectedItems.map((item, idx) => (
                                         <div key={idx} className="flex justify-between items-center bg-white p-2 mb-2 rounded shadow-sm border border-gray-100">
                                             <span style={{ fontSize: '0.8rem', flex: 1.5 }} className="truncate">
@@ -314,6 +318,7 @@ const Devise = () => {
                                                     type="number"
                                                     style={{ width: '80px', padding: '2px', fontSize: '0.8rem' }}
                                                     value={item.unitPrice}
+                                                    placeholder="0"
                                                     onChange={(e) => {
                                                         const updated = [...selectedItems];
                                                         updated[idx].unitPrice = parseFloat(e.target.value) || 0;
@@ -327,6 +332,7 @@ const Devise = () => {
                                                 type="number"
                                                 style={{ width: '45px', padding: '2px', marginLeft: '10px' }}
                                                 value={item.quantity}
+                                                placeholder="1"
                                                 onChange={(e) => {
                                                     const updated = [...selectedItems];
                                                     updated[idx].quantity = Math.max(1, parseInt(e.target.value) || 1);
@@ -341,16 +347,18 @@ const Devise = () => {
                                     ))}
                                 </div>
 
-                                <div className="total-box">
-                                    <div className="total-row">
-                                        <span>Total:</span>
-                                        <span>{formatMoneyWithLabel(calculateTotal())}</span>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginTop: "16px" }}>
+                                    <div className="total-box" style={{ marginTop: 0, padding: "10px 12px", flexShrink: 0, minWidth: "220px" }}>
+                                        <div className="total-row" style={{ fontSize: "14px" }}>
+                                            <span>Total:</span>
+                                            <span>{formatMoneyWithLabel(calculateTotal())}</span>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div className="modal-actions" style={{ marginTop: '20px' }}>
-                                    <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : "Enregistrer"}</button>
-                                    <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Annuler</button>
+                                    <div className="modal-actions" style={{ marginTop: 0, flexShrink: 0 }}>
+                                        <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : "Enregistrer"}</button>
+                                        <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Annuler</button>
+                                    </div>
                                 </div>
                             </form>
                         </div>

@@ -655,7 +655,11 @@ const Prosthetics = () => {
       {showEditModal && (
         <div className="modal-overlay treatment-modal" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Modifier les details</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>Modifier les details</h2>
+              <X className="cursor-pointer" onClick={() => setShowEditModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Modifiez les informations puis enregistrez.</p>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -703,6 +707,7 @@ const Prosthetics = () => {
                       onChange={(e) =>
                         setEditingProthesis({ ...editingProthesis, labCost: e.target.value })
                       }
+                      placeholder="Ex: 4500"
                     />
                   </div>
                   <div>
@@ -713,6 +718,7 @@ const Prosthetics = () => {
                       onChange={(e) =>
                         setEditingProthesis({ ...editingProthesis, finalPrice: e.target.value })
                       }
+                      placeholder="Ex: 12000"
                     />
                   </div>
                 </div>
@@ -724,6 +730,7 @@ const Prosthetics = () => {
                   onChange={(e) =>
                     setEditingProthesis({ ...editingProthesis, code: e.target.value })
                   }
+                  placeholder="Ex: P001"
                 />
 
                 <label className="field-label">Notes</label>
@@ -733,6 +740,7 @@ const Prosthetics = () => {
                     setEditingProthesis({ ...editingProthesis, notes: e.target.value })
                   }
                   rows="2"
+                  placeholder="Notes optionnelles..."
                 />
 
                 <div className="modal-actions">
@@ -752,7 +760,10 @@ const Prosthetics = () => {
       {showAssignModal && (
         <div className="modal-overlay" onClick={resetAssignModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Envoi au Laboratoire</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2>Envoi au Laboratoire</h2>
+              <X className="cursor-pointer" onClick={resetAssignModal} />
+            </div>
             <p style={{ fontSize: "12px", color: "#666", marginBottom: "15px" }}>
               Travaux selectionnes : {selectedIds.length}
             </p>

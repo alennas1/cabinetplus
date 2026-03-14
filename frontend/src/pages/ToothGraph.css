@@ -10,9 +10,27 @@
   gap: 8px;
 }
 
+.tooth-arch-actions-overlay {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tooth-arch-actions-overlay .tooth-arch-btn {
+  pointer-events: auto;
+}
+
 .tooth-arch-btn {
   border: 1px solid #bfdbfe;
-  background: #eff6ff;
+  background: rgba(239, 246, 255, 0.92);
   color: #1d4ed8;
   border-radius: 999px;
   padding: 6px 12px;
@@ -36,8 +54,6 @@
 .tooth-graph-container {
   position: relative;
   display: inline-block;
-  background: white;
-  padding: 10px;
   border-radius: 12px;
 }
 

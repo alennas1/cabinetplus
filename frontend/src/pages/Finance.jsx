@@ -3,6 +3,7 @@ import { ResponsiveLine } from "@nivo/line";
 import { ResponsivePie } from "@nivo/pie";
 import { ResponsiveBar } from "@nivo/bar";
 import PageHeader from "../components/PageHeader";
+import BackButton from "../components/BackButton";
 import { Activity, CreditCard, AlertTriangle } from 'react-feather';
 import { getFinanceCards, getFinanceGraph } from "../services/financeService";
 import { toast } from "react-toastify";
@@ -534,6 +535,7 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
     />
     ) : (
     <div className="finance-container">
+      <BackButton fallbackTo="/gestion-cabinet" />
       <PageHeader 
         title="Finances" 
         subtitle="Résumé des performances financières de votre cabinet" 

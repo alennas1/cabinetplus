@@ -71,67 +71,67 @@ const ToothGraph = ({ selectedTeeth = [], onChange, renderTooltip, readOnly = fa
 
   return (
     <div className="tooth-graph-wrapper">
-      {!readOnly && (
-        <div className="tooth-arch-actions">
-          <button
-            type="button"
-            className={`tooth-arch-btn ${upperTeeth.every((id) => normalizedSelection.includes(id)) ? "active" : ""}`}
-            onClick={() => toggleArch(upperTeeth)}
-            onMouseEnter={() => setHoveredTeeth(upperTeeth)}
-            onMouseLeave={() => setHoveredTeeth([])}
-          >
-            Haut
-          </button>
-          <button
-            type="button"
-            className={`tooth-arch-btn ${lowerTeeth.every((id) => normalizedSelection.includes(id)) ? "active" : ""}`}
-            onClick={() => toggleArch(lowerTeeth)}
-            onMouseEnter={() => setHoveredTeeth(lowerTeeth)}
-            onMouseLeave={() => setHoveredTeeth([])}
-          >
-            Bas
-          </button>
-        </div>
-      )}
-
-      <svg
-        viewBox="0 0 2827 4536"
-        width="250"
-        height="400"
-        xmlns="http://www.w3.org/2000/svg"
-        className="tooth-graph"
-      >
-        {paths.map((tooth) => {
-          const toothId = Number(tooth.id);
-          const isSelected = normalizedSelection.includes(toothId);
-          const isHovered = isToothHovered(toothId);
-          
-          // Get the tooltip text from the prop we passed in Patient.jsx
-          const tooltipText = renderTooltip ? renderTooltip(toothId) : null;
-
-          return (
-            <path
-              key={tooth.id}
-              d={tooth.d}
-              stroke="black"
-              strokeWidth="15"
-              strokeLinejoin="round"
-              fill={isSelected ? "#3498db" : isHovered ? "#dbeafe" : "white"}
-              onClick={() => toggleTooth(toothId)}
-              onMouseEnter={() => !readOnly && setHoveredTeeth([toothId])}
-              onMouseLeave={() => !readOnly && setHoveredTeeth([])}
-              style={{ 
-                cursor: readOnly ? "default" : "pointer", 
-                transition: "fill 0.2s ease, stroke 0.2s ease",
-                stroke: isHovered && !isSelected ? "#60a5fa" : "black",
-              }}
+      <div className="tooth-graph-container">
+        {!readOnly && (
+          <div className="tooth-arch-actions tooth-arch-actions-overlay">
+            <button
+              type="button"
+              className={`tooth-arch-btn ${upperTeeth.every((id) => normalizedSelection.includes(id)) ? "active" : ""}`}
+              onClick={() => toggleArch(upperTeeth)}
+              onMouseEnter={() => setHoveredTeeth(upperTeeth)}
+              onMouseLeave={() => setHoveredTeeth([])}
             >
-              {/* Native SVG Tooltip: This shows up on hover */}
-              {tooltipText && <title>{tooltipText}</title>}
-            </path>
-          );
-        })}
-      </svg>
+              Haut
+            </button>
+            <button
+              type="button"
+              className={`tooth-arch-btn ${lowerTeeth.every((id) => normalizedSelection.includes(id)) ? "active" : ""}`}
+              onClick={() => toggleArch(lowerTeeth)}
+              onMouseEnter={() => setHoveredTeeth(lowerTeeth)}
+              onMouseLeave={() => setHoveredTeeth([])}
+            >
+              Bas
+            </button>
+          </div>
+        )}
+
+        <svg
+          viewBox="0 0 2827 4536"
+          width="250"
+          height="400"
+          xmlns="http://www.w3.org/2000/svg"
+          className="tooth-graph"
+        >
+          {paths.map((tooth) => {
+            const toothId = Number(tooth.id);
+            const isSelected = normalizedSelection.includes(toothId);
+            const isHovered = isToothHovered(toothId);
+
+            const tooltipText = renderTooltip ? renderTooltip(toothId) : null;
+
+            return (
+              <path
+                key={tooth.id}
+                d={tooth.d}
+                stroke="black"
+                strokeWidth="15"
+                strokeLinejoin="round"
+                fill={isSelected ? "#3498db" : isHovered ? "#dbeafe" : "white"}
+                onClick={() => toggleTooth(toothId)}
+                onMouseEnter={() => !readOnly && setHoveredTeeth([toothId])}
+                onMouseLeave={() => !readOnly && setHoveredTeeth([])}
+                style={{
+                  cursor: readOnly ? "default" : "pointer",
+                  transition: "fill 0.2s ease, stroke 0.2s ease",
+                  stroke: isHovered && !isSelected ? "#60a5fa" : "black",
+                }}
+              >
+                {tooltipText && <title>{tooltipText}</title>}
+              </path>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 };

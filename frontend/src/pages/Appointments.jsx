@@ -15,6 +15,8 @@ import { createPatient, getPatients } from "../services/patientService";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { getApiErrorMessage } from "../utils/error";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import PhoneInput from "../components/PhoneInput";
 import {
   TIME_FORMATS,
   buildDateAtMinutes,
@@ -419,13 +421,6 @@ export default function Appointments() {
    if (isSavingAppointment) return;
    setIsSavingAppointment(true);
    try {
-     let patientId = formData.patientId;
-
-    if (isNewPatient) {
-      const newP = await createPatient(newPatient);
-      patientId = newP.id;
-    }
-
     let baseDate = formBaseDate ? new Date(formBaseDate) : new Date();
 	    if (!formBaseDate) {
 	      if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
@@ -493,6 +488,36 @@ export default function Appointments() {
 
     const startStr = formatLocalISO(start);
     const endStr = formatLocalISO(end);
+
+    let patientId = formData.patientId;
+
+    if (isNewPatient) {
+      if (!isValidPhoneNumber(newPatient.phone)) {
+        toast.error("Numéro de téléphone invalide");
+        return;
+      }
+
+      const newP = await createPatient({
+        ...newPatient,
+        phone: normalizePhoneInput(newPatient.phone),
+      });
+
+      setPatients((prev) => [...prev, newP]);
+      setFormData((s) => ({
+        ...s,
+        patientId: newP.id,
+        patientName: `${newP.firstname} ${newP.lastname}`,
+      }));
+      setPatientSearch(`${newP.firstname} ${newP.lastname}`);
+      setSearchResults([]);
+      setIsNewPatient(false);
+      setNewPatient({ firstname: "", lastname: "", phone: "", age: "", sex: "Homme" });
+
+      patientId = newP.id;
+    } else if (!patientId) {
+      toast.error("Veuillez sélectionner un patient");
+      return;
+    }
 
     const payload = {
       dateTimeStart: startStr,
@@ -1266,7 +1291,7 @@ export default function Appointments() {
           </div>
         </div>
 
-        <h3 className="section-title">Planning complet</h3>
+        <h3 className="section-title section-title-spaced">Planning complet</h3>
 
         {/* Controls */}
         <div className="appointments-controls">
@@ -1437,7 +1462,13 @@ export default function Appointments() {
         {showModal && (
           <div className="modal-overlay" onClick={closeModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h2>{isEditing ? "Modifier Rendez-vous" : "Ajouter Rendez-vous"}</h2>
+              <div className="flex justify-between items-center mb-2">
+                <h2>{isEditing ? "Modifier Rendez-vous" : "Ajouter Rendez-vous"}</h2>
+                <X className="cursor-pointer" onClick={closeModal} />
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                {isEditing ? "Modifiez les informations du rendez-vous puis enregistrez." : "Renseignez les informations du rendez-vous puis enregistrez."}
+              </p>
               <form onSubmit={handleSubmit} className="modal-form">
                 <label className={`chip-toggle ${isNewPatient ? "active" : ""}`}>
                   <input
@@ -1450,20 +1481,101 @@ export default function Appointments() {
 
                 {isNewPatient ? (
                   <>
-                    <input type="text" placeholder="Prénom" value={newPatient.firstname} onChange={(e) => setNewPatient({...newPatient, firstname: e.target.value})} required />
-                    <input type="text" placeholder="Nom" value={newPatient.lastname} onChange={(e) => setNewPatient({...newPatient, lastname: e.target.value})} required />
-                    <input type="text" placeholder="Téléphone" value={newPatient.phone} onChange={(e) => setNewPatient({...newPatient, phone: e.target.value})} required />
-                    <input type="number" placeholder="Âge" value={newPatient.age} onChange={(e) => setNewPatient({...newPatient, age: e.target.value})} required />
+                    <div className="grid grid-cols-1 md:grid-cols-2 appt-form-grid">
+                      <div>
+                        <span className="field-label">Prénom</span>
+                        <input
+                          type="text"
+                          name="firstname"
+                          placeholder="Entrez le prénom..."
+                          value={newPatient.firstname}
+                          onChange={(e) =>
+                            setNewPatient((s) => ({ ...s, firstname: e.target.value }))
+                          }
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <span className="field-label">Nom</span>
+                        <input
+                          type="text"
+                          name="lastname"
+                          placeholder="Entrez le nom..."
+                          value={newPatient.lastname}
+                          onChange={(e) =>
+                            setNewPatient((s) => ({ ...s, lastname: e.target.value }))
+                          }
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 appt-form-grid">
+                      <div>
+                        <span className="field-label">Téléphone</span>
+                        <PhoneInput
+                          name="phone"
+                          placeholder="Ex: 05 51 51 51 51"
+                          value={newPatient.phone}
+                          onChangeValue={(v) => setNewPatient((s) => ({ ...s, phone: v }))}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <span className="field-label">Âge</span>
+                        <input
+                          type="number"
+                          name="age"
+                          placeholder="Entrez l'age..."
+                          value={newPatient.age}
+                          onChange={(e) =>
+                            setNewPatient((s) => ({ ...s, age: e.target.value }))
+                          }
+                        />
+                      </div>
+                    </div>
+
                     <div className="form-field">
                       <span className="field-label">Sexe</span>
-                      <div className="radio-group">
-                        <label className="radio-option">
-                          <input type="radio" name="sex" value="Homme" checked={newPatient.sex === "Homme"} onChange={handleSexChange} required />
-                          <span>Homme</span>
+                      <div className="flex flex-wrap gap-2">
+                        <label
+                          className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                            newPatient.sex === "Homme"
+                              ? "bg-blue-50 border-blue-200 text-blue-700"
+                              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="sex"
+                            value="Homme"
+                            checked={newPatient.sex === "Homme"}
+                            onChange={handleSexChange}
+                            className="sr-only"
+                            required
+                          />
+                          Homme
                         </label>
-                        <label className="radio-option">
-                          <input type="radio" name="sex" value="Femme" checked={newPatient.sex === "Femme"} onChange={handleSexChange} required />
-                          <span>Femme</span>
+
+                        <label
+                          className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                            newPatient.sex === "Femme"
+                              ? "bg-rose-50 border-rose-200 text-rose-700"
+                              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="sex"
+                            value="Femme"
+                            checked={newPatient.sex === "Femme"}
+                            onChange={handleSexChange}
+                            className="sr-only"
+                            required
+                          />
+                          Femme
                         </label>
                       </div>
                     </div>
@@ -1482,7 +1594,7 @@ export default function Appointments() {
                               setSearchResults([]);
                             }}
                           >
-                            {p.firstname} {p.lastname} • {p.phone}
+                            {p.firstname} {p.lastname} • {formatPhoneNumber(p.phone) || p.phone}
                           </li>
                         ))}
                       </ul>
@@ -1500,6 +1612,7 @@ export default function Appointments() {
 
         <input
           type="number"
+          className="time-compact"
           placeholder="HH"
           min={use12HourFormat ? 1 : hourBounds24.earliest}
           max={use12HourFormat ? 12 : hourBounds24.latest}
@@ -1596,7 +1709,13 @@ export default function Appointments() {
         {showShiftModal && (
           <div className="modal-overlay" onClick={() => setShowShiftModal(false)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h2>Décaler les rendez-vous</h2>
+              <div className="flex justify-between items-center mb-2">
+                <h2>Décaler les rendez-vous</h2>
+                <X className="cursor-pointer" onClick={() => setShowShiftModal(false)} />
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Décalez tous les rendez-vous du jour ou une plage horaire.
+              </p>
               <form
                 className="modal-form"
                 onSubmit={(e) => {
@@ -1693,7 +1812,10 @@ export default function Appointments() {
         {showConfirm && confirmDelete && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]" onClick={() => setShowConfirm(false)}>
             <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer le rendez-vous ?</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">Supprimer le rendez-vous ?</h2>
+                <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
+              </div>
               <p className="text-gray-600 mb-6">
                 Êtes-vous sûr de vouloir supprimer le rendez-vous de {getPatientName(appointments.find(a => a.id === confirmDelete))} ?
               </p>
@@ -1711,7 +1833,10 @@ export default function Appointments() {
         {showCompleteConfirm && completeAppt && (
           <div className="modal-overlay">
             <div className="modal-content">
-              <h2>Marquer comme COMPLET ?</h2>
+              <div className="flex justify-between items-center mb-2">
+                <h2>Marquer comme COMPLET ?</h2>
+                <X className="cursor-pointer" onClick={() => setShowCompleteConfirm(false)} />
+              </div>
               <p>Êtes-vous sûr de vouloir marquer le rendez-vous de {getPatientName(completeAppt)} comme COMPLET ?</p>
               <div className="modal-actions">
                 <button onClick={() => setShowCompleteConfirm(false)} className="btn-cancel">Annuler</button>
@@ -1727,7 +1852,10 @@ export default function Appointments() {
         {showCancelConfirm && cancelAppt && (
           <div className="modal-overlay">
             <div className="modal-content">
-              <h2>Annuler le rendez-vous ?</h2>
+              <div className="flex justify-between items-center mb-2">
+                <h2>Annuler le rendez-vous ?</h2>
+                <X className="cursor-pointer" onClick={() => setShowCancelConfirm(false)} />
+              </div>
               <p>Êtes-vous sûr de vouloir annuler le rendez-vous de {getPatientName(cancelAppt)} ?</p>
               <div className="modal-actions">
                 <button onClick={() => setShowCancelConfirm(false)} className="btn-cancel">Annuler</button>
@@ -1743,10 +1871,6 @@ export default function Appointments() {
     </div>
   );
 }
-
-
-
-
 
 
 

@@ -288,7 +288,7 @@ const Laboratories = () => {
 
               <div className="modal-actions" style={{ marginTop: "2rem" }}>
                 <button type="submit" className="btn-primary2" disabled={isSubmitting}>
-                  {isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Enregistrer"}
+                  {isSubmitting ? "Enregistrement..." : isEditing ? "Mettre Ã  jour" : "Enregistrer"}
                 </button>
                 <button
                   type="button"

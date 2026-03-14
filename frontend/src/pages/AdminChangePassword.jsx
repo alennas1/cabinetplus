@@ -164,7 +164,7 @@ const Security = () => {
           <span>Déconnecter tous les appareils</span>
         </label>
         <button className="security-btn" onClick={handlePasswordChange}>
-          Mettre é jour le mot de passe
+          Mettre à jour le mot de passe
         </button>
 
         <div className="security-sessions">

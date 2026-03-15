@@ -16,6 +16,7 @@ import {
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
+import ModernDropdown from "../components/ModernDropdown";
 import { parseMoneyInput } from "../utils/moneyInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css"; // Using the same Patients.css
@@ -327,7 +328,17 @@ const Items = () => {
               <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ex: Composite" required />
 
               <span className="field-label">Catégorie</span>
-              <select name="category" value={formData.category} onChange={handleChange} required>
+              <ModernDropdown
+                value={formData.category}
+                onChange={(v) => setFormData((s) => ({ ...s, category: v }))}
+                options={Object.entries(ITEM_CATEGORIES).map(([key, label]) => ({
+                  value: key,
+                  label,
+                }))}
+                ariaLabel="Categorie"
+                fullWidth
+              />
+              <select name="category" value={formData.category} onChange={handleChange} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 {Object.entries(ITEM_CATEGORIES).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
                 ))}

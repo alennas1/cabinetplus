@@ -6,6 +6,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ToothGraph from "./ToothGraph";
 import SortableTh from "../components/SortableTh";
+import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { downloadPatientFiche } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
@@ -3960,9 +3961,22 @@ const handleDeleteAppointment = (a) => {
         />
 
         <label>Type</label>
+        <ModernDropdown
+          value={newTreatmentCatalogForm.isFlatFee ? "FLAT" : "UNIT"}
+          onChange={(v) => setNewTreatmentCatalogForm((s) => ({ ...s, isFlatFee: v === "FLAT" }))}
+          options={[
+            { value: "UNIT", label: "Unitaire" },
+            { value: "FLAT", label: "Forfait" },
+          ]}
+          ariaLabel="Type"
+          fullWidth
+        />
         <select
           value={newTreatmentCatalogForm.isFlatFee ? "FLAT" : "UNIT"}
           onChange={(e) => setNewTreatmentCatalogForm((s) => ({ ...s, isFlatFee: e.target.value === "FLAT" }))}
+          aria-hidden="true"
+          tabIndex={-1}
+          style={{ display: "none" }}
         >
           <option value="UNIT">Unitaire</option>
           <option value="FLAT">Forfait</option>
@@ -4112,9 +4126,22 @@ const handleDeleteAppointment = (a) => {
         />
 
         <label>Type</label>
+        <ModernDropdown
+          value={newProthesisCatalogForm.isFlatFee ? "FLAT" : "UNIT"}
+          onChange={(v) => setNewProthesisCatalogForm((s) => ({ ...s, isFlatFee: v === "FLAT" }))}
+          options={[
+            { value: "UNIT", label: "Unitaire" },
+            { value: "FLAT", label: "Forfait" },
+          ]}
+          ariaLabel="Type"
+          fullWidth
+        />
         <select
           value={newProthesisCatalogForm.isFlatFee ? "FLAT" : "UNIT"}
           onChange={(e) => setNewProthesisCatalogForm((s) => ({ ...s, isFlatFee: e.target.value === "FLAT" }))}
+          aria-hidden="true"
+          tabIndex={-1}
+          style={{ display: "none" }}
         >
           <option value="UNIT">Unitaire</option>
           <option value="FLAT">Forfait</option>
@@ -4207,7 +4234,20 @@ const handleDeleteAppointment = (a) => {
                 required
               />
               <label>Méthode</label>
-              <select name="method" value={paymentForm.method} onChange={handlePaymentChange} required>
+              <ModernDropdown
+                value={paymentForm.method}
+                onChange={(v) => setPaymentForm((s) => ({ ...s, method: v }))}
+                options={[
+                  { value: "CASH", label: "Espèces" },
+                  { value: "CARD", label: "Carte" },
+                  { value: "BANK_TRANSFER", label: "Virement" },
+                  { value: "CHECK", label: "Chèque" },
+                  { value: "OTHER", label: "Autre" },
+                ]}
+                ariaLabel="Methode"
+                fullWidth
+              />
+              <select name="method" value={paymentForm.method} onChange={handlePaymentChange} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 <option value="CASH">Espèces</option>
                 <option value="CARD">Carte</option>
                 <option value="BANK_TRANSFER">Virement</option>

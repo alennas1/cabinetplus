@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-initial-schema
+      author: cabinetplus
+      preConditions:
+        onFail: MARK_RAN
+        onError: HALT
+        not:
+          tableExists:
+            tableName: appointments
+      changes:
+        - sqlFile:
+            path: 001-initial-schema.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 002-tag-baseline
+      author: cabinetplus
+      changes:
+        - tagDatabase:
+            tag: baseline

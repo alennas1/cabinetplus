@@ -19,6 +19,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import SortableTh from "../components/SortableTh";
+import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
@@ -402,13 +403,13 @@ const EmployeeDetails = () => {
       {editingField === field ? (
         <>
           {options ? (
-            <select value={tempValue} onChange={(e) => setTempValue(e.target.value)}>
-              {options.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <ModernDropdown
+              value={tempValue}
+              onChange={(v) => setTempValue(v)}
+              options={options}
+              ariaLabel={label}
+              fullWidth
+            />
           ) : (
             type === "password" ? (
               <PasswordInput

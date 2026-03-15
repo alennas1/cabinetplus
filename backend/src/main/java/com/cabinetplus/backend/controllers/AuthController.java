@@ -73,6 +73,9 @@ public class AuthController {
     @Value("${app.otp.cooldown-seconds:60}")
     private long otpCooldownSeconds;
 
+    @Value("${app.phone-verification.bypass-local:false}")
+    private boolean bypassPhoneVerificationLocal;
+
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
                           UserRepository userRepo, RefreshTokenRepository refreshRepo,
                           PasswordEncoder passwordEncoder, AuditService auditService,
@@ -234,6 +237,10 @@ if (deviceId == null || deviceId.isBlank()) {
         user.setRole(role);
         user.setClinicAccessRole(role == UserRole.DENTIST ? ClinicAccessRole.DENTIST : null);
         user.setCreatedAt(LocalDateTime.now());
+
+        if (bypassPhoneVerificationLocal && devProfile && isLocalRequest(httpRequest)) {
+            user.setPhoneVerified(true);
+        }
 
         User saved = userRepo.save(user);
 

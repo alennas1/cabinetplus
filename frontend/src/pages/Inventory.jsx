@@ -17,6 +17,7 @@ import {
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
+import ModernDropdown from "../components/ModernDropdown";
 import { parseMoneyInput } from "../utils/moneyInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
@@ -597,10 +598,23 @@ const Inventory = () => {
               />
 
               <label>Catégorie</label>
+              <ModernDropdown
+                value={newItemDefaultForm.category}
+                onChange={(v) => setNewItemDefaultForm((s) => ({ ...s, category: v }))}
+                options={Object.entries(ITEM_CATEGORIES).map(([key, label]) => ({
+                  value: key,
+                  label,
+                }))}
+                ariaLabel="Categorie"
+                fullWidth
+              />
               <select
                 value={newItemDefaultForm.category}
                 onChange={(e) => setNewItemDefaultForm((s) => ({ ...s, category: e.target.value }))}
                 required
+                aria-hidden="true"
+                tabIndex={-1}
+                style={{ display: "none" }}
               >
                 {Object.entries(ITEM_CATEGORIES).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>

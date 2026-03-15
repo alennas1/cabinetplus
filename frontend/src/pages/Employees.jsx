@@ -8,6 +8,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import PasswordInput from "../components/PasswordInput";
+import ModernDropdown from "../components/ModernDropdown";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
@@ -589,10 +590,24 @@ const Employees = () => {
                     placeholder="Ex: 80000"
                   />
                   <span className="field-label">Statut</span>
+                  <ModernDropdown
+                    value={formData.status}
+                    onChange={(v) => setFormData((prev) => ({ ...prev, status: v }))}
+                    options={[
+                      { value: "ACTIVE", label: "Actif" },
+                      { value: "INACTIVE", label: "Inactif" },
+                      { value: "ON_LEAVE", label: "En congé" },
+                    ]}
+                    ariaLabel="Statut"
+                    fullWidth
+                  />
                   <select
                     name="status"
                     value={formData.status}
                     onChange={handleChange}
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    style={{ display: "none" }}
                   >
                     <option value="ACTIVE">Actif</option>
                     <option value="INACTIVE">Inactif</option>

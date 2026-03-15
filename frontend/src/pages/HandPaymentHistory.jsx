@@ -5,6 +5,7 @@ import { AlertCircle, ChevronLeft, X } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
+import ModernDropdown from "../components/ModernDropdown";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment, getMyHandPayments } from "../services/handPaymentService";
 import { getCurrentPlanUsage } from "../services/userService";
@@ -450,7 +451,14 @@ const HandPaymentHistory = () => {
               }}
             >
               <label>Offre</label>
-              <select value={upgradePlanId} onChange={(e) => setUpgradePlanId(e.target.value)} required>
+              <ModernDropdown
+                value={upgradePlanId}
+                onChange={(v) => setUpgradePlanId(v)}
+                options={plans.map((plan) => ({ value: plan.id, label: plan.name }))}
+                ariaLabel="Offre"
+                fullWidth
+              />
+              <select value={upgradePlanId} onChange={(e) => setUpgradePlanId(e.target.value)} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 {plans.map((plan) => (
                   <option value={plan.id} key={plan.id}>
                     {plan.name}
@@ -459,13 +467,33 @@ const HandPaymentHistory = () => {
               </select>
 
               <label>Facturation</label>
-              <select value={upgradeBillingCycle} onChange={(e) => setUpgradeBillingCycle(e.target.value)}>
+              <ModernDropdown
+                value={upgradeBillingCycle}
+                onChange={(v) => setUpgradeBillingCycle(v)}
+                options={[
+                  { value: "MONTHLY", label: "Mensuelle" },
+                  { value: "YEARLY", label: "Annuelle" },
+                ]}
+                ariaLabel="Facturation"
+                fullWidth
+              />
+              <select value={upgradeBillingCycle} onChange={(e) => setUpgradeBillingCycle(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 <option value="MONTHLY">Mensuelle</option>
                 <option value="YEARLY">Annuelle</option>
               </select>
 
               <label>Debut du changement</label>
-              <select value={upgradeStartMode} onChange={(e) => setUpgradeStartMode(e.target.value)}>
+              <ModernDropdown
+                value={upgradeStartMode}
+                onChange={(v) => setUpgradeStartMode(v)}
+                options={[
+                  { value: "IMMEDIATE", label: "Immediate" },
+                  { value: "AT_END_OF_CURRENT", label: "A la fin du plan actuel" },
+                ]}
+                ariaLabel="Debut du changement"
+                fullWidth
+              />
+              <select value={upgradeStartMode} onChange={(e) => setUpgradeStartMode(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 <option value="IMMEDIATE">Immediate</option>
                 <option value="AT_END_OF_CURRENT">A la fin du plan actuel</option>
               </select>

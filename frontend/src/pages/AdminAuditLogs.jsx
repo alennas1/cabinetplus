@@ -3,6 +3,7 @@ import { RefreshCw, Search } from "react-feather";
 import { toast } from "react-toastify";
 import PageHeader from "../components/PageHeader";
 import SortableTh from "../components/SortableTh";
+import ModernDropdown from "../components/ModernDropdown";
 import { getSecurityAuditLogs } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
@@ -143,15 +144,16 @@ const AdminAuditLogs = () => {
             />
           </div>
 
-          <select
-            className="styled-select"
+          <ModernDropdown
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="ALL">Tous statuts</option>
-            <option value="SUCCESS">Succes</option>
-            <option value="FAILURE">Echec</option>
-          </select>
+            onChange={(v) => setStatusFilter(v)}
+            options={[
+              { value: "ALL", label: "Tous statuts" },
+              { value: "SUCCESS", label: "Succes" },
+              { value: "FAILURE", label: "Echec" },
+            ]}
+            ariaLabel="Statut"
+          />
         </div>
 
         <div className="controls-right">

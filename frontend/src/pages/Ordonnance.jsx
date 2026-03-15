@@ -10,6 +10,7 @@ import { getPatientById } from "../services/patientService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference } from "../utils/dateFormat";
 import PageHeader from "../components/PageHeader";
+import ModernDropdown from "../components/ModernDropdown";
 import "./Patients.css";
 
 export default function Ordonnance() {
@@ -468,7 +469,21 @@ useEffect(() => {
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="text-xs text-gray-600">Unité</label>
-                    <select value={medForm.unit} onChange={(e) => setMedForm(s => ({ ...s, unit: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm">
+                    <ModernDropdown
+                      value={medForm.unit}
+                      onChange={(v) => setMedForm((s) => ({ ...s, unit: v }))}
+                      options={[
+                        { value: "mg", label: "mg" },
+                        { value: "ml", label: "ml" },
+                        { value: "g", label: "g" },
+                        { value: "cp", label: "cp" },
+                      ]}
+                      ariaLabel="Unite"
+                      className="mt-1"
+                      fullWidth
+                      triggerClassName="rounded-md border border-gray-200 text-sm"
+                    />
+                    <select value={medForm.unit} onChange={(e) => setMedForm(s => ({ ...s, unit: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm" aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                       <option value="mg">mg</option>
                       <option value="ml">ml</option>
                       <option value="g">g</option>
@@ -606,12 +621,27 @@ useEffect(() => {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm text-gray-600">Forme</label>
+            <ModernDropdown
+              value={newMedicationForm.dosageForm}
+              onChange={(v) => setNewMedicationForm((s) => ({ ...s, dosageForm: v }))}
+              options={Object.entries(DOSAGE_FORMS).map(([key, label]) => ({
+                value: key,
+                label,
+              }))}
+              ariaLabel="Forme"
+              className="mt-1"
+              fullWidth
+              triggerClassName="rounded-md border border-gray-200 text-sm"
+            />
             <select
               value={newMedicationForm.dosageForm}
               onChange={(e) =>
                 setNewMedicationForm((s) => ({ ...s, dosageForm: e.target.value }))
               }
               className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm"
+              aria-hidden="true"
+              tabIndex={-1}
+              style={{ display: "none" }}
             >
               {Object.entries(DOSAGE_FORMS).map(([key, label]) => (
                 <option key={key} value={key}>

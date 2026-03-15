@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useRef, useState, useEffect } from "react";
-import { X, Plus, Trash2, Check, ArrowUpRight, ChevronLeft, ChevronRight } from "react-feather";
+import { X, Plus, Check, Edit2, ChevronLeft, ChevronRight } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -8,13 +8,13 @@ import {
   getAppointments,
   createAppointment,
   updateAppointment,
-  deleteAppointment,
   shiftAppointments,
 } from "../services/appointmentService";
 import { createPatient, getPatients } from "../services/patientService";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PatientDangerIcon from "../components/PatientDangerIcon";
+import ModernDropdown from "../components/ModernDropdown";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
@@ -32,6 +32,12 @@ const QUARTER_MINUTES = ["00", "15", "30", "45"];
 
 export default function Appointments() {
   const navigate = useNavigate();
+
+  const openPatientProfile = (appt) => {
+    const patientId = appt?.patient?.id ?? appt?.patientId ?? null;
+    if (!patientId) return;
+    navigate(`/patients/${patientId}`);
+  };
 
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
@@ -57,8 +63,6 @@ export default function Appointments() {
   const [showModal, setShowModal] = useState(false);
   const [isNewPatient, setIsNewPatient] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [completeAppt, setCompleteAppt] = useState(null);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
@@ -75,7 +79,6 @@ export default function Appointments() {
 
   const [slotDuration, setSlotDuration] = useState(30); // Default slot duration: 30 min
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
-  const [isDeletingAppointment, setIsDeletingAppointment] = useState(false);
   const [isCompletingAppointment, setIsCompletingAppointment] = useState(false);
   const [isCancellingAppointment, setIsCancellingAppointment] = useState(false);
   const [workingHours, setWorkingHours] = useState(() => getWorkingHoursWindow());
@@ -92,6 +95,8 @@ export default function Appointments() {
   const planningSlotRefs = useRef([]);
   const planningHighlightTimeoutRef = useRef(null);
   const [planningHighlightIndex, setPlanningHighlightIndex] = useState(null);
+  const quickHighlightTimeoutRef = useRef(null);
+  const [quickHighlightIndex, setQuickHighlightIndex] = useState(null);
   const [shiftForm, setShiftForm] = useState({
     direction: "forward",
     duration: 15,
@@ -309,7 +314,10 @@ export default function Appointments() {
 
 
   const handleSlotClick = (slot) => {
-    if (slot.appointments.length > 0) return;
+    if (slot.appointments.length > 0) {
+      openPatientProfile(slot.appointments[0]);
+      return;
+    }
     setFormBaseDate(startOfDay(slot.start));
     const parts = toFormTimeParts(slot.start);
     setFormData({
@@ -577,11 +585,6 @@ export default function Appointments() {
 };
 
 
-  const handleDeleteClick = (id) => {
-    setConfirmDelete(id);
-    setShowConfirm(true);
-  };
-
   const openShiftModal = () => {
     setShiftForm({
       direction: "forward",
@@ -646,23 +649,6 @@ export default function Appointments() {
       toast.error(getApiErrorMessage(err, "Erreur lors du décalage"));
     } finally {
       setIsShiftingAppointments(false);
-    }
-  };
-
-  const confirmDeleteAppointment = async () => {
-    if (isDeletingAppointment) return;
-    setIsDeletingAppointment(true);
-    try {
-      await deleteAppointment(confirmDelete);
-      setAppointments((prev) => prev.filter((a) => a.id !== confirmDelete));
-      toast.success("Rendez-vous supprimé ");
-    } catch (err) {
-      console.error("Error deleting appointment:", err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression "));
-    } finally {
-      setIsDeletingAppointment(false);
-      setShowConfirm(false);
-      setConfirmDelete(null);
     }
   };
 
@@ -886,59 +872,17 @@ export default function Appointments() {
     () => buildSlotsForDate(previewBaseDate),
     [appointments, slotDuration, workingHours, previewBaseDate]
   );
-  const previewIsToday = useMemo(() => isSameDay(previewBaseDate, new Date()), [previewBaseDate]);
 
   const firstScheduledSlotIndex = useMemo(
     () => previewSlots.findIndex((slot) => slot.appointments?.some((a) => a.status === "SCHEDULED")),
     [previewSlots]
   );
 
-  const getSlotStartIndexForTime = (slotList, time) => {
-    if (!slotList?.length) return 0;
-    if (!time) return 0;
-
-    const insideIdx = slotList.findIndex((slot) => slot.start <= time && slot.end > time);
-    if (insideIdx >= 0) return insideIdx;
-
-    const afterIdx = slotList.findIndex((slot) => slot.start >= time);
-    return afterIdx >= 0 ? afterIdx : 0;
-  };
-
   const nextAvailableSlotIndex = useMemo(() => {
     if (!previewSlots.length) return -1;
-    if (!previewIsToday) {
-      return previewSlots.findIndex((slot) => !slot.appointments?.length);
-    }
-
-    const dayAppointments = appointments.filter((appt) =>
-      isSameDay(new Date(appt.dateTimeStart), previewBaseDate)
-    );
-    // If the day is totally empty, jump to the start of the working day (not "now").
-    if (dayAppointments.length === 0) return 0;
-
-    const todayCompleted = appointments
-      .filter((appt) => {
-        if (appt.status !== "COMPLETED") return false;
-        const start = new Date(appt.dateTimeStart);
-        return isSameDay(start, previewBaseDate);
-      })
-      .map((appt) => new Date(appt.dateTimeEnd));
-
-    let startIdx = 0;
-    if (todayCompleted.length > 0) {
-      const lastCompletedEnd = new Date(
-        Math.max(...todayCompleted.map((d) => d.getTime()))
-      );
-      startIdx = getSlotStartIndexForTime(previewSlots, lastCompletedEnd);
-    } else {
-      const now = new Date();
-      startIdx = getSlotStartIndexForTime(previewSlots, now);
-    }
-    for (let i = startIdx; i < previewSlots.length; i += 1) {
-      if (!previewSlots[i].appointments?.length) return i;
-    }
-    return -1;
-  }, [previewSlots, appointments, previewBaseDate, previewIsToday]);
+    // Always jump to the earliest empty slot (even for today).
+    return previewSlots.findIndex((slot) => !slot.appointments?.length);
+  }, [previewSlots]);
 
   const planningFirstScheduledSlotIndex = useMemo(
     () => slots.findIndex((slot) => slot.appointments?.some((a) => a.status === "SCHEDULED")),
@@ -947,37 +891,9 @@ export default function Appointments() {
 
   const planningNextAvailableSlotIndex = useMemo(() => {
     if (!slots.length) return -1;
-
-    const isViewingToday = isSameDay(selectedDayBaseDate, new Date());
-    if (!isViewingToday) {
-      return slots.findIndex((slot) => !slot.appointments?.length);
-    }
-
-    const dayAppointments = appointments.filter((appt) =>
-      isSameDay(new Date(appt.dateTimeStart), selectedDayBaseDate)
-    );
-    // If the day is totally empty, jump to the start of the working day (not "now").
-    if (dayAppointments.length === 0) return 0;
-
-    const completedEnds = appointments
-      .filter((appt) => {
-        if (appt.status !== "COMPLETED") return false;
-        const start = new Date(appt.dateTimeStart);
-        return isSameDay(start, selectedDayBaseDate);
-      })
-      .map((appt) => new Date(appt.dateTimeEnd));
-
-    const targetTime =
-      completedEnds.length > 0
-        ? new Date(Math.max(...completedEnds.map((d) => d.getTime())))
-        : new Date();
-
-    const startIdx = getSlotStartIndexForTime(slots, targetTime);
-    for (let i = startIdx; i < slots.length; i += 1) {
-      if (!slots[i].appointments?.length) return i;
-    }
-    return -1;
-  }, [slots, appointments, selectedDayBaseDate]);
+    // Always jump to the earliest empty slot (even for today).
+    return slots.findIndex((slot) => !slot.appointments?.length);
+  }, [slots]);
 
   const setPlanningHighlight = (idx) => {
     if (planningHighlightTimeoutRef.current) {
@@ -989,6 +905,18 @@ export default function Appointments() {
       setPlanningHighlightIndex(null);
       planningHighlightTimeoutRef.current = null;
     }, 1100);
+  };
+
+  const setQuickHighlight = (idx) => {
+    if (quickHighlightTimeoutRef.current) {
+      clearTimeout(quickHighlightTimeoutRef.current);
+      quickHighlightTimeoutRef.current = null;
+    }
+    setQuickHighlightIndex(idx);
+    quickHighlightTimeoutRef.current = setTimeout(() => {
+      setQuickHighlightIndex(null);
+      quickHighlightTimeoutRef.current = null;
+    }, 700);
   };
 
   const scrollToPlanningSlot = (idx) => {
@@ -1020,6 +948,9 @@ export default function Appointments() {
     return () => {
       if (planningHighlightTimeoutRef.current) {
         clearTimeout(planningHighlightTimeoutRef.current);
+      }
+      if (quickHighlightTimeoutRef.current) {
+        clearTimeout(quickHighlightTimeoutRef.current);
       }
     };
   }, []);
@@ -1053,14 +984,17 @@ export default function Appointments() {
   const goToCurrentPatientSlot = () => {
     if (firstScheduledSlotIndex >= 0) {
       setActiveSlotAndFocus(firstScheduledSlotIndex);
+      setQuickHighlight(firstScheduledSlotIndex);
     } else if (previewSlots.length) {
       setActiveSlotAndFocus(0);
+      setQuickHighlight(0);
     }
   };
 
   const goToNextAvailableSlot = () => {
     if (nextAvailableSlotIndex >= 0) {
       setActiveSlotAndFocus(nextAvailableSlotIndex);
+      setQuickHighlight(nextAvailableSlotIndex);
     }
   };
 
@@ -1098,7 +1032,14 @@ export default function Appointments() {
           slot.appointments.map((appt) => {
             const apptPatient = getPatientForAppt(appt);
             return (
-              <div key={appt.id} className="appointment-row" onClick={() => handleEditAppointment(appt)}>
+              <div
+                key={appt.id}
+                className="appointment-row"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openPatientProfile(appt);
+                }}
+              >
                 <div className="slot-patient">
                   <span className="appointment-number">
                     {appointmentNumbersForSelectedDay[appt.id] ?? "-"}
@@ -1115,19 +1056,6 @@ export default function Appointments() {
                 </div>
               <span className={`status-chip ${appt.status}`}>{statusLabels[appt.status] || appt.status}</span>
 
-              {(appt.patient?.id || appt.patientId) && (
-                <button
-                  className="action-btn view"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/patients/${appt.patient?.id ?? appt.patientId}`);
-                  }}
-                  title="Ouvrir le profil patient"
-                >
-                  <ArrowUpRight size={16} />
-                </button>
-              )}
-
               {appt.status === "SCHEDULED" && (
                 <button
                   className="action-btn complete"
@@ -1142,13 +1070,14 @@ export default function Appointments() {
 
               {appt.status !== "COMPLETED" && (
                 <button
-                  className="action-btn delete"
+                  className="action-btn edit"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteClick(appt.id);
+                    handleEditAppointment(appt);
                   }}
+                  title="Mettre à jour"
                 >
-                  <Trash2 size={16} />
+                  <Edit2 size={16} />
                 </button>
               )}
 
@@ -1311,7 +1240,9 @@ export default function Appointments() {
                   previewPrevIndex !== null ? `enter ${previewDirection}` : "static"
                 }`}
               >
-                {renderSlotCard(previewSlots[previewIndex], previewIndex)}
+                {renderSlotCard(previewSlots[previewIndex], previewIndex, {
+                  isHighlighted: previewIndex === quickHighlightIndex,
+                })}
               </div>
             )}
           </div>
@@ -1370,16 +1301,13 @@ export default function Appointments() {
 
         <div className="slot-duration-selector" style={{ marginBottom: "16px" }}>
           <label>Durée du créneau :</label>
-          <select
+          <ModernDropdown
             value={slotDuration}
-            onChange={(e) => setSlotDuration(Number(e.target.value))}
-            className="slot-duration-select"
-          >
-            <option value={15}>15 min</option>
-            <option value={30}>30 min</option>
-            <option value={45}>45 min</option>
-            <option value={60}>60 min</option>
-          </select>
+            onChange={(v) => setSlotDuration(Number(v))}
+            options={durationOptions.map((d) => ({ value: d, label: `${d} min` }))}
+            ariaLabel="Durée du créneau"
+            triggerClassName="slot-duration-select"
+          />
         </div>
 
         {viewMode === "day" ? (
@@ -1452,7 +1380,14 @@ export default function Appointments() {
                         >
                           {slot.appointments.length ? (
                             slot.appointments.map((appt) => (
-                              <div key={appt.id} className="appointment-row" onClick={() => handleEditAppointment(appt)}>
+                              <div
+                                key={appt.id}
+                                className="appointment-row"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPatientProfile(appt);
+                                }}
+                              >
                               <div className="slot-patient">
                                   <span>{getPatientName(appt)}</span>
                               </div>
@@ -1460,13 +1395,14 @@ export default function Appointments() {
 
                                 {appt.status !== "COMPLETED" && (
                                   <button
-                                    className="action-btn delete"
+                                    className="action-btn edit"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteClick(appt.id);
+                                      handleEditAppointment(appt);
                                     }}
+                                    title="Mettre à jour"
                                   >
-                                    <Trash2 size={16} />
+                                    <Edit2 size={16} />
                                   </button>
                                 )}
                               </div>
@@ -1750,26 +1686,25 @@ export default function Appointments() {
                 }}
               >
                 <label>Direction</label>
-                <select
+                <ModernDropdown
                   value={shiftForm.direction}
-                  onChange={(e) => setShiftForm({ ...shiftForm, direction: e.target.value })}
-                >
-                  <option value="forward">Vers le futur</option>
-                  <option value="backward">Vers le passé</option>
-                </select>
+                  onChange={(v) => setShiftForm({ ...shiftForm, direction: v })}
+                  options={[
+                    { value: "forward", label: "Vers le futur" },
+                    { value: "backward", label: "Vers le passé" },
+                  ]}
+                  ariaLabel="Direction"
+                  fullWidth
+                />
 
                 <label>Durée</label>
-                <select
+                <ModernDropdown
                   value={shiftForm.duration}
-                  onChange={(e) =>
-                    setShiftForm({ ...shiftForm, duration: Number(e.target.value) })
-                  }
-                >
-                  <option value={15}>15 min</option>
-                  <option value={30}>30 min</option>
-                  <option value={45}>45 min</option>
-                  <option value={60}>60 min</option>
-                </select>
+                  onChange={(v) => setShiftForm({ ...shiftForm, duration: Number(v) })}
+                  options={durationOptions.map((d) => ({ value: d, label: `${d} min` }))}
+                  ariaLabel="Durée"
+                  fullWidth
+                />
 
                 <div className="form-field">
                   <label>Appliquer sur</label>
@@ -1834,27 +1769,6 @@ export default function Appointments() {
           </div>
         )}
 
-        {/* Confirm Delete */}
-        {showConfirm && confirmDelete && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]" onClick={() => setShowConfirm(false)}>
-            <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-800">Supprimer le rendez-vous ?</h2>
-                <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
-              </div>
-              <p className="text-gray-600 mb-6">
-                Êtes-vous sûr de vouloir supprimer le rendez-vous de {getPatientName(appointments.find(a => a.id === confirmDelete))} ?
-              </p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100">Annuler</button>
-                <button onClick={confirmDeleteAppointment} disabled={isDeletingAppointment} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600">
-                  {isDeletingAppointment ? "Suppression..." : "Supprimer"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Confirm Complete */}
         {showCompleteConfirm && completeAppt && (
           <div className="modal-overlay">
@@ -1897,7 +1811,3 @@ export default function Appointments() {
     </div>
   );
 }
-
-
-
-

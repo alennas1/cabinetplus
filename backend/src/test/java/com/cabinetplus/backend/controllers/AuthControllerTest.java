@@ -23,8 +23,11 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -124,5 +127,71 @@ class AuthControllerTest {
         mockMvc.perform(post("/auth/session").cookie(new jakarta.servlet.http.Cookie("refresh_token", "unknown")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value(""));
+    }
+
+    @Test
+    void registerInDevWithBypassEnabledMarksPhoneVerified() throws Exception {
+        AuthenticationManager authenticationManager = mock(AuthenticationManager.class);
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        UserRepository userRepository = mock(UserRepository.class);
+        RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        AuditService auditService = mock(AuditService.class);
+        PhoneVerificationService phoneVerificationService = mock(PhoneVerificationService.class);
+        MockEnvironment environment = new MockEnvironment().withProperty("spring.profiles.active", "dev");
+        environment.setActiveProfiles("dev");
+
+        AuthController controller = new AuthController(
+                authenticationManager,
+                jwtUtil,
+                userRepository,
+                refreshTokenRepository,
+                passwordEncoder,
+                auditService,
+                phoneVerificationService,
+                environment
+        );
+
+        ReflectionTestUtils.setField(controller, "accessTokenMs", 60000L);
+        ReflectionTestUtils.setField(controller, "refreshTokenMs", 86400000L);
+        ReflectionTestUtils.setField(controller, "bypassPhoneVerificationLocal", true);
+
+        when(userRepository.findByUsername(anyString())).thenReturn(Optional.empty());
+        when(userRepository.existsByPhoneNumber(anyString())).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("hashed");
+        when(jwtUtil.generateAccessToken(any())).thenReturn("access");
+        when(jwtUtil.generateRefreshToken(anyString(), anyLong())).thenReturn("refresh");
+        when(userRepository.save(any())).thenAnswer(inv -> {
+            User u = inv.getArgument(0, User.class);
+            u.setId(1L);
+            return u;
+        });
+
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+
+        MockMvc mvc = MockMvcBuilders
+                .standaloneSetup(controller)
+                .setMessageConverters(new MappingJackson2HttpMessageConverter())
+                .setValidator(validator)
+                .build();
+
+        mvc.perform(post("/auth/register")
+                        .header("Origin", "http://localhost:5173")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"newuser",
+                                  "password":"StrongPass1!",
+                                  "firstname":"A",
+                                  "lastname":"B",
+                                  "phoneNumber":"0550000000",
+                                  "role":"DENTIST"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("access"));
+
+        verify(userRepository).save(argThat(u -> u != null && u.isPhoneVerified()));
     }
 }

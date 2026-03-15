@@ -9,6 +9,7 @@ import ToothGraph from "./ToothGraph";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
+import ModernDropdown from "../components/ModernDropdown";
 import {
   getAllProthetics,
   updateProtheticsStatus,
@@ -509,6 +510,16 @@ const Prosthetics = () => {
         }}
       >
         <div className="date-type-selector">
+          <ModernDropdown
+            value={dateType}
+            onChange={(v) => setDateType(v)}
+            options={[
+              { value: "dateCreated", label: "Date Creation" },
+              { value: "sentToLabDate", label: "Date Envoi Labo" },
+              { value: "actualReturnDate", label: "Date Retour" },
+            ]}
+            ariaLabel="Type de date"
+          />
           <select
             value={dateType}
             onChange={(e) => setDateType(e.target.value)}
@@ -521,6 +532,9 @@ const Prosthetics = () => {
               cursor: "pointer",
               backgroundColor: "#f9f9f9",
             }}
+            aria-hidden="true"
+            tabIndex={-1}
+            hidden
           >
             <option value="dateCreated">Date Creation</option>
             <option value="sentToLabDate">Date Envoi Labo</option>
@@ -879,10 +893,23 @@ const Prosthetics = () => {
               className="modal-form"
             >
               <label className="field-label">Laboratoire</label>
+              <ModernDropdown
+                value={assignData.labId}
+                onChange={(v) => setAssignData((s) => ({ ...s, labId: v }))}
+                options={[
+                  { value: "", label: "Choisir un labo..." },
+                  ...laboratories.map((lab) => ({ value: String(lab.id), label: lab.name })),
+                ]}
+                ariaLabel="Laboratoire"
+                fullWidth
+              />
               <select
                 value={assignData.labId}
                 onChange={(e) => setAssignData({ ...assignData, labId: e.target.value })}
                 required
+                aria-hidden="true"
+                tabIndex={-1}
+                style={{ display: "none" }}
               >
                 <option value="">Choisir un labo...</option>
                 {laboratories.map((lab) => (

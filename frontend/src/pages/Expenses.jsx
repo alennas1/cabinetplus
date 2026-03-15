@@ -17,6 +17,7 @@ import { getEmployees } from "../services/employeeService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
+import ModernDropdown from "../components/ModernDropdown";
 import { parseMoneyInput } from "../utils/moneyInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css"; // Reuse the same CSS as Items
@@ -354,7 +355,17 @@ const Expenses = () => {
               <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="Ex: Fournitures" required />
 
               <span className="field-label">Catégorie</span>
-              <select name="category" value={formData.category} onChange={handleChange} required>
+              <ModernDropdown
+                value={formData.category}
+                onChange={(v) => setFormData((s) => ({ ...s, category: v }))}
+                options={Object.entries(EXPENSE_CATEGORIES).map(([key, label]) => ({
+                  value: key,
+                  label,
+                }))}
+                ariaLabel="Categorie"
+                fullWidth
+              />
+              <select name="category" value={formData.category} onChange={handleChange} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 {Object.entries(EXPENSE_CATEGORIES).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
                 ))}
@@ -377,6 +388,23 @@ const Expenses = () => {
 
               {/* Employee Dropdown */}
               <span className="field-label">Employé</span>
+              <ModernDropdown
+                value={selectedEmployeeId || formData.employeeId || ""}
+                onChange={(v) => {
+                  setSelectedEmployeeId(v);
+                  setFormData((s) => ({ ...s, employeeId: v }));
+                }}
+                options={[
+                  { value: "", label: "-- Sélectionner un employé --" },
+                  ...employees.map((emp) => ({
+                    value: emp.id,
+                    label: `${emp.firstName} ${emp.lastName}`,
+                  })),
+                ]}
+                ariaLabel="Employe"
+                disabled={formData.category !== "SALARY" || loadingEmployees}
+                fullWidth
+              />
               <select
                 name="employeeId"
                 value={selectedEmployeeId || formData.employeeId || ""}
@@ -385,6 +413,9 @@ const Expenses = () => {
                   setFormData({ ...formData, employeeId: e.target.value });
                 }}
                 disabled={formData.category !== "SALARY" || loadingEmployees}
+                aria-hidden="true"
+                tabIndex={-1}
+                style={{ display: "none" }}
               >
                 <option value="">-- Sélectionner un employé --</option>
               {employees.map((emp) => (

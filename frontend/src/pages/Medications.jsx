@@ -8,6 +8,7 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import ModernDropdown from "../components/ModernDropdown";
 import {
   getMedications,
   createMedication,
@@ -358,7 +359,17 @@ const Medications = () => {
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
                   <span className="field-label">Forme</span>
-                  <select name="dosageForm" value={form.dosageForm} onChange={handleChange} required>
+                  <ModernDropdown
+                    value={form.dosageForm}
+                    onChange={(v) => setForm((s) => ({ ...s, dosageForm: v }))}
+                    options={Object.entries(DOSAGE_FORMS).map(([key, label]) => ({
+                      value: key,
+                      label,
+                    }))}
+                    ariaLabel="Forme"
+                    fullWidth
+                  />
+                  <select name="dosageForm" value={form.dosageForm} onChange={handleChange} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                     {Object.entries(DOSAGE_FORMS).map(([key, label]) => (
                       <option key={key} value={key}>{label}</option>
                     ))}

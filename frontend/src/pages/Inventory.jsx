@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Search, Edit2, Trash2, Filter, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import { createItemDefault, getItemDefaults } from "../services/itemDefaultService";
 import {
   createInventoryItem,
@@ -17,6 +18,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
 const ITEM_CATEGORIES = {
@@ -70,6 +72,7 @@ const Inventory = () => {
   const [filterBy, setFilterBy] = useState("itemDefaultName");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef();
+  const [sortConfig, setSortConfig] = useState({ key: "itemDefaultName", direction: SORT_DIRECTIONS.ASC });
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -300,19 +303,52 @@ const Inventory = () => {
     }
   };
 
-  // Filtered & Paginated items
-  const filteredItems = inventoryItems.filter(i => {
-    let value = "";
-    if (filterBy === "itemDefaultName") value = i.itemDefaultName || "";
-    else if (filterBy === "quantity") value = i.quantity.toString();
-    else if (filterBy === "price") value = i.price.toString();
-    return value.toLowerCase().includes(search.toLowerCase());
-  });
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const filteredItems = useMemo(() => {
+    return inventoryItems.filter((i) => {
+      let value = "";
+      if (filterBy === "itemDefaultName") value = i.itemDefaultName || "";
+      else if (filterBy === "quantity") value = i.quantity?.toString?.() || "";
+      else if (filterBy === "price") value = i.price?.toString?.() || "";
+      return value.toLowerCase().includes(search.toLowerCase());
+    });
+  }, [filterBy, inventoryItems, search]);
+
+  const sortedItems = useMemo(() => {
+    const getValue = (i) => {
+      switch (sortConfig.key) {
+        case "itemDefaultName":
+          return i.itemDefaultName;
+        case "quantity":
+          return i.quantity;
+        case "price":
+          return i.price;
+        case "expiryDate":
+          return i.expiryDate;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredItems, getValue, sortConfig.direction);
+  }, [filteredItems, sortConfig.direction, sortConfig.key]);
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const currentItems = sortedItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
 
   if (loading) {
     return (
@@ -384,10 +420,10 @@ const Inventory = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Article</th>
-            <th>Quantité</th>
-            <th>Prix total</th>
-            <th>Date d'expiration</th>
+            <SortableTh label="Article" sortKey="itemDefaultName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Quantité" sortKey="quantity" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Prix total" sortKey="price" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Date d'expiration" sortKey="expiryDate" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -404,7 +440,7 @@ const Inventory = () => {
               </td>
             </tr>
           ))}
-          {filteredItems.length === 0 && (
+          {sortedItems.length === 0 && (
             <tr>
               <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun article trouvé</td>
             </tr>

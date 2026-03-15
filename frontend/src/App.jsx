@@ -11,8 +11,10 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
+import ArchivedPatients from "./pages/ArchivedPatients";
 import Appointments from "./pages/Appointments";
 import Settings from "./pages/Settings";
+import PatientManagementSettings from "./pages/PatientManagementSettings";
 import Patient from "./pages/Patient";
 import Medications from "./pages/Medications";
 import TreatmentCatalog from "./pages/Treatments";
@@ -241,6 +243,7 @@ const AppContent = () => {
             </Route>
 
             <Route path="/patients" element={<Patients />} />
+            <Route path="/patients/archived" element={<ArchivedPatients />} />
             <Route path="/patients/:id" element={<Patient />} />
             <Route path="/appointments" element={<Appointments />} />
             <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
@@ -271,6 +274,7 @@ const AppContent = () => {
               </Route>
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/preferences" element={<Preference />} />
+              <Route path="/settings/patient-management" element={<PatientManagementSettings />} />
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />
               <Route path="/settings/audit-logs" element={<AuditLogs />} />

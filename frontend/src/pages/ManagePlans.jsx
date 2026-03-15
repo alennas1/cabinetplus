@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import PageHeader from '../components/PageHeader';
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import {
   Plus,
   Edit2,
@@ -22,6 +23,7 @@ import {
 import { getApiErrorMessage } from '../utils/error';
 import { formatMoneyWithLabel } from '../utils/format';
 import { getCurrencyLabelPreference } from '../utils/workingHours';
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
 import './Patients.css'; 
 
@@ -199,6 +201,9 @@ const ManagePlans = () => {
   const [currentPlan, setCurrentPlan] = useState(initialPlanState);
   const [search, setSearch] = useState("");
   const [filterBy, setFilterBy] = useState("name");
+  const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
+  const [currentPage, setCurrentPage] = useState(1);
+  const plansPerPage = 10;
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -222,6 +227,59 @@ const ManagePlans = () => {
     if (search && !value.includes(search.toLowerCase())) return false;
     return true;
   });
+
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedPlans = useMemo(() => {
+    const getValue = (plan) => {
+      switch (sortConfig.key) {
+        case "code":
+          return plan.code;
+        case "name":
+          return plan.name;
+        case "monthlyPrice":
+          return plan.monthlyPrice;
+        case "yearlyMonthlyPrice":
+          return plan.yearlyMonthlyPrice;
+        case "durationDays":
+          return plan.durationDays;
+        case "maxDentists":
+          return plan.maxDentists;
+        case "maxEmployees":
+          return plan.maxEmployees;
+        case "maxPatients":
+          return plan.maxPatients;
+        case "maxStorageGb":
+          return plan.maxStorageGb;
+        case "active":
+          return plan.active ? 1 : 0;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredPlans, getValue, sortConfig.direction);
+  }, [filteredPlans, sortConfig.direction, sortConfig.key]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterBy, sortConfig.key, sortConfig.direction]);
+
+  const indexOfLastPlan = currentPage * plansPerPage;
+  const indexOfFirstPlan = indexOfLastPlan - plansPerPage;
+  const currentPlans = sortedPlans.slice(indexOfFirstPlan, indexOfLastPlan);
+  const totalPages = Math.ceil(sortedPlans.length / plansPerPage);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -326,25 +384,25 @@ const ManagePlans = () => {
         </div>
       </div>
 
-      {!loading && (
-        <table className="patients-table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Nom</th>
-              <th>Prix Mensuel</th>
-              <th>Prix Annuel</th>
-              <th>Durée</th>
-              <th>Dentistes max</th>
-              <th>Employés max</th>
-              <th>Patients max</th>
-              <th>Stockage max</th>
-              <th>Statut</th>
+        {!loading && (
+          <table className="patients-table">
+            <thead>
+              <tr>
+              <SortableTh label="Code" sortKey="code" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Nom" sortKey="name" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Prix Mensuel" sortKey="monthlyPrice" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Prix Annuel" sortKey="yearlyMonthlyPrice" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Durée" sortKey="durationDays" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Dentistes max" sortKey="maxDentists" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Employés max" sortKey="maxEmployees" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Patients max" sortKey="maxPatients" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Stockage max" sortKey="maxStorageGb" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Statut" sortKey="active" sortConfig={sortConfig} onSort={handleSort} />
               <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredPlans.length > 0 ? filteredPlans.map(plan => (
+              </tr>
+            </thead>
+            <tbody>
+            {sortedPlans.length > 0 ? currentPlans.map(plan => (
               <tr key={plan.id}>
                 <td>{plan.code}</td>
                 <td>{plan.name}</td>
@@ -368,6 +426,28 @@ const ManagePlans = () => {
             )}
           </tbody>
         </table>
+      )}
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
+            ← Précédent
+          </button>
+
+          {[...Array(totalPages)].map((_, i) => (
+            <button
+              key={i}
+              className={currentPage === i + 1 ? "active" : ""}
+              onClick={() => setCurrentPage(i + 1)}
+            >
+              {i + 1}
+            </button>
+          ))}
+
+          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
+            Suivant →
+          </button>
+        </div>
       )}
 
       {showModal && (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Eye, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
@@ -6,11 +6,13 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import PasswordInput from "../components/PasswordInput";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
 import {
   getEmployees,
@@ -54,6 +56,7 @@ const Employees = () => {
 
   // Search
   const [search, setSearch] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: "lastName", direction: SORT_DIRECTIONS.ASC });
 
   // Modal + form
   const [showModal, setShowModal] = useState(false);
@@ -120,11 +123,45 @@ const Employees = () => {
     );
   });
 
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedEmployees = useMemo(() => {
+    const getValue = (e) => {
+      switch (sortConfig.key) {
+        case "firstName":
+          return e.firstName;
+        case "lastName":
+          return e.lastName;
+        case "phone":
+          return e.phone;
+        case "role":
+          return getRoleAccessLabel(e.accessRole);
+        case "status":
+          return e.status;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredEmployees, getValue, sortConfig.direction);
+  }, [filteredEmployees, sortConfig.direction, sortConfig.key]);
+
   // Pagination logic
   const indexOfLast = currentPage * employeesPerPage;
   const indexOfFirst = indexOfLast - employeesPerPage;
-  const currentEmployees = filteredEmployees.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredEmployees.length / employeesPerPage);
+  const currentEmployees = sortedEmployees.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedEmployees.length / employeesPerPage);
 
   // Handle form input
   const handleChange = (e) => {
@@ -290,11 +327,11 @@ const Employees = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Prénom</th>
-            <th>Nom</th>
-            <th>Téléphone</th>
-            <th>Rôle</th>
-            <th>Statut</th>
+            <SortableTh label="Prénom" sortKey="firstName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Nom" sortKey="lastName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Téléphone" sortKey="phone" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Rôle" sortKey="role" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -335,7 +372,7 @@ const Employees = () => {
             </tr>
           ))}
 
-          {filteredEmployees.length === 0 && (
+          {sortedEmployees.length === 0 && (
             <tr>
               <td colSpan={6} style={{ textAlign: "center", color: "#888" }}>
                 Aucun employé trouvé

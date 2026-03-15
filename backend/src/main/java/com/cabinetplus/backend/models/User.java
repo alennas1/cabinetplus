@@ -101,6 +101,11 @@ public class User {
     @Column(length = 5)
     private String currencyLabel = "DA";
 
+    // --- Patient management thresholds (0 = disabled) ---
+    private Integer patientCancelledAppointmentsThreshold = 0;
+
+    private Double patientMoneyOwedThreshold = 0.0;
+
     // --- OTP cooldown tracking (Twilio Verify) ---
     // These timestamps are used to throttle repeated "send code" requests to avoid spam/Fraud Guard blocks.
     private LocalDateTime phoneVerificationOtpLastSentAt;

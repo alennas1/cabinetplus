@@ -706,6 +706,19 @@ html, body {
   white-space: nowrap;
 }
 
+.slot-patient-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.slot-patient-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .appointment-number {
   display: inline-flex;
   align-items: center;

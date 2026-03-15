@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Edit2,
@@ -18,6 +18,8 @@ import { updateWorkingHour } from "../services/workingHoursService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
+import SortableTh from "../components/SortableTh";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
@@ -43,6 +45,13 @@ const EmployeeDetails = () => {
   const [isHoursModalOpen, setIsHoursModalOpen] = useState(false);
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
+  const [scheduleSortConfig, setScheduleSortConfig] = useState({ key: "day", direction: SORT_DIRECTIONS.ASC });
+  const [monthlySortConfig, setMonthlySortConfig] = useState({ key: "month", direction: SORT_DIRECTIONS.DESC });
+  const [expenseSortConfig, setExpenseSortConfig] = useState({ key: null, direction: SORT_DIRECTIONS.ASC });
+  const [schedulePage, setSchedulePage] = useState(1);
+  const [monthlyPage, setMonthlyPage] = useState(1);
+  const [expensePage, setExpensePage] = useState(1);
+  const rowsPerPage = 10;
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "—";
@@ -69,6 +78,33 @@ const EmployeeDetails = () => {
   };
 
   const dayOrder = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr) return null;
+    const parts = String(timeStr).split(":");
+    const h = Number(parts[0]);
+    const m = Number(parts[1] ?? 0);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+  };
+
+  const toggleSort = (setConfig) => (key, explicitDirection) => {
+    if (!key) return;
+    setConfig((prev) => {
+      const current = prev || { key: null, direction: SORT_DIRECTIONS.ASC };
+      const nextDirection =
+        explicitDirection ||
+        (current.key === key
+          ? current.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const handleScheduleSort = useMemo(() => toggleSort(setScheduleSortConfig), []);
+  const handleMonthlySort = useMemo(() => toggleSort(setMonthlySortConfig), []);
+  const handleExpenseSort = useMemo(() => toggleSort(setExpenseSortConfig), []);
 
   const translateDay = (day) => {
     if (!day) return "";
@@ -158,16 +194,121 @@ const EmployeeDetails = () => {
     fetchExpenses();
   }, [id]);
 
-  const monthlyTotals = expenses.reduce((acc, expense) => {
-    if (!expense.date) return acc;
-    const date = new Date(expense.date);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const key = `${year}-${month}`;
-    if (!acc[key]) acc[key] = 0;
-    acc[key] += Number(expense.amount) || 0;
-    return acc;
-  }, {});
+  const monthlyRows = useMemo(() => {
+    const totals = expenses.reduce((acc, expense) => {
+      if (!expense.date) return acc;
+      const date = new Date(expense.date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const key = `${year}-${month}`;
+      if (!acc[key]) acc[key] = 0;
+      acc[key] += Number(expense.amount) || 0;
+      return acc;
+    }, {});
+
+    return Object.entries(totals).map(([month, total]) => ({ month, total }));
+  }, [expenses]);
+
+  const sortedMonthlyRows = useMemo(() => {
+    if (!monthlyRows.length) return monthlyRows;
+    const cfg = monthlySortConfig;
+    if (!cfg?.key) return monthlyRows;
+    return sortRowsBy(
+      monthlyRows,
+      (r) => {
+        switch (cfg.key) {
+          case "month":
+            return r.month;
+          case "total":
+            return Number(r.total || 0);
+          default:
+            return null;
+        }
+      },
+      cfg.direction
+    );
+  }, [monthlyRows, monthlySortConfig]);
+
+  const sortedExpenses = useMemo(() => {
+    if (!expenses.length) return expenses;
+    const cfg = expenseSortConfig;
+    if (!cfg?.key) return expenses;
+    return sortRowsBy(
+      expenses,
+      (e) => {
+        switch (cfg.key) {
+          case "title":
+            return e?.title || "";
+          case "amount":
+            return Number(e?.amount || 0);
+          case "date":
+            return e?.date || null;
+          default:
+            return null;
+        }
+      },
+      cfg.direction
+    );
+  }, [expenses, expenseSortConfig]);
+
+  const sortedEmployeeWorkingHours = useMemo(() => {
+    const hours = employee?.workingHours ? [...employee.workingHours] : [];
+    if (!hours.length) return hours;
+    const cfg = scheduleSortConfig;
+    if (!cfg?.key) {
+      return hours.sort((a, b) => dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek));
+    }
+
+    return sortRowsBy(
+      hours,
+      (h) => {
+        switch (cfg.key) {
+          case "day":
+            return dayOrder.indexOf(h?.dayOfWeek);
+          case "start":
+            return timeToMinutes(h?.startTime);
+          case "end":
+            return timeToMinutes(h?.endTime);
+          default:
+            return null;
+        }
+      },
+      cfg.direction
+    );
+  }, [employee, scheduleSortConfig]);
+
+  useEffect(() => {
+    setSchedulePage(1);
+  }, [activeTab, scheduleSortConfig.key, scheduleSortConfig.direction]);
+
+  useEffect(() => {
+    setMonthlyPage(1);
+  }, [activeTab, monthlySortConfig.key, monthlySortConfig.direction]);
+
+  useEffect(() => {
+    setExpensePage(1);
+  }, [activeTab, expenseSortConfig.key, expenseSortConfig.direction]);
+
+  const scheduleTotalPages = Math.ceil(sortedEmployeeWorkingHours.length / rowsPerPage);
+  const scheduleCurrentPage = Math.min(schedulePage, scheduleTotalPages || 1);
+  const pagedWorkingHours = sortedEmployeeWorkingHours.slice(
+    (scheduleCurrentPage - 1) * rowsPerPage,
+    scheduleCurrentPage * rowsPerPage
+  );
+
+  const monthlyTotalPages = Math.ceil(sortedMonthlyRows.length / rowsPerPage);
+  const monthlyCurrentPage = Math.min(monthlyPage, monthlyTotalPages || 1);
+  const pagedMonthlyRows = sortedMonthlyRows.slice(
+    (monthlyCurrentPage - 1) * rowsPerPage,
+    monthlyCurrentPage * rowsPerPage
+  );
+
+  const expenseTotalPages = Math.ceil(sortedExpenses.length / rowsPerPage);
+  const expenseCurrentPage = Math.min(expensePage, expenseTotalPages || 1);
+  const pagedExpenses = sortedExpenses.slice(
+    (expenseCurrentPage - 1) * rowsPerPage,
+    expenseCurrentPage * rowsPerPage
+  );
 
   const formatMonth = (yearMonth) => {
     const [year, month] = yearMonth.split("-");
@@ -447,27 +588,45 @@ const EmployeeDetails = () => {
           <table className="treatment-table">
             <thead>
               <tr>
-                <th>Jour</th>
-                <th>Debut</th>
-                <th>Fin</th>
+                <SortableTh label="Jour" sortKey="day" sortConfig={scheduleSortConfig} onSort={handleScheduleSort} />
+                <SortableTh label="Debut" sortKey="start" sortConfig={scheduleSortConfig} onSort={handleScheduleSort} />
+                <SortableTh label="Fin" sortKey="end" sortConfig={scheduleSortConfig} onSort={handleScheduleSort} />
               </tr>
             </thead>
             <tbody>
-              {employee.workingHours
-                ?.slice()
-                .sort((a, b) => dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek))
-                .map((h) => (
+              {pagedWorkingHours.map((h) => (
                   <tr key={h.id}>
                     <td>{translateDay(h.dayOfWeek)}</td>
-                    <td colSpan="2">
-                      {h.startTime === null && h.endTime === null
-                        ? "Repos"
-                        : `${h.startTime?.slice(0, 5) || "-"} - ${h.endTime?.slice(0, 5) || "-"}`}
-                    </td>
+                    <td>{h.startTime === null && h.endTime === null ? "Repos" : h.startTime?.slice(0, 5) || "â€”"}</td>
+                    <td>{h.startTime === null && h.endTime === null ? "Repos" : h.endTime?.slice(0, 5) || "â€”"}</td>
                   </tr>
                 ))}
             </tbody>
           </table>
+          {scheduleTotalPages > 1 && (
+            <div className="pagination">
+              <button disabled={scheduleCurrentPage === 1} onClick={() => setSchedulePage((p) => p - 1)}>
+                ← Précédent
+              </button>
+
+              {[...Array(scheduleTotalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  className={scheduleCurrentPage === i + 1 ? "active" : ""}
+                  onClick={() => setSchedulePage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                disabled={scheduleCurrentPage === scheduleTotalPages}
+                onClick={() => setSchedulePage((p) => p + 1)}
+              >
+                Suivant →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -477,20 +636,18 @@ const EmployeeDetails = () => {
           <table className="treatment-table" style={{ marginBottom: "25px" }}>
             <thead>
               <tr>
-                <th>Mois</th>
-                <th>Total</th>
+                <SortableTh label="Mois" sortKey="month" sortConfig={monthlySortConfig} onSort={handleMonthlySort} />
+                <SortableTh label="Total" sortKey="total" sortConfig={monthlySortConfig} onSort={handleMonthlySort} />
               </tr>
             </thead>
             <tbody>
-              {Object.keys(monthlyTotals).length > 0 ? (
-                Object.entries(monthlyTotals)
-                  .sort((a, b) => b[0].localeCompare(a[0]))
-                  .map(([month, total]) => (
-                    <tr key={month}>
-                      <td>{formatMonth(month)}</td>
-                      <td style={{ fontWeight: "bold" }}>{formatMoneyWithLabel(total)}</td>
-                    </tr>
-                  ))
+              {sortedMonthlyRows.length > 0 ? (
+                pagedMonthlyRows.map((row) => (
+                  <tr key={row.month}>
+                    <td>{formatMonth(row.month)}</td>
+                    <td style={{ fontWeight: "bold" }}>{formatMoneyWithLabel(row.total)}</td>
+                  </tr>
+                ))
               ) : (
                 <tr>
                   <td colSpan="2" style={{ textAlign: "center", color: "#888" }}>
@@ -500,19 +657,43 @@ const EmployeeDetails = () => {
               )}
             </tbody>
           </table>
+          {monthlyTotalPages > 1 && (
+            <div className="pagination">
+              <button disabled={monthlyCurrentPage === 1} onClick={() => setMonthlyPage((p) => p - 1)}>
+                ← Précédent
+              </button>
+
+              {[...Array(monthlyTotalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  className={monthlyCurrentPage === i + 1 ? "active" : ""}
+                  onClick={() => setMonthlyPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                disabled={monthlyCurrentPage === monthlyTotalPages}
+                onClick={() => setMonthlyPage((p) => p + 1)}
+              >
+                Suivant →
+              </button>
+            </div>
+          )}
 
           <h3 style={{ marginBottom: "10px" }}>Details des versements</h3>
           <table className="treatment-table">
             <thead>
               <tr>
-                <th>Nom</th>
-                <th>Montant</th>
-                <th>Date</th>
+                <SortableTh label="Nom" sortKey="title" sortConfig={expenseSortConfig} onSort={handleExpenseSort} />
+                <SortableTh label="Montant" sortKey="amount" sortConfig={expenseSortConfig} onSort={handleExpenseSort} />
+                <SortableTh label="Date" sortKey="date" sortConfig={expenseSortConfig} onSort={handleExpenseSort} />
               </tr>
             </thead>
             <tbody>
-              {expenses.length > 0 ? (
-                expenses.map((e) => (
+              {sortedExpenses.length > 0 ? (
+                pagedExpenses.map((e) => (
                   <tr key={e.id}>
                     <td>{e.title}</td>
                     <td>{formatMoneyWithLabel(e.amount)}</td>
@@ -528,6 +709,30 @@ const EmployeeDetails = () => {
               )}
             </tbody>
           </table>
+          {expenseTotalPages > 1 && (
+            <div className="pagination">
+              <button disabled={expenseCurrentPage === 1} onClick={() => setExpensePage((p) => p - 1)}>
+                ← Précédent
+              </button>
+
+              {[...Array(expenseTotalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  className={expenseCurrentPage === i + 1 ? "active" : ""}
+                  onClick={() => setExpensePage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                disabled={expenseCurrentPage === expenseTotalPages}
+                onClick={() => setExpensePage((p) => p + 1)}
+              >
+                Suivant →
+              </button>
+            </div>
+          )}
         </div>
       )}
 

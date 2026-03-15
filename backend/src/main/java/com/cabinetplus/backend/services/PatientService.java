@@ -67,7 +67,12 @@ public class PatientService {
                 patient.getAge(),
                 patient.getSex(),    //  added
                 patient.getPhone(),
-                patient.getCreatedAt()
+                patient.getCreatedAt(),
+                0L,
+                0.0,
+                false,
+                false,
+                false
         );
     }
 

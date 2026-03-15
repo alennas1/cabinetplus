@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Search, ChevronDown, Trash2, Send, Edit2, X, ArrowUpRight } from "react-feather";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import ToothGraph from "./ToothGraph";
 
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import SortableTh from "../components/SortableTh";
 import {
   getAllProthetics,
   updateProtheticsStatus,
@@ -21,6 +22,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
 import "./Patients.css";
 import "./Finance.css";
@@ -56,6 +58,9 @@ const Prosthetics = () => {
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [customRange, setCustomRange] = useState({ start: "", end: "" });
+  const [sortConfig, setSortConfig] = useState({ key: "dates", direction: SORT_DIRECTIONS.DESC });
+  const [currentPage, setCurrentPage] = useState(1);
+  const prothesesPerPage = 10;
 
   const dropdownRef = useRef();
   const statusRef = useRef();
@@ -272,8 +277,21 @@ const Prosthetics = () => {
     }
   };
 
-  const filteredProtheses = protheses
-    .filter((p) => {
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const filteredProtheses = protheses.filter((p) => {
       const searchValue = (p[filterBy] || "").toString().toLowerCase();
       if (search && !searchValue.includes(search.toLowerCase())) return false;
       if (statusFilter && p.status !== statusFilter) return false;
@@ -306,8 +324,51 @@ const Prosthetics = () => {
       }
 
       return true;
-    })
-    .sort((a, b) => new Date(b[dateType] || 0) - new Date(a[dateType] || 0));
+    });
+
+  const sortedProtheses = useMemo(() => {
+    const getValue = (p) => {
+      switch (sortConfig.key) {
+        case "work":
+          return `${p.prothesisName || ""} ${p.materialName || ""}`.trim();
+        case "code":
+          return p.code;
+        case "teeth":
+          return Array.isArray(p.teeth) ? p.teeth.join(",") : "";
+        case "lab":
+          return p.labName === "Not Sent" ? "" : p.labName;
+        case "labCost":
+          return p.labCost;
+        case "dates":
+          return p[dateType];
+        case "status":
+          return prothesisStatusLabels[p.status] || p.status;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredProtheses, getValue, sortConfig.direction);
+  }, [dateType, filteredProtheses, sortConfig.direction, sortConfig.key]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    search,
+    filterBy,
+    statusFilter,
+    dateType,
+    selectedFilter,
+    selectedMonth,
+    customRange.start,
+    customRange.end,
+    sortConfig.key,
+    sortConfig.direction,
+  ]);
+
+  const indexOfLastProthesis = currentPage * prothesesPerPage;
+  const indexOfFirstProthesis = indexOfLastProthesis - prothesesPerPage;
+  const currentProtheses = sortedProtheses.slice(indexOfFirstProthesis, indexOfLastProthesis);
+  const totalPages = Math.ceil(sortedProtheses.length / prothesesPerPage);
 
   const formatDateLabel = (dateStr) =>
     dateStr ? formatDateByPreference(dateStr) : "-";
@@ -560,13 +621,13 @@ const Prosthetics = () => {
         <thead>
           <tr>
             <th style={{ width: "40px" }}></th>
-            <th>Travail / Materiau</th>
-            <th>Code</th>
-            <th>Dents</th>
-            <th>Laboratoire</th>
-            <th>Cout Labo</th>
-            <th>Dates</th>
-            <th>Statut</th>
+            <SortableTh label="Travail / Matériau" sortKey="work" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Code" sortKey="code" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Dents" sortKey="teeth" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Laboratoire" sortKey="lab" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Coût labo" sortKey="labCost" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Dates" sortKey="dates" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -577,14 +638,14 @@ const Prosthetics = () => {
                 Chargement...
               </td>
             </tr>
-          ) : filteredProtheses.length === 0 ? (
+          ) : sortedProtheses.length === 0 ? (
             <tr>
               <td colSpan={9} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
                 Aucun travail trouve
               </td>
             </tr>
           ) : (
-            filteredProtheses.map((p) => (
+            currentProtheses.map((p) => (
               <tr key={p.id}>
                 <td>
                   <input
@@ -651,6 +712,28 @@ const Prosthetics = () => {
           )}
         </tbody>
       </table>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
+            ← Précédent
+          </button>
+
+          {[...Array(totalPages)].map((_, i) => (
+            <button
+              key={i}
+              className={currentPage === i + 1 ? "active" : ""}
+              onClick={() => setCurrentPage(i + 1)}
+            >
+              {i + 1}
+            </button>
+          ))}
+
+          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
+            Suivant →
+          </button>
+        </div>
+      )}
 
       {showEditModal && (
         <div className="modal-overlay treatment-modal" onClick={() => setShowEditModal(false)}>

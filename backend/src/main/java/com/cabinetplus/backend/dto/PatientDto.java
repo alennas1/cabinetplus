@@ -9,5 +9,10 @@ public record PatientDto(
     Integer age,
     String sex,            //  Added
     String phone,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    Long cancelledAppointmentsCount,
+    Double moneyOwed,
+    Boolean danger,
+    Boolean dangerCancelled,
+    Boolean dangerOwed
 ) {}

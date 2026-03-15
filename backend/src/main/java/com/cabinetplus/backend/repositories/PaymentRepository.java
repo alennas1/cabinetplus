@@ -31,6 +31,13 @@ List<Payment> findByPatientId(Long patientId);
     Optional<Double> sumByPatientAndTreatment(@Param("patientId") Long patientId,
                                               @Param("treatmentId") Long treatmentId);
                                               
+    @Query("""
+        SELECT p.patient.id, COALESCE(SUM(p.amount), 0)
+        FROM Payment p
+        WHERE p.patient.id IN :patientIds
+        GROUP BY p.patient.id
+    """)
+    List<Object[]> sumAmountByPatientIds(@Param("patientIds") List<Long> patientIds);
 
 
 }

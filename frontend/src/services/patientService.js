@@ -6,6 +6,11 @@ export const getPatients = async () => {
   return response.data;
 };
 
+export const getArchivedPatients = async () => {
+  const response = await api.get("/api/patients/archived");
+  return response.data;
+};
+
 // ----------------- Get Patient By ID -----------------
 export const getPatientById = async (id) => {
   const response = await api.get(`/api/patients/${id}`);
@@ -21,6 +26,16 @@ export const createPatient = async (patientData) => {
 // ----------------- Update Patient -----------------
 export const updatePatient = async (id, patientData) => {
   const response = await api.put(`/api/patients/${id}`, patientData);
+  return response.data;
+};
+
+export const archivePatient = async (id) => {
+  const response = await api.put(`/api/patients/${id}/archive`);
+  return response.data;
+};
+
+export const unarchivePatient = async (id) => {
+  const response = await api.put(`/api/patients/${id}/unarchive`);
   return response.data;
 };
 

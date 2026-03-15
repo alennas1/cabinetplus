@@ -4,11 +4,13 @@ import { useSelector } from "react-redux";
 import { AlertCircle, ChevronLeft, X } from "react-feather";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import SortableTh from "../components/SortableTh";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment, getMyHandPayments } from "../services/handPaymentService";
 import { getCurrentPlanUsage } from "../services/userService";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 import "./PaymentHistory.css";
 
@@ -56,7 +58,10 @@ const HandPaymentHistory = () => {
 
   const [plans, setPlans] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: SORT_DIRECTIONS.DESC });
   const [activeTab, setActiveTab] = useState("plan");
+  const [currentPage, setCurrentPage] = useState(1);
+  const paymentsPerPage = 10;
   const [upgradePlanId, setUpgradePlanId] = useState("");
   const [upgradeBillingCycle, setUpgradeBillingCycle] = useState("MONTHLY");
   const [upgradeStartMode, setUpgradeStartMode] = useState("IMMEDIATE");
@@ -87,6 +92,48 @@ const HandPaymentHistory = () => {
     () => computeAmount(upgradeSelectedPlan, upgradeBillingCycle),
     [upgradeSelectedPlan, upgradeBillingCycle]
   );
+
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedPayments = useMemo(() => {
+    const getValue = (payment) => {
+      const status = (payment.status || payment.paymentStatus || "PENDING").toUpperCase();
+      switch (sortConfig.key) {
+        case "planName":
+          return payment.planName;
+        case "amount":
+          return payment.amount || 0;
+        case "paymentDate":
+          return payment.paymentDate;
+        case "status":
+          return STATUS_LABELS[status] || status;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(payments, getValue, sortConfig.direction);
+  }, [payments, sortConfig.direction, sortConfig.key]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, sortConfig.key, sortConfig.direction]);
+
+  const indexOfLastPayment = currentPage * paymentsPerPage;
+  const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
+  const currentPayments = sortedPayments.slice(indexOfFirstPayment, indexOfLastPayment);
+  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
 
   const loadData = async () => {
     setLoading(true);
@@ -270,21 +317,21 @@ const HandPaymentHistory = () => {
           <table className="patients-table payments-table">
             <thead>
               <tr>
-                <th>Plan</th>
-                <th>Montant</th>
-                <th>Date</th>
-                <th>Statut</th>
+                <SortableTh label="Plan" sortKey="planName" sortConfig={sortConfig} onSort={handleSort} />
+                <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
+                <SortableTh label="Date" sortKey="paymentDate" sortConfig={sortConfig} onSort={handleSort} />
+                <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
               </tr>
             </thead>
             <tbody>
-              {payments.length === 0 ? (
+              {sortedPayments.length === 0 ? (
                 <tr>
                   <td colSpan="4" style={{ textAlign: "center" }}>
                     Aucun paiement trouve
                   </td>
                 </tr>
               ) : (
-                payments.map((payment) => {
+                currentPayments.map((payment) => {
                   const status = (payment.status || payment.paymentStatus || "PENDING").toUpperCase();
                   const statusClass =
                     status === "CONFIRMED"
@@ -307,6 +354,28 @@ const HandPaymentHistory = () => {
               )}
             </tbody>
           </table>
+
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
+                ← Précédent
+              </button>
+
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  className={currentPage === i + 1 ? "active" : ""}
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
+                Suivant →
+              </button>
+            </div>
+          )}
         </section>
       )}
 

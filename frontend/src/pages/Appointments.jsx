@@ -14,6 +14,7 @@ import {
 import { createPatient, getPatients } from "../services/patientService";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import PatientDangerIcon from "../components/PatientDangerIcon";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
@@ -38,6 +39,20 @@ export default function Appointments() {
   const [searchResults, setSearchResults] = useState([]);
   const [patientSearch, setPatientSearch] = useState("");
   const [timeFormat, setTimeFormat] = useState(() => getTimeFormatPreference());
+
+  const patientsById = useMemo(() => {
+    const map = new Map();
+    patients.forEach((p) => {
+      if (p?.id != null) map.set(p.id, p);
+    });
+    return map;
+  }, [patients]);
+
+  const getPatientForAppt = (appt) => {
+    const id = appt?.patient?.id ?? appt?.patientId ?? null;
+    if (id == null) return null;
+    return patientsById.get(id) || null;
+  };
   const use12HourFormat = timeFormat === TIME_FORMATS.TWELVE_HOURS;
   const [showModal, setShowModal] = useState(false);
   const [isNewPatient, setIsNewPatient] = useState(false);
@@ -1080,14 +1095,24 @@ export default function Appointments() {
           {formatTime(slot.start)} - {formatTime(slot.end)}
         </div>
         {slot.appointments.length ? (
-          slot.appointments.map((appt) => (
-            <div key={appt.id} className="appointment-row" onClick={() => handleEditAppointment(appt)}>
-              <div className="slot-patient">
-                <span className="appointment-number">
-                  {appointmentNumbersForSelectedDay[appt.id] ?? "-"}
-                </span>
-                <span>{getPatientName(appt)}</span>
-              </div>
+          slot.appointments.map((appt) => {
+            const apptPatient = getPatientForAppt(appt);
+            return (
+              <div key={appt.id} className="appointment-row" onClick={() => handleEditAppointment(appt)}>
+                <div className="slot-patient">
+                  <span className="appointment-number">
+                    {appointmentNumbersForSelectedDay[appt.id] ?? "-"}
+                  </span>
+                  <span className="slot-patient-name">
+                    <span className="slot-patient-text">{getPatientName(appt)}</span>
+                    <PatientDangerIcon
+                      show={!!apptPatient?.danger}
+                      compact
+                      dangerCancelled={apptPatient?.dangerCancelled}
+                      dangerOwed={apptPatient?.dangerOwed}
+                    />
+                  </span>
+                </div>
               <span className={`status-chip ${appt.status}`}>{statusLabels[appt.status] || appt.status}</span>
 
               {(appt.patient?.id || appt.patientId) && (
@@ -1138,8 +1163,9 @@ export default function Appointments() {
                   <X size={16} />
                 </button>
               )}
-            </div>
-          ))
+              </div>
+            );
+          })
         ) : (
           <div className="slot-patient">Disponible</div>
         )}
@@ -1871,11 +1897,6 @@ export default function Appointments() {
     </div>
   );
 }
-
-
-
-
-
 
 
 

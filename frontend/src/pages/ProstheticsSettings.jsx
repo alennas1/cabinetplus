@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Plus, Trash2, Search, X, Edit2 } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 
 import {
   getAllProstheticsCatalogue,
@@ -18,6 +19,7 @@ import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
 import "./Patients.css";
 
@@ -39,6 +41,7 @@ const ProstheticsSettings = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -268,10 +271,44 @@ const ProstheticsSettings = () => {
       p.materialName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedProsthetics = useMemo(() => {
+    const getValue = (p) => {
+      switch (sortConfig.key) {
+        case "name":
+          return p.name;
+        case "materialName":
+          return p.materialName;
+        case "defaultPrice":
+          return p.defaultPrice;
+        case "defaultLabCost":
+          return p.defaultLabCost;
+        case "type":
+          return p.isFlatFee ? "Forfait" : "Unitaire";
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredProsthetics, getValue, sortConfig.direction);
+  }, [filteredProsthetics, sortConfig.direction, sortConfig.key]);
+
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentItems = filteredProsthetics.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredProsthetics.length / itemsPerPage);
+  const currentItems = sortedProsthetics.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedProsthetics.length / itemsPerPage);
 
   if (loading) {
     return (
@@ -314,11 +351,11 @@ const ProstheticsSettings = () => {
       <table className="patients-table" style={{ width: "100%", tableLayout: "fixed" }}>
         <thead>
           <tr>
-            <th style={{ width: "25%" }}>Nom</th>
-            <th style={{ width: "20%" }}>Materiau</th>
-            <th style={{ width: "15%" }}>Prix Defaut</th>
-            <th style={{ width: "15%" }}>Cout Labo Defaut</th>
-            <th style={{ width: "15%" }}>Type</th>
+            <SortableTh label="Nom" sortKey="name" sortConfig={sortConfig} onSort={handleSort} style={{ width: "25%" }} />
+            <SortableTh label="Matériau" sortKey="materialName" sortConfig={sortConfig} onSort={handleSort} style={{ width: "20%" }} />
+            <SortableTh label="Prix défaut" sortKey="defaultPrice" sortConfig={sortConfig} onSort={handleSort} style={{ width: "15%" }} />
+            <SortableTh label="Coût labo défaut" sortKey="defaultLabCost" sortConfig={sortConfig} onSort={handleSort} style={{ width: "15%" }} />
+            <SortableTh label="Type" sortKey="type" sortConfig={sortConfig} onSort={handleSort} style={{ width: "15%" }} />
             <th style={{ width: "10%", textAlign: "right" }}>Actions</th>
           </tr>
         </thead>

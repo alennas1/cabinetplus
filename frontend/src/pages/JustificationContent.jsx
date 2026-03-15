@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Plus, Edit2, Trash2, Eye, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import {
   getJustificationTemplates,
   createJustificationTemplate,
@@ -12,6 +13,7 @@ import {
   deleteJustificationTemplate,
 } from "../services/justificationContentService";
 import { getApiErrorMessage } from "../utils/error";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
 const PLACEHOLDERS = [
@@ -35,6 +37,7 @@ const JustificationContentPage = () => {
   
   const [currentPage, setCurrentPage] = useState(1);
   const templatesPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "title", direction: SORT_DIRECTIONS.ASC });
 
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -79,10 +82,29 @@ const JustificationContentPage = () => {
     return t.title?.toLowerCase().includes(search.toLowerCase());
   });
 
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedTemplates = useMemo(() => {
+    const getValue = (t) => (sortConfig.key === "title" ? t.title : "");
+    return sortRowsBy(filteredTemplates, getValue, sortConfig.direction);
+  }, [filteredTemplates, sortConfig.direction, sortConfig.key]);
+
   const indexOfLast = currentPage * templatesPerPage;
   const indexOfFirst = indexOfLast - templatesPerPage;
-  const currentTemplates = filteredTemplates.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredTemplates.length / templatesPerPage);
+  const currentTemplates = sortedTemplates.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedTemplates.length / templatesPerPage);
 
   // =========================
   // PLACEHOLDER INSERT
@@ -229,7 +251,7 @@ const JustificationContentPage = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th style={{ width: "80%" }}>Titre</th>
+            <SortableTh label="Titre" sortKey="title" sortConfig={sortConfig} onSort={handleSort} style={{ width: "80%" }} />
             <th style={{ width: "20%", textAlign: "right", paddingRight: "30px" }}>Actions</th>
           </tr>
         </thead>
@@ -246,7 +268,7 @@ const JustificationContentPage = () => {
               </td>
             </tr>
           ))}
-          {filteredTemplates.length === 0 && (
+          {sortedTemplates.length === 0 && (
             <tr>
               <td colSpan="2" style={{ textAlign: "center", color: "#888", padding: "3rem" }}>
                 Aucun modèle trouvé pour "{search}"

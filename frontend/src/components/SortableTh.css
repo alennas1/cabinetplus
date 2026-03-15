@@ -1,0 +1,40 @@
+.sortable-th {
+  user-select: none;
+}
+
+.sortable-th-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.sortable-label-btn {
+  all: unset;
+  cursor: pointer;
+  font-weight: 600;
+  color: inherit;
+}
+
+.sort-icons {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0px;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.sort-icon-btn {
+  all: unset;
+  cursor: pointer;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0px;
+  opacity: 0.55;
+}
+
+.sort-icon-btn.active {
+  opacity: 1;
+}

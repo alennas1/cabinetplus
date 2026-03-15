@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { Plus, Edit2, Trash2, Search, X, Eye } from "react-feather";
@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import {
   getAllLaboratories,
   createLaboratory,
@@ -16,6 +17,7 @@ import {
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
 const Laboratories = () => {
@@ -26,6 +28,7 @@ const Laboratories = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [search, setSearch] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,8 +65,40 @@ const Laboratories = () => {
       .includes(search.toLowerCase())
   );
 
-  const currentLabs = filteredLabs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(filteredLabs.length / itemsPerPage);
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedLabs = useMemo(() => {
+    const getValue = (lab) => {
+      switch (sortConfig.key) {
+        case "name":
+          return lab.name;
+        case "contactPerson":
+          return lab.contactPerson;
+        case "phoneNumber":
+          return lab.phoneNumber;
+        case "address":
+          return lab.address;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredLabs, getValue, sortConfig.direction);
+  }, [filteredLabs, sortConfig.direction, sortConfig.key]);
+
+  const currentLabs = sortedLabs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(sortedLabs.length / itemsPerPage);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -182,10 +217,10 @@ const Laboratories = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Nom</th>
-            <th>Contact</th>
-            <th>Téléphone</th>
-            <th>Adresse</th>
+            <SortableTh label="Nom" sortKey="name" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Contact" sortKey="contactPerson" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Téléphone" sortKey="phoneNumber" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Adresse" sortKey="address" sortConfig={sortConfig} onSort={handleSort} />
             <th style={{ textAlign: "right" }}>Actions</th>
           </tr>
         </thead>

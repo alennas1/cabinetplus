@@ -141,7 +141,7 @@ class AppointmentControllerTest {
         when(userService.resolveClinicOwner(current)).thenReturn(current);
         when(appointmentService.findByPractitioner(current)).thenReturn(List.of());
 
-        PatientDto patientDto = new PatientDto(5L, "Ali", "Ben", 32, "Homme", "0550000000", LocalDateTime.now());
+        PatientDto patientDto = new PatientDto(5L, "Ali", "Ben", 32, "Homme", "0550000000", LocalDateTime.now(), 0L, 0.0, false, false, false);
         when(patientService.findById(5L)).thenReturn(Optional.of(patientDto));
 
         Appointment saved = new Appointment();

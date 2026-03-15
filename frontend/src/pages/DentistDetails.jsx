@@ -14,12 +14,14 @@ import {
 } from "react-feather";
 import { toast } from "react-toastify";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import SortableTh from "../components/SortableTh";
 import { getHandPaymentsByUserId } from "../services/handPaymentService";
 import { getUserById } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel } from "../utils/format";
 import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patient.css";
 import "./Profile.css";
 
@@ -46,6 +48,9 @@ const DentistDetails = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: SORT_DIRECTIONS.DESC });
+  const [currentPage, setCurrentPage] = useState(1);
+  const paymentsPerPage = 10;
 
   const formatDateTime = (value) => {
     if (!value) return "—";
@@ -154,6 +159,47 @@ const DentistDetails = () => {
       rejected,
     };
   }, [payments]);
+
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedPayments = useMemo(() => {
+    const getValue = (payment) => {
+      switch (sortConfig.key) {
+        case "planName":
+          return payment.planName;
+        case "amount":
+          return payment.amount;
+        case "paymentDate":
+          return payment.paymentDate;
+        case "status":
+          return payment.paymentStatus;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(paymentComputed.byDateDesc, getValue, sortConfig.direction);
+  }, [paymentComputed.byDateDesc, sortConfig.direction, sortConfig.key]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, sortConfig.key, sortConfig.direction]);
+
+  const indexOfLastPayment = currentPage * paymentsPerPage;
+  const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
+  const currentPayments = sortedPayments.slice(indexOfFirstPayment, indexOfLastPayment);
+  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
 
   if (loading) {
     return (
@@ -348,21 +394,21 @@ const DentistDetails = () => {
             <table className="patients-table">
               <thead>
                 <tr>
-                  <th>Plan</th>
-                  <th>Montant</th>
-                  <th>Date</th>
-                  <th>Statut</th>
+                  <SortableTh label="Plan" sortKey="planName" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTh label="Date" sortKey="paymentDate" sortConfig={sortConfig} onSort={handleSort} />
+                  <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody>
-                {paymentComputed.byDateDesc.length === 0 ? (
+                {sortedPayments.length === 0 ? (
                   <tr>
                     <td colSpan="4" style={{ textAlign: "center", color: "#888" }}>
                       Aucun paiement
                     </td>
                   </tr>
                 ) : (
-                  paymentComputed.byDateDesc.map((payment) => (
+                  currentPayments.map((payment) => (
                     <tr key={payment.paymentId}>
                       <td>{payment.planName || "—"}</td>
                       <td>{formatMoneyWithLabel(payment.amount)}</td>
@@ -391,6 +437,28 @@ const DentistDetails = () => {
                 )}
               </tbody>
             </table>
+          )}
+
+          {!paymentsLoading && totalPages > 1 && (
+            <div className="pagination">
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
+                ← Précédent
+              </button>
+
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  className={currentPage === i + 1 ? "active" : ""}
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
+                Suivant →
+              </button>
+            </div>
           )}
         </div>
       )}

@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import SortableTh from "../components/SortableTh";
 import {
   getPendingHandPayments,
   confirmHandPayment,
@@ -12,6 +13,8 @@ import {
 import { Search, Check, X } from "react-feather";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import "./Patients.css";
 
 const WaitingPage = () => {
   const token = useSelector((state) => state.auth.token);
@@ -20,6 +23,7 @@ const WaitingPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [busyPaymentAction, setBusyPaymentAction] = useState({ id: null, type: null });
   const paymentsPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: SORT_DIRECTIONS.DESC });
 
   const loadPayments = async () => {
     try {
@@ -69,21 +73,53 @@ const WaitingPage = () => {
     return label === "-" ? "" : label;
   };
 
-  const filteredPayments = payments
-    .filter((p) => {
-      if (!search) return true;
-      return (
-        p.fullName.toLowerCase().includes(search.toLowerCase()) ||
-        p.planName.toLowerCase().includes(search.toLowerCase())
-      );
-    })
-    .sort((a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0));
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const filteredPayments = payments.filter((p) => {
+    if (!search) return true;
+    return (
+      p.fullName.toLowerCase().includes(search.toLowerCase()) ||
+      p.planName.toLowerCase().includes(search.toLowerCase())
+    );
+  });
+
+  const sortedPayments = React.useMemo(() => {
+    const getValue = (p) => {
+      switch (sortConfig.key) {
+        case "fullName":
+          return p.fullName;
+        case "planName":
+          return p.planName;
+        case "amount":
+          return p.amount;
+        case "paymentDate":
+          return p.paymentDate;
+        case "status":
+          return p.paymentStatus;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredPayments, getValue, sortConfig.direction);
+  }, [filteredPayments, sortConfig.direction, sortConfig.key]);
 
   // Pagination
   const indexOfLast = currentPage * paymentsPerPage;
   const indexOfFirst = indexOfLast - paymentsPerPage;
-  const currentPayments = filteredPayments.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredPayments.length / paymentsPerPage);
+  const currentPayments = sortedPayments.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
 
   return (
     <div className="patients-container">
@@ -111,11 +147,11 @@ const WaitingPage = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Utilisateur</th>
-            <th>Plan</th>
-            <th>Montant</th>
-            <th>Date</th>
-            <th>Statut</th>
+            <SortableTh label="Utilisateur" sortKey="fullName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Plan" sortKey="planName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Date" sortKey="paymentDate" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>

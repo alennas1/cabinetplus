@@ -36,4 +36,13 @@ public interface TreatmentRepository extends JpaRepository<Treatment, Long> {
 
     List<Treatment> findByPractitionerAndDateBetween(User dentist, LocalDateTime start, LocalDateTime end);
     List<Treatment> findByPatientId(Long patientId);
+
+    @Query("""
+        SELECT t.patient.id, COALESCE(SUM(t.price), 0)
+        FROM Treatment t
+        WHERE t.patient.id IN :patientIds
+          AND UPPER(COALESCE(t.status, 'PLANNED')) IN ('DONE', 'IN_PROGRESS')
+        GROUP BY t.patient.id
+    """)
+    List<Object[]> sumCompletedPriceByPatientIds(@Param("patientIds") List<Long> patientIds);
 }

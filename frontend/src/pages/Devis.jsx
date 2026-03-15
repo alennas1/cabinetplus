@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useSelector } from "react-redux";
 import { Plus, Trash2, Download, X, Search, FileText } from 'react-feather';
 import { toast, ToastContainer } from "react-toastify";
@@ -7,7 +7,9 @@ import { formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import SortableTh from "../components/SortableTh";
 import { getApiErrorMessage } from "../utils/error";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
 import { getDevises, createDevise, deleteDevise, downloadDevisePdf } from '../services/deviseService';
 import { getTreatments } from '../services/treatmentCatalogueService';
@@ -29,6 +31,7 @@ const Devise = () => {
     // Pagination (consistent with your Employees component)
     const [currentPage, setCurrentPage] = useState(1);
     const devisesPerPage = 10;
+    const [sortConfig, setSortConfig] = useState({ key: "title", direction: SORT_DIRECTIONS.ASC });
 
     // Form State
     const [title, setTitle] = useState('');
@@ -140,10 +143,39 @@ const Devise = () => {
 
     // Filtering & Pagination
     const filteredDevises = devises.filter((d) => d.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const handleSort = (key, explicitDirection) => {
+        if (!key) return;
+        setSortConfig((prev) => {
+            const nextDirection =
+                explicitDirection ||
+                (prev.key === key
+                    ? prev.direction === SORT_DIRECTIONS.ASC
+                        ? SORT_DIRECTIONS.DESC
+                        : SORT_DIRECTIONS.ASC
+                    : SORT_DIRECTIONS.ASC);
+            return { key, direction: nextDirection };
+        });
+    };
+
+    const sortedDevises = useMemo(() => {
+        const getValue = (d) => {
+            switch (sortConfig.key) {
+                case "title":
+                    return d.title;
+                case "totalAmount":
+                    return d.totalAmount || 0;
+                default:
+                    return "";
+            }
+        };
+        return sortRowsBy(filteredDevises, getValue, sortConfig.direction);
+    }, [filteredDevises, sortConfig.direction, sortConfig.key]);
+
     const indexOfLast = currentPage * devisesPerPage;
     const indexOfFirst = indexOfLast - devisesPerPage;
-    const currentDevises = filteredDevises.slice(indexOfFirst, indexOfLast);
-    const totalPages = Math.ceil(filteredDevises.length / devisesPerPage);
+    const currentDevises = sortedDevises.slice(indexOfFirst, indexOfLast);
+    const totalPages = Math.ceil(sortedDevises.length / devisesPerPage);
 
     if (loading) {
         return (
@@ -187,8 +219,8 @@ const Devise = () => {
             <table className="patients-table">
                 <thead>
                     <tr>
-                        <th>Titre du Devis</th>
-                        <th>Montant Total</th>
+                        <SortableTh label="Titre du Devis" sortKey="title" sortConfig={sortConfig} onSort={handleSort} />
+                        <SortableTh label="Montant Total" sortKey="totalAmount" sortConfig={sortConfig} onSort={handleSort} />
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -207,7 +239,7 @@ const Devise = () => {
                             </td>
                         </tr>
                     ))}
-                    {filteredDevises.length === 0 && (
+                    {sortedDevises.length === 0 && (
                         <tr>
                             <td colSpan={3} style={{ textAlign: "center", color: "#888", padding: "20px" }}>
                                 Aucun devis trouvé

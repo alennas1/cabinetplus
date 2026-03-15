@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Eye, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import PasswordInput from "../components/PasswordInput";
 import { getAllAdmins, createAdmin, deleteAdmin } from "../services/userService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
 const ManageAdmins = () => {
@@ -18,6 +20,7 @@ const ManageAdmins = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const adminsPerPage = 10;
   const [search, setSearch] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: "lastname", direction: SORT_DIRECTIONS.ASC });
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     id: null,
@@ -50,10 +53,44 @@ const ManageAdmins = () => {
     `${a.firstname} ${a.lastname} ${a.username}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedAdmins = useMemo(() => {
+    const getValue = (a) => {
+      switch (sortConfig.key) {
+        case "firstname":
+          return a.firstname;
+        case "lastname":
+          return a.lastname;
+        case "username":
+          return a.username;
+        case "phoneNumber":
+          return a.phoneNumber;
+        case "canDeleteAdmin":
+          return a.canDeleteAdmin ? 1 : 0;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredAdmins, getValue, sortConfig.direction);
+  }, [filteredAdmins, sortConfig.direction, sortConfig.key]);
+
   const indexOfLast = currentPage * adminsPerPage;
   const indexOfFirst = indexOfLast - adminsPerPage;
-  const currentAdmins = filteredAdmins.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredAdmins.length / adminsPerPage);
+  const currentAdmins = sortedAdmins.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedAdmins.length / adminsPerPage);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -119,11 +156,11 @@ const ManageAdmins = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Prénom</th>
-            <th>Nom</th>
-            <th>Username</th>
-            <th>Phone</th>
-            <th>Super Admin</th>
+            <SortableTh label="Prénom" sortKey="firstname" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Nom" sortKey="lastname" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Username" sortKey="username" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Phone" sortKey="phoneNumber" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Super Admin" sortKey="canDeleteAdmin" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -143,6 +180,28 @@ const ManageAdmins = () => {
           ))}
         </tbody>
       </table>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
+            ← Précédent
+          </button>
+
+          {[...Array(totalPages)].map((_, i) => (
+            <button
+              key={i}
+              className={currentPage === i + 1 ? "active" : ""}
+              onClick={() => setCurrentPage(i + 1)}
+            >
+              {i + 1}
+            </button>
+          ))}
+
+          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
+            Suivant →
+          </button>
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>

@@ -34,6 +34,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     List<Prothesis> findByPatientId(Long patientId);
 
     @Query("""
+        SELECT p.patient.id, COALESCE(SUM(p.finalPrice), 0)
+        FROM Prothesis p
+        WHERE p.patient.id IN :patientIds
+        GROUP BY p.patient.id
+    """)
+    List<Object[]> sumFinalPriceByPatientIds(@Param("patientIds") List<Long> patientIds);
+
+    @Query("""
         select coalesce(sum(p.labCost), 0)
         from Prothesis p
         where p.practitioner = :practitioner

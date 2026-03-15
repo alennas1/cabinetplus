@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.security.EncryptionConverter;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -45,4 +46,7 @@ public class Patient {
     private User createdBy;
 
     private LocalDateTime createdAt;
+
+    @Column(name = "archived_at")
+    private LocalDateTime archivedAt;
 }

@@ -5,6 +5,8 @@ import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ToothGraph from "./ToothGraph";
+import SortableTh from "../components/SortableTh";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { downloadPatientFiche } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
 import { QRCodeCanvas } from "qrcode.react";
@@ -59,7 +61,9 @@ import MoneyInput from "../components/MoneyInput";
 import PhoneInput from "../components/PhoneInput";
 import BackButton from "../components/BackButton";
 import "./Patient.css";
-import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud, Search, ArrowRight } from "react-feather";
+import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud, Search, ArrowRight, ChevronDown } from "react-feather";
+import { FaMale, FaFemale } from "react-icons/fa";
+import PatientDangerIcon from "../components/PatientDangerIcon";
 
 const QUARTER_MINUTES = ["00", "15", "30", "45"];
 
@@ -103,9 +107,53 @@ const allowedDocumentExtensions = [".pdf", ".jpg", ".jpeg", ".png", ".dcm", ".ti
 const blockedDocumentExtensions = [".exe", ".js", ".php", ".sh", ".bat", ".msi"];
 const maxDocumentFileSizeBytes = 25 * 1024 * 1024;
 
- const [activeTab, setActiveTab] = useState("treatments"); // default tab
+  const [activeTab, setActiveTab] = useState("treatments"); // default tab
 
- const [tabFilters, setTabFilters] = useState(() => ({
+  const [tableSort, setTableSort] = useState(() => ({
+    plannedTreatments: { key: null, direction: SORT_DIRECTIONS.ASC },
+    completedTreatments: { key: null, direction: SORT_DIRECTIONS.ASC },
+    protheses: { key: null, direction: SORT_DIRECTIONS.ASC },
+    payments: { key: null, direction: SORT_DIRECTIONS.ASC },
+    appointments: { key: null, direction: SORT_DIRECTIONS.ASC },
+    justifications: { key: null, direction: SORT_DIRECTIONS.ASC },
+    documents: { key: null, direction: SORT_DIRECTIONS.ASC },
+    prescriptions: { key: null, direction: SORT_DIRECTIONS.ASC },
+  }));
+
+  const [tablePage, setTablePage] = useState(() => ({
+    plannedTreatments: 1,
+    completedTreatments: 1,
+    protheses: 1,
+    payments: 1,
+    appointments: 1,
+    justifications: 1,
+    documents: 1,
+    prescriptions: 1,
+  }));
+
+  const rowsPerPage = 10;
+
+  const handleTableSort = (tableId, key, explicitDirection) => {
+    if (!tableId || !key) return;
+    setTableSort((prev) => {
+      const current = prev[tableId] || { key: null, direction: SORT_DIRECTIONS.ASC };
+      const nextDirection =
+        explicitDirection ||
+        (current.key === key
+          ? current.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+
+      return { ...prev, [tableId]: { key, direction: nextDirection } };
+    });
+  };
+
+  const setTablePageValue = (tableId, nextPage) => {
+    setTablePage((prev) => ({ ...prev, [tableId]: nextPage }));
+  };
+
+  const [tabFilters, setTabFilters] = useState(() => ({
    treatments: {
      search: "",
      filterBy: "name",
@@ -1313,70 +1361,382 @@ const sortedPayments = useMemo(
    [documents, tabFilters.documents]
  );
 
- const renderTabToolbar = (tabKey, { onAdd, addLabel = "Ajouter" } = {}) => {
+ const sortedPlannedTreatments = useMemo(() => {
+   const cfg = tableSort.plannedTreatments;
+   if (!cfg?.key) return filteredPlannedTreatments;
+   return sortRowsBy(
+     filteredPlannedTreatments,
+     (t) => {
+       switch (cfg.key) {
+         case "name":
+           return t?.treatmentCatalog?.name || "";
+         case "teeth":
+           return t?.teeth?.length ? t.teeth.join(",") : null;
+         case "date":
+           return t?.date || null;
+         case "notes":
+           return t?.notes || "";
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredPlannedTreatments, tableSort.plannedTreatments]);
+
+ const sortedCompletedTreatments = useMemo(() => {
+   const cfg = tableSort.completedTreatments;
+   if (!cfg?.key) return filteredCompletedTreatments;
+   return sortRowsBy(
+     filteredCompletedTreatments,
+     (t) => {
+       switch (cfg.key) {
+         case "name":
+           return t?.treatmentCatalog?.name || "";
+         case "teeth":
+           return t?.teeth?.length ? t.teeth.join(",") : null;
+         case "date":
+           return t?.date || null;
+         case "price":
+           return Number(t?.price || 0);
+         case "notes":
+           return t?.notes || "";
+         case "status":
+           return treatmentStatusLabels[t?.status] || t?.status || "";
+         case "updatedAt":
+           return t?.updatedAt || t?.date || null;
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredCompletedTreatments, tableSort.completedTreatments]);
+
+ const sortedProtheses = useMemo(() => {
+   const cfg = tableSort.protheses;
+   if (!cfg?.key) return filteredProtheses;
+   return sortRowsBy(
+     filteredProtheses,
+     (p) => {
+       switch (cfg.key) {
+         case "type":
+           return p?.prothesisName || "";
+         case "teeth":
+           return p?.teeth?.length ? p.teeth.join(",") : null;
+         case "material":
+           return p?.materialName || "";
+         case "date":
+           return p?.dateCreated || p?.createdAt || p?.updatedAt || null;
+         case "price":
+           return Number(p?.finalPrice || 0);
+         case "status":
+           return prothesisStatusLabels[p?.status] || p?.status || "";
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredProtheses, tableSort.protheses]);
+
+ const sortedPaymentsTable = useMemo(() => {
+   const cfg = tableSort.payments;
+   if (!cfg?.key) return filteredPayments;
+   return sortRowsBy(
+     filteredPayments,
+     (p) => {
+       switch (cfg.key) {
+         case "amount":
+           return Number(p?.amount || 0);
+         case "method":
+           return paymentMethodLabels[p?.method] || p?.method || "";
+         case "date":
+           return p?.date || p?.paymentDate || p?.createdAt || null;
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredPayments, tableSort.payments]);
+
+ const sortedAppointmentsTable = useMemo(() => {
+   const cfg = tableSort.appointments;
+   if (!cfg?.key) return filteredAppointments;
+   return sortRowsBy(
+     filteredAppointments,
+     (a) => {
+       switch (cfg.key) {
+         case "date":
+           return a?.dateTimeStart || null;
+         case "time": {
+           if (!a?.dateTimeStart) return null;
+           const dt = new Date(a.dateTimeStart);
+           return Number.isNaN(dt.getTime()) ? null : dt.getHours() * 60 + dt.getMinutes();
+         }
+         case "notes":
+           return a?.notes || "";
+         case "status":
+           return statusLabels[a?.status] || a?.status || "";
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredAppointments, tableSort.appointments]);
+
+ const sortedJustifications = useMemo(() => {
+   const cfg = tableSort.justifications;
+   if (!cfg?.key) return filteredJustifications;
+   return sortRowsBy(
+     filteredJustifications,
+     (j) => {
+       switch (cfg.key) {
+         case "title":
+           return j?.title || "";
+         case "date":
+           return j?.createdAt || j?.date || null;
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredJustifications, tableSort.justifications]);
+
+ const sortedDocuments = useMemo(() => {
+   const cfg = tableSort.documents;
+   if (!cfg?.key) return filteredDocuments;
+   return sortRowsBy(
+     filteredDocuments,
+     (d) => {
+       switch (cfg.key) {
+         case "title":
+           return d?.title || d?.filename || "";
+         case "date":
+           return d?.uploadedAt || d?.createdAt || null;
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredDocuments, tableSort.documents]);
+
+ const sortedOrdonnances = useMemo(() => {
+   const cfg = tableSort.prescriptions;
+   if (!cfg?.key) return filteredOrdonnances;
+   return sortRowsBy(
+     filteredOrdonnances,
+     (o) => {
+       switch (cfg.key) {
+         case "rxId":
+           return o?.rxId || "";
+         case "date":
+           return o?.date || null;
+         default:
+           return null;
+       }
+     },
+     cfg.direction
+   );
+ }, [filteredOrdonnances, tableSort.prescriptions]);
+
+ const plannedTotalPages = Math.ceil(sortedPlannedTreatments.length / rowsPerPage);
+ const plannedPage = Math.min(tablePage.plannedTreatments, plannedTotalPages || 1);
+ const pagedPlannedTreatments = sortedPlannedTreatments.slice(
+   (plannedPage - 1) * rowsPerPage,
+   plannedPage * rowsPerPage
+ );
+
+ const completedTotalPages = Math.ceil(sortedCompletedTreatments.length / rowsPerPage);
+ const completedPage = Math.min(tablePage.completedTreatments, completedTotalPages || 1);
+ const pagedCompletedTreatments = sortedCompletedTreatments.slice(
+   (completedPage - 1) * rowsPerPage,
+   completedPage * rowsPerPage
+ );
+
+ const prothesesTotalPages = Math.ceil(sortedProtheses.length / rowsPerPage);
+ const prothesesPage = Math.min(tablePage.protheses, prothesesTotalPages || 1);
+ const pagedProtheses = sortedProtheses.slice((prothesesPage - 1) * rowsPerPage, prothesesPage * rowsPerPage);
+
+ const paymentsTotalPages = Math.ceil(sortedPaymentsTable.length / rowsPerPage);
+ const paymentsPage = Math.min(tablePage.payments, paymentsTotalPages || 1);
+ const pagedPayments = sortedPaymentsTable.slice((paymentsPage - 1) * rowsPerPage, paymentsPage * rowsPerPage);
+
+ const appointmentsTotalPages = Math.ceil(sortedAppointmentsTable.length / rowsPerPage);
+ const appointmentsPage = Math.min(tablePage.appointments, appointmentsTotalPages || 1);
+ const pagedAppointments = sortedAppointmentsTable.slice(
+   (appointmentsPage - 1) * rowsPerPage,
+   appointmentsPage * rowsPerPage
+ );
+
+ const justificationsTotalPages = Math.ceil(sortedJustifications.length / rowsPerPage);
+ const justificationsPage = Math.min(tablePage.justifications, justificationsTotalPages || 1);
+ const pagedJustifications = sortedJustifications.slice(
+   (justificationsPage - 1) * rowsPerPage,
+   justificationsPage * rowsPerPage
+ );
+
+ const documentsTotalPages = Math.ceil(sortedDocuments.length / rowsPerPage);
+ const documentsPage = Math.min(tablePage.documents, documentsTotalPages || 1);
+ const pagedDocuments = sortedDocuments.slice((documentsPage - 1) * rowsPerPage, documentsPage * rowsPerPage);
+
+ const prescriptionsTotalPages = Math.ceil(sortedOrdonnances.length / rowsPerPage);
+ const prescriptionsPage = Math.min(tablePage.prescriptions, prescriptionsTotalPages || 1);
+ const pagedOrdonnances = sortedOrdonnances.slice(
+   (prescriptionsPage - 1) * rowsPerPage,
+   prescriptionsPage * rowsPerPage
+ );
+
+ const renderPagination = (tableId, currentPage, totalPages) => {
+   if (!totalPages || totalPages <= 1) return null;
+   return (
+     <div className="pagination">
+       <button disabled={currentPage === 1} onClick={() => setTablePageValue(tableId, currentPage - 1)}>
+         ← Précédent
+       </button>
+
+       {[...Array(totalPages)].map((_, i) => (
+         <button
+           key={`${tableId}-page-${i}`}
+           className={currentPage === i + 1 ? "active" : ""}
+           onClick={() => setTablePageValue(tableId, i + 1)}
+         >
+           {i + 1}
+         </button>
+       ))}
+
+       <button disabled={currentPage === totalPages} onClick={() => setTablePageValue(tableId, currentPage + 1)}>
+         Suivant →
+       </button>
+     </div>
+   );
+ };
+
+ const TabToolbar = ({ tabKey, onAdd, addLabel = "Ajouter" }) => {
    const filters = tabFilters[tabKey] || tabFilters.treatments;
    const config = tabFilterConfig[tabKey] || tabFilterConfig.treatments;
    const hasStatus = !!config.getStatus && Array.isArray(config.statusOptions) && config.statusOptions.length > 0;
+   const hasFilterBy = Array.isArray(config.filterByOptions) && config.filterByOptions.length > 0;
 
-   const dateBtnClass = (active) =>
-      [
-        "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-        active ? "bg-blue-600 border-blue-600 text-white" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100",
-      ].join(" ");
+   const [filterOpen, setFilterOpen] = useState(false);
+   const [statusOpen, setStatusOpen] = useState(false);
+   const [monthOpen, setMonthOpen] = useState(false);
+
+   const filterRef = useRef(null);
+   const statusRef = useRef(null);
+   const monthRef = useRef(null);
+
+   useEffect(() => {
+     const onDocClick = (e) => {
+       const target = e.target;
+       if (filterOpen && filterRef.current && !filterRef.current.contains(target)) setFilterOpen(false);
+       if (statusOpen && statusRef.current && !statusRef.current.contains(target)) setStatusOpen(false);
+       if (monthOpen && monthRef.current && !monthRef.current.contains(target)) setMonthOpen(false);
+     };
+     document.addEventListener("mousedown", onDocClick);
+     return () => document.removeEventListener("mousedown", onDocClick);
+   }, [filterOpen, statusOpen, monthOpen]);
+
+   const filterByLabel =
+     config.filterByOptions?.find((opt) => opt.value === filters.filterBy)?.label ||
+     config.filterByOptions?.[0]?.label ||
+     "Filtrer";
+
+   const statusLabel =
+     config.statusOptions?.find((opt) => opt.value === filters.status)?.label ||
+     (config.statusLabel ? `Tous` : "Tous");
+
+   const monthLabel =
+     filters.selectedMonth
+       ? monthsList.find((m) => m.value === filters.selectedMonth)?.label
+       : "Choisir un mois";
 
    return (
-     <div className="mb-3 rounded-xl border border-gray-200 bg-transparent p-3 shadow-none">
-       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-         <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
-           <div className="relative w-full md:max-w-xs">
-             <Search
-               size={16}
-               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-             />
+     <>
+       <div className="patients-controls">
+         <div className="controls-left">
+           <div className="search-group">
+             <Search className="search-icon" size={16} />
              <input
                type="text"
+               placeholder="Rechercher..."
                value={filters.search}
                onChange={(e) => updateTabFilter(tabKey, { search: e.target.value })}
-               placeholder="Rechercher..."
-               className="block w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
              />
            </div>
 
-           <div className="flex flex-wrap items-center gap-2">
-             {Array.isArray(config.filterByOptions) && config.filterByOptions.length > 0 && (
-               <select
-                 value={filters.filterBy}
-                 onChange={(e) => updateTabFilter(tabKey, { filterBy: e.target.value })}
-                 className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+           {hasFilterBy && (
+             <div className="modern-dropdown" ref={filterRef}>
+               <button
+                 type="button"
+                 className={`dropdown-trigger ${filterOpen ? "open" : ""}`}
+                 onClick={() => setFilterOpen((v) => !v)}
                >
-                 {config.filterByOptions.map((opt) => (
-                   <option key={opt.value} value={opt.value}>
-                     {opt.label}
-                   </option>
-                 ))}
-               </select>
-             )}
+                 <span>{filterByLabel}</span>
+                 <ChevronDown size={18} className={`chevron ${filterOpen ? "rotated" : ""}`} />
+               </button>
+               {filterOpen && (
+                 <ul className="dropdown-menu">
+                   {config.filterByOptions.map((opt) => (
+                     <li
+                       key={opt.value}
+                       onClick={() => {
+                         updateTabFilter(tabKey, { filterBy: opt.value });
+                         setFilterOpen(false);
+                       }}
+                     >
+                       {opt.label}
+                     </li>
+                   ))}
+                 </ul>
+               )}
+             </div>
+           )}
 
-             {hasStatus && (
-               <select
-                 value={filters.status}
-                 onChange={(e) => updateTabFilter(tabKey, { status: e.target.value })}
-                 className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+           {hasStatus && (
+             <div className="modern-dropdown" ref={statusRef}>
+               <button
+                 type="button"
+                 className={`dropdown-trigger ${statusOpen ? "open" : ""}`}
+                 onClick={() => setStatusOpen((v) => !v)}
                >
-                 <option value="">{config.statusLabel ? `${config.statusLabel} (Tous)` : "Tous"}</option>
-                 {config.statusOptions.map((opt) => (
-                   <option key={opt.value} value={opt.value}>
-                     {opt.label}
-                   </option>
-                 ))}
-               </select>
-             )}
-           </div>
+                 <span>{filters.status ? statusLabel : "Tous les statuts"}</span>
+                 <ChevronDown size={18} className={`chevron ${statusOpen ? "rotated" : ""}`} />
+               </button>
+               {statusOpen && (
+                 <ul className="dropdown-menu">
+                   <li
+                     onClick={() => {
+                       updateTabFilter(tabKey, { status: "" });
+                       setStatusOpen(false);
+                     }}
+                   >
+                     Tous
+                   </li>
+                   {config.statusOptions.map((opt) => (
+                     <li
+                       key={opt.value}
+                       onClick={() => {
+                         updateTabFilter(tabKey, { status: opt.value });
+                         setStatusOpen(false);
+                       }}
+                     >
+                       {opt.label}
+                     </li>
+                   ))}
+                 </ul>
+               )}
+             </div>
+           )}
          </div>
 
          {onAdd && (
-           <div className="flex justify-end">
-             <button className="btn-primary-app" onClick={onAdd}>
+           <div className="controls-right">
+             <button className="btn-primary" onClick={onAdd}>
                <Plus size={16} /> {addLabel}
              </button>
            </div>
@@ -1384,10 +1744,20 @@ const sortedPayments = useMemo(
        </div>
 
        {config.getDate && (
-         <div className="mt-3 flex flex-wrap items-center gap-2">
+         <div
+           className="date-selector"
+           style={{
+             marginTop: "15px",
+             marginBottom: "15px",
+             display: "flex",
+             flexWrap: "wrap",
+             gap: "10px",
+             alignItems: "center",
+           }}
+         >
            <button
              type="button"
-             className={dateBtnClass(filters.selectedFilter === "all")}
+             className={filters.selectedFilter === "all" ? "active" : ""}
              onClick={() =>
                updateTabFilter(tabKey, {
                  selectedFilter: "all",
@@ -1398,9 +1768,10 @@ const sortedPayments = useMemo(
            >
              Tout
            </button>
+
            <button
              type="button"
-             className={dateBtnClass(filters.selectedFilter === "today")}
+             className={filters.selectedFilter === "today" ? "active" : ""}
              onClick={() =>
                updateTabFilter(tabKey, {
                  selectedFilter: "today",
@@ -1412,58 +1783,72 @@ const sortedPayments = useMemo(
              Aujourd&apos;hui
            </button>
 
-           <select
-             value={filters.selectedMonth}
-             onChange={(e) => {
-               const monthValue = e.target.value;
-               updateTabFilter(tabKey, {
-                 selectedMonth: monthValue,
-                 selectedFilter: monthValue ? "custom" : "all",
-                 customRange: { start: "", end: "" },
-               });
-             }}
-             className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-           >
-             <option value="">Choisir un mois</option>
-             {monthsList.map((m) => (
-               <option key={m.value} value={m.value}>
-                 {m.label}
-               </option>
-             ))}
-           </select>
+           <div className="month-selector">
+             <div className="modern-dropdown" ref={monthRef} style={{ minWidth: "180px" }}>
+               <button
+                 type="button"
+                 className={`dropdown-trigger ${monthOpen ? "open" : ""}`}
+                 onClick={() => setMonthOpen((v) => !v)}
+               >
+                 <span>{monthLabel}</span>
+                 <ChevronDown size={18} className={`chevron ${monthOpen ? "rotated" : ""}`} />
+               </button>
+               {monthOpen && (
+                 <ul className="dropdown-menu">
+                   {monthsList.map((m) => (
+                     <li
+                       key={m.value}
+                       onClick={() => {
+                         updateTabFilter(tabKey, {
+                           selectedMonth: m.value,
+                           selectedFilter: "custom",
+                           customRange: { start: "", end: "" },
+                         });
+                         setMonthOpen(false);
+                       }}
+                     >
+                       {m.label}
+                     </li>
+                   ))}
+                 </ul>
+               )}
+             </div>
+           </div>
 
-           <div className="flex flex-wrap items-center gap-2">
-             <span className="text-xs font-medium text-gray-500">Plage personnalisée :</span>
-             <input
-               type="date"
-               value={filters.customRange?.start || ""}
-               onChange={(e) =>
-                 updateTabFilter(tabKey, (current) => ({
-                   selectedFilter: "custom",
-                   selectedMonth: "",
-                   customRange: { ...current.customRange, start: e.target.value },
-                 }))
-               }
-               className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-             />
-             <input
-               type="date"
-               value={filters.customRange?.end || ""}
-               onChange={(e) =>
-                 updateTabFilter(tabKey, (current) => ({
-                   selectedFilter: "custom",
-                   selectedMonth: "",
-                   customRange: { ...current.customRange, end: e.target.value },
-                 }))
-               }
-               className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-             />
+           <div className="custom-range-container">
+             <span className="custom-range-label">Plage personnalisée :</span>
+             <div className="custom-range">
+               <input
+                 type="date"
+                 value={filters.customRange?.start || ""}
+                 onChange={(e) =>
+                   updateTabFilter(tabKey, (current) => ({
+                     selectedFilter: "custom",
+                     selectedMonth: "",
+                     customRange: { ...current.customRange, start: e.target.value },
+                   }))
+                 }
+               />
+               <input
+                 type="date"
+                 value={filters.customRange?.end || ""}
+                 onChange={(e) =>
+                   updateTabFilter(tabKey, (current) => ({
+                     selectedFilter: "custom",
+                     selectedMonth: "",
+                     customRange: { ...current.customRange, end: e.target.value },
+                   }))
+                 }
+               />
+             </div>
            </div>
          </div>
        )}
-     </div>
+     </>
    );
  };
+
+ const renderTabToolbar = (tabKey, props) => <TabToolbar tabKey={tabKey} {...props} />;
 
  const handleTreatmentChange = (e) => {
    const { name, value, type, checked } = e.target;
@@ -2073,19 +2458,33 @@ const handleDeleteAppointment = (a) => {
  <div className="patient-top">
   <div className="patient-info-left">
    <div className="patient-name">
-  {patient.firstname} {patient.lastname}
-  {patient.sex === "Homme" ? (
-    <span className="sex-icon-square male" title="Homme" aria-label="Homme">
-      ♂
-    </span>
-  ) : patient.sex === "Femme" ? (
-    <span className="sex-icon-square female" title="Femme" aria-label="Femme">
-      ♀
-    </span>
-  ) : (
-    "—"
-  )}
-</div>
+     <div className="patient-name-row">
+       <span className="patient-name-text">
+         {patient.firstname} {patient.lastname}
+       </span>
+
+       <PatientDangerIcon
+         show={!!patient.danger}
+         big
+         dangerCancelled={patient.dangerCancelled}
+         dangerOwed={patient.dangerOwed}
+       />
+     </div>
+
+     <div className="patient-sex-row">
+       {patient.sex === "Homme" ? (
+         <span className="sex-icon-square male" title="Homme" aria-label="Homme">
+           <FaMale aria-hidden="true" focusable="false" />
+         </span>
+       ) : patient.sex === "Femme" ? (
+         <span className="sex-icon-square female" title="Femme" aria-label="Femme">
+           <FaFemale aria-hidden="true" focusable="false" />
+         </span>
+       ) : (
+         <span className="patient-sex-empty">—</span>
+       )}
+     </div>
+   </div>
 
     <div className="patient-details">
 <div>
@@ -2242,21 +2641,41 @@ const handleDeleteAppointment = (a) => {
     {activeTab === "treatments" && (
   <>
     {renderTabToolbar("treatments", { onAdd: handleAddTreatment })}
-    {filteredPlannedTreatments.length > 0 && (
+    {sortedPlannedTreatments.length > 0 && (
       <>
         <h4>Traitements planifiés (non comptés)</h4>
         <table className="treatment-table">
           <thead>
             <tr>
-              <th>Nom</th>
-              <th>Dents</th>
-              <th>Date</th>
-              <th>Notes</th>
+              <SortableTh
+                label="Nom"
+                sortKey="name"
+                sortConfig={tableSort.plannedTreatments}
+                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
+              />
+              <SortableTh
+                label="Dents"
+                sortKey="teeth"
+                sortConfig={tableSort.plannedTreatments}
+                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
+              />
+              <SortableTh
+                label="Date"
+                sortKey="date"
+                sortConfig={tableSort.plannedTreatments}
+                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
+              />
+              <SortableTh
+                label="Notes"
+                sortKey="notes"
+                sortConfig={tableSort.plannedTreatments}
+                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
+              />
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-  {filteredPlannedTreatments.map((t) => (
+  {pagedPlannedTreatments.map((t) => (
               <tr key={t.id}>
                 <td>{t.treatmentCatalog?.name}</td>
                 <td>
@@ -2312,23 +2731,59 @@ const handleDeleteAppointment = (a) => {
             ))}
           </tbody>
         </table>
+        {renderPagination("plannedTreatments", plannedPage, plannedTotalPages)}
       </>
     )}
     <table className="treatment-table">
       <thead>
         <tr>
-          <th>Nom</th>
-           <th>Dents</th>
-          <th>Date</th>
-          <th>Prix</th>
-          <th>Notes</th>
-          <th>Statut</th>
-          <th>Modifié le</th>
+          <SortableTh
+            label="Nom"
+            sortKey="name"
+            sortConfig={tableSort.completedTreatments}
+            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
+          />
+           <SortableTh
+            label="Dents"
+            sortKey="teeth"
+            sortConfig={tableSort.completedTreatments}
+            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
+          />
+          <SortableTh
+            label="Date"
+            sortKey="date"
+            sortConfig={tableSort.completedTreatments}
+            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
+          />
+          <SortableTh
+            label="Prix"
+            sortKey="price"
+            sortConfig={tableSort.completedTreatments}
+            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
+          />
+          <SortableTh
+            label="Notes"
+            sortKey="notes"
+            sortConfig={tableSort.completedTreatments}
+            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
+          />
+          <SortableTh
+            label="Statut"
+            sortKey="status"
+            sortConfig={tableSort.completedTreatments}
+            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
+          />
+          <SortableTh
+            label="Modifié le"
+            sortKey="updatedAt"
+            sortConfig={tableSort.completedTreatments}
+            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
+          />
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {filteredCompletedTreatments.map(t => (
+        {pagedCompletedTreatments.map(t => (
           <tr key={t.id}>
             <td>{t.treatmentCatalog?.name}</td>
             <td>
@@ -2376,13 +2831,14 @@ const handleDeleteAppointment = (a) => {
 
           </tr>
         ))}
-        {filteredCompletedTreatments.length === 0 && (
+        {sortedCompletedTreatments.length === 0 && (
           <tr>
             <td colSpan="8" style={{ textAlign: "center" }}>Aucun traitement terminé</td>
           </tr>
         )}
       </tbody>
     </table>
+    {renderPagination("completedTreatments", completedPage, completedTotalPages)}
   </>
 )}
 
@@ -2400,18 +2856,48 @@ const handleDeleteAppointment = (a) => {
     <table className="treatment-table">
       <thead>
         <tr>
-          <th>Type</th>
-          <th>Dents</th>
-          <th>Matériau</th>
-          <th>Date</th>
-          <th>Prix</th>
-          <th>État</th>
+          <SortableTh
+            label="Type"
+            sortKey="type"
+            sortConfig={tableSort.protheses}
+            onSort={(key, dir) => handleTableSort("protheses", key, dir)}
+          />
+          <SortableTh
+            label="Dents"
+            sortKey="teeth"
+            sortConfig={tableSort.protheses}
+            onSort={(key, dir) => handleTableSort("protheses", key, dir)}
+          />
+          <SortableTh
+            label="Matériau"
+            sortKey="material"
+            sortConfig={tableSort.protheses}
+            onSort={(key, dir) => handleTableSort("protheses", key, dir)}
+          />
+          <SortableTh
+            label="Date"
+            sortKey="date"
+            sortConfig={tableSort.protheses}
+            onSort={(key, dir) => handleTableSort("protheses", key, dir)}
+          />
+          <SortableTh
+            label="Prix"
+            sortKey="price"
+            sortConfig={tableSort.protheses}
+            onSort={(key, dir) => handleTableSort("protheses", key, dir)}
+          />
+          <SortableTh
+            label="État"
+            sortKey="status"
+            sortConfig={tableSort.protheses}
+            onSort={(key, dir) => handleTableSort("protheses", key, dir)}
+          />
           <th>Actions</th>
         </tr>
       </thead>
       {/* Replace the Protheses Table Body */}
 <tbody>
-  {filteredProtheses.map((p) => (
+  {pagedProtheses.map((p) => (
     <tr key={p.id}>
       
       {/* Type */}
@@ -2495,13 +2981,14 @@ const handleDeleteAppointment = (a) => {
 
     </tr>
   ))}
-  {filteredProtheses.length === 0 && (
+  {sortedProtheses.length === 0 && (
     <tr>
       <td colSpan="7" style={{ textAlign: "center" }}>Aucune prothèse</td>
     </tr>
   )}
 </tbody>
     </table>
+    {renderPagination("protheses", prothesesPage, prothesesTotalPages)}
   </>
 )}
 
@@ -2517,14 +3004,29 @@ const handleDeleteAppointment = (a) => {
     <table className="treatment-table">
       <thead>
         <tr>
-          <th>Montant</th>
-          <th>Méthode</th>
-          <th>Date</th>
+          <SortableTh
+            label="Montant"
+            sortKey="amount"
+            sortConfig={tableSort.payments}
+            onSort={(key, dir) => handleTableSort("payments", key, dir)}
+          />
+          <SortableTh
+            label="Méthode"
+            sortKey="method"
+            sortConfig={tableSort.payments}
+            onSort={(key, dir) => handleTableSort("payments", key, dir)}
+          />
+          <SortableTh
+            label="Date"
+            sortKey="date"
+            sortConfig={tableSort.payments}
+            onSort={(key, dir) => handleTableSort("payments", key, dir)}
+          />
           <th>Actions</th>
         </tr>
       </thead>
      <tbody>
-  {filteredPayments.map(p => (
+  {pagedPayments.map(p => (
     <tr key={p.id}>
       <td>{formatMoneyWithLabel(p.amount)}</td>
       <td>{paymentMethodLabels[p.method] || p.method}</td>
@@ -2540,13 +3042,14 @@ const handleDeleteAppointment = (a) => {
       </td>
     </tr>
   ))}
-  {filteredPayments.length === 0 && (
+  {sortedPaymentsTable.length === 0 && (
     <tr>
       <td colSpan="4" style={{ textAlign: "center" }}>Aucun versement</td>
     </tr>
   )}
 </tbody>
     </table>
+    {renderPagination("payments", paymentsPage, paymentsTotalPages)}
   </>
 )}
 
@@ -2571,15 +3074,35 @@ const handleDeleteAppointment = (a) => {
     <table className="treatment-table">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Heure</th>
-          <th>Notes</th>
-          <th>État</th>
+          <SortableTh
+            label="Date"
+            sortKey="date"
+            sortConfig={tableSort.appointments}
+            onSort={(key, dir) => handleTableSort("appointments", key, dir)}
+          />
+          <SortableTh
+            label="Heure"
+            sortKey="time"
+            sortConfig={tableSort.appointments}
+            onSort={(key, dir) => handleTableSort("appointments", key, dir)}
+          />
+          <SortableTh
+            label="Notes"
+            sortKey="notes"
+            sortConfig={tableSort.appointments}
+            onSort={(key, dir) => handleTableSort("appointments", key, dir)}
+          />
+          <SortableTh
+            label="État"
+            sortKey="status"
+            sortConfig={tableSort.appointments}
+            onSort={(key, dir) => handleTableSort("appointments", key, dir)}
+          />
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {filteredAppointments.map(a => (
+        {pagedAppointments.map(a => (
           <tr key={a.id}>
             <td>{formatDate(a.dateTimeStart)}</td>
             <td>{a.dateTimeStart ? formatHour(a.dateTimeStart) : ""}</td>
@@ -2629,13 +3152,14 @@ const handleDeleteAppointment = (a) => {
 
           </tr>
         ))}
-        {filteredAppointments.length === 0 && (
+        {sortedAppointmentsTable.length === 0 && (
           <tr>
             <td colSpan="5" style={{ textAlign: "center" }}>Aucun rendez-vous</td>
           </tr>
         )}
       </tbody>
     </table>
+    {renderPagination("appointments", appointmentsPage, appointmentsTotalPages)}
   </>
 )}
 
@@ -2645,13 +3169,23 @@ const handleDeleteAppointment = (a) => {
     <table className="treatment-table">
       <thead>
         <tr>
-          <th>Titre</th>
-          <th>Date</th>
+          <SortableTh
+            label="Titre"
+            sortKey="title"
+            sortConfig={tableSort.justifications}
+            onSort={(key, dir) => handleTableSort("justifications", key, dir)}
+          />
+          <SortableTh
+            label="Date"
+            sortKey="date"
+            sortConfig={tableSort.justifications}
+            onSort={(key, dir) => handleTableSort("justifications", key, dir)}
+          />
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {filteredJustifications.map((j) => (
+        {pagedJustifications.map((j) => (
           <tr key={j.id}>
             <td>{j.title || "Sans titre"}</td>
             <td>{formatDate(j.createdAt || j.date)}</td>
@@ -2673,13 +3207,14 @@ const handleDeleteAppointment = (a) => {
             </td>
           </tr>
         ))}
-        {filteredJustifications.length === 0 && (
+        {sortedJustifications.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>Aucun justificatif généré</td>
           </tr>
         )}
       </tbody>
     </table>
+    {renderPagination("justifications", justificationsPage, justificationsTotalPages)}
   </>
 )}
 
@@ -2694,13 +3229,23 @@ const handleDeleteAppointment = (a) => {
     <table className="treatment-table">
       <thead>
         <tr>
-          <th>Titre</th>
-          <th>Date</th>
+          <SortableTh
+            label="Titre"
+            sortKey="title"
+            sortConfig={tableSort.documents}
+            onSort={(key, dir) => handleTableSort("documents", key, dir)}
+          />
+          <SortableTh
+            label="Date"
+            sortKey="date"
+            sortConfig={tableSort.documents}
+            onSort={(key, dir) => handleTableSort("documents", key, dir)}
+          />
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {filteredDocuments.map((documentItem) => (
+        {pagedDocuments.map((documentItem) => (
           <tr key={documentItem.id}>
             <td>{documentItem.title || documentItem.filename || "Sans titre"}</td>
             <td>{formatDate(documentItem.uploadedAt || documentItem.createdAt)}</td>
@@ -2722,13 +3267,14 @@ const handleDeleteAppointment = (a) => {
             </td>
           </tr>
         ))}
-        {filteredDocuments.length === 0 && (
+        {sortedDocuments.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>Aucune pièce jointe</td>
           </tr>
         )}
       </tbody>
     </table>
+    {renderPagination("documents", documentsPage, documentsTotalPages)}
   </>
 )}
 
@@ -3856,13 +4402,23 @@ const handleDeleteAppointment = (a) => {
     <table className="treatment-table">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Date</th>
+          <SortableTh
+            label="ID"
+            sortKey="rxId"
+            sortConfig={tableSort.prescriptions}
+            onSort={(key, dir) => handleTableSort("prescriptions", key, dir)}
+          />
+          <SortableTh
+            label="Date"
+            sortKey="date"
+            sortConfig={tableSort.prescriptions}
+            onSort={(key, dir) => handleTableSort("prescriptions", key, dir)}
+          />
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {filteredOrdonnances.map((o) => (
+        {pagedOrdonnances.map((o) => (
           <tr key={o.id}>
             <td>{o.rxId}</td>
             <td>{formatDate(o.date)}</td>
@@ -3885,7 +4441,7 @@ const handleDeleteAppointment = (a) => {
             </td>
           </tr>
         ))}
-        {filteredOrdonnances.length === 0 && (
+        {sortedOrdonnances.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>
               Aucune ordonnance
@@ -3894,6 +4450,7 @@ const handleDeleteAppointment = (a) => {
         )}
       </tbody>
     </table>
+    {renderPagination("prescriptions", prescriptionsPage, prescriptionsTotalPages)}
   </>
 )}
 {showTeethPreviewModal && (

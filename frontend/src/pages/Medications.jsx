@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Edit2, Trash2, Eye, Search, Filter, X } from "react-feather";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import {
   getMedications,
   createMedication,
@@ -14,6 +15,7 @@ import {
   deleteMedication,
 } from "../services/medicationService";
 import { getApiErrorMessage } from "../utils/error";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
 const DOSAGE_FORMS = {
@@ -41,6 +43,7 @@ const Medications = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const medicationsPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
@@ -96,6 +99,38 @@ const Medications = () => {
     }
     return value.toLowerCase().includes(search.toLowerCase());
   });
+
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedMedications = useMemo(() => {
+    const getValue = (m) => {
+      switch (sortConfig.key) {
+        case "name":
+          return m.name;
+        case "genericName":
+          return m.genericName;
+        case "dosageForm":
+          return DOSAGE_FORMS[m.dosageForm] || m.dosageForm;
+        case "strength":
+          return m.strength;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredMedications, getValue, sortConfig.direction);
+  }, [filteredMedications, sortConfig.direction, sortConfig.key]);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -167,8 +202,8 @@ const Medications = () => {
   // Pagination
   const indexOfLast = currentPage * medicationsPerPage;
   const indexOfFirst = indexOfLast - medicationsPerPage;
-  const currentMedications = filteredMedications.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredMedications.length / medicationsPerPage);
+  const currentMedications = sortedMedications.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedMedications.length / medicationsPerPage);
 
   if (loading) {
     return (
@@ -242,10 +277,10 @@ const Medications = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Nom</th>
-            <th>Nom Générique</th>
-            <th>Forme</th>
-            <th>Dosage</th>
+            <SortableTh label="Nom" sortKey="name" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Nom Générique" sortKey="genericName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Forme" sortKey="dosageForm" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Dosage" sortKey="strength" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -278,7 +313,7 @@ const Medications = () => {
               </td>
             </tr>
           ))}
-          {filteredMedications.length === 0 && (
+          {sortedMedications.length === 0 && (
             <tr>
               <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun médicament trouvé</td>
             </tr>

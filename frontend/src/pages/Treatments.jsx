@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Edit2, Trash2, Eye, Search, Filter, X } from "react-feather";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import {
   getTreatments,
   createTreatment,
@@ -18,6 +19,7 @@ import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
 const Treatments = () => {
@@ -34,6 +36,7 @@ const Treatments = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const treatmentsPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
 
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -92,6 +95,38 @@ const Treatments = () => {
 
   return true;
 });
+
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedTreatments = useMemo(() => {
+    const getValue = (t) => {
+      switch (sortConfig.key) {
+        case "name":
+          return t.name;
+        case "description":
+          return t.description;
+        case "defaultPrice":
+          return t.defaultPrice;
+        case "type":
+          return t.isFlatFee ? "Forfait" : "Unitaire";
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredTreatments, getValue, sortConfig.direction);
+  }, [filteredTreatments, sortConfig.direction, sortConfig.key]);
 
 
   const handleChange = (e) =>
@@ -172,8 +207,8 @@ const Treatments = () => {
   // Pagination
   const indexOfLast = currentPage * treatmentsPerPage;
   const indexOfFirst = indexOfLast - treatmentsPerPage;
-  const currentTreatments = filteredTreatments.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredTreatments.length / treatmentsPerPage);
+  const currentTreatments = sortedTreatments.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedTreatments.length / treatmentsPerPage);
 
   if (loading) {
     return (
@@ -241,10 +276,10 @@ const Treatments = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Nom</th>
-            <th>Description</th>
-            <th>Prix</th>
-            <th>Type</th>
+            <SortableTh label="Nom" sortKey="name" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Description" sortKey="description" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Prix" sortKey="defaultPrice" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Type" sortKey="type" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -273,7 +308,7 @@ const Treatments = () => {
               </td>
             </tr>
           ))}
-          {filteredTreatments.length === 0 && (
+          {sortedTreatments.length === 0 && (
             <tr>
               <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun traitement trouvé</td>
             </tr>

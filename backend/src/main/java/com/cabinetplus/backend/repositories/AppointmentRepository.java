@@ -16,6 +16,15 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findByPractitioner(User practitioner);
     List<Appointment> findByDateTimeStartBetween(LocalDateTime start, LocalDateTime end);
 List<Appointment> findByPatientId(Long patientId);
+
+    @Query("""
+        SELECT a.patient.id, COUNT(a)
+        FROM Appointment a
+        WHERE a.patient.id IN :patientIds
+          AND a.status = 'CANCELLED'
+        GROUP BY a.patient.id
+    """)
+    List<Object[]> countCancelledByPatientIds(@Param("patientIds") List<Long> patientIds);
     
     // Optional: If you want them ordered by date in the PDF
     List<Appointment> findByPatientIdOrderByDateTimeStartDesc(Long patientId);

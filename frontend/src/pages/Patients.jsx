@@ -1,19 +1,26 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Filter, X } from "react-feather";
-import { Edit2, Trash2,Eye,Search   } from "react-feather";
+import { Edit2, Trash2, Eye, Search, Archive, RotateCcw } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { FaMale, FaFemale } from "react-icons/fa";
+import PatientDangerIcon from "../components/PatientDangerIcon";
+import SortableTh from "../components/SortableTh";
 
   import { ChevronDown } from "react-feather"; // ⬅️ at the top with imports
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import {
   getPatients,
+  getArchivedPatients,
   createPatient,
   updatePatient,
+  archivePatient,
+  unarchivePatient,
 } from "../services/patientService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
@@ -22,8 +29,18 @@ import PhoneInput from "../components/PhoneInput";
 import "./Patients.css";
 
 
-const Patients = () => {
+const PATIENT_SORT_ACCESSORS = {
+  firstname: (p) => p.firstname,
+  lastname: (p) => p.lastname,
+  age: (p) => p.age,
+  sex: (p) => p.sex,
+  phone: (p) => p.phone,
+  createdAt: (p) => p.createdAt,
+};
+
+const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/dashboard" }) => {
   const token = useSelector((state) => state.auth.token);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: SORT_DIRECTIONS.ASC });
 
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +107,15 @@ const navigate = useNavigate();
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmButtonLabel, setConfirmButtonLabel] = useState("Confirmer");
+  const [confirmButtonLoadingLabel, setConfirmButtonLoadingLabel] = useState("Confirmation...");
+  const [confirmButtonClassName, setConfirmButtonClassName] = useState("bg-[#0f172a] hover:bg-black");
+  const [isConfirmingAction, setIsConfirmingAction] = useState(false);
+  const [onConfirmAction, setOnConfirmAction] = useState(null);
 const formatDate = (dateStr) => {
   if (!dateStr) return "";
   const label = formatDateTimeByPreference(dateStr);
@@ -103,7 +129,7 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
     const fetchPatients = async () => {
       try {
         setLoading(true);
-        const data = await getPatients(token);
+        const data = view === "archived" ? await getArchivedPatients(token) : await getPatients(token);
         setPatients(data);
       } catch (err) {
         console.error("Error fetching patients:", err);
@@ -112,7 +138,66 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
       }
     };
     fetchPatients();
-  }, [token]);
+  }, [token, view]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [view, search, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to]);
+
+  const handleArchiveToggle = (patientId, action) => {
+    const patient = patients.find((p) => p.id === patientId);
+    const patientLabel = patient ? `${patient.firstname || ""} ${patient.lastname || ""}`.trim() : `#${patientId}`;
+
+    const doAction = async () => {
+      try {
+        if (action === "archive") {
+          await archivePatient(patientId, token);
+          setPatients((prev) => prev.filter((p) => p.id !== patientId));
+          toast.success("Patient archivé");
+          return;
+        }
+        await unarchivePatient(patientId, token);
+        setPatients((prev) => prev.filter((p) => p.id !== patientId));
+        toast.success("Patient désarchivé");
+      } catch (err) {
+        console.error(err);
+        toast.error(getApiErrorMessage(err, "Action impossible"));
+        throw err;
+      }
+    };
+
+    if (action === "archive") {
+      setConfirmTitle("Archiver le patient ?");
+      setConfirmMessage(`Êtes-vous sûr de vouloir archiver ${patientLabel} ?`);
+      setConfirmButtonLabel("Archiver");
+      setConfirmButtonLoadingLabel("Archivage...");
+      setConfirmButtonClassName("bg-orange-500 hover:bg-orange-600");
+    } else {
+      setConfirmTitle("Désarchiver le patient ?");
+      setConfirmMessage(`Êtes-vous sûr de vouloir désarchiver ${patientLabel} ?`);
+      setConfirmButtonLabel("Désarchiver");
+      setConfirmButtonLoadingLabel("Restauration...");
+      setConfirmButtonClassName("bg-emerald-600 hover:bg-emerald-700");
+    }
+
+    setOnConfirmAction(() => doAction);
+    setShowConfirm(true);
+  };
+
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+
+      return { key, direction: nextDirection };
+    });
+  };
 
   // Filtered patients
   const filteredPatients = patients.filter((p) => {
@@ -131,6 +216,13 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
     return true;
   });
+
+  const sortedPatients = useMemo(() => {
+    if (!sortConfig.key) return filteredPatients;
+    const accessor = PATIENT_SORT_ACCESSORS[sortConfig.key];
+    if (!accessor) return filteredPatients;
+    return sortRowsBy(filteredPatients, accessor, sortConfig.direction);
+  }, [filteredPatients, sortConfig.direction, sortConfig.key]);
 
   // Handle form input
   const handleChange = (e) => {
@@ -205,15 +297,15 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 // Pagination logic
 const indexOfLastPatient = currentPage * patientsPerPage;
 const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
-const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+const currentPatients = sortedPatients.slice(indexOfFirstPatient, indexOfLastPatient);
 
-const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
+const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
 
   if (loading) {
     return (
       <DentistPageSkeleton
-        title="Patients"
-        subtitle="Chargement de la liste des patients"
+        title={view === "archived" ? "Patients archivés" : "Patients"}
+        subtitle={view === "archived" ? "Chargement de la liste des patients archivés" : "Chargement de la liste des patients"}
         variant="table"
       />
     );
@@ -221,9 +313,10 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 
   return (
   <div className="patients-container">
-  <PageHeader 
-  title="Patients" 
-  subtitle="Liste des patients enregistrés" 
+{showBackButton && <BackButton fallbackTo={backFallbackTo} />}
+<PageHeader 
+  title={view === "archived" ? "Patients archivés" : "Patients"} 
+  subtitle={view === "archived" ? "Liste des patients archivés" : "Liste des patients enregistrés"} 
   align="left" 
 />
 
@@ -352,52 +445,90 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 
         </div>
 
-        {/* Right side: add button */}
         <div className="controls-right">
-          <button
-            className="btn-primary"
-            onClick={() => {
-              setFormData({
-                id: null,
-                firstname: "",
-                lastname: "",
-                age: "",
-                phone: "",
-                sex: "",
-              });
-              setIsEditing(false);
-              setShowModal(true);
-            }}
-          >
-            <Plus size={16} />
-            Ajouter un patient
-          </button>
+          {view === "archived" ? (
+            null
+          ) : (
+            <>
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => navigate("/patients/archived")}
+                title="Patients archivés"
+                aria-label="Patients archivés"
+              >
+                <Archive size={16} />
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setFormData({
+                    id: null,
+                    firstname: "",
+                    lastname: "",
+                    age: "",
+                    phone: "",
+                    sex: "",
+                  });
+                  setIsEditing(false);
+                  setShowModal(true);
+                }}
+              >
+                <Plus size={16} />
+                Ajouter un patient
+              </button>
+            </>
+          )}
         </div>
       </div>
       {/* Table */}
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Prénom</th>
-            <th>Nom</th>
-            <th>Âge</th>
-            <th>Sexe</th>
-            <th>Téléphone</th>
-            <th>Créé le</th>
+            <SortableTh label="Prénom" sortKey="firstname" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Nom" sortKey="lastname" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Âge" sortKey="age" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Sexe" sortKey="sex" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Téléphone" sortKey="phone" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Créé le" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
        <tbody>
   {currentPatients.map((p) => (
     <tr key={p.id} onClick={() => navigate(`/patients/${p.id}`)} style={{ cursor: "pointer" }}>
-      <td>{p.firstname || "—"}</td>
+      <td>
+        <div className="patients-name-cell">
+          <span>{p.firstname || "—"}</span>
+          <PatientDangerIcon
+            show={!!p.danger}
+            compact
+            dangerCancelled={p.dangerCancelled}
+            dangerOwed={p.dangerOwed}
+          />
+        </div>
+      </td>
       <td>{p.lastname || "—"}</td>
       <td>{p.age ?? "N/A"} ans</td>
 <td>
   {p.sex === "Homme" ? (
-    <span className="sex-icon-square male" title="Homme" aria-label="Homme">♂</span>
+    <span
+      className="sex-icon-square male"
+      title="Homme"
+      aria-label="Homme"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <FaMale aria-hidden="true" focusable="false" />
+    </span>
   ) : p.sex === "Femme" ? (
-    <span className="sex-icon-square female" title="Femme" aria-label="Femme">♀</span>
+    <span
+      className="sex-icon-square female"
+      title="Femme"
+      aria-label="Femme"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <FaFemale aria-hidden="true" focusable="false" />
+    </span>
   ) : (
     "—"
   )}
@@ -426,19 +557,88 @@ const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
         >
           <Edit2 size={16} />
         </button>
+
+        {view === "archived" ? (
+          <button
+            className="action-btn view"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleArchiveToggle(p.id, "unarchive");
+            }}
+            title="Désarchiver"
+          >
+            <RotateCcw size={16} />
+          </button>
+        ) : (
+          <button
+            className="action-btn delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleArchiveToggle(p.id, "archive");
+            }}
+            title="Archiver"
+          >
+            <Archive size={16} />
+          </button>
+        )}
       </td>
     </tr>
   ))}
 
-  {filteredPatients.length === 0 && (
+  {sortedPatients.length === 0 && (
     <tr>
       <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
-        Aucun patient trouvé
+        {view === "archived" ? "Aucun patient archivé" : "Aucun patient trouvé"}
       </td>
     </tr>
   )}
 </tbody>
       </table>
+
+      {showConfirm && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]"
+          onClick={() => (isConfirmingAction ? null : setShowConfirm(false))}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <X
+              size={20}
+              className="cursor-pointer absolute right-3 top-3 text-gray-500 hover:text-gray-800"
+              onClick={() => (isConfirmingAction ? null : setShowConfirm(false))}
+            />
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">{confirmTitle}</h2>
+            <p className="text-gray-600 mb-6">{confirmMessage}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                disabled={isConfirmingAction}
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  if (isConfirmingAction || !onConfirmAction) return;
+                  setIsConfirmingAction(true);
+                  try {
+                    await onConfirmAction();
+                  } finally {
+                    setIsConfirmingAction(false);
+                    setShowConfirm(false);
+                  }
+                }}
+                disabled={isConfirmingAction}
+                className={`px-4 py-2 rounded-xl text-white ${confirmButtonClassName}`}
+              >
+                {isConfirmingAction ? confirmButtonLoadingLabel : confirmButtonLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 {/* Pagination controls */}
 {totalPages > 1 && (
   <div className="pagination">

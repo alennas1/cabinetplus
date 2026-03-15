@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Search, Edit2, Filter, Trash2, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import {
   getExpenses,
   createExpense,
@@ -17,6 +18,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -61,6 +63,7 @@ const Expenses = () => {
   const [filterBy, setFilterBy] = useState("title");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef();
+  const [sortConfig, setSortConfig] = useState({ key: "date", direction: SORT_DIRECTIONS.DESC });
 
   // Load expenses
   useEffect(() => {
@@ -80,24 +83,59 @@ const Expenses = () => {
     }
   };
 
-  // Filtered expenses
-  const filteredExpenses = expenses
-    .filter((e) => {
-      let value = "";
-      if (filterBy === "category") {
-        value = EXPENSE_CATEGORIES[e.category] || "";
-      } else {
-        value = (e[filterBy] || "").toString();
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const filteredExpenses = useMemo(
+    () =>
+      expenses.filter((e) => {
+        let value = "";
+        if (filterBy === "category") {
+          value = EXPENSE_CATEGORIES[e.category] || "";
+        } else {
+          value = (e[filterBy] || "").toString();
+        }
+        return value.toLowerCase().includes(search.toLowerCase());
+      }),
+    [expenses, filterBy, search]
+  );
+
+  const sortedExpenses = useMemo(() => {
+    const getValue = (e) => {
+      switch (sortConfig.key) {
+        case "title":
+          return e.title;
+        case "category":
+          return EXPENSE_CATEGORIES[e.category] || e.category;
+        case "amount":
+          return e.amount;
+        case "date":
+          return e.date;
+        case "description":
+          return e.description;
+        default:
+          return "";
       }
-      return value.toLowerCase().includes(search.toLowerCase());
-    })
-    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    };
+    return sortRowsBy(filteredExpenses, getValue, sortConfig.direction);
+  }, [filteredExpenses, sortConfig.direction, sortConfig.key]);
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentExpenses = filteredExpenses.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredExpenses.length / itemsPerPage);
+  const currentExpenses = sortedExpenses.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedExpenses.length / itemsPerPage);
 
   // Handlers
   const handleChange = async (e) => {
@@ -253,11 +291,11 @@ const Expenses = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Titre</th>
-            <th>Catégorie</th>
-            <th>Montant</th>
-            <th>Date</th>
-            <th>Description</th>
+            <SortableTh label="Titre" sortKey="title" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Catégorie" sortKey="category" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Date" sortKey="date" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Description" sortKey="description" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -275,7 +313,7 @@ const Expenses = () => {
               </td>
             </tr>
           ))}
-          {filteredExpenses.length === 0 && (
+          {sortedExpenses.length === 0 && (
             <tr>
               <td colSpan="6" style={{ textAlign: "center", color: "#888" }}>Aucune dépense trouvée</td>
             </tr>

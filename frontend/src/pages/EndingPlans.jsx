@@ -4,10 +4,13 @@ import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import SortableTh from "../components/SortableTh";
 import { getUsersExpiringInDays } from "../services/userService";
 import { Eye, ChevronDown, Search } from "react-feather";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import "./Patients.css";
 
 const statusMap = {
   PENDING: "En attente",
@@ -25,6 +28,7 @@ const EndingPlans = () => {
   const dropdownRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "expirationDate", direction: SORT_DIRECTIONS.ASC });
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -55,8 +59,21 @@ const EndingPlans = () => {
     toast.info(`Viewing user with ID: ${id}`);
   };
 
-  const filteredUsers = users
-    .filter((u) => {
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const filteredUsers = users.filter((u) => {
       if (filterStatus !== "ALL" && (u.planStatus || "PENDING") !== filterStatus) {
         return false;
       }
@@ -67,13 +84,33 @@ const EndingPlans = () => {
         u.lastname.toLowerCase().includes(search.toLowerCase()) ||
         (searchDigits && normalizePhoneInput(u.phoneNumber).includes(searchDigits))
       );
-    })
-    .sort((a, b) => new Date(a.expirationDate || 0) - new Date(b.expirationDate || 0));
+    });
+
+  const sortedUsers = React.useMemo(() => {
+    const getValue = (u) => {
+      const status = (u.planStatus || "PENDING").toUpperCase();
+      switch (sortConfig.key) {
+        case "user":
+          return `${u.firstname || ""} ${u.lastname || ""}`.trim();
+        case "phoneNumber":
+          return u.phoneNumber;
+        case "status":
+          return statusMap[status] || status;
+        case "planName":
+          return status === "ACTIVE" && u.plan ? u.plan.name : "";
+        case "expirationDate":
+          return u.expirationDate;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredUsers, getValue, sortConfig.direction);
+  }, [filteredUsers, sortConfig.direction, sortConfig.key]);
 
   const indexOfLast = currentPage * usersPerPage;
   const indexOfFirst = indexOfLast - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const currentUsers = sortedUsers.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedUsers.length / usersPerPage);
 
   return (
     <div className="patients-container">
@@ -114,14 +151,14 @@ const EndingPlans = () => {
         </div>
       </div>
 
-      <table className="patients-table">
+<table className="patients-table">
   <thead>
     <tr>
-      <th>Utilisateur</th>
-      <th>Téléphone</th>
-      <th>Statut</th>
-      <th>Plan actuel</th>
-      <th>Date d'expiration</th>
+      <SortableTh label="Utilisateur" sortKey="user" sortConfig={sortConfig} onSort={handleSort} />
+      <SortableTh label="Téléphone" sortKey="phoneNumber" sortConfig={sortConfig} onSort={handleSort} />
+      <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
+      <SortableTh label="Plan actuel" sortKey="planName" sortConfig={sortConfig} onSort={handleSort} />
+      <SortableTh label="Date d'expiration" sortKey="expirationDate" sortConfig={sortConfig} onSort={handleSort} />
       <th>Actions</th>
     </tr>
   </thead>

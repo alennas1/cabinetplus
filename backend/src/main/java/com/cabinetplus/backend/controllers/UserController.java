@@ -25,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.dto.UserSessionResponse;
+import com.cabinetplus.backend.dto.PatientManagementSettingsRequest;
+import com.cabinetplus.backend.dto.PatientManagementSettingsResponse;
 import com.cabinetplus.backend.dto.UserPreferencesRequest;
 import com.cabinetplus.backend.dto.UserPreferencesResponse;
 import com.cabinetplus.backend.dto.PlanUsageDto;
@@ -193,6 +195,35 @@ public class UserController {
 
         User saved = userService.save(owner);
         return mapPreferences(saved);
+    }
+
+    @GetMapping("/me/patient-management")
+    public PatientManagementSettingsResponse getCurrentPatientManagementSettings(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
+    ) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User owner = userService.resolveClinicOwner(user);
+        return mapPatientManagement(owner);
+    }
+
+    @PutMapping("/me/patient-management")
+    public PatientManagementSettingsResponse updateCurrentPatientManagementSettings(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+            @RequestBody PatientManagementSettingsRequest request
+    ) {
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User owner = userService.resolveClinicOwner(user);
+
+        Integer cancelledThreshold = request != null ? request.cancelledAppointmentsThreshold() : null;
+        Double owedThreshold = request != null ? request.moneyOwedThreshold() : null;
+
+        owner.setPatientCancelledAppointmentsThreshold(cancelledThreshold != null ? Math.max(0, cancelledThreshold) : 0);
+        owner.setPatientMoneyOwedThreshold(owedThreshold != null ? Math.max(0.0, owedThreshold) : 0.0);
+
+        User saved = userService.save(owner);
+        return mapPatientManagement(saved);
     }
 
     @GetMapping("/me/plan-usage")
@@ -490,6 +521,15 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                 user.getDateFormat(),
                 user.getMoneyFormat(),
                 user.getCurrencyLabel()
+        );
+    }
+
+    private PatientManagementSettingsResponse mapPatientManagement(User user) {
+        Integer cancelled = user.getPatientCancelledAppointmentsThreshold();
+        Double owed = user.getPatientMoneyOwedThreshold();
+        return new PatientManagementSettingsResponse(
+                cancelled != null ? Math.max(0, cancelled) : 0,
+                owed != null ? Math.max(0.0, owed) : 0.0
         );
     }
 

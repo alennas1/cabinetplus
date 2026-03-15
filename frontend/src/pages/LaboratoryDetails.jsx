@@ -16,6 +16,7 @@ import {
 } from "react-feather";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import SortableTh from "../components/SortableTh";
 import {
   addLaboratoryPayment,
   deleteLaboratoryPayment,
@@ -29,6 +30,7 @@ import { getCurrencyLabelPreference } from "../utils/workingHours";
 import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patient.css";
 import "./Profile.css";
 import "./Finance.css";
@@ -182,6 +184,60 @@ const LaboratoryDetails = () => {
 
   const filteredPaymentsTotal = filteredPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const filteredBillingTotal = filteredBillingEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  const [paymentSortConfig, setPaymentSortConfig] = useState({
+    key: "paymentDate",
+    direction: SORT_DIRECTIONS.DESC,
+  });
+  const [paymentPage, setPaymentPage] = useState(1);
+  const paymentsPerPage = 10;
+
+  const handlePaymentSort = (key, explicitDirection) => {
+    if (!key) return;
+    setPaymentSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedPayments = useMemo(() => {
+    const getValue = (payment) => {
+      switch (paymentSortConfig.key) {
+        case "amount":
+          return payment.amount;
+        case "paymentDate":
+          return payment.paymentDate;
+        case "notes":
+          return payment.notes;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredPayments, getValue, paymentSortConfig.direction);
+  }, [filteredPayments, paymentSortConfig.direction, paymentSortConfig.key]);
+
+  useEffect(() => {
+    setPaymentPage(1);
+  }, [
+    activeTab,
+    paymentFilters.selectedFilter,
+    paymentFilters.selectedMonth,
+    paymentFilters.customRange.start,
+    paymentFilters.customRange.end,
+    paymentSortConfig.key,
+    paymentSortConfig.direction,
+  ]);
+
+  const indexOfLastPayment = paymentPage * paymentsPerPage;
+  const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
+  const currentPayments = sortedPayments.slice(indexOfFirstPayment, indexOfLastPayment);
+  const paymentTotalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
 
   const handleEditField = (field) => {
     setEditingField(field);
@@ -487,15 +543,15 @@ const LaboratoryDetails = () => {
           <table className="treatment-table">
             <thead>
               <tr>
-                <th>Montant</th>
-                <th>Date</th>
-                <th>Note</th>
+                <SortableTh label="Montant" sortKey="amount" sortConfig={paymentSortConfig} onSort={handlePaymentSort} />
+                <SortableTh label="Date" sortKey="paymentDate" sortConfig={paymentSortConfig} onSort={handlePaymentSort} />
+                <SortableTh label="Note" sortKey="notes" sortConfig={paymentSortConfig} onSort={handlePaymentSort} />
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPayments.length ? (
-                filteredPayments.map((payment) => (
+              {sortedPayments.length ? (
+                currentPayments.map((payment) => (
                   <tr key={payment.id}>
                     <td style={{ fontWeight: "700" }}>{formatCurrency(payment.amount)}</td>
                     <td>{formatDateTime(payment.paymentDate)}</td>
@@ -525,6 +581,31 @@ const LaboratoryDetails = () => {
               )}
             </tbody>
           </table>
+
+          {paymentTotalPages > 1 && (
+            <div className="pagination">
+              <button disabled={paymentPage === 1} onClick={() => setPaymentPage((prev) => prev - 1)}>
+                ← Précédent
+              </button>
+
+              {[...Array(paymentTotalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  className={paymentPage === i + 1 ? "active" : ""}
+                  onClick={() => setPaymentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                disabled={paymentPage === paymentTotalPages}
+                onClick={() => setPaymentPage((prev) => prev + 1)}
+              >
+                Suivant →
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Plus, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import { getAllMaterials, createMaterial, deleteMaterial } from "../services/materialService";
 import { getApiErrorMessage } from "../utils/error";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
 import "./Patients.css"; // Using shared CSS for consistent styling
 
@@ -20,6 +22,7 @@ const MaterialsSettings = () => {
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
 
     // Delete Confirmation State
     const [showConfirm, setShowConfirm] = useState(false);
@@ -82,16 +85,43 @@ const MaterialsSettings = () => {
         }
     };
 
-    // Filter logic
+    const handleSort = (key, explicitDirection) => {
+        if (!key) return;
+        setSortConfig((prev) => {
+            const nextDirection =
+                explicitDirection ||
+                (prev.key === key
+                    ? prev.direction === SORT_DIRECTIONS.ASC
+                        ? SORT_DIRECTIONS.DESC
+                        : SORT_DIRECTIONS.ASC
+                    : SORT_DIRECTIONS.ASC);
+            return { key, direction: nextDirection };
+        });
+    };
+
     const filteredMaterials = materials.filter((m) =>
         m.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const sortedMaterials = useMemo(() => {
+        const getValue = (m) => {
+            switch (sortConfig.key) {
+                case "id":
+                    return m.id;
+                case "name":
+                    return m.name;
+                default:
+                    return "";
+            }
+        };
+        return sortRowsBy(filteredMaterials, getValue, sortConfig.direction);
+    }, [filteredMaterials, sortConfig.direction, sortConfig.key]);
+
     // Pagination logic
     const indexOfLast = currentPage * itemsPerPage;
     const indexOfFirst = indexOfLast - itemsPerPage;
-    const currentMaterials = filteredMaterials.slice(indexOfFirst, indexOfLast);
-    const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
+    const currentMaterials = sortedMaterials.slice(indexOfFirst, indexOfLast);
+    const totalPages = Math.ceil(sortedMaterials.length / itemsPerPage);
 
     if (loading) {
         return (
@@ -147,8 +177,8 @@ const MaterialsSettings = () => {
             <table className="patients-table" style={{ width: '100%', tableLayout: 'fixed' }}>
                 <thead>
                     <tr>
-                        <th style={{ width: '100px' }}>ID</th>
-                        <th>Nom du MatÃ©riau</th>
+                        <SortableTh label="ID" sortKey="id" sortConfig={sortConfig} onSort={handleSort} style={{ width: "100px" }} />
+                        <SortableTh label="Nom du Matériau" sortKey="name" sortConfig={sortConfig} onSort={handleSort} />
                         <th style={{ width: '100px', textAlign: 'right' }}>Actions</th>
                     </tr>
                 </thead>
@@ -171,7 +201,7 @@ const MaterialsSettings = () => {
                         </tr>
                     ))}
 
-                    {filteredMaterials.length === 0 && (
+                    {sortedMaterials.length === 0 && (
                         <tr>
                             <td colSpan={3} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
                                 Aucun matÃ©riau trouvÃ©

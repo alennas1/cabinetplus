@@ -1,0 +1,33 @@
+.patient-danger-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 1.5px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  flex: 0 0 auto;
+  cursor: default;
+}
+
+.patient-danger-icon.compact {
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+}
+
+.patient-danger-icon.big {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+
+.patient-danger-icon svg {
+  display: block;
+}
+
+.patient-danger-icon.with-margin {
+  margin-left: 8px;
+}

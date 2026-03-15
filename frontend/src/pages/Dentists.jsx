@@ -5,10 +5,13 @@ import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import SortableTh from "../components/SortableTh";
 import { getAllDentists } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { Eye, ChevronDown, Search } from "react-feather";
 import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import "./Patients.css";
 
 const statusMap = {
   PENDING: "En attente",
@@ -27,6 +30,7 @@ const Dentists = () => {
   const dropdownRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
   const dentistsPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "lastname", direction: SORT_DIRECTIONS.ASC });
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -69,10 +73,47 @@ const Dentists = () => {
     );
   });
 
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedDentists = React.useMemo(() => {
+    const getValue = (d) => {
+      const status = (d.planStatus || "PENDING").toUpperCase();
+      switch (sortConfig.key) {
+        case "firstname":
+          return d.firstname;
+        case "lastname":
+          return d.lastname;
+        case "phoneNumber":
+          return d.phoneNumber;
+        case "status":
+          return statusMap[status] || status;
+        case "planName":
+          return status === "ACTIVE" && d.plan ? d.plan.name : "";
+        case "expirationDate":
+          return d.expirationDate;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredDentists, getValue, sortConfig.direction);
+  }, [filteredDentists, sortConfig.direction, sortConfig.key]);
+
   const indexOfLast = currentPage * dentistsPerPage;
   const indexOfFirst = indexOfLast - dentistsPerPage;
-  const currentDentists = filteredDentists.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredDentists.length / dentistsPerPage);
+  const currentDentists = sortedDentists.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedDentists.length / dentistsPerPage);
 
   return (
     <div className="patients-container">
@@ -129,12 +170,12 @@ const Dentists = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Prénom</th>
-            <th>Nom</th>
-            <th>Téléphone</th>
-            <th>Statut</th>
-            <th>Plan actuel</th>
-            <th>Date d'expiration</th>
+            <SortableTh label="Prénom" sortKey="firstname" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Nom" sortKey="lastname" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Téléphone" sortKey="phoneNumber" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Plan actuel" sortKey="planName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Date d'expiration" sortKey="expirationDate" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>

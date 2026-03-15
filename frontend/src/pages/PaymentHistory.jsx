@@ -1,12 +1,15 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
+import SortableTh from "../components/SortableTh";
 import { getAllHandPayments } from "../services/handPaymentService";
 import { Search, ChevronDown } from "react-feather";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import "./Patients.css";
 
 const AllPayments = () => {
   const token = useSelector((state) => state.auth.token);
@@ -17,6 +20,7 @@ const AllPayments = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const paymentsPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: SORT_DIRECTIONS.DESC });
 
   const loadPayments = async () => {
     try {
@@ -56,8 +60,22 @@ const AllPayments = () => {
     rejected: "Rejeté",
   };
 
-  const filteredPayments = payments
-    .filter((p) => {
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p) => {
       const matchesSearch =
         !search ||
         p.fullName.toLowerCase().includes(search.toLowerCase()) ||
@@ -65,13 +83,33 @@ const AllPayments = () => {
       const matchesStatus =
         !statusFilter || p.paymentStatus.toLowerCase() === statusFilter.toLowerCase();
       return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0));
+    });
+  }, [payments, search, statusFilter]);
+
+  const sortedPayments = useMemo(() => {
+    const getValue = (p) => {
+      switch (sortConfig.key) {
+        case "fullName":
+          return p.fullName;
+        case "planName":
+          return p.planName;
+        case "amount":
+          return p.amount;
+        case "paymentDate":
+          return p.paymentDate;
+        case "status":
+          return statusLabels[p.paymentStatus?.toLowerCase?.()] || p.paymentStatus;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredPayments, getValue, sortConfig.direction);
+  }, [filteredPayments, sortConfig.direction, sortConfig.key]);
 
   const indexOfLast = currentPage * paymentsPerPage;
   const indexOfFirst = indexOfLast - paymentsPerPage;
-  const currentPayments = filteredPayments.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredPayments.length / paymentsPerPage);
+  const currentPayments = sortedPayments.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
 
   return (
     <div className="patients-container">
@@ -129,11 +167,11 @@ const AllPayments = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Utilisateur</th>
-            <th>Plan</th>
-            <th>Montant</th>
-            <th>Date</th>
-            <th>Statut</th>
+            <SortableTh label="Utilisateur" sortKey="fullName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Plan" sortKey="planName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Date" sortKey="paymentDate" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
           </tr>
         </thead>
         <tbody>

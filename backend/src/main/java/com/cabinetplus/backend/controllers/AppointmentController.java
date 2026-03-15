@@ -57,7 +57,7 @@ public class AppointmentController {
         return appointmentService.findByPractitioner(currentUser);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public Optional<Appointment> getAppointmentById(@PathVariable Long id) {
         return appointmentService.findById(id);
     }
@@ -115,7 +115,7 @@ public class AppointmentController {
         );
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public AppointmentResponse updateAppointment(@PathVariable Long id, @RequestBody AppointmentRequest request, Principal principal) {
         User currentUser = getClinicUser(principal);
 
@@ -275,7 +275,7 @@ public class AppointmentController {
         });
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public void deleteAppointment(@PathVariable Long id) {
         Appointment existing = appointmentService.findById(id).orElse(null);
         appointmentService.delete(id);

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Lock, Activity, Settings as Gear, CreditCard } from "react-feather";
+import { User, Lock, Activity, Settings as Gear, CreditCard, AlertTriangle } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
 
@@ -45,6 +45,12 @@ const Settings = () => {
           desc: "Personnaliser l'application selon vos besoins",
           icon: <Gear />,
           path: "/settings/preferences",
+        },
+        {
+          title: "Gestion patients",
+          desc: "Définir des seuils d'alerte (annulations, montant dû)",
+          icon: <AlertTriangle />,
+          path: "/settings/patient-management",
         },
       ],
     },

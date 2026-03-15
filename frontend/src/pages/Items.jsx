@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Search, Edit2,Filter, Trash2, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
+import SortableTh from "../components/SortableTh";
 import {
   getItemDefaults,
   createItemDefault,
@@ -16,6 +17,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
+import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css"; // Using the same Patients.css
 
 const ITEM_CATEGORIES = {
@@ -58,6 +60,7 @@ const Items = () => {
   const [filterBy, setFilterBy] = useState("name");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef();
+  const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
 
   // Load items
   useEffect(() => {
@@ -77,25 +80,57 @@ const Items = () => {
     }
   };
 
-  // Filtered items
- const filteredItems = items.filter((i) => {
-  let value = "";
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
 
-  if (filterBy === "category") {
-    // Use the French translation for category
-    value = ITEM_CATEGORIES[i.category] || "";
-  } else {
-    value = (i[filterBy] || "").toString();
-  }
+  const filteredItems = useMemo(() => {
+    return items.filter((i) => {
+      let value = "";
 
-  return value.toLowerCase().includes(search.toLowerCase());
-});
+      if (filterBy === "category") {
+        value = ITEM_CATEGORIES[i.category] || "";
+      } else {
+        value = (i[filterBy] || "").toString();
+      }
+
+      return value.toLowerCase().includes(search.toLowerCase());
+    });
+  }, [filterBy, items, search]);
+
+  const sortedItems = useMemo(() => {
+    const getValue = (i) => {
+      switch (sortConfig.key) {
+        case "name":
+          return i.name;
+        case "category":
+          return ITEM_CATEGORIES[i.category] || i.category;
+        case "defaultPrice":
+          return i.defaultPrice;
+        case "description":
+          return i.description;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredItems, getValue, sortConfig.direction);
+  }, [filteredItems, sortConfig.direction, sortConfig.key]);
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const currentItems = sortedItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
 
   if (loading) {
     return (
@@ -231,10 +266,10 @@ const Items = () => {
       <table className="patients-table">
         <thead>
           <tr>
-            <th>Nom</th>
-            <th>Catégorie</th>
-            <th>Prix par défaut</th>
-            <th>Description</th>
+            <SortableTh label="Nom" sortKey="name" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Catégorie" sortKey="category" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Prix par défaut" sortKey="defaultPrice" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Description" sortKey="description" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -251,7 +286,7 @@ const Items = () => {
               </td>
             </tr>
           ))}
-          {filteredItems.length === 0 && (
+          {sortedItems.length === 0 && (
             <tr>
               <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun article trouvé</td>
             </tr>

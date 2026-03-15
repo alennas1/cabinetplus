@@ -9,15 +9,18 @@ import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.PlanService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
@@ -34,6 +37,7 @@ class UserControllerTest {
     private UserService userService;
     private PlanService planService;
     private PlanLimitService planLimitService;
+    private PublicIdResolutionService publicIdResolutionService;
 
     @BeforeEach
     void setUp() {
@@ -41,6 +45,7 @@ class UserControllerTest {
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         planService = mock(PlanService.class);
         planLimitService = mock(PlanLimitService.class);
+        publicIdResolutionService = mock(PublicIdResolutionService.class);
         JwtUtil jwtUtil = mock(JwtUtil.class);
         AuditService auditService = mock(AuditService.class);
         RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
@@ -52,7 +57,8 @@ class UserControllerTest {
                 planLimitService,
                 jwtUtil,
                 auditService,
-                refreshTokenRepository
+                refreshTokenRepository,
+                publicIdResolutionService
         );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
@@ -68,7 +74,8 @@ class UserControllerTest {
 
     @Test
     void getUserByIdWhenMissingReturns404Contract() throws Exception {
-        when(userService.findById(404L)).thenReturn(Optional.empty());
+        when(publicIdResolutionService.requireUserByIdOrPublicId("404"))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         mockMvc.perform(get("/api/users/404"))
                 .andExpect(status().isNotFound())

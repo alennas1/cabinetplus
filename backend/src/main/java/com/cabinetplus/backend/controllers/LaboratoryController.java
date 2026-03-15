@@ -17,10 +17,12 @@ import jakarta.validation.Valid;
 public class LaboratoryController {
     private final LaboratoryService service;
     private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
-    public LaboratoryController(LaboratoryService service, UserService userService) {
+    public LaboratoryController(LaboratoryService service, UserService userService, PublicIdResolutionService publicIdResolutionService) {
         this.service = service;
         this.userService = userService;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     @GetMapping
@@ -30,12 +32,10 @@ public class LaboratoryController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<LaboratoryResponse> getOne(@PathVariable Long id, Principal principal) {
+    public ResponseEntity<LaboratoryResponse> getOne(@PathVariable String id, Principal principal) {
         User user = getCurrentUser(principal);
-        return service.findByIdAndUser(id, user)
-                .map(this::mapToResponse)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        Laboratory laboratory = publicIdResolutionService.requireLaboratoryOwnedBy(id, user);
+        return ResponseEntity.ok(mapToResponse(laboratory));
     }
 
     @PostMapping
@@ -51,49 +51,53 @@ public class LaboratoryController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<LaboratoryResponse> update(@PathVariable Long id, @Valid @RequestBody LaboratoryRequest dto, Principal principal) {
+    public ResponseEntity<LaboratoryResponse> update(@PathVariable String id, @Valid @RequestBody LaboratoryRequest dto, Principal principal) {
         User user = getCurrentUser(principal);
+        Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
         Laboratory updateData = new Laboratory();
         updateData.setName(dto.name());
         updateData.setContactPerson(dto.contactPerson());
         updateData.setPhoneNumber(dto.phoneNumber());
         updateData.setAddress(dto.address());
-        return service.update(id, updateData, user).map(this::mapToResponse).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+        return service.update(internalLabId, updateData, user).map(this::mapToResponse).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{id}/payments")
-    public ResponseEntity<LaboratoryResponse> addPayment(@PathVariable Long id,
+    public ResponseEntity<LaboratoryResponse> addPayment(@PathVariable String id,
                                                          @Valid @RequestBody LaboratoryPaymentRequest dto,
                                                          Principal principal) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = service.findByIdAndUser(id, user)
+        Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
+        service.addPayment(internalLabId, dto, user);
+        Laboratory laboratory = service.findByIdAndUser(internalLabId, user)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
-        service.addPayment(id, dto, user);
         return ResponseEntity.ok(mapToResponse(laboratory));
     }
 
     @DeleteMapping("/{id}/payments/{paymentId}")
-    public ResponseEntity<Void> deletePayment(@PathVariable Long id, @PathVariable Long paymentId, Principal principal) {
+    public ResponseEntity<Void> deletePayment(@PathVariable String id, @PathVariable Long paymentId, Principal principal) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = service.findByIdAndUser(id, user).orElse(null);
+        Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
+        Laboratory laboratory = service.findByIdAndUser(internalLabId, user).orElse(null);
         if (laboratory == null) {
             return ResponseEntity.notFound().build();
         }
 
-        return service.deletePayment(id, paymentId, user)
+        return service.deletePayment(internalLabId, paymentId, user)
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
+    public ResponseEntity<Void> delete(@PathVariable String id, Principal principal) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = service.findByIdAndUser(id, user).orElse(null);
+        Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
+        Laboratory laboratory = service.findByIdAndUser(internalLabId, user).orElse(null);
         if (laboratory == null) {
             return ResponseEntity.notFound().build();
         }
 
-        if (!service.deleteByUser(id, user)) {
+        if (!service.deleteByUser(internalLabId, user)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Suppression impossible: ce laboratoire est lie a des paiements ou protheses");
         }
 
@@ -124,6 +128,7 @@ public class LaboratoryController {
 
         return new LaboratoryResponse(
                 l.getId(),
+                l.getPublicId(),
                 l.getName(),
                 l.getContactPerson(),
                 l.getPhoneNumber(),

@@ -221,6 +221,7 @@ public class EmployeeService {
 
         return EmployeeResponseDTO.builder()
                 .id(employee.getId())
+                .publicId(employee.getPublicId())
                 .firstName(employee.getFirstName())
                 .lastName(employee.getLastName())
                 .gender(employee.getGender())

@@ -496,7 +496,7 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
         </thead>
        <tbody>
   {currentPatients.map((p) => (
-    <tr key={p.id} onClick={() => navigate(`/patients/${p.id}`)} style={{ cursor: "pointer" }}>
+    <tr key={p.id} onClick={() => navigate(`/patients/${p.publicId || p.id}`)} style={{ cursor: "pointer" }}>
       <td>
         <div className="patients-name-cell">
           <span>{p.firstname || "—"}</span>
@@ -540,7 +540,7 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
           className="action-btn view"
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/patients/${p.id}`);
+            navigate(`/patients/${p.publicId || p.id}`);
           }}
           title="Voir le patient"
         >

@@ -2,6 +2,7 @@ package com.cabinetplus.backend.repositories;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -21,4 +22,7 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
 
     @Query("SELECT p FROM Prescription p LEFT JOIN FETCH p.medications WHERE p.id = :id")
 Optional<Prescription> findByIdWithMedications(@Param("id") Long id);
+
+    @Query("SELECT p FROM Prescription p LEFT JOIN FETCH p.medications WHERE p.publicId = :publicId")
+    Optional<Prescription> findByPublicIdWithMedications(@Param("publicId") UUID publicId);
 }

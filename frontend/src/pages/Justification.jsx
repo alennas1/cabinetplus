@@ -45,7 +45,7 @@ const Justification = () => {
 
   useEffect(() => {
     // Chargement des données du patient
-    getPatientById(Number(patientId))
+    getPatientById(patientId)
       .then((data) => setPatient(data))
       .catch((err) => console.error("Error fetching patient:", err));
 
@@ -56,7 +56,7 @@ const Justification = () => {
       }
       try {
         setLoadingDraft(true);
-        const draftText = await generateDraftJustification(Number(patientId), Number(templateId));
+        const draftText = await generateDraftJustification(patientId, templateId);
         setDraft(draftText);
         if (initialSnapshotRef.current == null) {
           initialSnapshotRef.current = buildSnapshot({ title, draft: draftText });
@@ -77,8 +77,12 @@ const Justification = () => {
     }
     setSaving(true);
     try {
+      if (!patient?.id) {
+        toast.error("Patient introuvable");
+        return;
+      }
       const payload = {
-        patientId: Number(patientId),
+        patientId: patient.id,
         title: title.trim(),
         content: draft.trim(),
       };

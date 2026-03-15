@@ -30,8 +30,8 @@ public class PatientService {
     }
 
     // Update patient safely
-    public PatientDto update(Long id, Patient updatedPatient) {
-        Patient existing = patientRepository.findById(id)
+    public PatientDto update(Long id, Patient updatedPatient, User ownerDentist) {
+        Patient existing = patientRepository.findByIdAndCreatedBy(id, ownerDentist)
                 .orElseThrow(() -> new RuntimeException("Patient introuvable"));
 
         existing.setFirstname(updatedPatient.getFirstname());
@@ -55,13 +55,16 @@ public class PatientService {
         return patientRepository.findById(id).map(this::toDto);
     }
 
-    public void delete(Long id) {
-        patientRepository.deleteById(id);
+    public void delete(Long id, User ownerDentist) {
+        Patient existing = patientRepository.findByIdAndCreatedBy(id, ownerDentist)
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        patientRepository.delete(existing);
     }
 
     private PatientDto toDto(Patient patient) {
         return new PatientDto(
                 patient.getId(),
+                patient.getPublicId(),
                 patient.getFirstname(),
                 patient.getLastname(),
                 patient.getAge(),

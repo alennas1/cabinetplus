@@ -20,3 +20,17 @@ databaseChangeLog:
       changes:
         - tagDatabase:
             tag: baseline
+  - changeSet:
+      id: 003-add-public-ids
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 003a-uuidv7-function.sql
+            relativeToChangelogFile: true
+            splitStatements: false
+            stripComments: true
+        - sqlFile:
+            path: 003-add-public-ids.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

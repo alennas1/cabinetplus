@@ -5,16 +5,20 @@ import com.cabinetplus.backend.dto.PaymentResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Payment;
+import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.PaymentRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PaymentService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
+import com.cabinetplus.backend.services.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -26,6 +30,8 @@ public class PaymentController {
     private final AuditService auditService;
     private final PatientRepository patientRepository;
     private final PaymentRepository paymentRepository;
+    private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     @PostMapping("/payments")
     public ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request) {
@@ -45,8 +51,10 @@ public class PaymentController {
     }
 
     @GetMapping("/patients/{patientId}/payments")
-    public ResponseEntity<List<Payment>> listByPatient(@PathVariable Long patientId) {
-        return ResponseEntity.ok(paymentService.listByPatient(patientId));
+    public ResponseEntity<List<Payment>> listByPatient(@PathVariable String patientId, Principal principal) {
+        User ownerDentist = getClinicUser(principal);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        return ResponseEntity.ok(paymentService.listByPatient(internalPatientId));
     }
 
     @DeleteMapping("/payments/{paymentId}")
@@ -71,5 +79,11 @@ public class PaymentController {
         String last = patient.getLastname() != null ? patient.getLastname().trim() : "";
         String fullName = (first + " " + last).trim();
         return fullName.isEmpty() ? "patient inconnu" : fullName;
+    }
+
+    private User getClinicUser(Principal principal) {
+        User currentUser = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return userService.resolveClinicOwner(currentUser);
     }
 }

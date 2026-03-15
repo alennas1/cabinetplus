@@ -7,12 +7,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface JustificationContentRepository extends JpaRepository<JustificationContent, Long> {
 
 
         Optional<JustificationContent> findByTitleAndPractitioner(String title, User practitioner);
 
+        Optional<JustificationContent> findByPublicIdAndPractitioner(UUID publicId, User practitioner);
 
     List<JustificationContent> findByPractitioner(User practitioner);
 }

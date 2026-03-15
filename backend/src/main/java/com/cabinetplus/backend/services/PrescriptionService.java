@@ -88,6 +88,7 @@ public class PrescriptionService {
     public PrescriptionResponseDTO mapToResponseDTO(Prescription prescription) {
         PrescriptionResponseDTO dto = new PrescriptionResponseDTO();
         dto.setId(prescription.getId());
+        dto.setPublicId(prescription.getPublicId());
         dto.setRxId(prescription.getRxId());
         dto.setDate(prescription.getDate());
         dto.setNotes(prescription.getNotes());
@@ -115,7 +116,7 @@ public class PrescriptionService {
 
     public List<PrescriptionSummaryDTO> getPrescriptionsByPatientId(Long patientId) {
         return prescriptionRepository.findByPatientId(patientId).stream()
-                .map(p -> new PrescriptionSummaryDTO(p.getId(), p.getRxId(), p.getDate()))
+                .map(p -> new PrescriptionSummaryDTO(p.getId(), p.getPublicId(), p.getRxId(), p.getDate()))
                 .collect(Collectors.toList());
     }
 

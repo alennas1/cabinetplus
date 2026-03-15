@@ -239,7 +239,7 @@ const Laboratories = () => {
             </tr>
           ) : (
             currentLabs.map((lab) => (
-              <tr key={lab.id} onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.id}`)} style={{ cursor: "pointer" }}>
+              <tr key={lab.id} onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.publicId || lab.id}`)} style={{ cursor: "pointer" }}>
                 <td style={{ fontWeight: "bold" }}>{lab.name}</td>
                 <td>{lab.contactPerson || "—"}</td>
                 <td>{formatPhoneNumber(lab.phoneNumber) || "—"}</td>
@@ -249,7 +249,7 @@ const Laboratories = () => {
                     className="action-btn view"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/gestion-cabinet/laboratories/${lab.id}`);
+                      navigate(`/gestion-cabinet/laboratories/${lab.publicId || lab.id}`);
                     }}
                     title="Voir"
                   >

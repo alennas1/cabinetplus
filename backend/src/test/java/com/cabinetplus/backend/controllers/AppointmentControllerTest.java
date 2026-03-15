@@ -8,6 +8,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.AppointmentService;
 import com.cabinetplus.backend.services.PatientService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,6 +40,7 @@ class AppointmentControllerTest {
     private AppointmentService appointmentService;
     private PatientService patientService;
     private AuditService auditService;
+    private PublicIdResolutionService publicIdResolutionService;
 
     @BeforeEach
     void setUp() {
@@ -45,8 +48,9 @@ class AppointmentControllerTest {
         userService = mock(UserService.class);
         patientService = mock(PatientService.class);
         auditService = mock(AuditService.class);
+        publicIdResolutionService = mock(PublicIdResolutionService.class);
 
-        AppointmentController controller = new AppointmentController(appointmentService, userService, patientService, auditService);
+        AppointmentController controller = new AppointmentController(appointmentService, userService, patientService, auditService, publicIdResolutionService);
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();

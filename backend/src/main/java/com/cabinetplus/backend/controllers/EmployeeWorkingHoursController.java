@@ -3,6 +3,7 @@ package com.cabinetplus.backend.controllers;
 import com.cabinetplus.backend.models.EmployeeWorkingHours;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.EmployeeWorkingHoursService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ public class EmployeeWorkingHoursController {
 
     private final EmployeeWorkingHoursService workingHoursService;
     private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     // --- Get All for dentist ---
     @GetMapping
@@ -31,24 +33,26 @@ public class EmployeeWorkingHoursController {
     // --- Get by employee ---
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<List<EmployeeWorkingHours>> getByEmployee(
-            @PathVariable Long employeeId,
+            @PathVariable String employeeId,
             Principal principal
     ) {
         User dentist = getClinicUser(principal);
+        Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
 
-        return ResponseEntity.ok(workingHoursService.getByEmployee(employeeId, dentist));
+        return ResponseEntity.ok(workingHoursService.getByEmployee(internalEmployeeId, dentist));
     }
 
     // --- Get by employee & day ---
     @GetMapping("/employee/{employeeId}/day/{day}")
     public ResponseEntity<List<EmployeeWorkingHours>> getByEmployeeAndDay(
-            @PathVariable Long employeeId,
+            @PathVariable String employeeId,
             @PathVariable DayOfWeek day,
             Principal principal
     ) {
         User dentist = getClinicUser(principal);
+        Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
 
-        return ResponseEntity.ok(workingHoursService.getByEmployeeAndDay(employeeId, day, dentist));
+        return ResponseEntity.ok(workingHoursService.getByEmployeeAndDay(internalEmployeeId, day, dentist));
     }
 
     // --- Create ---

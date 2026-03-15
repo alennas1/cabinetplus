@@ -1,10 +1,12 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.util.UuidV7;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,6 +17,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,6 +33,9 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "public_id", nullable = false, unique = true, updatable = false)
+    private UUID publicId;
 
     @Column(unique = true, nullable = false)
     private String username;
@@ -111,4 +117,11 @@ public class User {
     private LocalDateTime phoneVerificationOtpLastSentAt;
     private LocalDateTime passwordResetOtpLastSentAt;
     private LocalDateTime phoneChangeOtpLastSentAt;
+
+    @PrePersist
+    private void ensurePublicId() {
+        if (publicId == null) {
+            publicId = UuidV7.randomUuidV7();
+        }
+    }
 }

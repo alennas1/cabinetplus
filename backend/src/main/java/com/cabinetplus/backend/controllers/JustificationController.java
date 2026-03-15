@@ -13,6 +13,7 @@ import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.services.JustificationService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
 import com.lowagie.text.*;
@@ -28,14 +29,17 @@ public class JustificationController {
     private final JustificationService justificationService;
     private final UserService userService;
     private final PatientRepository patientRepository;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     public JustificationController(
             JustificationService justificationService,
             UserService userService,
-            PatientRepository patientRepository) {
+            PatientRepository patientRepository,
+            PublicIdResolutionService publicIdResolutionService) {
         this.justificationService = justificationService;
         this.userService = userService;
         this.patientRepository = patientRepository;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     private User getCurrentUser(Principal principal) {
@@ -57,23 +61,26 @@ public class JustificationController {
 
     @GetMapping("/generate/{patientId}")
     public ResponseEntity<String> generateJustification(
-            @PathVariable Long patientId,
-            @RequestParam Long templateId,
+            @PathVariable String patientId,
+            @RequestParam String templateId,
             Principal principal) {
         User currentUser = getCurrentUser(principal);
-        String generated = justificationService.generateFromContent(patientId, templateId, currentUser);
+        User ownerDentist = userService.resolveClinicOwner(currentUser);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        Long internalTemplateId = publicIdResolutionService.requireJustificationTemplateForPractitioner(templateId, ownerDentist).getId();
+        String generated = justificationService.generateFromContent(internalPatientId, internalTemplateId, ownerDentist);
         return ResponseEntity.ok(generated);
     }
     
 @GetMapping("/patient/{patientId}")
 public ResponseEntity<List<JustificationDTO>> getByPatient(
-        @PathVariable Long patientId,
+        @PathVariable String patientId,
         Principal principal) {
 
     User currentUser = getCurrentUser(principal);
+    User ownerDentist = userService.resolveClinicOwner(currentUser);
 
-    Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+    Patient patient = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist);
 
     List<Justification> list =
             justificationService.findByPatientAndPractitioner(patient, currentUser);

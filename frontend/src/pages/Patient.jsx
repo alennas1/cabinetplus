@@ -368,7 +368,7 @@ const handleCompleteTreatment = async (t) => {
     setBusyTreatmentStatusId(t.id);
     const payload = {
       ...t,
-      patient: { id },
+      patient: { id: patient?.id },
       treatmentCatalog: { id: t.treatmentCatalog?.id || t.treatmentCatalogId },
       status: "DONE",
     };
@@ -398,7 +398,7 @@ const handleStartTreatment = async (t) => {
     setBusyTreatmentStatusId(t.id);
     const payload = {
       ...t,
-      patient: { id },
+      patient: { id: patient?.id },
       treatmentCatalog: { id: t.treatmentCatalog?.id || t.treatmentCatalogId },
       status: "IN_PROGRESS",
     };
@@ -426,11 +426,11 @@ const handleQuickPrintJustification = async (template) => {
     toast.info("Génération automatique du document...");
     
     // 1. Generate the draft content
-    const draftText = await generateDraftJustification(Number(id), template.id);
+    const draftText = await generateDraftJustification(id, template.publicId || template.id);
     
     // 2. Save it to the database
     const payload = {
-      patientId: Number(id),
+      patientId: patient?.id,
       title: template.title || "Justification Médicale",
       content: draftText,
     };
@@ -608,7 +608,7 @@ const handleSaveDocument = async (e) => {
   try {
     setIsUploadingDocument(true);
     const savedDocument = await uploadPatientDocument({
-      patientId: Number(id),
+      patientId: patient?.id,
       title: documentForm.title,
       file: documentForm.file,
     });
@@ -743,7 +743,7 @@ useEffect(() => {
    try {
     // 1. Prepare the payload
     const payload = {
-      patientId: Number(id),
+      patientId: patient?.id,
       catalogId: prothesisForm.catalogId,
       teeth: prothesisForm.teeth,
       notes: prothesisForm.notes,
@@ -762,7 +762,7 @@ useEffect(() => {
     // 2. Handle Automatic Payment (Mirroring Treatment)
     if (prothesisForm.paid && !isEditingProthesis) {
       await createPayment({
-        patientId: id,
+        patientId: patient?.id,
         amount: parseMoneyInput(prothesisForm.price),
         method: "CASH",
         date: new Date().toISOString(),
@@ -2082,7 +2082,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       const payload = {
         ...treatmentForm,
         price: parseMoneyInput(treatmentForm.price),
-        patient: { id },
+        patient: { id: patient?.id },
         treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
       };
       
@@ -2104,7 +2104,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       const payload = {
         ...treatmentForm,
         price: parseMoneyInput(treatmentForm.price),
-        patient: { id },
+        patient: { id: patient?.id },
         treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
         date: new Date().toISOString(),
       };
@@ -2126,7 +2126,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
     // ✅ create payment if marked as paid
     if (treatmentForm.paid) {
       const paymentPayload = {
-        patientId: id,
+        patientId: patient?.id,
         amount: parseMoneyInput(treatmentForm.price),
         method: "CASH",
         date: new Date().toISOString(),
@@ -2224,7 +2224,7 @@ setTreatmentForm({
     setIsSavingPayment(true);
     try {
       const newPayment = await createPayment({
-        patientId: id,
+        patientId: patient?.id,
         amount: parseMoneyInput(paymentForm.amount),
         method: paymentForm.method,
         date: new Date().toISOString(),
@@ -2377,7 +2377,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
         dateTimeStart: startDateTime,
         dateTimeEnd: endDateTime,
         status: "SCHEDULED",
-        patientId: id,
+        patientId: patient?.id,
         notes: appointmentForm.notes
       };
 
@@ -3542,7 +3542,7 @@ const handleDeleteAppointment = (a) => {
               onClick={(e) => {
                 e.stopPropagation();
                 closeJustificationModal();
-                navigate(`/patients/${patient.id}/justification/${t.id}`);
+                navigate(`/patients/${id}/justification/${t.publicId || t.id}`);
               }}
               title="Modifier"
             >
@@ -4465,7 +4465,7 @@ const handleDeleteAppointment = (a) => {
             <td className="actions-cell">
               <button
                 className="action-btn view"
-                onClick={() => navigate(`/patients/${id}/ordonnance/${o.id}`)}
+                onClick={() => navigate(`/patients/${id}/ordonnance/${o.publicId || o.id}`)}
                 title="Voir"
               >
                 <Eye size={16} />

@@ -6,6 +6,7 @@ import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.TreatmentService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,11 +22,13 @@ public class TreatmentController {
     private final TreatmentService treatmentService;
     private final UserService userService;
     private final AuditService auditService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
-    public TreatmentController(TreatmentService treatmentService, UserService userService, AuditService auditService) {
+    public TreatmentController(TreatmentService treatmentService, UserService userService, AuditService auditService, PublicIdResolutionService publicIdResolutionService) {
         this.treatmentService = treatmentService;
         this.userService = userService;
         this.auditService = auditService;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     private User getCurrentUser(Principal principal) {
@@ -104,11 +107,12 @@ public class TreatmentController {
 
     // Get treatments by patient scoped to current user
     @GetMapping("/patient/{patientId}")
-    public ResponseEntity<List<Treatment>> getTreatmentsByPatient(@PathVariable Long patientId,
+    public ResponseEntity<List<Treatment>> getTreatmentsByPatient(@PathVariable String patientId,
                                                                   Principal principal) {
         User currentUser = getCurrentUser(principal);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, currentUser).getId();
         Patient patient = new Patient();
-        patient.setId(patientId);
+        patient.setId(internalPatientId);
         List<Treatment> treatments = treatmentService.findByPatientAndPractitioner(patient, currentUser);
         return ResponseEntity.ok(treatments);
     }

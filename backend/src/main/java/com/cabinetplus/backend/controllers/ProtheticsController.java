@@ -22,6 +22,7 @@ public class ProtheticsController {
     private final UserService userService;
     private final AuditService auditService;
     private final ProthesisRepository prothesisRepository;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     // --- MERGED GET ALL METHOD ---
     @GetMapping
@@ -149,11 +150,12 @@ public class ProtheticsController {
 
 @GetMapping("/patient/{patientId}")
 public ResponseEntity<List<ProthesisResponse>> getByPatient(
-        @PathVariable Long patientId, 
+        @PathVariable String patientId,
         Principal principal) {
     
     User user = getCurrentUser(principal);
-    List<Prothesis> results = service.findByPatientAndPractitioner(patientId, user);
+    Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, user).getId();
+    List<Prothesis> results = service.findByPatientAndPractitioner(internalPatientId, user);
 
     return ResponseEntity.ok(results.stream()
             .map(this::mapToResponse)

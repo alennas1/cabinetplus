@@ -41,6 +41,7 @@ import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
 import jakarta.servlet.http.Cookie;
@@ -56,6 +57,7 @@ public class UserController {
     private final PlanLimitService planLimitService;
     private final JwtUtil jwtUtil;
     private final AuditService auditService;
+    private final PublicIdResolutionService publicIdResolutionService;
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Value("${app.cookie.secure:false}")
@@ -71,7 +73,8 @@ public class UserController {
             PlanLimitService planLimitService,
             JwtUtil jwtUtil,
             AuditService auditService,
-            RefreshTokenRepository refreshTokenRepository
+            RefreshTokenRepository refreshTokenRepository,
+            PublicIdResolutionService publicIdResolutionService
     ) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
@@ -80,6 +83,7 @@ public class UserController {
         this.jwtUtil = jwtUtil;
         this.auditService = auditService;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     // ===============================
@@ -111,9 +115,8 @@ public class UserController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public User getUserById(@PathVariable Long id) {
-        return userService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+    public User getUserById(@PathVariable String id) {
+        return publicIdResolutionService.requireUserByIdOrPublicId(id);
     }
 
     @PostMapping
@@ -124,8 +127,9 @@ public class UserController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public User updateUser(@PathVariable Long id, @RequestBody User user) {
-        user.setId(id);
+    public User updateUser(@PathVariable String id, @RequestBody User user) {
+        User existing = publicIdResolutionService.requireUserByIdOrPublicId(id);
+        user.setId(existing.getId());
         return userService.save(user);
     }
 
@@ -133,28 +137,27 @@ public class UserController {
     // DELETE USER (ADMIN RESTRICTION)
     // ===============================
     @DeleteMapping("/admin/delete/{id}")
-    public void deleteUser(@PathVariable Long id,
+    public void deleteUser(@PathVariable String id,
                            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
 
         User currentUser = userService.findByUsername(current.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
 
-        User targetUser = userService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User targetUser = publicIdResolutionService.requireUserByIdOrPublicId(id);
 
         if (targetUser.getRole() == UserRole.ADMIN && !currentUser.isCanDeleteAdmin()) {
             auditService.logFailureAsUser(
                     currentUser,
                     AuditEventType.USER_DELETE,
                     "USER",
-                    String.valueOf(id),
+                    String.valueOf(targetUser.getId()),
                     "Suppression refusee: droits insuffisants"
             );
             throw new AccessDeniedException("Vous ne pouvez pas supprimer un autre compte admin");
         }
 
-        userService.delete(id);
-        auditService.logSuccessAsUser(currentUser, AuditEventType.USER_DELETE, "USER", String.valueOf(id), "Suppression utilisateur reussie");
+        userService.delete(targetUser.getId());
+        auditService.logSuccessAsUser(currentUser, AuditEventType.USER_DELETE, "USER", String.valueOf(targetUser.getId()), "Suppression utilisateur reussie");
     }
 
     // ===============================

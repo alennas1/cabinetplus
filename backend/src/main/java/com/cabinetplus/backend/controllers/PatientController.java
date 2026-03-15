@@ -32,6 +32,7 @@ import com.cabinetplus.backend.repositories.TreatmentRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.PatientRiskService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
@@ -61,6 +62,7 @@ public class PatientController {
     private final ProthesisRepository prothesisRepository;
     private final AuditService auditService;
     private final PatientRiskService patientRiskService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     public PatientController(PatientService patientService, 
                              UserService userService, 
@@ -70,7 +72,8 @@ public class PatientController {
                              PaymentRepository paymentRepository,
                              ProthesisRepository prothesisRepository,
                              AuditService auditService,
-                             PatientRiskService patientRiskService) {
+                             PatientRiskService patientRiskService,
+                             PublicIdResolutionService publicIdResolutionService) {
         this.patientService = patientService;
         this.userService = userService;
         this.patientRepository = patientRepository;
@@ -80,6 +83,7 @@ public class PatientController {
         this.prothesisRepository = prothesisRepository;
         this.auditService = auditService;
         this.patientRiskService = patientRiskService;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     @GetMapping
@@ -114,22 +118,23 @@ public class PatientController {
                 .toList();
     }
 
-    @GetMapping("/{id:\\d+}")
-    public Optional<PatientDto> getPatientById(@PathVariable Long id, Principal principal) {
+    @GetMapping("/{id}")
+    public Optional<PatientDto> getPatientById(@PathVariable String id, Principal principal) {
         User currentUser = getClinicUser(principal);
-        var metricsById = patientRiskService.getMetricsByPatientIds(List.of(id));
         Integer cancelledThreshold = currentUser.getPatientCancelledAppointmentsThreshold();
         Double owedThreshold = currentUser.getPatientMoneyOwedThreshold();
 
-        return patientRepository.findByIdAndCreatedBy(id, currentUser)
-                .map(p -> toDtoWithMetrics(p, metricsById.get(p.getId()), cancelledThreshold, owedThreshold));
+        return publicIdResolutionService.findPatientOwnedBy(id, currentUser)
+                .map(p -> {
+                    var metricsById = patientRiskService.getMetricsByPatientIds(List.of(p.getId()));
+                    return toDtoWithMetrics(p, metricsById.get(p.getId()), cancelledThreshold, owedThreshold);
+                });
     }
 
-    @PutMapping("/{id:\\d+}/archive")
-    public PatientDto archivePatient(@PathVariable Long id, Principal principal) {
+    @PutMapping("/{id}/archive")
+    public PatientDto archivePatient(@PathVariable String id, Principal principal) {
         User currentUser = getClinicUser(principal);
-        Patient patient = patientRepository.findByIdAndCreatedBy(id, currentUser)
-                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        Patient patient = publicIdResolutionService.requirePatientOwnedBy(id, currentUser);
 
         patient.setArchivedAt(LocalDateTime.now());
         Patient saved = patientRepository.save(patient);
@@ -140,17 +145,16 @@ public class PatientController {
                 "Patient archivé: " + formatPatientName(saved.getFirstname(), saved.getLastname())
         );
 
-        var metricsById = patientRiskService.getMetricsByPatientIds(List.of(id));
+        var metricsById = patientRiskService.getMetricsByPatientIds(List.of(saved.getId()));
         Integer cancelledThreshold = currentUser.getPatientCancelledAppointmentsThreshold();
         Double owedThreshold = currentUser.getPatientMoneyOwedThreshold();
         return toDtoWithMetrics(saved, metricsById.get(saved.getId()), cancelledThreshold, owedThreshold);
     }
 
-    @PutMapping("/{id:\\d+}/unarchive")
-    public PatientDto unarchivePatient(@PathVariable Long id, Principal principal) {
+    @PutMapping("/{id}/unarchive")
+    public PatientDto unarchivePatient(@PathVariable String id, Principal principal) {
         User currentUser = getClinicUser(principal);
-        Patient patient = patientRepository.findByIdAndCreatedBy(id, currentUser)
-                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        Patient patient = publicIdResolutionService.requirePatientOwnedBy(id, currentUser);
 
         patient.setArchivedAt(null);
         Patient saved = patientRepository.save(patient);
@@ -161,7 +165,7 @@ public class PatientController {
                 "Patient restauré: " + formatPatientName(saved.getFirstname(), saved.getLastname())
         );
 
-        var metricsById = patientRiskService.getMetricsByPatientIds(List.of(id));
+        var metricsById = patientRiskService.getMetricsByPatientIds(List.of(saved.getId()));
         Integer cancelledThreshold = currentUser.getPatientCancelledAppointmentsThreshold();
         Double owedThreshold = currentUser.getPatientMoneyOwedThreshold();
         return toDtoWithMetrics(saved, metricsById.get(saved.getId()), cancelledThreshold, owedThreshold);
@@ -183,8 +187,10 @@ public class PatientController {
     }
 
     @PutMapping("/{id}")
-    public PatientDto updatePatient(@PathVariable Long id, @RequestBody Patient patient) {
-        PatientDto updated = patientService.update(id, patient);
+    public PatientDto updatePatient(@PathVariable String id, @RequestBody Patient patient, Principal principal) {
+        User currentUser = getClinicUser(principal);
+        Patient existing = publicIdResolutionService.requirePatientOwnedBy(id, currentUser);
+        PatientDto updated = patientService.update(existing.getId(), patient, currentUser);
         auditService.logSuccess(
                 AuditEventType.PATIENT_UPDATE,
                 "PATIENT",
@@ -194,17 +200,17 @@ public class PatientController {
         return updated;
     }
 
-    @DeleteMapping("/{id:\\d+}")
-    public void deletePatient(@PathVariable Long id) {
-        PatientDto existing = patientService.findById(id).orElse(null);
-        patientService.delete(id);
+    @DeleteMapping("/{id}")
+    public void deletePatient(@PathVariable String id, Principal principal) {
+        User currentUser = getClinicUser(principal);
+        Patient existing = publicIdResolutionService.requirePatientOwnedBy(id, currentUser);
+        PatientDto existingDto = patientService.findByIdAndUser(existing.getId(), currentUser);
+        patientService.delete(existing.getId(), currentUser);
         auditService.logSuccess(
                 AuditEventType.PATIENT_DELETE,
                 "PATIENT",
-                String.valueOf(id),
-                existing != null
-                        ? "Patient supprime: " + formatPatientName(existing.firstname(), existing.lastname())
-                        : "Patient supprime: #" + id
+                String.valueOf(existing.getId()),
+                "Patient supprime: " + formatPatientName(existingDto.firstname(), existingDto.lastname())
         );
     }
 
@@ -212,16 +218,16 @@ public class PatientController {
     // MEDICAL FICHE PDF GENERATION
     // ==========================================
 @GetMapping("/{id}/fiche-pdf")
-public void generatePatientFiche(@PathVariable Long id, HttpServletResponse response, Principal principal) throws Exception {
+public void generatePatientFiche(@PathVariable String id, HttpServletResponse response, Principal principal) throws Exception {
     // 1. Fetch Data
     User clinicUser = getClinicUser(principal);
-    Patient patient = patientRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Patient introuvable"));
-    List<Treatment> treatments = treatmentRepository.findByPatientId(id).stream()
+    Patient patient = publicIdResolutionService.requirePatientOwnedBy(id, clinicUser);
+    Long patientId = patient.getId();
+    List<Treatment> treatments = treatmentRepository.findByPatientId(patientId).stream()
             .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(t.getStatus()))
             .collect(Collectors.toList());
-    List<Appointment> appointments = appointmentRepository.findByPatientId(id);
-    List<Payment> payments = paymentRepository.findByPatientId(id);
+    List<Appointment> appointments = appointmentRepository.findByPatientId(patientId);
+    List<Payment> payments = paymentRepository.findByPatientId(patientId);
     List<Prothesis> protheses = prothesisRepository.findByPatient(patient);
 
     String lastname = patient.getLastname().replaceAll("\\s+", "_").toUpperCase();
@@ -471,6 +477,7 @@ public void generatePatientFiche(@PathVariable Long id, HttpServletResponse resp
 
         return new PatientDto(
                 patient.getId(),
+                patient.getPublicId(),
                 patient.getFirstname(),
                 patient.getLastname(),
                 patient.getAge(),

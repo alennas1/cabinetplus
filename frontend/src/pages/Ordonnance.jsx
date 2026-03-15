@@ -16,7 +16,7 @@ import "./Patients.css";
 export default function Ordonnance() {
   const navigate = useNavigate();
   const { id, ordonnanceId } = useParams();
-  const patientId = Number(id);
+  const patientUrlId = id;
   const [notes, setNotes] = useState("Bien suivre la posologie et revenir en cas d'effets indésirables.");
   const [patient, setPatient] = useState(null);
   const [rxId, setRxId] = useState(null);
@@ -26,8 +26,6 @@ export default function Ordonnance() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredMeds, setFilteredMeds] = useState([]);
   const [showConfirm, setShowConfirm] = useState(false);
-const ordId = Number(ordonnanceId); // convert to number
-
 const [showCreateMedModal, setShowCreateMedModal] = useState(false);
 const [isCreatingMedication, setIsCreatingMedication] = useState(false);
 
@@ -74,7 +72,7 @@ const DOSAGE_FORMS = {
   };
 
   const navigateBackSafely = () => {
-    const fallback = `/patients/${patient?.id || patientId}`;
+    const fallback = `/patients/${patient?.publicId || patientUrlId}`;
     if (window.history.length > 1) navigate(-1);
     else navigate(fallback, { replace: true });
   };
@@ -129,14 +127,14 @@ useEffect(() => {
 }, []);
   // Load Patient & Medication Options
   useEffect(() => {
-    getPatientById(patientId)
+    getPatientById(patientUrlId)
       .then((data) => setPatient(data))
       .catch((err) => console.error("Error fetching patient:", err));
 
     getMedications()
       .then((data) => setMedOptions(data))
       .catch((err) => console.error("Error fetching medications:", err));
-  }, [patientId]);
+  }, [patientUrlId]);
 
 
 
@@ -235,8 +233,12 @@ useEffect(() => {
     toast.info("Enregistrement et génération du PDF...");
 
     // 1. Prepare the payload (same as handleSave)
+    if (!patient?.id) {
+      toast.error("Patient introuvable");
+      return;
+    }
     const payload = {
-      patientId: Number(patientId),
+      patientId: patient.id,
       notes: notes,
       medications: medications.map((m) => ({
         // Use the ID if updating, otherwise null
@@ -266,7 +268,7 @@ useEffect(() => {
     toast.success("Enregistré et prêt à imprimer !");
 
     // 4. Navigate back after a short delay
-    setTimeout(() => navigate(`/patients/${patient?.id || patientId}`), 2000);
+    setTimeout(() => navigate(`/patients/${patient?.publicId || patientUrlId}`), 2000);
   } catch (error) {
     console.error(error);
     toast.error(`Erreur: ${getApiErrorMessage(error, "Erreur de communication")}`);
@@ -274,13 +276,17 @@ useEffect(() => {
 }
 
   async function handleSave() {
+    if (!patient?.id) {
+      toast.error("Patient introuvable");
+      return;
+    }
     if (medications.length === 0) {
       toast.error("Veuillez ajouter au moins un médicament.");
       return;
     }
 
     const payload = {
-      patientId: Number(patientId),
+      patientId: patient.id,
       notes: notes,
       medications: medications.map((m) => ({
         medicationId: Number(m.medicationId),
@@ -300,7 +306,7 @@ useEffect(() => {
         await createPrescription(payload);
         toast.success("Ordonnance créée !");
       }
-      setTimeout(() => navigate(`/patients/${patient?.id || patientId}`), 1500);
+      setTimeout(() => navigate(`/patients/${patient?.publicId || patientUrlId}`), 1500);
     } catch (error) {
       toast.error(`Erreur: ${getApiErrorMessage(error, "Erreur serveur")}`);
     }

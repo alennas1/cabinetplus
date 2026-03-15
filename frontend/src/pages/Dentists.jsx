@@ -56,8 +56,9 @@ const Dentists = () => {
     loadDentists();
   }, []);
 
-  const handleView = (id) => {
-    navigate(`/dentists/${id}`);
+  const handleView = (dentist) => {
+    const urlId = dentist?.publicId || dentist?.id;
+    navigate(`/dentists/${urlId}`);
   };
 
   const filteredDentists = dentists.filter((d) => {
@@ -190,7 +191,7 @@ const Dentists = () => {
             currentDentists.map((d) => {
               const status = (d.planStatus || "PENDING").toUpperCase();
               return (
-                <tr key={d.id} onClick={() => handleView(d.id)} style={{ cursor: "pointer" }}>
+                <tr key={d.id} onClick={() => handleView(d)} style={{ cursor: "pointer" }}>
                   <td>{d.firstname}</td>
                   <td>{d.lastname}</td>
                   <td>{formatPhoneNumber(d.phoneNumber) || "-"}</td>
@@ -217,7 +218,7 @@ const Dentists = () => {
                       title="View"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleView(d.id);
+                        handleView(d);
                       }}
                     >
                       <Eye size={16} />

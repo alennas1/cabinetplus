@@ -3,6 +3,7 @@ package com.cabinetplus.backend.controllers;
 import com.cabinetplus.backend.dto.DocumentResponseDTO;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.DocumentService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
@@ -22,27 +23,32 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
-    public DocumentController(DocumentService documentService, UserService userService) {
+    public DocumentController(DocumentService documentService, UserService userService, PublicIdResolutionService publicIdResolutionService) {
         this.documentService = documentService;
         this.userService = userService;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     @GetMapping("/patient/{patientId}")
-    public List<DocumentResponseDTO> getDocumentsByPatient(@PathVariable Long patientId, Principal principal) {
-        return documentService.findByPatientId(patientId, getClinicUser(principal));
+    public List<DocumentResponseDTO> getDocumentsByPatient(@PathVariable String patientId, Principal principal) {
+        User ownerDentist = getClinicUser(principal);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        return documentService.findByPatientId(internalPatientId, ownerDentist);
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public DocumentResponseDTO uploadDocument(
-            @RequestParam("patientId") Long patientId,
+            @RequestParam("patientId") String patientId,
             @RequestParam("title") String title,
             @RequestParam("file") MultipartFile file,
             Principal principal
     ) {
         User currentUser = getCurrentUser(principal);
         User ownerDentist = userService.resolveClinicOwner(currentUser);
-        return documentService.store(patientId, title, file, ownerDentist, currentUser);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        return documentService.store(internalPatientId, title, file, ownerDentist, currentUser);
     }
 
     @GetMapping("/{id}/file")

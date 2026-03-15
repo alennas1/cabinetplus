@@ -10,6 +10,7 @@ import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.EmployeeService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class EmployeeController {
 
     private final EmployeeService employeeService;
     private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     @PostMapping
     public ResponseEntity<EmployeeResponseDTO> createEmployee(
@@ -35,13 +37,14 @@ public class EmployeeController {
 
     @PutMapping("/{id}")
     public ResponseEntity<EmployeeResponseDTO> updateEmployee(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody EmployeeRequestDTO dto,
             Principal principal) {
 
         User dentist = getClinicUser(principal);
 
-        return ResponseEntity.ok(employeeService.updateEmployee(id, dto, dentist));
+        Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(id, dentist).getId();
+        return ResponseEntity.ok(employeeService.updateEmployee(internalEmployeeId, dto, dentist));
     }
 
     @GetMapping
@@ -53,24 +56,26 @@ public class EmployeeController {
 
     @GetMapping("/{id}")
     public ResponseEntity<EmployeeResponseDTO> getEmployeeById(
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
 
         User dentist = getClinicUser(principal);
 
-        return employeeService.getEmployeeByIdForDentist(id, dentist)
+        Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(id, dentist).getId();
+        return employeeService.getEmployeeByIdForDentist(internalEmployeeId, dentist)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEmployee(
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
 
         User dentist = getClinicUser(principal);
 
-        employeeService.deleteEmployee(id, dentist);
+        Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(id, dentist).getId();
+        employeeService.deleteEmployee(internalEmployeeId, dentist);
         return ResponseEntity.noContent().build();
     }
 

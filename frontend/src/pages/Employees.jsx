@@ -338,7 +338,7 @@ const Employees = () => {
         </thead>
         <tbody>
           {currentEmployees.map((emp) => (
-            <tr key={emp.id} onClick={() => navigate(`/gestion-cabinet/employees/${emp.id}`)} style={{ cursor: "pointer" }}>
+            <tr key={emp.id} onClick={() => navigate(`/gestion-cabinet/employees/${emp.publicId || emp.id}`)} style={{ cursor: "pointer" }}>
               <td>{emp.firstName || "—"}</td>
               <td>{emp.lastName || "—"}</td>
               <td>{formatPhoneNumber(emp.phone) || "—"}</td>
@@ -359,7 +359,7 @@ const Employees = () => {
               <td className="actions-cell">
                 <button className="action-btn view" onClick={(e) => {
                   e.stopPropagation();
-                  navigate(`/gestion-cabinet/employees/${emp.id}`);
+                  navigate(`/gestion-cabinet/employees/${emp.publicId || emp.id}`);
                 }} title="Voir / Modifier">
                   <Eye size={16} />
                 </button>

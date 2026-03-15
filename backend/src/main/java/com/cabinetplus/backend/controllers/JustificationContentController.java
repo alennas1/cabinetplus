@@ -5,6 +5,7 @@ import com.cabinetplus.backend.dto.JustificationContentResponseDTO;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.JustificationContentService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
 import org.springframework.http.ResponseEntity;
@@ -20,11 +21,14 @@ public class JustificationContentController {
 
     private final JustificationContentService service;
     private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     public JustificationContentController(JustificationContentService service,
-                                          UserService userService) {
+                                          UserService userService,
+                                          PublicIdResolutionService publicIdResolutionService) {
         this.service = service;
         this.userService = userService;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     private User getPractitioner(Principal principal) {
@@ -74,16 +78,13 @@ public class JustificationContentController {
     // =========================
     @GetMapping("/{id}")
     public ResponseEntity<JustificationContentResponseDTO> getById(
-            @PathVariable Long id,
+            @PathVariable String id,
             Principal principal) {
 
         User practitioner = getPractitioner(principal);
 
-        return service.findById(id)
-                .filter(c -> c.getPractitioner().getId().equals(practitioner.getId()))
-                .map(this::mapToResponse)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        JustificationContent entity = publicIdResolutionService.requireJustificationTemplateForPractitioner(id, practitioner);
+        return ResponseEntity.ok(mapToResponse(entity));
     }
 
     // =========================
@@ -91,18 +92,19 @@ public class JustificationContentController {
     // =========================
     @PutMapping("/{id}")
     public ResponseEntity<JustificationContentResponseDTO> update(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody JustificationContentRequestDTO dto,
             Principal principal) {
 
         User practitioner = getPractitioner(principal);
+        Long internalId = publicIdResolutionService.requireJustificationTemplateForPractitioner(id, practitioner).getId();
 
         JustificationContent updatedEntity = new JustificationContent();
         updatedEntity.setTitle(dto.getTitle());
         updatedEntity.setContent(dto.getContent());
 
         JustificationContent updated =
-                service.update(id, updatedEntity, practitioner);
+                service.update(internalId, updatedEntity, practitioner);
 
         return ResponseEntity.ok(mapToResponse(updated));
     }
@@ -111,12 +113,13 @@ public class JustificationContentController {
     // DELETE
     // =========================
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id,
+    public ResponseEntity<Void> delete(@PathVariable String id,
                                        Principal principal) {
 
         User practitioner = getPractitioner(principal);
+        Long internalId = publicIdResolutionService.requireJustificationTemplateForPractitioner(id, practitioner).getId();
 
-        boolean deleted = service.delete(id, practitioner);
+        boolean deleted = service.delete(internalId, practitioner);
 
         return deleted
                 ? ResponseEntity.noContent().build()
@@ -129,6 +132,7 @@ public class JustificationContentController {
     private JustificationContentResponseDTO mapToResponse(JustificationContent entity) {
         return JustificationContentResponseDTO.builder()
                 .id(entity.getId())
+                .publicId(entity.getPublicId())
                 .title(entity.getTitle())
                 .content(entity.getContent())
                 .build();

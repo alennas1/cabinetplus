@@ -1,12 +1,14 @@
 package com.cabinetplus.backend.dto;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * DTO for returning Laboratory details to the frontend.
  */
 public record LaboratoryResponse(
     Long id,
+    UUID publicId,
     String name,
     String contactPerson,
     String phoneNumber,

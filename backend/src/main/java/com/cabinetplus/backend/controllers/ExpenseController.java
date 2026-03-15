@@ -18,6 +18,7 @@ import com.cabinetplus.backend.dto.ExpenseResponseDTO;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.ExpenseService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class ExpenseController {
 
     private final ExpenseService expenseService;
     private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     @GetMapping
     public ResponseEntity<List<ExpenseResponseDTO>> getAll(Principal principal) {
@@ -80,13 +82,14 @@ public class ExpenseController {
 
     @GetMapping("/employee/{employeeId}")
 public ResponseEntity<List<ExpenseResponseDTO>> getByEmployee(
-        @PathVariable Long employeeId,
+        @PathVariable String employeeId,
         Principal principal) {
 
     User dentist = getClinicUser(principal);
+    Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
 
     List<ExpenseResponseDTO> dtos = expenseService
-            .getExpensesByEmployee(employeeId, dentist) // service method we discussed
+            .getExpensesByEmployee(internalEmployeeId, dentist) // service method we discussed
             .stream()
             .map(expenseService::toDTO)
             .toList();

@@ -3,6 +3,7 @@ package com.cabinetplus.backend.dto;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import com.cabinetplus.backend.enums.ClinicAccessRole;
 
@@ -13,6 +14,7 @@ import lombok.Data;
 @Builder
 public class EmployeeResponseDTO {
     private Long id;
+    private UUID publicId;
 
     private String firstName;
     private String lastName;

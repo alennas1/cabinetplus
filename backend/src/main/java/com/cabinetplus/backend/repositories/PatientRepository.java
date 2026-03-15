@@ -2,6 +2,7 @@ package com.cabinetplus.backend.repositories;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -13,6 +14,8 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     List<Patient> findByCreatedByAndArchivedAtIsNull(User user);
     List<Patient> findByCreatedByAndArchivedAtIsNotNull(User user);
     Optional<Patient> findByIdAndCreatedBy(Long id, User user); // optional for security
+    Optional<Patient> findByPublicIdAndCreatedBy(UUID publicId, User user);
+    Optional<Patient> findByPublicId(UUID publicId);
     long countByCreatedBy(User user);
 }
 

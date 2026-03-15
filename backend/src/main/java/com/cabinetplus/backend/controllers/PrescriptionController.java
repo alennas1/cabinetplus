@@ -21,6 +21,7 @@ import com.cabinetplus.backend.models.Prescription;
 import com.cabinetplus.backend.models.PrescriptionMedication;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.PrescriptionService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import com.lowagie.text.Chunk;
 import com.lowagie.text.Element;
@@ -46,6 +47,7 @@ public class PrescriptionController {
 
     private final PrescriptionService prescriptionService;
     private final UserService userService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     @PostMapping
     public ResponseEntity<PrescriptionResponseDTO> createPrescription(@Valid @RequestBody PrescriptionRequestDTO dto, Principal principal) {
@@ -55,35 +57,42 @@ public class PrescriptionController {
     }
 
     @GetMapping("/patient/{patientId}")
-    public ResponseEntity<List<PrescriptionSummaryDTO>> getPrescriptionsByPatient(@PathVariable Long patientId) {
-        return ResponseEntity.ok(prescriptionService.getPrescriptionsByPatientId(patientId));
+    public ResponseEntity<List<PrescriptionSummaryDTO>> getPrescriptionsByPatient(@PathVariable String patientId, Principal principal) {
+        User practitioner = getPractitioner(principal);
+        User ownerDentist = userService.resolveClinicOwner(practitioner);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        return ResponseEntity.ok(prescriptionService.getPrescriptionsByPatientId(internalPatientId));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PrescriptionResponseDTO> getPrescriptionById(@PathVariable Long id, Principal principal) {
+    public ResponseEntity<PrescriptionResponseDTO> getPrescriptionById(@PathVariable String id, Principal principal) {
         User practitioner = getPractitioner(principal);
-        return ResponseEntity.ok(prescriptionService.getPrescriptionById(id, practitioner));
+        Prescription rx = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
+        return ResponseEntity.ok(prescriptionService.mapToResponseDTO(rx));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<PrescriptionResponseDTO> updatePrescription(@PathVariable Long id, @Valid @RequestBody PrescriptionRequestDTO dto, Principal principal) {
+    public ResponseEntity<PrescriptionResponseDTO> updatePrescription(@PathVariable String id, @Valid @RequestBody PrescriptionRequestDTO dto, Principal principal) {
         User practitioner = getPractitioner(principal);
-        Prescription updated = prescriptionService.updatePrescription(id, dto, practitioner);
+        Prescription existing = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
+        Prescription updated = prescriptionService.updatePrescription(existing.getId(), dto, practitioner);
         return ResponseEntity.ok(prescriptionService.mapToResponseDTO(updated));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deletePrescription(@PathVariable Long id) {
-        prescriptionService.deletePrescription(id);
+    public ResponseEntity<?> deletePrescription(@PathVariable String id, Principal principal) {
+        User practitioner = getPractitioner(principal);
+        Prescription existing = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
+        prescriptionService.deletePrescription(existing.getId());
         return ResponseEntity.ok("Prescription deleted successfully");
     }
 
     /* ===================== CLEAN & PROFESSIONAL PDF ===================== */
 @GetMapping("/{id}/pdf")
-public void generatePrescriptionPdf(@PathVariable Long id, Principal principal, HttpServletResponse response) throws Exception {
+public void generatePrescriptionPdf(@PathVariable String id, Principal principal, HttpServletResponse response) throws Exception {
 
     User practitioner = getPractitioner(principal);
-    Prescription rx = prescriptionService.getPrescriptionEntity(id, practitioner);
+    Prescription rx = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
 
     response.setContentType("application/pdf");
     response.setHeader("Content-Disposition", "inline; filename=ordonnance_" + rx.getRxId() + ".pdf");

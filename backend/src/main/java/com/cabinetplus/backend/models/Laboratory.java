@@ -6,6 +6,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
+import com.cabinetplus.backend.util.UuidV7;
+
 @Entity
 @Table(name = "laboratories")
 @Data
@@ -16,6 +20,9 @@ public class Laboratory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "public_id", nullable = false, unique = true, updatable = false)
+    private UUID publicId;
 
     @NotBlank(message = "Le nom du laboratoire est obligatoire")
     @Column(nullable = false)
@@ -30,5 +37,12 @@ public class Laboratory {
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
+
+    @PrePersist
+    private void ensurePublicId() {
+        if (publicId == null) {
+            publicId = UuidV7.randomUuidV7();
+        }
+    }
 }
 

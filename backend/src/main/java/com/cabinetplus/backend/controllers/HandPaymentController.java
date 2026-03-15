@@ -22,6 +22,7 @@ import com.cabinetplus.backend.repositories.PlanRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.HandPaymentService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +35,7 @@ public class HandPaymentController {
     private final UserRepository userRepository;
     private final PlanRepository planRepository;
     private final AuditService auditService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
     /**
      * Get all pending hand payments
@@ -50,9 +52,8 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getAllPayments() {
 }
 
 @GetMapping("/user/{userId}")
-public ResponseEntity<List<HandPaymentResponseDTO>> getPaymentsByUserId(@PathVariable Long userId) {
-    User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+public ResponseEntity<List<HandPaymentResponseDTO>> getPaymentsByUserId(@PathVariable String userId) {
+    User user = publicIdResolutionService.requireUserByIdOrPublicId(userId);
 
     return ResponseEntity.ok(handPaymentService.getPaymentsByUser(user));
 }

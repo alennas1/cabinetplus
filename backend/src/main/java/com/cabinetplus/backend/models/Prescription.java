@@ -3,8 +3,12 @@ package com.cabinetplus.backend.models;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+
+import com.cabinetplus.backend.util.UuidV7;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -17,7 +21,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.Column;
 
 
 @Entity
@@ -30,6 +33,9 @@ public class Prescription {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "public_id", nullable = false, unique = true, updatable = false)
+    private UUID publicId;
 
     @Column(name = "rx_id", unique = true, nullable = false)
     private String rxId;
@@ -51,6 +57,9 @@ private List<PrescriptionMedication> medications = new ArrayList<>();
 
 @PrePersist
 private void generateRxId() {
+    if (this.publicId == null) {
+        this.publicId = UuidV7.randomUuidV7();
+    }
     if (this.rxId == null || this.rxId.isEmpty()) {
         // Format: RX-<year>-<random 5 digits>
         int randomDigits = (int)(Math.random() * 90000) + 10000; // 10000-99999

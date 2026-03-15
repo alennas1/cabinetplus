@@ -31,6 +31,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.AppointmentService;
 import com.cabinetplus.backend.services.PatientService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
 @RestController
@@ -41,12 +42,14 @@ public class AppointmentController {
     private final UserService userService;
     private final PatientService patientService;
     private final AuditService auditService;
+    private final PublicIdResolutionService publicIdResolutionService;
 
-    public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService, AuditService auditService) {
+    public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService, AuditService auditService, PublicIdResolutionService publicIdResolutionService) {
         this.appointmentService = appointmentService;
         this.userService = userService;
         this.patientService = patientService;
         this.auditService = auditService;
+        this.publicIdResolutionService = publicIdResolutionService;
     }
 
     // Return appointments only for the logged-in practitioner
@@ -295,9 +298,11 @@ public class AppointmentController {
     }
 
     @GetMapping("/patient/{patientId}")
-    public List<Appointment> getAppointmentsByPatient(@PathVariable Long patientId) {
+    public List<Appointment> getAppointmentsByPatient(@PathVariable String patientId, Principal principal) {
+        User ownerDentist = getClinicUser(principal);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
         Patient patient = new Patient();
-        patient.setId(patientId);
+        patient.setId(internalPatientId);
         return appointmentService.findByPatient(patient);
     }
 

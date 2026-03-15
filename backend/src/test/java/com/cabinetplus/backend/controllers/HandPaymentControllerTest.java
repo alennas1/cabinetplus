@@ -11,6 +11,7 @@ import com.cabinetplus.backend.repositories.PlanRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.HandPaymentService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -34,6 +35,7 @@ class HandPaymentControllerTest {
     private UserRepository userRepository;
     private PlanRepository planRepository;
     private AuditService auditService;
+    private PublicIdResolutionService publicIdResolutionService;
 
     @BeforeEach
     void setUp() {
@@ -41,8 +43,9 @@ class HandPaymentControllerTest {
         userRepository = mock(UserRepository.class);
         planRepository = mock(PlanRepository.class);
         auditService = mock(AuditService.class);
+        publicIdResolutionService = mock(PublicIdResolutionService.class);
 
-        HandPaymentController controller = new HandPaymentController(handPaymentService, userRepository, planRepository, auditService);
+        HandPaymentController controller = new HandPaymentController(handPaymentService, userRepository, planRepository, auditService, publicIdResolutionService);
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)

@@ -3,6 +3,7 @@ package com.cabinetplus.backend.controllers;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -59,17 +60,18 @@ public class PublicPdfController {
     }
 
     @GetMapping("/{id}")
-    public void downloadPublicPdf(@PathVariable Long id, HttpServletResponse response) throws Exception {
+    public void downloadPublicPdf(@PathVariable String id, HttpServletResponse response) throws Exception {
         // 1. Fetch Data (Public access - no User check)
-        Patient patient = patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        Patient patient = resolvePatient(id);
+        Long internalPatientId = patient.getId();
         
-        List<Treatment> treatments = treatmentRepository.findByPatientId(id).stream()
+        List<Treatment> treatments = treatmentRepository.findByPatientId(internalPatientId).stream()
                 .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(t.getStatus()))
                 .collect(Collectors.toList());
-        List<Appointment> appointments = appointmentRepository.findByPatientId(id);
-        List<Payment> payments = paymentRepository.findByPatientId(id);
+        List<Appointment> appointments = appointmentRepository.findByPatientId(internalPatientId);
+        List<Payment> payments = paymentRepository.findByPatientId(internalPatientId);
         // Note: Prescriptions are fetched to match your controller, even if not printed in the main logic
-        List<Prescription> prescriptions = prescriptionRepository.findByPatientId(id);
+        List<Prescription> prescriptions = prescriptionRepository.findByPatientId(internalPatientId);
 
         // 2. Setup Response Headers
         response.setContentType("application/pdf");
@@ -172,6 +174,22 @@ public class PublicPdfController {
 
         document.add(totalTable);
         document.close();
+    }
+
+    private Patient resolvePatient(String idOrPublicId) {
+        if (idOrPublicId != null && idOrPublicId.chars().allMatch(Character::isDigit)) {
+            Long internalId = Long.parseLong(idOrPublicId);
+            return patientRepository.findById(internalId)
+                    .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        }
+
+        try {
+            UUID publicId = UUID.fromString(idOrPublicId);
+            return patientRepository.findByPublicId(publicId)
+                    .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Patient introuvable");
+        }
     }
 
     // ==========================================

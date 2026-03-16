@@ -17,8 +17,10 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import ModernDropdown from "../components/ModernDropdown";
+import FieldError from "../components/FieldError";
 import { parseMoneyInput } from "../utils/moneyInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 import "./Patients.css"; // Using the same Patients.css
 
 const ITEM_CATEGORIES = {
@@ -44,6 +46,7 @@ const Items = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingItem, setIsDeletingItem] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [formData, setFormData] = useState({
     name: "",
@@ -145,15 +148,45 @@ const Items = () => {
 
   // Handlers
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    const nextErrors = {};
+    const nameError = validateText(formData.name, {
+      label: "Nom",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    if (nameError) nextErrors.name = nameError;
+
+    const rawDefaultPrice = String(formData.defaultPrice ?? "").trim();
+    const parsedDefaultPrice = rawDefaultPrice ? parseMoneyInput(rawDefaultPrice) : Number.NaN;
+    if (!rawDefaultPrice) nextErrors.defaultPrice = "Le prix par defaut est obligatoire.";
+    else if (!Number.isFinite(parsedDefaultPrice) || parsedDefaultPrice <= 0) {
+      nextErrors.defaultPrice = "Le prix par defaut est invalide.";
+    }
+
+    const descriptionError = validateText(formData.description, {
+      label: "Description",
+      required: false,
+      maxLength: FIELD_LIMITS.NOTES_MAX,
+    });
+    if (descriptionError) nextErrors.description = descriptionError;
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
     try {
       setIsSubmitting(true);
-      const payload = { ...formData, defaultPrice: parseMoneyInput(formData.defaultPrice) };
+      const payload = { ...formData, defaultPrice: parsedDefaultPrice };
       if (isEditing) {
         const updated = await updateItemDefault(editingItem.id, payload, token);
         setItems(items.map((i) => (i.id === updated.id ? updated : i)));
@@ -165,6 +198,7 @@ const Items = () => {
       }
       setShowModal(false);
       setFormData({ name: "", category: "CONSUMABLE", defaultPrice: "", description: "" });
+      setFieldErrors({});
       setIsEditing(false);
       setEditingItem(null);
     } catch (err) {
@@ -180,6 +214,7 @@ const Items = () => {
       ...item,
       defaultPrice: item?.defaultPrice != null ? formatMoney(item.defaultPrice) : "",
     });
+    setFieldErrors({});
     setEditingItem(item);
     setIsEditing(true);
     setShowModal(true);
@@ -254,6 +289,7 @@ const Items = () => {
             className="btn-primary"
             onClick={() => {
               setFormData({ name: "", category: "CONSUMABLE", defaultPrice: "", description: "" });
+              setFieldErrors({});
               setIsEditing(false);
               setShowModal(true);
             }}
@@ -323,9 +359,18 @@ const Items = () => {
             <p className="text-sm text-gray-600 mb-4">
               {isEditing ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
             </p>
-            <form onSubmit={handleSubmit} className="modal-form">
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Nom</span>
-              <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ex: Composite" required />
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Ex: Composite"
+                required
+                className={fieldErrors.name ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.name} />
 
               <span className="field-label">Catégorie</span>
               <ModernDropdown
@@ -348,13 +393,25 @@ const Items = () => {
               <MoneyInput
                 name="defaultPrice"
                 value={formData.defaultPrice}
-                onChangeValue={(v) => setFormData((s) => ({ ...s, defaultPrice: v }))}
+                onChangeValue={(v) => {
+                  setFormData((s) => ({ ...s, defaultPrice: v }));
+                  if (fieldErrors.defaultPrice) setFieldErrors((prev) => ({ ...prev, defaultPrice: "" }));
+                }}
                 placeholder="Ex: 2500"
                 required
+                className={fieldErrors.defaultPrice ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.defaultPrice} />
 
               <span className="field-label">Description</span>
-              <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Notes optionnelles..." />
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Notes optionnelles..."
+                className={fieldErrors.description ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.description} />
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}</button>

@@ -11,6 +11,8 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference } from "../utils/dateFormat";
 import PageHeader from "../components/PageHeader";
 import ModernDropdown from "../components/ModernDropdown";
+import FieldError from "../components/FieldError";
+import { FIELD_LIMITS, trimText, validateNumber, validateText } from "../utils/validation";
 import "./Patients.css";
 
 export default function Ordonnance() {
@@ -88,6 +90,8 @@ const DOSAGE_FORMS = {
     duration: "",
     instruction: ""
   });
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [createMedErrors, setCreateMedErrors] = useState({});
 
   // Load Prescription for Edit
  // Inside your useEffect for Loading Prescription
@@ -142,10 +146,50 @@ useEffect(() => {
   e.preventDefault();
   if (isCreatingMedication) return;
 
+  const nextErrors = {};
+  nextErrors.name = validateText(newMedicationForm.name, {
+    label: "Nom commercial",
+    required: true,
+    minLength: FIELD_LIMITS.MEDICATION_NAME_MIN,
+    maxLength: FIELD_LIMITS.MEDICATION_NAME_MAX,
+  });
+  nextErrors.genericName = validateText(newMedicationForm.genericName, {
+    label: "Nom générique",
+    required: true,
+    minLength: FIELD_LIMITS.MEDICATION_NAME_MIN,
+    maxLength: FIELD_LIMITS.MEDICATION_NAME_MAX,
+  });
+  nextErrors.dosageForm = validateText(newMedicationForm.dosageForm, {
+    label: "Forme",
+    required: true,
+  });
+  nextErrors.strength = validateText(newMedicationForm.strength, {
+    label: "Dosage",
+    required: true,
+    minLength: FIELD_LIMITS.MEDICATION_STRENGTH_MIN,
+    maxLength: FIELD_LIMITS.MEDICATION_STRENGTH_MAX,
+  });
+  nextErrors.description = validateText(newMedicationForm.description, {
+    label: "Description",
+    required: false,
+    maxLength: FIELD_LIMITS.NOTES_MAX,
+  });
+
+  if (Object.values(nextErrors).some(Boolean)) {
+    setCreateMedErrors(nextErrors);
+    return;
+  }
+
   try {
     setIsCreatingMedication(true);
 
-    const created = await createMedication(newMedicationForm);
+    const created = await createMedication({
+      ...newMedicationForm,
+      name: trimText(newMedicationForm.name),
+      genericName: trimText(newMedicationForm.genericName),
+      strength: trimText(newMedicationForm.strength),
+      description: trimText(newMedicationForm.description),
+    });
 
     setMedOptions((prev) => [created, ...prev]);
 
@@ -166,6 +210,7 @@ useEffect(() => {
       strength: "",
       description: "",
     });
+    setCreateMedErrors({});
 
     toast.success("Médicament ajouté au catalogue");
   } catch (error) {
@@ -178,18 +223,50 @@ useEffect(() => {
 
   function handleAddOrUpdate(e) {
     e.preventDefault();
-    if (!medForm.medicationId || !medForm.amount) return;
+
+    const nextErrors = {};
+    if (!medForm.medicationId) {
+      nextErrors.medicationId = "Sélectionnez un médicament du catalogue.";
+    }
+    nextErrors.amount = validateNumber(medForm.amount, {
+      label: "Dosage par prise",
+      required: true,
+      min: 0.01,
+    });
+    if (!["mg", "ml", "g", "cp"].includes(String(medForm.unit || ""))) {
+      nextErrors.unit = "Unité est invalide.";
+    }
+    nextErrors.frequency = validateText(medForm.frequency, {
+      label: "Fréquence",
+      required: false,
+      maxLength: 50,
+    });
+    nextErrors.duration = validateText(medForm.duration, {
+      label: "Durée",
+      required: false,
+      maxLength: 30,
+    });
+    nextErrors.instruction = validateText(medForm.instruction, {
+      label: "Instructions",
+      required: false,
+      maxLength: 200,
+    });
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors((prev) => ({ ...prev, ...nextErrors }));
+      return;
+    }
 
     const medEntry = {
       prescriptionMedicationId: editingId || Date.now() + Math.random(),
       medicationId: medForm.medicationId,
       name: medForm.name,
       genericName: medForm.genericName, // Save it in the list
-      amount: medForm.amount,
+      amount: trimText(medForm.amount),
       unit: medForm.unit,
-      frequency: medForm.frequency,
-      duration: medForm.duration,
-      instruction: medForm.instruction,
+      frequency: trimText(medForm.frequency),
+      duration: trimText(medForm.duration),
+      instruction: trimText(medForm.instruction),
       strength: medForm.strength
     };
 
@@ -201,6 +278,7 @@ useEffect(() => {
     }
 
     setMedForm({ name: "", genericName: "", medicationId: "", strength: "", unit: "mg", amount: "", frequency: "", duration: "", instruction: "" });
+    setFieldErrors({});
   }
 
   function handleEdit(med) {
@@ -216,6 +294,7 @@ useEffect(() => {
       strength: med.strength || "",
     });
     setEditingId(med.prescriptionMedicationId);
+    setFieldErrors({});
   }
 
   function handleRemove(id) {
@@ -228,6 +307,17 @@ useEffect(() => {
     toast.error("Veuillez ajouter au moins un médicament.");
     return;
   }
+
+  const notesErr = validateText(notes, {
+    label: "Notes additionnelles",
+    required: false,
+    maxLength: FIELD_LIMITS.NOTES_MAX,
+  });
+  if (notesErr) {
+    setFieldErrors((prev) => ({ ...prev, notes: notesErr }));
+    return;
+  }
+  if (fieldErrors.notes) setFieldErrors((prev) => ({ ...prev, notes: "" }));
 
   try {
     toast.info("Enregistrement et génération du PDF...");
@@ -284,6 +374,17 @@ useEffect(() => {
       toast.error("Veuillez ajouter au moins un médicament.");
       return;
     }
+
+    const notesErr = validateText(notes, {
+      label: "Notes additionnelles",
+      required: false,
+      maxLength: FIELD_LIMITS.NOTES_MAX,
+    });
+    if (notesErr) {
+      setFieldErrors((prev) => ({ ...prev, notes: notesErr }));
+      return;
+    }
+    if (fieldErrors.notes) setFieldErrors((prev) => ({ ...prev, notes: "" }));
 
     const payload = {
       patientId: patient.id,
@@ -422,6 +523,7 @@ useEffect(() => {
                       onChange={(e) => {
                         const val = e.target.value;
                         setMedForm(s => ({ ...s, name: val, medicationId: "" }));
+                        if (fieldErrors.medicationId) setFieldErrors((prev) => ({ ...prev, medicationId: "" }));
                         if (val) {
                           const filtered = medOptions.filter(m => 
                             m.name.toLowerCase().includes(val.toLowerCase()) || 
@@ -432,13 +534,16 @@ useEffect(() => {
                         } else setShowSuggestions(false);
                       }}
                       placeholder="Nom ou Molécule..."
-                      className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className={`block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 ${fieldErrors.medicationId ? "invalid" : ""}`.trim()}
                     />
 
 	                    <button
 	                      type="button"
 	                      onMouseDown={(e) => e.preventDefault()}
-	                      onClick={() => setShowCreateMedModal(true)}
+	                      onClick={() => {
+	                        setCreateMedErrors({});
+	                        setShowCreateMedModal(true);
+	                      }}
 	                      className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-md p-1.5 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
 	                      aria-label="Ajouter au catalogue"
 	                      title="Ajouter au catalogue"
@@ -451,6 +556,7 @@ useEffect(() => {
                         {filteredMeds.map(m => (
                           <li key={m.id} onMouseDown={() => {
                             setMedForm(s => ({ ...s, name: m.name, genericName: m.genericName, medicationId: m.id, strength: m.strength }));
+                            if (fieldErrors.medicationId) setFieldErrors((prev) => ({ ...prev, medicationId: "" }));
                             setShowSuggestions(false);
                           }} className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0">
                             <div className="text-sm font-bold text-gray-800">{m.name} <span className="text-xs font-normal text-gray-500">({m.strength})</span></div>
@@ -460,6 +566,7 @@ useEffect(() => {
                       </ul>
                     )}
 	                  </div>
+                    <FieldError message={fieldErrors.medicationId} />
 	                  <div className="mt-1 text-[11px] text-gray-500">
 	                    Le bouton + ajoute un médicament au <span className="font-medium">catalogue</span> (liste globale), puis vous pouvez l'ajouter à l'ordonnance.
 	                  </div>
@@ -477,7 +584,10 @@ useEffect(() => {
                     <label className="text-xs text-gray-600">Unité</label>
                     <ModernDropdown
                       value={medForm.unit}
-                      onChange={(v) => setMedForm((s) => ({ ...s, unit: v }))}
+                      onChange={(v) => {
+                        setMedForm((s) => ({ ...s, unit: v }));
+                        if (fieldErrors.unit) setFieldErrors((prev) => ({ ...prev, unit: "" }));
+                      }}
                       options={[
                         { value: "mg", label: "mg" },
                         { value: "ml", label: "ml" },
@@ -487,8 +597,9 @@ useEffect(() => {
                       ariaLabel="Unite"
                       className="mt-1"
                       fullWidth
-                      triggerClassName="rounded-md border border-gray-200 text-sm"
+                      triggerClassName={`rounded-md border border-gray-200 text-sm ${fieldErrors.unit ? "invalid" : ""}`.trim()}
                     />
+                    <FieldError message={fieldErrors.unit} />
                     <select value={medForm.unit} onChange={(e) => setMedForm(s => ({ ...s, unit: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm" aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                       <option value="mg">mg</option>
                       <option value="ml">ml</option>
@@ -498,29 +609,77 @@ useEffect(() => {
                   </div>
                   <div className="col-span-2">
                     <label className="text-xs text-gray-600">Dosage par prise</label>
-                    <input type="number" value={medForm.amount} onChange={(e) => setMedForm(s => ({ ...s, amount: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm" placeholder="Ex: 500" />
+                    <input
+                      type="number"
+                      value={medForm.amount}
+                      onChange={(e) => {
+                        setMedForm(s => ({ ...s, amount: e.target.value }));
+                        if (fieldErrors.amount) setFieldErrors((prev) => ({ ...prev, amount: "" }));
+                      }}
+                      className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${fieldErrors.amount ? "invalid" : ""}`.trim()}
+                      placeholder="Ex: 500"
+                    />
+                    <FieldError message={fieldErrors.amount} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-600">Fréquence</label>
-                    <input value={medForm.frequency} onChange={(e) => setMedForm(s => ({ ...s, frequency: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm" placeholder="Ex: 3 fois/jour" />
+                    <input
+                      value={medForm.frequency}
+                      onChange={(e) => {
+                        setMedForm(s => ({ ...s, frequency: e.target.value }));
+                        if (fieldErrors.frequency) setFieldErrors((prev) => ({ ...prev, frequency: "" }));
+                      }}
+                      className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${fieldErrors.frequency ? "invalid" : ""}`.trim()}
+                      placeholder="Ex: 3 fois/jour"
+                    />
+                    <FieldError message={fieldErrors.frequency} />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600">Durée</label>
-                    <input value={medForm.duration} onChange={(e) => setMedForm(s => ({ ...s, duration: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm" placeholder="Ex: 7 jours" />
+                    <input
+                      value={medForm.duration}
+                      onChange={(e) => {
+                        setMedForm(s => ({ ...s, duration: e.target.value }));
+                        if (fieldErrors.duration) setFieldErrors((prev) => ({ ...prev, duration: "" }));
+                      }}
+                      className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${fieldErrors.duration ? "invalid" : ""}`.trim()}
+                      placeholder="Ex: 7 jours"
+                    />
+                    <FieldError message={fieldErrors.duration} />
                   </div>
                 </div>
 
                 <div>
                   <label className="text-xs text-gray-600">Instructions</label>
-                  <textarea value={medForm.instruction} onChange={(e) => setMedForm(s => ({ ...s, instruction: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm" rows="2" placeholder="Ex: Avant le repas" />
+                  <textarea
+                    value={medForm.instruction}
+                    onChange={(e) => {
+                      setMedForm(s => ({ ...s, instruction: e.target.value }));
+                      if (fieldErrors.instruction) setFieldErrors((prev) => ({ ...prev, instruction: "" }));
+                    }}
+                    className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${fieldErrors.instruction ? "invalid" : ""}`.trim()}
+                    rows="2"
+                    placeholder="Ex: Avant le repas"
+                  />
+                  <FieldError message={fieldErrors.instruction} />
                 </div>
 
                 <div className="flex justify-between pt-2">
-                  <button type="button" onClick={() => { setEditingId(null); setMedForm({ name: "", genericName: "", medicationId: "", strength: "", unit: "mg", amount: "", frequency: "", duration: "", instruction: "" }); }} className="text-sm text-gray-500 hover:underline">Vider</button>
-                  <button type="submit" disabled={!medForm.medicationId || !medForm.amount} className="px-4 py-2 rounded-lg text-white text-sm bg-blue-500 hover:bg-blue-600 disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setMedForm({ name: "", genericName: "", medicationId: "", strength: "", unit: "mg", amount: "", frequency: "", duration: "", instruction: "" });
+                      setFieldErrors({});
+                    }}
+                    className="text-sm text-gray-500 hover:underline"
+                  >
+                    Vider
+                  </button>
+                  <button type="submit" className="px-4 py-2 rounded-lg text-white text-sm bg-blue-500 hover:bg-blue-600 disabled:opacity-50">
                     {editingId ? "Mettre à jour" : "Ajouter à la liste"}
                   </button>
                 </div>
@@ -560,7 +719,16 @@ useEffect(() => {
 
             <div className="mt-6 border-t pt-4">
               <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Notes Additionnelles</h3>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border rounded-lg p-3 text-sm border-gray-200 focus:ring-1 focus:ring-blue-500 outline-none" rows="3" />
+              <textarea
+                value={notes}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                  if (fieldErrors.notes) setFieldErrors((prev) => ({ ...prev, notes: "" }));
+                }}
+                className={`w-full border rounded-lg p-3 text-sm border-gray-200 focus:ring-1 focus:ring-blue-500 outline-none ${fieldErrors.notes ? "invalid" : ""}`.trim()}
+                rows="3"
+              />
+              <FieldError message={fieldErrors.notes} />
             </div>
           </div>
         </div>
@@ -589,25 +757,32 @@ useEffect(() => {
         <h2 className="text-lg font-semibold text-gray-800 mb-0">
           Ajouter au catalogue
         </h2>
-        <X className="cursor-pointer" onClick={() => setShowCreateMedModal(false)} />
+        <X
+          className="cursor-pointer"
+          onClick={() => {
+            setCreateMedErrors({});
+            setShowCreateMedModal(false);
+          }}
+        />
       </div>
 	      <p className="text-sm text-gray-600 mb-4">
 	        Ce médicament sera ajouté à la liste globale. Ensuite, vous pourrez le sélectionner et l'ajouter à l'ordonnance.
 	      </p>
 	
-	      <form onSubmit={handleCreateMedicationInline} className="space-y-4">
+	      <form noValidate onSubmit={handleCreateMedicationInline} className="space-y-4">
         <div>
           <label className="text-sm text-gray-600">Nom commercial</label>
           <input
             type="text"
             value={newMedicationForm.name}
-            onChange={(e) =>
-              setNewMedicationForm((s) => ({ ...s, name: e.target.value }))
-            }
-            className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm"
+            onChange={(e) => {
+              setNewMedicationForm((s) => ({ ...s, name: e.target.value }));
+              if (createMedErrors.name) setCreateMedErrors((prev) => ({ ...prev, name: "" }));
+            }}
+            className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${createMedErrors.name ? "invalid" : ""}`.trim()}
             placeholder="Ex: Doliprane"
-            required
           />
+          <FieldError message={createMedErrors.name} />
         </div>
 
         <div>
@@ -615,13 +790,14 @@ useEffect(() => {
           <input
             type="text"
             value={newMedicationForm.genericName}
-            onChange={(e) =>
-              setNewMedicationForm((s) => ({ ...s, genericName: e.target.value }))
-            }
-            className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm"
+            onChange={(e) => {
+              setNewMedicationForm((s) => ({ ...s, genericName: e.target.value }));
+              if (createMedErrors.genericName) setCreateMedErrors((prev) => ({ ...prev, genericName: "" }));
+            }}
+            className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${createMedErrors.genericName ? "invalid" : ""}`.trim()}
             placeholder="Ex: Paracétamol"
-            required
           />
+          <FieldError message={createMedErrors.genericName} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -629,7 +805,10 @@ useEffect(() => {
             <label className="text-sm text-gray-600">Forme</label>
             <ModernDropdown
               value={newMedicationForm.dosageForm}
-              onChange={(v) => setNewMedicationForm((s) => ({ ...s, dosageForm: v }))}
+              onChange={(v) => {
+                setNewMedicationForm((s) => ({ ...s, dosageForm: v }));
+                if (createMedErrors.dosageForm) setCreateMedErrors((prev) => ({ ...prev, dosageForm: "" }));
+              }}
               options={Object.entries(DOSAGE_FORMS).map(([key, label]) => ({
                 value: key,
                 label,
@@ -637,8 +816,9 @@ useEffect(() => {
               ariaLabel="Forme"
               className="mt-1"
               fullWidth
-              triggerClassName="rounded-md border border-gray-200 text-sm"
+              triggerClassName={`rounded-md border border-gray-200 text-sm ${createMedErrors.dosageForm ? "invalid" : ""}`.trim()}
             />
+            <FieldError message={createMedErrors.dosageForm} />
             <select
               value={newMedicationForm.dosageForm}
               onChange={(e) =>
@@ -662,13 +842,14 @@ useEffect(() => {
             <input
               type="text"
               value={newMedicationForm.strength}
-              onChange={(e) =>
-                setNewMedicationForm((s) => ({ ...s, strength: e.target.value }))
-              }
-              className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm"
+              onChange={(e) => {
+                setNewMedicationForm((s) => ({ ...s, strength: e.target.value }));
+                if (createMedErrors.strength) setCreateMedErrors((prev) => ({ ...prev, strength: "" }));
+              }}
+              className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${createMedErrors.strength ? "invalid" : ""}`.trim()}
               placeholder="Ex: 500mg"
-              required
             />
+            <FieldError message={createMedErrors.strength} />
           </div>
         </div>
 
@@ -676,19 +857,24 @@ useEffect(() => {
           <label className="text-sm text-gray-600">Description</label>
           <textarea
             value={newMedicationForm.description}
-            onChange={(e) =>
-              setNewMedicationForm((s) => ({ ...s, description: e.target.value }))
-            }
-            className="mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm"
+            onChange={(e) => {
+              setNewMedicationForm((s) => ({ ...s, description: e.target.value }));
+              if (createMedErrors.description) setCreateMedErrors((prev) => ({ ...prev, description: "" }));
+            }}
+            className={`mt-1 block w-full rounded-md border border-gray-200 p-2 text-sm ${createMedErrors.description ? "invalid" : ""}`.trim()}
             rows="3"
             placeholder="Notes optionnelles..."
           />
+          <FieldError message={createMedErrors.description} />
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
-            onClick={() => setShowCreateMedModal(false)}
+            onClick={() => {
+              setCreateMedErrors({});
+              setShowCreateMedModal(false);
+            }}
             className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-50"
             disabled={isCreatingMedication}
           >

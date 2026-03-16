@@ -9,6 +9,8 @@ import SortableTh from "../components/SortableTh";
 import { getAllMaterials, createMaterial, deleteMaterial } from "../services/materialService";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import FieldError from "../components/FieldError";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 
 import "./Patients.css"; // Using shared CSS for consistent styling
 
@@ -18,6 +20,7 @@ const MaterialsSettings = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState({});
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -48,13 +51,29 @@ const MaterialsSettings = () => {
     const handleAddMaterial = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
-        if (!newMaterialName.trim()) return;
+
+        const nextErrors = {};
+        const nameError = validateText(newMaterialName, {
+            label: "Nom du matériau",
+            required: true,
+            minLength: FIELD_LIMITS.TITLE_MIN,
+            maxLength: FIELD_LIMITS.TITLE_MAX,
+        });
+        if (nameError) nextErrors.newMaterialName = nameError;
+
+        if (Object.keys(nextErrors).length) {
+            setFieldErrors(nextErrors);
+            return;
+        }
+
+        setFieldErrors({});
 
         try {
             setIsSubmitting(true);
-            const savedMaterial = await createMaterial({ name: newMaterialName });
+            const savedMaterial = await createMaterial({ name: String(newMaterialName || "").trim() });
             setMaterials([...materials, savedMaterial]);
             setNewMaterialName(""); 
+            setFieldErrors({});
             toast.success("MatÃ©riau ajoutÃ© avec succÃ¨s");
         } catch (err) {
             toast.error("Impossible d'ajouter le matériau.");
@@ -157,15 +176,25 @@ const MaterialsSettings = () => {
                 </div>
 
                 <div className="controls-right">
-                    <form onSubmit={handleAddMaterial} style={{ display: 'flex', gap: '10px' }}>
-                        <input
-                            type="text"
-                            placeholder="Nouveau matÃ©riau..."
-                            value={newMaterialName}
-                            onChange={(e) => setNewMaterialName(e.target.value)}
-                            className="input-standard"
-                            required
-                        />
+                    <form noValidate onSubmit={handleAddMaterial} style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                            <input
+                                type="text"
+                                placeholder="Nouveau matériau..."
+                                value={newMaterialName}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    setNewMaterialName(v);
+                                    if (fieldErrors.newMaterialName) {
+                                        setFieldErrors((prev) => ({ ...prev, newMaterialName: "" }));
+                                    }
+                                }}
+                                className={`input-standard ${fieldErrors.newMaterialName ? "invalid" : ""}`}
+                                required
+                                maxLength={FIELD_LIMITS.TITLE_MAX}
+                            />
+                            <FieldError message={fieldErrors.newMaterialName} />
+                        </div>
                         <button type="submit" className="btn-primary" disabled={loading || isSubmitting}>
                             <Plus size={16} /> {isSubmitting ? "Ajout..." : "Ajouter"}
                         </button>

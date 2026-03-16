@@ -35,6 +35,7 @@ public class ProthesisCatalogController {
         entity.setDefaultPrice(dto.defaultPrice());
         entity.setDefaultLabCost(dto.defaultLabCost() != null ? dto.defaultLabCost() : 0.0);
         entity.setFlatFee(dto.isFlatFee());
+        entity.setMultiUnit(!dto.isFlatFee() && dto.isMultiUnit());
         return ResponseEntity.ok(mapToResponse(service.save(entity, dto.materialId(), user)));
     }
 
@@ -46,6 +47,7 @@ public class ProthesisCatalogController {
         updateData.setDefaultPrice(dto.defaultPrice());
         updateData.setDefaultLabCost(dto.defaultLabCost() != null ? dto.defaultLabCost() : 0.0);
         updateData.setFlatFee(dto.isFlatFee());
+        updateData.setMultiUnit(!dto.isFlatFee() && dto.isMultiUnit());
         return service.update(id, updateData, dto.materialId(), user)
                 .map(this::mapToResponse).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
@@ -69,7 +71,8 @@ public class ProthesisCatalogController {
                 materialName,
                 c.getDefaultPrice(),
                 c.getDefaultLabCost(),
-                c.isFlatFee()
+                c.isFlatFee(),
+                c.isMultiUnit()
         );
     }
 }

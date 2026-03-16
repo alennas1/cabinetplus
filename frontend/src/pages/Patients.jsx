@@ -26,6 +26,8 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
+import FieldError from "../components/FieldError";
+import { FIELD_LIMITS, validateAge, validateText } from "../utils/validation";
 import "./Patients.css";
 
 
@@ -107,6 +109,7 @@ const navigate = useNavigate();
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmTitle, setConfirmTitle] = useState("");
@@ -229,17 +232,45 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
     const { name, value } = e.target;
     if (name === "phone") {
       setFormData({ ...formData, phone: normalizePhoneInput(value) });
+      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
       return;
     }
     setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   // Add / update
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (!isValidPhoneNumber(formData.phone)) {
-      toast.error("Numéro de téléphone invalide");
+    const nextErrors = {};
+
+    const firstnameError = validateText(formData.firstname, {
+      label: "Prénom",
+      required: true,
+      minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+      maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+    });
+    if (firstnameError) nextErrors.firstname = firstnameError;
+
+    const lastnameError = validateText(formData.lastname, {
+      label: "Nom",
+      required: true,
+      minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+      maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+    });
+    if (lastnameError) nextErrors.lastname = lastnameError;
+
+    const ageError = validateAge(formData.age);
+    if (ageError) nextErrors.age = ageError;
+
+    if (!String(formData.phone || "").trim()) nextErrors.phone = "Le numéro de téléphone est obligatoire.";
+    else if (!isValidPhoneNumber(formData.phone)) nextErrors.phone = "Numéro de téléphone invalide.";
+
+    if (!String(formData.sex || "").trim()) nextErrors.sex = "Le sexe est obligatoire.";
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
       return;
     }
     setIsSubmitting(true);
@@ -263,6 +294,7 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
           sex: "",
         });
         setIsEditing(false);
+        setFieldErrors({});
         navigate("/patients/" + newPatient.id);
         return;
       }
@@ -277,6 +309,7 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
         sex: "",
       });
       setIsEditing(false);
+      setFieldErrors({});
     } catch (err) {
       console.error("Error saving patient:", err);
       toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
@@ -288,6 +321,7 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
   const handleEdit = (patient) => {
     setFormData({ ...patient, phone: formatPhoneNumber(patient.phone) || "" });
     setIsEditing(true);
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -471,6 +505,7 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
                     sex: "",
                   });
                   setIsEditing(false);
+                  setFieldErrors({});
                   setShowModal(true);
                 }}
               >
@@ -684,7 +719,7 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
             <p className="text-sm text-gray-600 mb-4">
               {isEditing ? "Modifiez les informations du patient puis enregistrez." : "Renseignez les informations du patient puis enregistrez."}
             </p>
-            <form onSubmit={handleSubmit} className="modal-form">
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <span className="field-label">Prénom</span>
@@ -695,7 +730,10 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
                     value={formData.firstname}
                     onChange={handleChange}
                     required
+                    maxLength={FIELD_LIMITS.PERSON_NAME_MAX}
+                    className={fieldErrors.firstname ? "invalid" : ""}
                   />
+                  <FieldError message={fieldErrors.firstname} />
                 </div>
 
                 <div>
@@ -707,7 +745,10 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
                     value={formData.lastname}
                     onChange={handleChange}
                     required
+                    maxLength={FIELD_LIMITS.PERSON_NAME_MAX}
+                    className={fieldErrors.lastname ? "invalid" : ""}
                   />
+                  <FieldError message={fieldErrors.lastname} />
                 </div>
               </div>
 
@@ -718,9 +759,14 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
                     name="phone"
                     placeholder="Ex: 05 51 51 51 51"
                     value={formData.phone}
-                    onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
+                    onChangeValue={(v) => {
+                      setFormData((s) => ({ ...s, phone: v }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    className={fieldErrors.phone ? "invalid" : ""}
                     required
                   />
+                  <FieldError message={fieldErrors.phone} />
                 </div>
 
                 <div>
@@ -731,7 +777,12 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
                     placeholder="Entrez l'age..."
                     value={formData.age}
                     onChange={handleChange}
+                    min="0"
+                    max="120"
+                    step="1"
+                    className={fieldErrors.age ? "invalid" : ""}
                   />
+                  <FieldError message={fieldErrors.age} />
                 </div>
               </div>
 
@@ -776,6 +827,7 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
                     Femme
                   </label>
                 </div>
+                <FieldError message={fieldErrors.sex} />
               </div>
 
               {false && (

@@ -6,12 +6,14 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
 import ModernDropdown from "../components/ModernDropdown";
+import FieldError from "../components/FieldError";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment, getMyHandPayments } from "../services/handPaymentService";
 import { getCurrentPlanUsage } from "../services/userService";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { validateText } from "../utils/validation";
 import "./Patients.css";
 import "./PaymentHistory.css";
 
@@ -72,6 +74,7 @@ const HandPaymentHistory = () => {
   const [submittingType, setSubmittingType] = useState("");
   const [error, setError] = useState("");
   const [planUsage, setPlanUsage] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const currentPlanCode = (user?.plan?.code || "").toUpperCase();
   const planStartDate = user?.planStartDate || user?.subscriptionStartDate || user?.createdAt;
@@ -130,6 +133,13 @@ const HandPaymentHistory = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, sortConfig.key, sortConfig.direction]);
+
+  useEffect(() => {
+    if (!showUpgradeModal) return;
+    if (upgradePlanId) return;
+    if (!plans.length) return;
+    setUpgradePlanId(String(plans[0].id));
+  }, [plans, showUpgradeModal, upgradePlanId]);
 
   const indexOfLastPayment = currentPage * paymentsPerPage;
   const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
@@ -306,7 +316,13 @@ const HandPaymentHistory = () => {
             <button className="btn-primary2" onClick={() => setShowRenewModal(true)}>
               Renouveler
             </button>
-            <button className="btn-cancel changer-btn" onClick={() => setShowUpgradeModal(true)}>
+            <button
+              className="btn-cancel changer-btn"
+              onClick={() => {
+                setFieldErrors({});
+                setShowUpgradeModal(true);
+              }}
+            >
               Changer
             </button>
           </div>
@@ -390,6 +406,7 @@ const HandPaymentHistory = () => {
             <p className="text-sm text-gray-600 mb-4">Vérifiez le récapitulatif puis confirmez l’envoi de la demande.</p>
             <form
               className="modal-form"
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
                 submitRequest({
@@ -430,17 +447,44 @@ const HandPaymentHistory = () => {
       )}
 
       {showUpgradeModal && (
-        <div className="modal-overlay" onClick={() => setShowUpgradeModal(false)}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setFieldErrors({});
+            setShowUpgradeModal(false);
+          }}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
               <h2>Changer</h2>
-              <X className="cursor-pointer" onClick={() => setShowUpgradeModal(false)} />
+              <X
+                className="cursor-pointer"
+                onClick={() => {
+                  setFieldErrors({});
+                  setShowUpgradeModal(false);
+                }}
+              />
             </div>
             <p className="text-sm text-gray-600 mb-4">Choisissez l’offre et les options, puis confirmez l’envoi de la demande.</p>
             <form
               className="modal-form"
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
+                const nextErrors = {};
+                nextErrors.upgradePlanId = validateText(upgradePlanId, { label: "Offre", required: true });
+                if (!upgradeSelectedPlan) nextErrors.upgradePlanId = "Offre est invalide.";
+                if (!["MONTHLY", "YEARLY"].includes(String(upgradeBillingCycle))) {
+                  nextErrors.upgradeBillingCycle = "Facturation est invalide.";
+                }
+                if (!["IMMEDIATE", "AT_END_OF_CURRENT"].includes(String(upgradeStartMode))) {
+                  nextErrors.upgradeStartMode = "Debut du changement est invalide.";
+                }
+
+                if (Object.values(nextErrors).some(Boolean)) {
+                  setFieldErrors(nextErrors);
+                  return;
+                }
                 submitRequest({
                   type: "UPGRADE",
                   plan: upgradeSelectedPlan,
@@ -453,12 +497,17 @@ const HandPaymentHistory = () => {
               <label>Offre</label>
               <ModernDropdown
                 value={upgradePlanId}
-                onChange={(v) => setUpgradePlanId(v)}
+                onChange={(v) => {
+                  setUpgradePlanId(v);
+                  if (fieldErrors.upgradePlanId) setFieldErrors((prev) => ({ ...prev, upgradePlanId: "" }));
+                }}
                 options={plans.map((plan) => ({ value: plan.id, label: plan.name }))}
                 ariaLabel="Offre"
                 fullWidth
+                triggerClassName={fieldErrors.upgradePlanId ? "invalid" : ""}
               />
-              <select value={upgradePlanId} onChange={(e) => setUpgradePlanId(e.target.value)} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
+              <FieldError message={fieldErrors.upgradePlanId} />
+              <select value={upgradePlanId} onChange={(e) => setUpgradePlanId(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 {plans.map((plan) => (
                   <option value={plan.id} key={plan.id}>
                     {plan.name}
@@ -469,14 +518,19 @@ const HandPaymentHistory = () => {
               <label>Facturation</label>
               <ModernDropdown
                 value={upgradeBillingCycle}
-                onChange={(v) => setUpgradeBillingCycle(v)}
+                onChange={(v) => {
+                  setUpgradeBillingCycle(v);
+                  if (fieldErrors.upgradeBillingCycle) setFieldErrors((prev) => ({ ...prev, upgradeBillingCycle: "" }));
+                }}
                 options={[
                   { value: "MONTHLY", label: "Mensuelle" },
                   { value: "YEARLY", label: "Annuelle" },
                 ]}
                 ariaLabel="Facturation"
                 fullWidth
+                triggerClassName={fieldErrors.upgradeBillingCycle ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.upgradeBillingCycle} />
               <select value={upgradeBillingCycle} onChange={(e) => setUpgradeBillingCycle(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 <option value="MONTHLY">Mensuelle</option>
                 <option value="YEARLY">Annuelle</option>
@@ -485,14 +539,19 @@ const HandPaymentHistory = () => {
               <label>Debut du changement</label>
               <ModernDropdown
                 value={upgradeStartMode}
-                onChange={(v) => setUpgradeStartMode(v)}
+                onChange={(v) => {
+                  setUpgradeStartMode(v);
+                  if (fieldErrors.upgradeStartMode) setFieldErrors((prev) => ({ ...prev, upgradeStartMode: "" }));
+                }}
                 options={[
                   { value: "IMMEDIATE", label: "Immediate" },
                   { value: "AT_END_OF_CURRENT", label: "A la fin du plan actuel" },
                 ]}
                 ariaLabel="Debut du changement"
                 fullWidth
+                triggerClassName={fieldErrors.upgradeStartMode ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.upgradeStartMode} />
               <select value={upgradeStartMode} onChange={(e) => setUpgradeStartMode(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
                 <option value="IMMEDIATE">Immediate</option>
                 <option value="AT_END_OF_CURRENT">A la fin du plan actuel</option>
@@ -513,7 +572,15 @@ const HandPaymentHistory = () => {
                 <button type="submit" className="btn-primary2" disabled={submittingType !== ""}>
                   {submittingType === "UPGRADE" ? "Envoi..." : "Confirmer"}
                 </button>
-                <button type="button" className="btn-cancel" onClick={() => setShowUpgradeModal(false)} disabled={submittingType !== ""}>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => {
+                    setFieldErrors({});
+                    setShowUpgradeModal(false);
+                  }}
+                  disabled={submittingType !== ""}
+                >
                   Annuler
                 </button>
               </div>

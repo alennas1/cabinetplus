@@ -9,10 +9,11 @@ import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { applyUserPreferences } from "../utils/workingHours";
-import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
+import FieldError from "../components/FieldError";
 import "./Register.css";
-const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,100}$/;
+import { FIELD_LIMITS, STRONG_PASSWORD_REGEX, validateText } from "../utils/validation";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -26,13 +27,7 @@ const RegisterPage = () => {
     address: "",
   });
   const [error, setError] = useState("");
-  const [invalidFields, setInvalidFields] = useState({
-    username: false,
-    password: false,
-    firstname: false,
-    lastname: false,
-    phoneNumber: false,
-  });
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -77,75 +72,60 @@ const RegisterPage = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (invalidFields[name]) {
-      setInvalidFields((prev) => ({ ...prev, [name]: false }));
-    }
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
     if (error) setError("");
   };
 
   const validateForm = () => {
-    const nextInvalid = {
-      username: false,
-      password: false,
-      firstname: false,
-      lastname: false,
-      phoneNumber: false,
-    };
+    const nextErrors = {};
 
-    if (!formData.username.trim()) {
-      nextInvalid.username = true;
-      return { message: "Le nom d'utilisateur est obligatoire.", invalid: nextInvalid };
-    }
-    if (!formData.firstname.trim()) {
-      nextInvalid.firstname = true;
-      return { message: "Le prenom est obligatoire.", invalid: nextInvalid };
-    }
-    if (!formData.lastname.trim()) {
-      nextInvalid.lastname = true;
-      return { message: "Le nom est obligatoire.", invalid: nextInvalid };
-    }
-    if (!formData.phoneNumber.trim()) {
-      nextInvalid.phoneNumber = true;
-      return { message: "Le numero de telephone est obligatoire.", invalid: nextInvalid };
-    }
-    if (!isValidPhoneNumber(formData.phoneNumber)) {
-      nextInvalid.phoneNumber = true;
-      return {
-        message: "Numero de telephone invalide (ex: 05 51 51 51 51).",
-        invalid: nextInvalid,
-      };
-    }
+    const usernameError = validateText(formData.username, {
+      label: "Nom d'utilisateur",
+      required: true,
+      minLength: FIELD_LIMITS.USERNAME_MIN,
+      maxLength: FIELD_LIMITS.USERNAME_MAX,
+    });
+    if (usernameError) nextErrors.username = usernameError;
 
-    if (!formData.password.trim()) {
-      nextInvalid.password = true;
-      return { message: "Le mot de passe est obligatoire.", invalid: nextInvalid };
-    }
-    if (!STRONG_PASSWORD_REGEX.test(formData.password)) {
-      nextInvalid.password = true;
-      return {
-        message: "Mot de passe invalide : minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.",
-        invalid: nextInvalid,
-      };
+    const firstnameError = validateText(formData.firstname, {
+      label: "Prénom",
+      required: true,
+      minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+      maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+    });
+    if (firstnameError) nextErrors.firstname = firstnameError;
+
+    const lastnameError = validateText(formData.lastname, {
+      label: "Nom",
+      required: true,
+      minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+      maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+    });
+    if (lastnameError) nextErrors.lastname = lastnameError;
+
+    if (!String(formData.phoneNumber || "").trim()) nextErrors.phoneNumber = "Le numéro de téléphone est obligatoire.";
+    else if (!isValidDzMobilePhoneNumber(formData.phoneNumber)) {
+      nextErrors.phoneNumber = "Numéro de téléphone invalide (ex: 05 51 51 51 51).";
     }
 
-    return { message: "", invalid: nextInvalid };
+    if (!String(formData.password || "").trim()) nextErrors.password = "Le mot de passe est obligatoire.";
+    else if (!STRONG_PASSWORD_REGEX.test(formData.password)) {
+      nextErrors.password =
+        "Mot de passe invalide : minimum 8 caractères avec majuscule, minuscule, chiffre et symbole.";
+    }
+
+    return nextErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setInvalidFields({
-      username: false,
-      password: false,
-      firstname: false,
-      lastname: false,
-      phoneNumber: false,
-    });
+    setFieldErrors({});
 
-    const { message, invalid } = validateForm();
-    if (message) {
-      setError(message);
-      setInvalidFields(invalid);
+    const nextErrors = validateForm();
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      setError("Veuillez corriger les champs en rouge.");
       return;
     }
 
@@ -168,32 +148,37 @@ const RegisterPage = () => {
       const errorData = error?.response?.data;
       if (errorData && typeof errorData === "object") {
         if (errorData.fieldErrors && typeof errorData.fieldErrors === "object") {
-          const mappedInvalid = {
-            username: Boolean(errorData.fieldErrors.username),
-            password: Boolean(errorData.fieldErrors.password),
-            firstname: Boolean(errorData.fieldErrors.firstname),
-            lastname: Boolean(errorData.fieldErrors.lastname),
-            phoneNumber: Boolean(errorData.fieldErrors.phoneNumber),
+          const mappedErrors = {
+            username: errorData.fieldErrors.username || "",
+            password: errorData.fieldErrors.password || "",
+            firstname: errorData.fieldErrors.firstname || "",
+            lastname: errorData.fieldErrors.lastname || "",
+            phoneNumber: errorData.fieldErrors.phoneNumber || "",
           };
-          setInvalidFields(mappedInvalid);
+          setFieldErrors(mappedErrors);
           setError(
-            Object.values(errorData.fieldErrors).find(Boolean) || "Veuillez corriger les champs en rouge."
+            Object.values(mappedErrors).find(Boolean) || "Veuillez corriger les champs en rouge."
           );
         } else if (typeof errorData.error === "string") {
           const messageText = errorData.error;
           const lower = messageText.toLowerCase();
-          setInvalidFields((prev) => ({
-            ...prev,
-            username:
-              prev.username ||
-              lower.includes("username") ||
-              lower.includes("utilisateur") ||
-              lower.includes("already") ||
-              lower.includes("existe") ||
-              lower.includes("exist"),
-            password: prev.password || lower.includes("password") || lower.includes("mot de passe"),
-            phoneNumber: prev.phoneNumber || lower.includes("telephone") || lower.includes("phone"),
-          }));
+          const inferredErrors = {};
+          if (
+            lower.includes("username") ||
+            lower.includes("utilisateur") ||
+            lower.includes("already") ||
+            lower.includes("existe") ||
+            lower.includes("exist")
+          ) {
+            inferredErrors.username = messageText;
+          }
+          if (lower.includes("password") || lower.includes("mot de passe")) {
+            inferredErrors.password = messageText;
+          }
+          if (lower.includes("telephone") || lower.includes("téléphone") || lower.includes("phone")) {
+            inferredErrors.phoneNumber = messageText;
+          }
+          if (Object.keys(inferredErrors).length) setFieldErrors(inferredErrors);
           setError(messageText);
         } else {
           setError(getApiErrorMessage(error, "Erreur inconnue lors de l'inscription."));
@@ -209,7 +194,7 @@ const RegisterPage = () => {
   return (
     <div className="register-page-shell">
       <main className="register-page-main">
-        <form onSubmit={handleSubmit} className="register-form-card">
+        <form noValidate onSubmit={handleSubmit} className="register-form-card">
           <div className="register-brand-row">
             <Link to="/login" className="register-back-link" aria-label="Retour a la connexion">
               <span className="register-back-chevron" aria-hidden="true" />
@@ -225,28 +210,36 @@ const RegisterPage = () => {
           <div className="register-field-group">
             <label htmlFor="firstname">Nom</label>
             <div className="register-two-cols">
-              <input
-                id="firstname"
-                type="text"
-                name="firstname"
-                placeholder="Prenom"
-                value={formData.firstname}
-                onChange={handleChange}
-                className={invalidFields.firstname ? "invalid" : ""}
-                required
-                disabled={loading}
-              />
-              <input
-                id="lastname"
-                type="text"
-                name="lastname"
-                placeholder="Nom"
-                value={formData.lastname}
-                onChange={handleChange}
-                className={invalidFields.lastname ? "invalid" : ""}
-                required
-                disabled={loading}
-              />
+              <div className="register-input-stack">
+                <input
+                  id="firstname"
+                  type="text"
+                  name="firstname"
+                  placeholder="Prenom"
+                  value={formData.firstname}
+                  onChange={handleChange}
+                  className={fieldErrors.firstname ? "invalid" : ""}
+                  required
+                  disabled={loading}
+                  maxLength={FIELD_LIMITS.PERSON_NAME_MAX}
+                />
+                <FieldError message={fieldErrors.firstname} />
+              </div>
+              <div className="register-input-stack">
+                <input
+                  id="lastname"
+                  type="text"
+                  name="lastname"
+                  placeholder="Nom"
+                  value={formData.lastname}
+                  onChange={handleChange}
+                  className={fieldErrors.lastname ? "invalid" : ""}
+                  required
+                  disabled={loading}
+                  maxLength={FIELD_LIMITS.PERSON_NAME_MAX}
+                />
+                <FieldError message={fieldErrors.lastname} />
+              </div>
             </div>
           </div>
 
@@ -259,10 +252,12 @@ const RegisterPage = () => {
               placeholder="Nom d'utilisateur"
               value={formData.username}
               onChange={handleChange}
-              className={invalidFields.username ? "invalid" : ""}
+              className={fieldErrors.username ? "invalid" : ""}
               required
               disabled={loading}
+              maxLength={FIELD_LIMITS.USERNAME_MAX}
             />
+            <FieldError message={fieldErrors.username} />
           </div>
 
           <div className="register-field-group">
@@ -272,11 +267,16 @@ const RegisterPage = () => {
               name="phoneNumber"
               placeholder="Ex: 05 51 51 51 51"
               value={formData.phoneNumber}
-              onChangeValue={(v) => setFormData((prev) => ({ ...prev, phoneNumber: v }))}
-              className={invalidFields.phoneNumber ? "invalid" : ""}
+              onChangeValue={(v) => {
+                setFormData((prev) => ({ ...prev, phoneNumber: v }));
+                if (fieldErrors.phoneNumber) setFieldErrors((prev) => ({ ...prev, phoneNumber: "" }));
+                if (error) setError("");
+              }}
+              className={fieldErrors.phoneNumber ? "invalid" : ""}
               required
               disabled={loading}
             />
+            <FieldError message={fieldErrors.phoneNumber} />
           </div>
 
           <div className="register-field-group">
@@ -289,9 +289,10 @@ const RegisterPage = () => {
                 placeholder="Mot de passe"
                 value={formData.password}
                 onChange={handleChange}
-                className={invalidFields.password ? "invalid" : ""}
+                className={fieldErrors.password ? "invalid" : ""}
                 required
                 disabled={loading}
+                maxLength={100}
               />
               <button
                 type="button"
@@ -303,6 +304,7 @@ const RegisterPage = () => {
                 {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
               </button>
             </div>
+            <FieldError message={fieldErrors.password} />
           </div>
 
           <div className="register-field-group">

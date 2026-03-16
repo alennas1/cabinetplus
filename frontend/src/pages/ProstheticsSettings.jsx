@@ -20,6 +20,8 @@ import { getCurrencyLabelPreference } from "../utils/workingHours";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import FieldError from "../components/FieldError";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 
 import "./Patients.css";
 
@@ -49,7 +51,10 @@ const ProstheticsSettings = () => {
     defaultPrice: "",
     defaultLabCost: "",
     isFlatFee: false,
+    isMultiUnit: false,
   });
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [materialErrors, setMaterialErrors] = useState({});
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [itemIdToDelete, setItemIdToDelete] = useState(null);
@@ -82,12 +87,15 @@ const ProstheticsSettings = () => {
       defaultPrice: "",
       defaultLabCost: "",
       isFlatFee: false,
+      isMultiUnit: false,
     });
     setMaterialQuery("");
     setShowMaterialSuggestions(false);
     setFilteredMaterialOptions([]);
     setIsEditing(false);
     setEditingId(null);
+    setFieldErrors({});
+    setMaterialErrors({});
   };
 
   const handleCreateMaterialInline = async (e) => {
@@ -95,10 +103,17 @@ const ProstheticsSettings = () => {
     if (isCreatingMaterial) return;
 
     const name = (newMaterialName || "").trim();
-    if (!name) {
-      toast.error("Veuillez saisir un nom de matériau");
+    const nameError = validateText(name, {
+      label: "Nom du materiau",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    if (nameError) {
+      setMaterialErrors({ name: nameError });
       return;
     }
+    setMaterialErrors({});
 
     try {
       setIsCreatingMaterial(true);
@@ -129,8 +144,14 @@ const ProstheticsSettings = () => {
     if (isCreatingMaterial) return;
 
     const name = (materialQuery || "").trim();
-    if (!name) {
-      toast.error("Veuillez saisir un nom de matériau");
+    const nameError = validateText(name, {
+      label: "Materiau",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    if (nameError) {
+      setFieldErrors((prev) => ({ ...prev, materialId: nameError }));
       return;
     }
 
@@ -199,10 +220,12 @@ const ProstheticsSettings = () => {
       defaultPrice: item.defaultPrice != null ? formatMoney(item.defaultPrice) : "",
       defaultLabCost: item.defaultLabCost != null ? formatMoney(item.defaultLabCost) : "",
       isFlatFee: !!item.isFlatFee,
+      isMultiUnit: !!item.isMultiUnit,
     });
 
     setIsEditing(true);
     setEditingId(item.id);
+    setFieldErrors({});
     setIsModalOpen(true);
   };
 
@@ -210,18 +233,45 @@ const ProstheticsSettings = () => {
     e.preventDefault();
     if (isSubmitting) return;
 
+    const nextErrors = {};
+
+    const nameError = validateText(formData.name, {
+      label: "Nom",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    if (nameError) nextErrors.name = nameError;
+
+    if (!String(formData.materialId || "").trim()) {
+      nextErrors.materialId = "Veuillez sélectionner un matériau.";
+    }
+
+    const defaultPrice = parseMoneyInput(formData.defaultPrice);
+    if (!Number.isFinite(defaultPrice) || defaultPrice <= 0) {
+      nextErrors.defaultPrice = "Prix par défaut invalide.";
+    }
+
+    const defaultLabCost =
+      String(formData.defaultLabCost ?? "").trim() === "" ? 0 : parseMoneyInput(formData.defaultLabCost);
+    if (!Number.isFinite(defaultLabCost) || defaultLabCost < 0) {
+      nextErrors.defaultLabCost = "Coût labo invalide.";
+    }
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    setFieldErrors({});
+
     try {
       setIsSubmitting(true);
 
-      if (!isEditing && !formData.materialId) {
-        toast.error("Veuillez sélectionner un matériau");
-        return;
-      }
-
       const payload = {
         ...formData,
-        defaultPrice: parseMoneyInput(formData.defaultPrice),
-        defaultLabCost: formData.defaultLabCost === "" ? 0 : parseMoneyInput(formData.defaultLabCost),
+        defaultPrice,
+        defaultLabCost,
         materialId: formData.materialId ? parseInt(formData.materialId, 10) : null,
       };
 
@@ -297,7 +347,7 @@ const ProstheticsSettings = () => {
         case "defaultLabCost":
           return p.defaultLabCost;
         case "type":
-          return p.isFlatFee ? "Forfait" : "Unitaire";
+          return p.isFlatFee ? "Forfait" : p.isMultiUnit ? "Multi-unité" : "Unitaire";
         default:
           return "";
       }
@@ -369,8 +419,8 @@ const ProstheticsSettings = () => {
                 <td>{formatMoneyWithLabel(p.defaultPrice)}</td>
                 <td>{formatMoneyWithLabel(p.defaultLabCost ?? 0)}</td>
                 <td>
-                  <span className={`type-pill ${p.isFlatFee ? "flat" : "unit"}`}>
-                    {p.isFlatFee ? "Forfait" : "Unitaire"}
+                  <span className={`type-pill ${p.isFlatFee ? "flat" : p.isMultiUnit ? "multi" : "unit"}`}>
+                    {p.isFlatFee ? "Forfait" : p.isMultiUnit ? "Multi-unité" : "Unitaire"}
                   </span>
                 </td>
                 <td className="actions-cell" style={{ textAlign: "right" }}>
@@ -418,17 +468,23 @@ const ProstheticsSettings = () => {
               {isEditing ? "Modifiez les informations de la prothèse puis enregistrez." : "Ajoutez une prothèse au catalogue, puis enregistrez."}
             </p>
 
-            <form onSubmit={handleSubmit} className="modal-form">
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Nom de la prothese</span>
               <input
                 type="text"
-                className="input-standard"
+                className={`input-standard ${fieldErrors.name ? "invalid" : ""}`}
                 style={{ width: "100%", marginBottom: "15px" }}
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFormData({ ...formData, name: v });
+                  if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: "" }));
+                }}
                 placeholder="Ex: Couronne zircone"
                 required
+                maxLength={FIELD_LIMITS.TITLE_MAX}
               />
+              <FieldError message={fieldErrors.name} />
 
               <span className="field-label">Materiau</span>
               <div className="relative mt-1">
@@ -439,6 +495,7 @@ const ProstheticsSettings = () => {
                     const val = e.target.value;
                     setMaterialQuery(val);
                     setFormData((prev) => ({ ...prev, materialId: "" }));
+                    if (fieldErrors.materialId) setFieldErrors((prev) => ({ ...prev, materialId: "" }));
 
                     if (val) {
                       const lowered = val.toLowerCase();
@@ -457,7 +514,7 @@ const ProstheticsSettings = () => {
                   }}
                   onBlur={() => setTimeout(() => setShowMaterialSuggestions(false), 120)}
                   placeholder={isEditing ? "Conserver le materiau actuel" : "Nom du materiau..."}
-                  className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 !mb-0"
+                  className={`block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 !mb-0 ${fieldErrors.materialId ? "invalid" : ""}`}
                   autoComplete="off"
                 />
 
@@ -483,6 +540,7 @@ const ProstheticsSettings = () => {
                           setMaterialQuery(m.name || "");
                           setShowMaterialSuggestions(false);
                           setFilteredMaterialOptions([]);
+                          if (fieldErrors.materialId) setFieldErrors((prev) => ({ ...prev, materialId: "" }));
                         }}
                         className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
                       >
@@ -492,44 +550,74 @@ const ProstheticsSettings = () => {
                   </ul>
                 )}
               </div>
+              <FieldError message={fieldErrors.materialId} />
               <div className="mt-1 mb-3 text-[11px] text-gray-500">
                 Le bouton + ajoute un matériau au <span className="font-medium">catalogue</span>.
               </div>
 
               <span className="field-label">Prix par defaut ({getCurrencyLabelPreference()})</span>
               <MoneyInput
-                className="input-standard"
+                className={`input-standard ${fieldErrors.defaultPrice ? "invalid" : ""}`}
                 style={{ width: "100%", marginBottom: "15px" }}
                 value={formData.defaultPrice}
-                onChangeValue={(v) => setFormData({ ...formData, defaultPrice: v })}
+                onChangeValue={(v) => {
+                  setFormData({ ...formData, defaultPrice: v });
+                  if (fieldErrors.defaultPrice) setFieldErrors((prev) => ({ ...prev, defaultPrice: "" }));
+                }}
                 placeholder="Ex: 25000"
                 required
               />
+              <FieldError message={fieldErrors.defaultPrice} />
 
               <span className="field-label">Cout labo par defaut ({getCurrencyLabelPreference()})</span>
               <MoneyInput
-                className="input-standard"
+                className={`input-standard ${fieldErrors.defaultLabCost ? "invalid" : ""}`}
                 style={{ width: "100%", marginBottom: "15px" }}
                 value={formData.defaultLabCost}
-                onChangeValue={(v) => setFormData({ ...formData, defaultLabCost: v })}
+                onChangeValue={(v) => {
+                  setFormData({ ...formData, defaultLabCost: v });
+                  if (fieldErrors.defaultLabCost) setFieldErrors((prev) => ({ ...prev, defaultLabCost: "" }));
+                }}
                 placeholder="Ex: 15000"
               />
+              <FieldError message={fieldErrors.defaultLabCost} />
 
               <span className="field-label" style={{ marginTop: "10px", display: "block" }}>
                 Type
               </span>
+              <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
+                <div>
+                  <strong>Unitaire</strong> : prix par dent. Si plusieurs dents sont choisies chez le patient, on aura{" "}
+                  <strong>1 ligne par dent</strong>.
+                </div>
+                <div>
+                  <strong>Multi-unité</strong> : prix par dent, mais enregistré en{" "}
+                  <strong>une seule ligne</strong> avec toutes les dents (ex : bridge). Le total augmente avec le nombre
+                  de dents.
+                </div>
+                <div>
+                  <strong>Forfait</strong> : <strong>prix fixe</strong>, peu importe le nombre de dents.
+                </div>
+              </div>
               <div className="type-toggle">
                 <button
                   type="button"
-                  className={`type-toggle-btn unit ${!formData.isFlatFee ? "active unit" : ""}`}
-                  onClick={() => setFormData({ ...formData, isFlatFee: false })}
+                  className={`type-toggle-btn unit ${!formData.isFlatFee && !formData.isMultiUnit ? "active unit" : ""}`}
+                  onClick={() => setFormData({ ...formData, isFlatFee: false, isMultiUnit: false })}
                 >
                   Unitaire
                 </button>
                 <button
                   type="button"
+                  className={`type-toggle-btn multi ${!formData.isFlatFee && formData.isMultiUnit ? "active multi" : ""}`}
+                  onClick={() => setFormData({ ...formData, isFlatFee: false, isMultiUnit: true })}
+                >
+                  Multi-unité
+                </button>
+                <button
+                  type="button"
                   className={`type-toggle-btn flat ${formData.isFlatFee ? "active flat" : ""}`}
-                  onClick={() => setFormData({ ...formData, isFlatFee: true })}
+                  onClick={() => setFormData({ ...formData, isFlatFee: true, isMultiUnit: false })}
                 >
                   Forfait
                 </button>
@@ -559,29 +647,43 @@ const ProstheticsSettings = () => {
         <div
           className="modal-overlay"
           style={{ zIndex: 10000 }}
-          onClick={() => setShowCreateMaterialModal(false)}
+          onClick={() => {
+            setShowCreateMaterialModal(false);
+            setNewMaterialName("");
+            setMaterialErrors({});
+          }}
         >
           <div className="modal-content" style={{ maxWidth: "480px" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h2>Ajouter un matériau</h2>
-              <X className="cursor-pointer" onClick={() => setShowCreateMaterialModal(false)} />
+              <X
+                className="cursor-pointer"
+                onClick={() => {
+                  setShowCreateMaterialModal(false);
+                  setNewMaterialName("");
+                  setMaterialErrors({});
+                }}
+              />
             </div>
 
             <p className="text-sm text-gray-600 mb-4">
               Ce matériau sera ajouté au catalogue, puis sélectionné automatiquement.
             </p>
 
-            <form className="modal-form" onSubmit={handleCreateMaterialInline}>
+            <form noValidate className="modal-form" onSubmit={handleCreateMaterialInline}>
               <span className="field-label">Nom du matériau</span>
               <input
                 type="text"
-                className="input-standard"
+                className={`input-standard ${materialErrors.name ? "invalid" : ""}`}
                 style={{ width: "100%", marginBottom: "15px" }}
                 value={newMaterialName}
-                onChange={(e) => setNewMaterialName(e.target.value)}
+                onChange={(e) => {
+                  setNewMaterialName(e.target.value);
+                  if (materialErrors.name) setMaterialErrors((prev) => ({ ...prev, name: "" }));
+                }}
                 placeholder="Ex: Zircone"
-                required
               />
+              <FieldError message={materialErrors.name} />
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2" disabled={isCreatingMaterial}>
@@ -590,7 +692,11 @@ const ProstheticsSettings = () => {
                 <button
                   type="button"
                   className="btn-cancel"
-                  onClick={() => setShowCreateMaterialModal(false)}
+                  onClick={() => {
+                    setShowCreateMaterialModal(false);
+                    setNewMaterialName("");
+                    setMaterialErrors({});
+                  }}
                   disabled={isCreatingMaterial}
                 >
                   Annuler

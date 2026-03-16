@@ -8,8 +8,10 @@ import { getCurrencyLabelPreference } from "../utils/workingHours";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
+import FieldError from "../components/FieldError";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { FIELD_LIMITS, trimText, validateNumber, validateText } from "../utils/validation";
 
 import { getDevises, createDevise, deleteDevise, downloadDevisePdf } from '../services/deviseService';
 import { getTreatments } from '../services/treatmentCatalogueService';
@@ -37,6 +39,7 @@ const Devise = () => {
     const [title, setTitle] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState({});
     const [isDeleting, setIsDeleting] = useState(false);
     const [downloadingId, setDownloadingId] = useState(null);
 
@@ -75,6 +78,7 @@ const Devise = () => {
             quantity: 1
         };
         setSelectedItems([...selectedItems, newItem]);
+        if (fieldErrors.items) setFieldErrors((prev) => ({ ...prev, items: "" }));
         toast.info(`${item.name} ajouté`);
     };
 
@@ -85,11 +89,46 @@ const Devise = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
-        if (selectedItems.length === 0) return toast.error("Ajoutez au moins un élément");
+
+        const nextErrors = {};
+        nextErrors.title = validateText(title, {
+            label: "Titre du devis",
+            required: true,
+            minLength: FIELD_LIMITS.TITLE_MIN,
+            maxLength: FIELD_LIMITS.TITLE_MAX,
+        });
+        if (selectedItems.length === 0) nextErrors.items = "Ajoutez au moins un élément.";
+
+        selectedItems.forEach((item, idx) => {
+            const priceErr = validateNumber(item.unitPrice, {
+                label: "Prix unitaire",
+                required: true,
+                min: 0.01,
+            });
+            if (priceErr) nextErrors[`unitPrice_${idx}`] = priceErr;
+
+            const qtyErr = validateNumber(item.quantity, {
+                label: "Quantité",
+                required: true,
+                min: 1,
+                max: 999,
+                integer: true,
+            });
+            if (qtyErr) nextErrors[`quantity_${idx}`] = qtyErr;
+        });
+
+        if (Object.values(nextErrors).some(Boolean)) {
+            setFieldErrors(nextErrors);
+            return;
+        }
 
         const payload = {
-            title: title || "Devis Sans Titre",
-            items: selectedItems.map(({ name, ...rest }) => rest)
+            title: trimText(title),
+            items: selectedItems.map(({ name, unitPrice, quantity, ...rest }) => ({
+                ...rest,
+                unitPrice: parseFloat(unitPrice),
+                quantity: parseInt(quantity, 10),
+            }))
         };
 
         try {
@@ -99,6 +138,7 @@ const Devise = () => {
             setIsModalOpen(false);
             setTitle('');
             setSelectedItems([]);
+            setFieldErrors({});
             await loadData();
         } catch (err) {
             toast.error("Erreur lors de l'enregistrement");
@@ -264,11 +304,11 @@ const Devise = () => {
 
             {/* Modal for Creating Devis */}
             {isModalOpen && (
-                <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+                <div className="modal-overlay" onClick={() => { setFieldErrors({}); setIsModalOpen(false); }}>
                     <div className="modal-content" style={{ maxWidth: '900px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
                             <h2>Créer un Nouveau Devis</h2>
-                            <X className="cursor-pointer" onClick={() => setIsModalOpen(false)} />
+                            <X className="cursor-pointer" onClick={() => { setFieldErrors({}); setIsModalOpen(false); }} />
                         </div>
 
                         <p className="text-sm text-gray-600 mb-4">
@@ -330,56 +370,78 @@ const Devise = () => {
                             </div>
 
                             {/* Build Pane */}
-                            <form onSubmit={handleSubmit} style={{ flex: 1.2, display: 'flex', flexDirection: 'column' }}>
-                                <span className="field-label">Titre du Devis</span>
-                                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex: Devis Implantologie" required />
+                            <form noValidate onSubmit={handleSubmit} style={{ flex: 1.2, display: 'flex', flexDirection: 'column' }}>
+                                 <span className="field-label">Titre du Devis</span>
+                                 <input
+                                     type="text"
+                                     value={title}
+                                     onChange={(e) => {
+                                         setTitle(e.target.value);
+                                         if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: "" }));
+                                     }}
+                                     placeholder="ex: Devis Implantologie"
+                                     className={fieldErrors.title ? "invalid" : ""}
+                                 />
+                                 <FieldError message={fieldErrors.title} />
 
                                 {/* Build Pane List */}
                                 <div style={{ flex: 1, overflowY: 'auto', marginTop: '8px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-                                    {selectedItems.map((item, idx) => (
-                                        <div key={idx} className="flex justify-between items-center bg-white p-2 mb-2 rounded shadow-sm border border-gray-100">
+                                     {selectedItems.map((item, idx) => (
+                                         <div key={idx} className="flex justify-between items-center bg-white p-2 mb-2 rounded shadow-sm border border-gray-100">
                                             <span style={{ fontSize: '0.8rem', flex: 1.5 }} className="truncate">
                                                 {item.name}
                                             </span>
 
-                                            {/* Editable Unit Price */}
-                                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <span style={{ fontSize: '0.7rem' }}>{getCurrencyLabelPreference()}</span>
+                                             {/* Editable Unit Price */}
+                                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                 <span style={{ fontSize: '0.7rem' }}>{getCurrencyLabelPreference()}</span>
+                                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                                                     <input
+                                                         type="number"
+                                                         style={{ width: '80px', padding: '2px', fontSize: '0.8rem' }}
+                                                         value={item.unitPrice}
+                                                         placeholder="0"
+                                                         className={fieldErrors[`unitPrice_${idx}`] ? "invalid" : ""}
+                                                         onChange={(e) => {
+                                                             const updated = [...selectedItems];
+                                                             updated[idx].unitPrice = e.target.value;
+                                                             setSelectedItems(updated);
+                                                             const k = `unitPrice_${idx}`;
+                                                             if (fieldErrors[k]) setFieldErrors((prev) => ({ ...prev, [k]: "" }));
+                                                         }}
+                                                     />
+                                                     <FieldError message={fieldErrors[`unitPrice_${idx}`]} />
+                                                 </div>
+                                             </div>
 
-                                                <input
-                                                    type="number"
-                                                    style={{ width: '80px', padding: '2px', fontSize: '0.8rem' }}
-                                                    value={item.unitPrice}
-                                                    placeholder="0"
-                                                    onChange={(e) => {
-                                                        const updated = [...selectedItems];
-                                                        updated[idx].unitPrice = parseFloat(e.target.value) || 0;
-                                                        setSelectedItems(updated);
-                                                    }}
-                                                />
-                                            </div>
-
-                                            {/* Quantity */}
-                                            <input
-                                                type="number"
-                                                style={{ width: '45px', padding: '2px', marginLeft: '10px' }}
-                                                value={item.quantity}
-                                                placeholder="1"
-                                                onChange={(e) => {
-                                                    const updated = [...selectedItems];
-                                                    updated[idx].quantity = Math.max(1, parseInt(e.target.value) || 1);
-                                                    setSelectedItems(updated);
-                                                }}
-                                            />
+                                             {/* Quantity */}
+                                             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", marginLeft: '10px' }}>
+                                                 <input
+                                                     type="number"
+                                                     style={{ width: '45px', padding: '2px' }}
+                                                     value={item.quantity}
+                                                     placeholder="1"
+                                                     className={fieldErrors[`quantity_${idx}`] ? "invalid" : ""}
+                                                     onChange={(e) => {
+                                                         const updated = [...selectedItems];
+                                                         updated[idx].quantity = e.target.value;
+                                                         setSelectedItems(updated);
+                                                         const k = `quantity_${idx}`;
+                                                         if (fieldErrors[k]) setFieldErrors((prev) => ({ ...prev, [k]: "" }));
+                                                     }}
+                                                 />
+                                                 <FieldError message={fieldErrors[`quantity_${idx}`]} />
+                                             </div>
 
                                             <button type="button" onClick={() => removeItem(idx)} className="text-red-500 ml-2">
                                                 <X size={14} />
                                             </button>
-                                        </div>
-                                    ))}
-                                </div>
+                                         </div>
+                                     ))}
+                                 </div>
+                                 <FieldError message={fieldErrors.items} />
 
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginTop: "16px" }}>
+                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginTop: "16px" }}>
                                     <div className="total-box" style={{ marginTop: 0, padding: "10px 12px", flexShrink: 0, minWidth: "220px" }}>
                                         <div className="total-row" style={{ fontSize: "14px" }}>
                                             <span>Total:</span>
@@ -389,7 +451,7 @@ const Devise = () => {
 
                                     <div className="modal-actions" style={{ marginTop: 0, flexShrink: 0 }}>
                                         <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : "Enregistrer"}</button>
-                                        <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Annuler</button>
+                                        <button type="button" className="btn-cancel" onClick={() => { setFieldErrors({}); setIsModalOpen(false); }} disabled={isSubmitting}>Annuler</button>
                                     </div>
                                 </div>
                             </form>

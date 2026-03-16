@@ -7,9 +7,11 @@ import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import PasswordInput from "../components/PasswordInput";
+import FieldError from "../components/FieldError";
 import { getAllAdmins, createAdmin, deleteAdmin } from "../services/userService";
 import { getApiErrorMessage } from "../utils/error";
-import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { isValidUsername } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
@@ -32,10 +34,9 @@ const ManageAdmins = () => {
     canDeleteAdmin: false,
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
-  const getErrorMessage = (err) => {
-    return getApiErrorMessage(err, "Erreur inconnue");
-  };
+  const getErrorMessage = (err) => getApiErrorMessage(err, "Erreur inconnue");
 
   useEffect(() => {
     const fetchAdmins = async () => {
@@ -94,16 +95,39 @@ const ManageAdmins = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({ ...formData, [name]: type === "checkbox" ? checked : value });
+    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const validate = () => {
+    const nextErrors = {};
+    if (!String(formData.firstname || "").trim()) nextErrors.firstname = "Le prenom est obligatoire.";
+    if (!String(formData.lastname || "").trim()) nextErrors.lastname = "Le nom est obligatoire.";
+    if (!String(formData.username || "").trim()) nextErrors.username = "Le nom d'utilisateur est obligatoire.";
+    else if (!isValidUsername(formData.username)) {
+      nextErrors.username = "Nom d'utilisateur invalide (3-20 caracteres, lettres/chiffres/._-).";
+    }
+    if (!String(formData.password || "").trim()) nextErrors.password = "Le mot de passe est obligatoire.";
+    if ((formData.phoneNumber || "").trim() && !isValidDzMobilePhoneNumber(formData.phoneNumber)) {
+      nextErrors.phoneNumber = "Telephone invalide (ex: 05 51 51 51 51).";
+    }
+    return nextErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isEditing) {
+      setShowModal(false);
+      return;
+    }
+
+    const nextErrors = validate();
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
     try {
-      if ((formData.phoneNumber || "").trim() && !isValidPhoneNumber(formData.phoneNumber)) {
-        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
-        return;
-      }
       const payload = {
         firstname: formData.firstname,
         lastname: formData.lastname,
@@ -117,12 +141,11 @@ const ManageAdmins = () => {
         isPhoneVerified: false,
       };
 
-      if (!isEditing) {
-        const newAdmin = await createAdmin(payload, token);
-        setAdmins([...admins, newAdmin]);
-        toast.success("Admin ajouté");
-      }
+      const newAdmin = await createAdmin(payload, token);
+      setAdmins((prev) => [...prev, newAdmin]);
+      toast.success("Admin ajouté");
       setShowModal(false);
+      setFieldErrors({});
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -132,7 +155,7 @@ const ManageAdmins = () => {
     if (!window.confirm("Supprimer cet admin ?")) return;
     try {
       await deleteAdmin(id, token);
-      setAdmins(admins.filter((a) => a.id !== id));
+      setAdmins((prev) => prev.filter((a) => a.id !== id));
       toast.success("Admin supprimé");
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -143,12 +166,29 @@ const ManageAdmins = () => {
     <div className="patients-container">
       <BackButton fallbackTo="/settings-admin" />
       <PageHeader title="Admins" subtitle="Liste des administrateurs" align="left" />
+
       <div className="patients-controls">
         <div className="search-group">
           <Search size={16} className="search-icon" />
           <input type="text" placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <button className="btn-primary" onClick={() => { setFormData({ id: null, firstname: "", lastname: "", username: "", password: "", phoneNumber: "", canDeleteAdmin: false }); setIsEditing(false); setShowModal(true); }}>
+        <button
+          className="btn-primary"
+          onClick={() => {
+            setFormData({
+              id: null,
+              firstname: "",
+              lastname: "",
+              username: "",
+              password: "",
+              phoneNumber: "",
+              canDeleteAdmin: false,
+            });
+            setFieldErrors({});
+            setIsEditing(false);
+            setShowModal(true);
+          }}
+        >
           <Plus size={16} /> Ajouter un admin
         </button>
       </div>
@@ -166,15 +206,43 @@ const ManageAdmins = () => {
         </thead>
         <tbody>
           {currentAdmins.map((admin) => (
-            <tr key={admin.id} onClick={() => { setFormData(admin); setIsEditing(true); setShowModal(true); }} style={{ cursor: "pointer" }}>
+            <tr
+              key={admin.id}
+              onClick={() => {
+                setFormData(admin);
+                setFieldErrors({});
+                setIsEditing(true);
+                setShowModal(true);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <td>{admin.firstname || "—"}</td>
               <td>{admin.lastname || "—"}</td>
               <td>{admin.username || "—"}</td>
               <td>{formatPhoneNumber(admin.phoneNumber) || "—"}</td>
               <td>{admin.canDeleteAdmin ? "Oui" : "Non"}</td>
               <td className="actions-cell">
-                <button className="action-btn view" onClick={(e) => { e.stopPropagation(); setFormData(admin); setIsEditing(true); setShowModal(true); }}><Eye size={16} /></button>
-                <button className="action-btn delete" onClick={(e) => { e.stopPropagation(); handleDelete(admin.id); }}><Trash2 size={16} /></button>
+                <button
+                  className="action-btn view"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFormData(admin);
+                    setFieldErrors({});
+                    setIsEditing(true);
+                    setShowModal(true);
+                  }}
+                >
+                  <Eye size={16} />
+                </button>
+                <button
+                  className="action-btn delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(admin.id);
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
               </td>
             </tr>
           ))}
@@ -188,11 +256,7 @@ const ManageAdmins = () => {
           </button>
 
           {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
+            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
               {i + 1}
             </button>
           ))}
@@ -213,13 +277,47 @@ const ManageAdmins = () => {
             <p className="text-sm text-gray-600 mb-4">
               {isEditing ? "Informations en lecture seule." : "Renseignez les informations puis cliquez sur Ajouter."}
             </p>
-            <form onSubmit={handleSubmit} className="modal-form">
+
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Prénom *</span>
-              <input type="text" name="firstname" value={formData.firstname} onChange={handleChange} placeholder="Ex: Ahmed" required disabled={isEditing} />
+              <input
+                type="text"
+                name="firstname"
+                value={formData.firstname}
+                onChange={handleChange}
+                placeholder="Ex: Ahmed"
+                required
+                disabled={isEditing}
+                className={fieldErrors.firstname ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.firstname} />
+
               <span className="field-label">Nom *</span>
-              <input type="text" name="lastname" value={formData.lastname} onChange={handleChange} placeholder="Ex: Benali" required disabled={isEditing} />
+              <input
+                type="text"
+                name="lastname"
+                value={formData.lastname}
+                onChange={handleChange}
+                placeholder="Ex: Benali"
+                required
+                disabled={isEditing}
+                className={fieldErrors.lastname ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.lastname} />
+
               <span className="field-label">Username *</span>
-              <input type="text" name="username" value={formData.username} onChange={handleChange} placeholder="Ex: abenali" required disabled={isEditing} />
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                placeholder="Ex: abenali"
+                required
+                disabled={isEditing}
+                className={fieldErrors.username ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.username} />
+
               <span className="field-label">Mot de passe *</span>
               <PasswordInput
                 name="password"
@@ -229,24 +327,48 @@ const ManageAdmins = () => {
                 required={!isEditing}
                 autoComplete="new-password"
                 disabled={isEditing}
+                inputClassName={fieldErrors.password ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.password} />
+
               <span className="field-label">Téléphone</span>
               <PhoneInput
                 name="phoneNumber"
                 value={formData.phoneNumber}
-                onChangeValue={(v) => setFormData((s) => ({ ...s, phoneNumber: v }))}
+                onChangeValue={(v) => {
+                  setFormData((s) => ({ ...s, phoneNumber: v }));
+                  if (fieldErrors.phoneNumber) setFieldErrors((prev) => ({ ...prev, phoneNumber: "" }));
+                }}
+                className={fieldErrors.phoneNumber ? "invalid" : ""}
                 placeholder="Ex: 05 51 51 51 51"
                 disabled={isEditing}
               />
-              <label><input type="checkbox" name="canDeleteAdmin" checked={formData.canDeleteAdmin} onChange={handleChange} disabled={isEditing} /> Super Admin</label>
+              <FieldError message={fieldErrors.phoneNumber} />
+
+              <label>
+                <input
+                  type="checkbox"
+                  name="canDeleteAdmin"
+                  checked={formData.canDeleteAdmin}
+                  onChange={handleChange}
+                  disabled={isEditing}
+                />{" "}
+                Super Admin
+              </label>
+
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2">{isEditing ? "Fermer" : "Ajouter"}</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Annuler</button>
+                <button type="submit" className="btn-primary2">
+                  {isEditing ? "Fermer" : "Ajouter"}
+                </button>
+                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>
+                  Annuler
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
       <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
     </div>
   );

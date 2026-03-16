@@ -69,6 +69,7 @@ public class TreatmentCatalogController {
         entity.setDescription(dto.getDescription());
         entity.setDefaultPrice(dto.getDefaultPrice());
         entity.setFlatFee(dto.isFlatFee());
+        entity.setMultiUnit(!dto.isFlatFee() && dto.isMultiUnit());
         entity.setCreatedBy(currentUser);
 
         TreatmentCatalog saved = treatmentCatalogService.save(entity);
@@ -88,6 +89,7 @@ public class TreatmentCatalogController {
         toUpdate.setDescription(dto.getDescription());
         toUpdate.setDefaultPrice(dto.getDefaultPrice());
         toUpdate.setFlatFee(dto.isFlatFee());
+        toUpdate.setMultiUnit(!dto.isFlatFee() && dto.isMultiUnit());
         toUpdate.setCreatedBy(currentUser);
 
         return treatmentCatalogService.update(id, toUpdate, currentUser)
@@ -118,7 +120,8 @@ public class TreatmentCatalogController {
                 c.getName(),
                 c.getDescription(),
                 c.getDefaultPrice(),
-                c.isFlatFee()
+                c.isFlatFee(),
+                c.isMultiUnit()
         );
     }
 }

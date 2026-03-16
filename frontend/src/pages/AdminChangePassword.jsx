@@ -7,6 +7,8 @@ import "react-toastify/dist/ReactToastify.css";
 import { getActiveSessions, revokeSession, updatePassword } from "../services/securityService";
 import { getApiErrorMessage } from "../utils/error";
 import PasswordInput from "../components/PasswordInput";
+import FieldError from "../components/FieldError";
+import { isStrongPassword } from "../utils/validation";
 import "./Security.css";
 
 const Security = () => {
@@ -15,6 +17,7 @@ const Security = () => {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState({});
   const [logoutAllDevices, setLogoutAllDevices] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -100,15 +103,22 @@ const Security = () => {
   };
 
   const handlePasswordChange = async () => {
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      toast.error("Veuillez remplir tous les champs");
-      return;
+    const nextErrors = {};
+    if (!String(oldPassword || "").trim()) nextErrors.oldPassword = "Champ obligatoire.";
+    if (!String(newPassword || "").trim()) nextErrors.newPassword = "Champ obligatoire.";
+    if (!String(confirmPassword || "").trim()) nextErrors.confirmPassword = "Champ obligatoire.";
+    if (String(newPassword || "").trim() && String(confirmPassword || "").trim() && newPassword !== confirmPassword) {
+      nextErrors.confirmPassword = "Les nouveaux mots de passe ne correspondent pas.";
+    }
+    if (String(newPassword || "").trim() && !isStrongPassword(newPassword)) {
+      nextErrors.newPassword = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.";
     }
 
-    if (newPassword !== confirmPassword) {
-      toast.error("Les nouveaux mots de passe ne correspondent pas");
+    if (Object.values(nextErrors).some(Boolean)) {
+      setPasswordErrors(nextErrors);
       return;
     }
+    setPasswordErrors({});
 
     try {
       await updatePassword({ oldPassword, newPassword, logoutAll: logoutAllDevices }, token);
@@ -135,27 +145,42 @@ const Security = () => {
             <PasswordInput
               placeholder="Entrez votre ancien mot de passe"
               value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
+              onChange={(e) => {
+                setOldPassword(e.target.value);
+                if (passwordErrors.oldPassword) setPasswordErrors((prev) => ({ ...prev, oldPassword: "" }));
+              }}
               autoComplete="current-password"
+              inputClassName={passwordErrors.oldPassword ? "invalid" : ""}
             />
+            <FieldError message={passwordErrors.oldPassword} />
           </div>
           <div className="security-field">
             <label>Nouveau mot de passe</label>
             <PasswordInput
               placeholder="Entrez le nouveau mot de passe"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                if (passwordErrors.newPassword) setPasswordErrors((prev) => ({ ...prev, newPassword: "" }));
+              }}
               autoComplete="new-password"
+              inputClassName={passwordErrors.newPassword ? "invalid" : ""}
             />
+            <FieldError message={passwordErrors.newPassword} />
           </div>
           <div className="security-field">
             <label>Confirmer le mot de passe</label>
             <PasswordInput
               placeholder="Confirmez le nouveau mot de passe"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (passwordErrors.confirmPassword) setPasswordErrors((prev) => ({ ...prev, confirmPassword: "" }));
+              }}
               autoComplete="new-password"
+              inputClassName={passwordErrors.confirmPassword ? "invalid" : ""}
             />
+            <FieldError message={passwordErrors.confirmPassword} />
           </div>
         <label className="security-toggle">
           <input

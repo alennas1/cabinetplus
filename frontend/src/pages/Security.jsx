@@ -15,8 +15,10 @@ import { getCurrentUser } from "../services/authService";
 import { setCredentials } from "../store/authSlice";
 import { getApiErrorMessage } from "../utils/error";
 import PasswordInput from "../components/PasswordInput";
+import FieldError from "../components/FieldError";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
+import { isStrongPassword } from "../utils/validation";
 import "./Security.css";
 
 const Security = () => {
@@ -31,6 +33,7 @@ const Security = () => {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState({});
   const [logoutAllDevices, setLogoutAllDevices] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -39,6 +42,7 @@ const Security = () => {
   const [phoneChangeNumber, setPhoneChangeNumber] = useState("");
   const [phoneChangeCode, setPhoneChangeCode] = useState("");
   const [phoneChangePassword, setPhoneChangePassword] = useState("");
+  const [phoneChangeErrors, setPhoneChangeErrors] = useState({});
   const [phoneChangeOtpSent, setPhoneChangeOtpSent] = useState(false);
   const [phoneChangeBusy, setPhoneChangeBusy] = useState(false);
   const [phoneChangeCooldown, setPhoneChangeCooldown] = useState(0);
@@ -73,15 +77,19 @@ const Security = () => {
   }, [userKey]);
 
   const handlePasswordChange = async () => {
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      toast.error("Veuillez remplir tous les champs");
-      return;
+    const nextErrors = {};
+    if (!String(oldPassword || "").trim()) nextErrors.oldPassword = "Champ obligatoire.";
+    if (!String(newPassword || "").trim()) nextErrors.newPassword = "Champ obligatoire.";
+    if (!String(confirmPassword || "").trim()) nextErrors.confirmPassword = "Champ obligatoire.";
+    if (String(newPassword || "").trim() && String(confirmPassword || "").trim() && newPassword !== confirmPassword) {
+      nextErrors.confirmPassword = "Les nouveaux mots de passe ne correspondent pas.";
+    }
+    if (String(newPassword || "").trim() && !isStrongPassword(newPassword)) {
+      nextErrors.newPassword = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.";
     }
 
-    if (newPassword !== confirmPassword) {
-      toast.error("Les nouveaux mots de passe ne correspondent pas");
-      return;
-    }
+    setPasswordErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
 
     try {
       await updatePassword({ oldPassword, newPassword, logoutAll: logoutAllDevices });
@@ -98,7 +106,10 @@ const Security = () => {
       setSessions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du mot de passe"));
+      setPasswordErrors((prev) => ({
+        ...prev,
+        form: getApiErrorMessage(err, "Erreur lors de la mise à jour du mot de passe"),
+      }));
     }
   };
 
@@ -226,14 +237,11 @@ const Security = () => {
   */
 
   const handleSendPhoneChangeOtp = async () => {
-    if (!phoneChangeNumber.trim()) {
-      toast.error("Entrez le nouveau numero de telephone");
-      return;
-    }
-    if (!isValidPhoneNumber(phoneChangeNumber)) {
-      toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
-      return;
-    }
+    const nextErrors = {};
+    if (!String(phoneChangeNumber || "").trim()) nextErrors.phoneChangeNumber = "Champ obligatoire.";
+    else if (!isValidPhoneNumber(phoneChangeNumber)) nextErrors.phoneChangeNumber = "Telephone invalide (ex: 05 51 51 51 51).";
+    setPhoneChangeErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     if (phoneChangeBusy || phoneChangeCooldown > 0) return;
 
     try {
@@ -257,14 +265,12 @@ const Security = () => {
 
   const handleConfirmPhoneChangeOtp = async () => {
     if (!phoneChangeOtpSent) return;
-    if (!phoneChangeCode.trim()) {
-      toast.error("Entrez le code SMS");
-      return;
-    }
-    if (!phoneChangePassword.trim()) {
-      toast.error("Entrez votre mot de passe");
-      return;
-    }
+
+    const nextErrors = {};
+    if (!String(phoneChangeCode || "").trim()) nextErrors.phoneChangeCode = "Champ obligatoire.";
+    if (!String(phoneChangePassword || "").trim()) nextErrors.phoneChangePassword = "Champ obligatoire.";
+    setPhoneChangeErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     if (phoneChangeBusy) return;
 
     try {
@@ -282,7 +288,10 @@ const Security = () => {
       setPhoneChangeOtpSent(false);
       toast.success("Numero de telephone mis a jour");
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Code SMS invalide"));
+      setPhoneChangeErrors((prev) => ({
+        ...prev,
+        phoneChangeCode: getApiErrorMessage(err, "Code SMS invalide"),
+      }));
     } finally {
       setPhoneChangeBusy(false);
     }
@@ -311,8 +320,15 @@ const Security = () => {
               <PhoneInput
                 placeholder="Ex: 05 51 51 51 51"
                 value={phoneChangeNumber}
-                onChangeValue={setPhoneChangeNumber}
+                onChangeValue={(v) => {
+                  setPhoneChangeNumber(v);
+                  if (phoneChangeErrors.phoneChangeNumber) {
+                    setPhoneChangeErrors((prev) => ({ ...prev, phoneChangeNumber: "" }));
+                  }
+                }}
+                className={phoneChangeErrors.phoneChangeNumber ? "invalid" : ""}
               />
+              <FieldError message={phoneChangeErrors.phoneChangeNumber} />
             </div>
 
             <button
@@ -338,9 +354,16 @@ const Security = () => {
                     type="text"
                     placeholder="Entrez le code"
                     value={phoneChangeCode}
-                    onChange={(e) => setPhoneChangeCode(e.target.value)}
+                    onChange={(e) => {
+                      setPhoneChangeCode(e.target.value);
+                      if (phoneChangeErrors.phoneChangeCode) {
+                        setPhoneChangeErrors((prev) => ({ ...prev, phoneChangeCode: "" }));
+                      }
+                    }}
                     inputMode="numeric"
+                    className={phoneChangeErrors.phoneChangeCode ? "invalid" : ""}
                   />
+                  <FieldError message={phoneChangeErrors.phoneChangeCode} />
                 </div>
 
                 <div className="security-field">
@@ -348,10 +371,17 @@ const Security = () => {
                   <PasswordInput
                     placeholder="Entrez votre mot de passe"
                     value={phoneChangePassword}
-                    onChange={(e) => setPhoneChangePassword(e.target.value)}
+                    onChange={(e) => {
+                      setPhoneChangePassword(e.target.value);
+                      if (phoneChangeErrors.phoneChangePassword) {
+                        setPhoneChangeErrors((prev) => ({ ...prev, phoneChangePassword: "" }));
+                      }
+                    }}
                     autoComplete="current-password"
                     disabled={phoneChangeBusy}
+                    inputClassName={phoneChangeErrors.phoneChangePassword ? "invalid" : ""}
                   />
+                  <FieldError message={phoneChangeErrors.phoneChangePassword} />
                 </div>
 
                 <button
@@ -377,9 +407,15 @@ const Security = () => {
               <PasswordInput
                 placeholder="Entrez votre ancien mot de passe"
                 value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
+                onChange={(e) => {
+                  setOldPassword(e.target.value);
+                  if (passwordErrors.oldPassword) setPasswordErrors((prev) => ({ ...prev, oldPassword: "" }));
+                  if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
+                }}
                 autoComplete="current-password"
+                inputClassName={passwordErrors.oldPassword ? "invalid" : ""}
               />
+              <FieldError message={passwordErrors.oldPassword} />
             </div>
 
             <div className="security-field">
@@ -387,9 +423,15 @@ const Security = () => {
               <PasswordInput
                 placeholder="Entrez le nouveau mot de passe"
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  if (passwordErrors.newPassword) setPasswordErrors((prev) => ({ ...prev, newPassword: "" }));
+                  if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
+                }}
                 autoComplete="new-password"
+                inputClassName={passwordErrors.newPassword ? "invalid" : ""}
               />
+              <FieldError message={passwordErrors.newPassword} />
             </div>
 
             <div className="security-field">
@@ -397,9 +439,15 @@ const Security = () => {
               <PasswordInput
                 placeholder="Confirmez le nouveau mot de passe"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (passwordErrors.confirmPassword) setPasswordErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                  if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
+                }}
                 autoComplete="new-password"
+                inputClassName={passwordErrors.confirmPassword ? "invalid" : ""}
               />
+              <FieldError message={passwordErrors.confirmPassword} />
             </div>
 
             <label className="security-toggle">
@@ -414,6 +462,7 @@ const Security = () => {
             <button className="security-btn" onClick={handlePasswordChange}>
               Mettre à jour le mot de passe
             </button>
+            <FieldError message={passwordErrors.form} />
           </>
         )}
 

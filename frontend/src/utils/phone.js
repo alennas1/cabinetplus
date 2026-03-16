@@ -22,6 +22,13 @@ export const isValidPhoneNumber = (value) => {
   return digits.length === 10 && digits.startsWith("0");
 };
 
+// Account phone number validation (used for login / OTP flows).
+// Backend expects a DZ mobile number: 05/06/07XXXXXXXX.
+export const isValidDzMobilePhoneNumber = (value) => {
+  const digits = normalizePhoneInput(value);
+  return /^0[5-7]\d{8}$/.test(digits);
+};
+
 export const formatPhoneNumber = (value) => {
   const digits = normalizePhoneInput(value);
   if (!digits) return "";

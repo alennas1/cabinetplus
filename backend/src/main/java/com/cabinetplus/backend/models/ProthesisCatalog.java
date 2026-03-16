@@ -34,7 +34,10 @@ public class ProthesisCatalog {
     @Column(nullable = false)
     private Double defaultLabCost = 0.0;
 
-    private boolean isFlatFee = false; 
+    private boolean isFlatFee = false;
+
+    @Column(name = "is_multi_unit", nullable = false)
+    private boolean isMultiUnit = false;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)

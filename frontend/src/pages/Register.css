@@ -97,6 +97,11 @@
   gap: 0.8rem;
 }
 
+.register-input-stack {
+  display: flex;
+  flex-direction: column;
+}
+
 .register-field-group input {
   width: 100%;
   min-height: 58px;

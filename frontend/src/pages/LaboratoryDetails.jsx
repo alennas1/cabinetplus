@@ -17,6 +17,7 @@ import {
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import SortableTh from "../components/SortableTh";
+import FieldError from "../components/FieldError";
 import {
   addLaboratoryPayment,
   deleteLaboratoryPayment,
@@ -31,6 +32,7 @@ import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, norm
 import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { FIELD_LIMITS, validateNumber, validateText } from "../utils/validation";
 import "./Patient.css";
 import "./Profile.css";
 import "./Finance.css";
@@ -64,6 +66,7 @@ const LaboratoryDetails = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
+  const [profileErrors, setProfileErrors] = useState({});
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFilters, setPaymentFilters] = useState(createFilterState());
   const [billingFilters, setBillingFilters] = useState(createFilterState());
@@ -74,6 +77,7 @@ const LaboratoryDetails = () => {
     paymentDate: new Date().toISOString().slice(0, 16),
     notes: "",
   });
+  const [paymentErrors, setPaymentErrors] = useState({});
 
   const monthsList = useMemo(
     () =>
@@ -243,23 +247,27 @@ const LaboratoryDetails = () => {
     setEditingField(field);
     const value = laboratory[field] || "";
     setTempValue(field === "phoneNumber" ? formatPhoneNumber(value) : value);
+    if (profileErrors[field]) setProfileErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleFieldInputChange = (field, value) => {
     setTempValue(value);
+    if (profileErrors[field]) setProfileErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleCancelEdit = () => {
     setEditingField(null);
     setTempValue("");
+    setProfileErrors({});
   };
 
   const handleSaveField = async (field) => {
     try {
       if (field === "phoneNumber" && (tempValue || "").trim() && !isValidPhoneNumber(tempValue)) {
-        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+        setProfileErrors((prev) => ({ ...prev, [field]: "Telephone invalide (ex: 05 51 51 51 51)." }));
         return;
       }
+      if (profileErrors[field]) setProfileErrors((prev) => ({ ...prev, [field]: "" }));
       const updatedPayload = {
         name: laboratory.name,
         contactPerson: laboratory.contactPerson || "",
@@ -273,7 +281,7 @@ const LaboratoryDetails = () => {
       setEditingField(null);
       toast.success(`${fieldLabels[field]} mis à jour`);
     } catch (err) {
-      toast.error("Erreur lors de la mise à jour");
+      setProfileErrors((prev) => ({ ...prev, [field]: "Erreur lors de la mise a jour." }));
     }
   };
 
@@ -288,16 +296,19 @@ const LaboratoryDetails = () => {
           {field === "phoneNumber" ? (
             <PhoneInput
               value={tempValue}
-              onChangeValue={(v) => setTempValue(v)}
+              onChangeValue={(v) => handleFieldInputChange(field, v)}
               placeholder="Ex: 05 51 51 51 51"
+              className={profileErrors[field] ? "invalid" : ""}
             />
           ) : (
             <input
               type="text"
               value={tempValue}
               onChange={(e) => handleFieldInputChange(field, e.target.value)}
+              className={profileErrors[field] ? "invalid" : ""}
             />
           )}
+          <FieldError message={profileErrors[field]} />
           <Check size={18} className="icon action confirm" onClick={() => handleSaveField(field)} />
           <X size={18} className="icon action cancel" onClick={handleCancelEdit} />
         </>
@@ -418,17 +429,40 @@ const LaboratoryDetails = () => {
       paymentDate: new Date().toISOString().slice(0, 16),
       notes: "",
     });
+    setPaymentErrors({});
     setShowPaymentModal(false);
   };
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+
+    const nextErrors = {};
+    nextErrors.amount = validateNumber(paymentData.amount, {
+      label: "Montant payé",
+      required: true,
+      min: 0.01,
+    });
+    nextErrors.paymentDate = validateText(paymentData.paymentDate, {
+      label: "Date du paiement",
+      required: true,
+    });
+    nextErrors.notes = validateText(paymentData.notes, {
+      label: "Note",
+      required: false,
+      maxLength: FIELD_LIMITS.NOTES_MAX,
+    });
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setPaymentErrors(nextErrors);
+      return;
+    }
+
     try {
       const amountValue = parseFloat(paymentData.amount);
       const updatedLab = await addLaboratoryPayment(id, {
         amount: amountValue,
         paymentDate: paymentData.paymentDate,
-        notes: paymentData.notes,
+        notes: paymentData.notes?.trim() || "",
       });
       setLaboratory(updatedLab);
       toast.success(`Paiement laboratoire enregistré (${formatCurrency(amountValue)})`);
@@ -645,32 +679,46 @@ const LaboratoryDetails = () => {
               Enregistrez un paiement pour ce laboratoire.
             </p>
 
-            <form onSubmit={handlePaymentSubmit} className="modal-form">
+            <form noValidate onSubmit={handlePaymentSubmit} className="modal-form">
               <label className="field-label">Montant payé ({getCurrencyLabelPreference()})</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={paymentData.amount}
-                onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                onChange={(e) => {
+                  setPaymentData({ ...paymentData, amount: e.target.value });
+                  if (paymentErrors.amount) setPaymentErrors((prev) => ({ ...prev, amount: "" }));
+                }}
                 placeholder="Ex: 15000"
-                required
+                className={paymentErrors.amount ? "invalid" : ""}
               />
+              <FieldError message={paymentErrors.amount} />
 
               <label className="field-label">Date du paiement</label>
               <input
                 type="datetime-local"
                 value={paymentData.paymentDate}
-                onChange={(e) => setPaymentData({ ...paymentData, paymentDate: e.target.value })}
+                onChange={(e) => {
+                  setPaymentData({ ...paymentData, paymentDate: e.target.value });
+                  if (paymentErrors.paymentDate) setPaymentErrors((prev) => ({ ...prev, paymentDate: "" }));
+                }}
+                className={paymentErrors.paymentDate ? "invalid" : ""}
               />
+              <FieldError message={paymentErrors.paymentDate} />
 
               <label className="field-label">Note</label>
               <textarea
                 rows="3"
                 value={paymentData.notes}
-                onChange={(e) => setPaymentData({ ...paymentData, notes: e.target.value })}
+                onChange={(e) => {
+                  setPaymentData({ ...paymentData, notes: e.target.value });
+                  if (paymentErrors.notes) setPaymentErrors((prev) => ({ ...prev, notes: "" }));
+                }}
                 placeholder="Optionnel"
+                className={paymentErrors.notes ? "invalid" : ""}
               />
+              <FieldError message={paymentErrors.notes} />
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2">

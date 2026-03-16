@@ -14,4 +14,6 @@ public class TreatmentCatalogResponse {
     private Double defaultPrice;
     @JsonProperty("isFlatFee")
     private boolean isFlatFee;
+    @JsonProperty("isMultiUnit")
+    private boolean isMultiUnit;
 }

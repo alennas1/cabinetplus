@@ -6,5 +6,6 @@ public record ProthesisCatalogResponse(
     String materialName, 
     Double defaultPrice,
     Double defaultLabCost,
-    boolean isFlatFee
+    boolean isFlatFee,
+    boolean isMultiUnit
 ) {}

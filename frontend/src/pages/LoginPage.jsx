@@ -6,13 +6,15 @@ import { getUserPreferences } from "../services/userPreferenceService";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "react-feather";
 import PasswordInput from "../components/PasswordInput";
+import FieldError from "../components/FieldError";
 import { getApiErrorMessage } from "../utils/error";
-import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { applyUserPreferences } from "../utils/workingHours";
+import { isStrongPassword } from "../utils/validation";
 import femmed from "../assets/femmed.png";
 import femmed2 from "../assets/femmed2.png";
 import transpiamge from "../assets/transpiamge.png";
@@ -34,6 +36,7 @@ const LoginPage = () => {
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetError, setResetError] = useState("");
+  const [resetFieldErrors, setResetFieldErrors] = useState({});
   const [resetSendCooldown, setResetSendCooldown] = useState(0);
 
   useEffect(() => {
@@ -146,6 +149,7 @@ const LoginPage = () => {
     setResetNewPassword("");
     setResetConfirmPassword("");
     setResetError("");
+    setResetFieldErrors({});
     setResetSendCooldown(0);
   };
 
@@ -153,16 +157,18 @@ const LoginPage = () => {
     setResetOpen(false);
     setResetLoading(false);
     setResetError("");
+    setResetFieldErrors({});
     setResetSendCooldown(0);
   };
 
   const handleSendResetCode = async () => {
+    setResetFieldErrors({});
     if (!resetPhone.trim()) {
-      setResetError("Entrez votre numero de telephone.");
+      setResetFieldErrors({ phone: "Entrez votre numero de telephone." });
       return;
     }
-    if (!isValidPhoneNumber(resetPhone)) {
-      setResetError("Numero de telephone invalide (ex: 05 51 51 51 51).");
+    if (!isValidDzMobilePhoneNumber(resetPhone)) {
+      setResetFieldErrors({ phone: "Numero de telephone invalide (ex: 05 51 51 51 51)." });
       return;
     }
     if (resetSendCooldown > 0) return;
@@ -184,16 +190,23 @@ const LoginPage = () => {
   };
 
   const handleConfirmReset = async () => {
+    setResetFieldErrors({});
     if (!resetCode.trim()) {
-      setResetError("Entrez le code SMS.");
+      setResetFieldErrors({ code: "Entrez le code SMS." });
       return;
     }
     if (!resetNewPassword.trim()) {
-      setResetError("Entrez un nouveau mot de passe.");
+      setResetFieldErrors({ newPassword: "Entrez un nouveau mot de passe." });
+      return;
+    }
+    if (!isStrongPassword(resetNewPassword)) {
+      setResetFieldErrors({
+        newPassword: "Mot de passe invalide : minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.",
+      });
       return;
     }
     if (resetNewPassword !== resetConfirmPassword) {
-      setResetError("Les mots de passe ne correspondent pas.");
+      setResetFieldErrors({ confirmPassword: "Les mots de passe ne correspondent pas." });
       return;
     }
 
@@ -248,7 +261,7 @@ const LoginPage = () => {
         </section>
 
         <section className="login-panel">
-          <form onSubmit={handleSubmit} className="login-form-card">
+          <form noValidate onSubmit={handleSubmit} className="login-form-card">
             <h2>Connexion</h2>
 
             <div className="auth-form">
@@ -341,9 +354,14 @@ const LoginPage = () => {
                 <PhoneInput
                   placeholder="Numero de telephone (ex: 05 51 51 51 51)"
                   value={resetPhone}
-                  onChangeValue={setResetPhone}
+                  onChangeValue={(v) => {
+                    setResetPhone(v);
+                    if (resetFieldErrors.phone) setResetFieldErrors((prev) => ({ ...prev, phone: "" }));
+                  }}
                   disabled={resetLoading}
+                  className={resetFieldErrors.phone ? "invalid" : ""}
                 />
+                <FieldError message={resetFieldErrors.phone} />
                 <button type="button" onClick={handleSendResetCode} disabled={resetLoading || resetSendCooldown > 0}>
                   {resetLoading
                     ? "Envoi..."
@@ -360,23 +378,40 @@ const LoginPage = () => {
                   type="text"
                   placeholder="Code SMS"
                   value={resetCode}
-                  onChange={(e) => setResetCode(e.target.value)}
+                  onChange={(e) => {
+                    setResetCode(e.target.value);
+                    if (resetFieldErrors.code) setResetFieldErrors((prev) => ({ ...prev, code: "" }));
+                  }}
                   disabled={resetLoading}
+                  className={resetFieldErrors.code ? "invalid" : ""}
                 />
+                <FieldError message={resetFieldErrors.code} />
                 <PasswordInput
                   value={resetNewPassword}
-                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  onChange={(e) => {
+                    setResetNewPassword(e.target.value);
+                    if (resetFieldErrors.newPassword) setResetFieldErrors((prev) => ({ ...prev, newPassword: "" }));
+                  }}
                   placeholder="Nouveau mot de passe"
                   disabled={resetLoading}
                   autoComplete="new-password"
+                  inputClassName={resetFieldErrors.newPassword ? "invalid" : ""}
                 />
+                <FieldError message={resetFieldErrors.newPassword} />
                 <PasswordInput
                   placeholder="Confirmer le mot de passe"
                   value={resetConfirmPassword}
-                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setResetConfirmPassword(e.target.value);
+                    if (resetFieldErrors.confirmPassword) {
+                      setResetFieldErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                    }
+                  }}
                   disabled={resetLoading}
                   autoComplete="new-password"
+                  inputClassName={resetFieldErrors.confirmPassword ? "invalid" : ""}
                 />
+                <FieldError message={resetFieldErrors.confirmPassword} />
                 <button type="button" onClick={handleConfirmReset} disabled={resetLoading}>
                   {resetLoading ? "Verification..." : "Reinitialiser"}
                 </button>

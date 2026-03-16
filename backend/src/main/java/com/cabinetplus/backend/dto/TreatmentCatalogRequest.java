@@ -23,6 +23,10 @@ public class TreatmentCatalogRequest {
     @JsonProperty("isFlatFee")
     @JsonAlias("flatFee")
     private boolean isFlatFee = false;
+
+    @JsonProperty("isMultiUnit")
+    @JsonAlias("multiUnit")
+    private boolean isMultiUnit = false;
 }
 
 

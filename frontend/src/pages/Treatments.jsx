@@ -19,6 +19,8 @@ import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
+import FieldError from "../components/FieldError";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
@@ -46,6 +48,7 @@ const Treatments = () => {
     description: "",
     defaultPrice: "",
     isFlatFee: false,
+    isMultiUnit: false,
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -53,6 +56,7 @@ const Treatments = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingTreatment, setIsDeletingTreatment] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Load treatments
   useEffect(() => {
@@ -120,7 +124,7 @@ const Treatments = () => {
         case "defaultPrice":
           return t.defaultPrice;
         case "type":
-          return t.isFlatFee ? "Forfait" : "Unitaire";
+          return t.isFlatFee ? "Forfait" : t.isMultiUnit ? "Multi-unité" : "Unitaire";
         default:
           return "";
       }
@@ -129,19 +133,49 @@ const Treatments = () => {
   }, [filteredTreatments, sortConfig.direction, sortConfig.key]);
 
 
-  const handleChange = (e) =>
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
+      [name]: type === "checkbox" ? checked : value,
     });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setFieldErrors({});
+    setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "", isFlatFee: false, isMultiUnit: false });
+    setIsEditing(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
 
+    const nextErrors = {};
+    const nameError = validateText(formData.name, {
+      label: "Nom",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    if (nameError) nextErrors.name = nameError;
+
+    const defaultPrice = parseMoneyInput(formData.defaultPrice);
+    if (!Number.isFinite(defaultPrice) || defaultPrice <= 0) {
+      nextErrors.defaultPrice = "Prix invalide.";
+    }
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    setFieldErrors({});
     const payload = {
       ...formData,
-      defaultPrice: parseMoneyInput(formData.defaultPrice),
+      defaultPrice,
     };
 
     try {
@@ -158,9 +192,7 @@ const Treatments = () => {
         toast.success("Traitement ajouté");
       }
 
-      setShowModal(false);
-      setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "", isFlatFee: false });
-      setIsEditing(false);
+      closeModal();
     } catch (err) {
       console.error("Error saving treatment:", err);
       toast.error("Erreur lors de l'enregistrement");
@@ -177,8 +209,10 @@ const Treatments = () => {
       description: treatment.description || "",
       defaultPrice: treatment.defaultPrice != null ? formatMoney(treatment.defaultPrice) : "",
       isFlatFee: !!treatment.isFlatFee,
+      isMultiUnit: !!treatment.isMultiUnit,
     });
     setIsEditing(true);
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -227,7 +261,7 @@ const Treatments = () => {
 
       {/* Controls */}
       <div className="patients-controls">
-        <div className="controls-left">
+        <div className="controls-left" style={{ flexWrap: "wrap" }}>
           <div className="search-group">
             <Search className="search-icon" size={16} />
             <input
@@ -253,19 +287,18 @@ const Treatments = () => {
       <li onClick={() => { setFilterBy("name"); setDropdownOpen(false); }}>Par Nom</li>
       <li onClick={() => { setFilterBy("defaultPrice"); setDropdownOpen(false); }}>Par Prix</li>
     </ul>
-  )}
-</div>
+   )}
+ </div>
 
-        </div>
-
-        <div className="controls-right">
           <button
             className="btn-primary"
             onClick={() => {
-              setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "", isFlatFee: false });
+              setFormData({ id: null, code: "", name: "", description: "", defaultPrice: "", isFlatFee: false, isMultiUnit: false });
               setIsEditing(false);
+              setFieldErrors({});
               setShowModal(true);
             }}
+            style={{ marginLeft: "auto" }}
           >
             <Plus size={16} /> Ajouter un traitement
           </button>
@@ -290,7 +323,9 @@ const Treatments = () => {
               <td>{t.description || "—"}</td>
               <td>{t.defaultPrice ? formatMoneyWithLabel(t.defaultPrice) : "—"}</td>
               <td>
-                <span className={`type-pill ${t.isFlatFee ? "flat" : "unit"}`}>{t.isFlatFee ? "Forfait" : "Unitaire"}</span>
+                <span className={`type-pill ${t.isFlatFee ? "flat" : t.isMultiUnit ? "multi" : "unit"}`}>
+                  {t.isFlatFee ? "Forfait" : t.isMultiUnit ? "Multi-unité" : "Unitaire"}
+                </span>
               </td>
               <td className="actions-cell">
                 <button className="action-btn view" onClick={(e) => {
@@ -331,18 +366,27 @@ const Treatments = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
               <h2>{isEditing ? "Modifier Traitement" : "Ajouter Traitement"}</h2>
-              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+              <X className="cursor-pointer" onClick={closeModal} />
             </div>
             <p className="text-sm text-gray-600 mb-4">
               {isEditing ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
             </p>
-            <form className="modal-form" onSubmit={handleSubmit}>
+            <form noValidate className="modal-form" onSubmit={handleSubmit}>
               <span className="field-label">Nom</span>
-              <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ex: Détartrage" required />
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Ex: Détartrage"
+                maxLength={FIELD_LIMITS.TITLE_MAX}
+                className={fieldErrors.name ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.name} />
 
               <span className="field-label">Description</span>
               <input type="text" name="description" value={formData.description} onChange={handleChange} placeholder="Description optionnelle..." />
@@ -351,24 +395,49 @@ const Treatments = () => {
               <MoneyInput
                 name="defaultPrice"
                 value={formData.defaultPrice || ""}
-                onChangeValue={(v) => setFormData((s) => ({ ...s, defaultPrice: v }))}
+                onChangeValue={(v) => {
+                  setFormData((s) => ({ ...s, defaultPrice: v }));
+                  if (fieldErrors.defaultPrice) setFieldErrors((prev) => ({ ...prev, defaultPrice: "" }));
+                }}
                 placeholder="Ex: 2500"
-                required
+                className={fieldErrors.defaultPrice ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.defaultPrice} />
 
               <span className="field-label" style={{ marginTop: "8px", display: "block" }}>Type</span>
+              <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
+                <div>
+                  <strong>Unitaire</strong> : prix par dent. Si plusieurs dents sont choisies chez le patient, on aura{" "}
+                  <strong>1 ligne par dent</strong>.
+                </div>
+                <div>
+                  <strong>Multi-unité</strong> : prix par dent, mais enregistré en{" "}
+                  <strong>une seule ligne</strong> avec toutes les dents (ex : bridge). Le total augmente avec le nombre
+                  de dents.
+                </div>
+                <div>
+                  <strong>Forfait</strong> : <strong>prix fixe</strong>, peu importe le nombre de dents.
+                </div>
+              </div>
               <div className="type-toggle">
                 <button
                   type="button"
-                  className={`type-toggle-btn unit ${!formData.isFlatFee ? "active unit" : ""}`}
-                  onClick={() => setFormData((prev) => ({ ...prev, isFlatFee: false }))}
+                  className={`type-toggle-btn unit ${!formData.isFlatFee && !formData.isMultiUnit ? "active unit" : ""}`}
+                  onClick={() => setFormData((prev) => ({ ...prev, isFlatFee: false, isMultiUnit: false }))}
                 >
                   Unitaire
                 </button>
                 <button
                   type="button"
+                  className={`type-toggle-btn multi ${!formData.isFlatFee && formData.isMultiUnit ? "active multi" : ""}`}
+                  onClick={() => setFormData((prev) => ({ ...prev, isFlatFee: false, isMultiUnit: true }))}
+                >
+                  Multi-unité
+                </button>
+                <button
+                  type="button"
                   className={`type-toggle-btn flat ${formData.isFlatFee ? "active flat" : ""}`}
-                  onClick={() => setFormData((prev) => ({ ...prev, isFlatFee: true }))}
+                  onClick={() => setFormData((prev) => ({ ...prev, isFlatFee: true, isMultiUnit: false }))}
                 >
                   Forfait
                 </button>
@@ -376,7 +445,7 @@ const Treatments = () => {
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}</button>
-                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
+                  <button type="button" className="btn-cancel" onClick={closeModal} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
           </div>
@@ -414,7 +483,9 @@ const Treatments = () => {
             <div className="view-field"><strong>Prix:</strong> {viewTreatment.defaultPrice ? formatMoneyWithLabel(viewTreatment.defaultPrice) : "—"}</div>
             <div className="view-field">
               <strong>Type:</strong>{" "}
-              <span className={`type-pill ${viewTreatment.isFlatFee ? "flat" : "unit"}`}>{viewTreatment.isFlatFee ? "Forfait" : "Unitaire"}</span>
+              <span className={`type-pill ${viewTreatment.isFlatFee ? "flat" : viewTreatment.isMultiUnit ? "multi" : "unit"}`}>
+                {viewTreatment.isFlatFee ? "Forfait" : viewTreatment.isMultiUnit ? "Multi-unité" : "Unitaire"}
+              </span>
             </div>
             <button className="btn-cancel" style={{ marginTop: "15px" }} onClick={() => setViewTreatment(null)}>Fermer</button>
           </div>

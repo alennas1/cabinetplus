@@ -8,10 +8,12 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import PasswordInput from "../components/PasswordInput";
+import FieldError from "../components/FieldError";
 import ModernDropdown from "../components/ModernDropdown";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
-import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { FIELD_LIMITS, isStrongPassword, isValidUsername, validateText } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
@@ -88,6 +90,7 @@ const Employees = () => {
   const [empIdToDelete, setEmpIdToDelete] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const getRoleOption = (roleValue) =>
     EMPLOYEE_ROLE_OPTIONS.find((roleOption) => roleOption.value === roleValue);
@@ -166,7 +169,9 @@ const Employees = () => {
 
   // Handle form input
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   // Add / update
@@ -174,8 +179,44 @@ const Employees = () => {
     e.preventDefault();
     if (isSubmitting) return;
 
-    if ((formData.phone || "").trim() && !isValidPhoneNumber(formData.phone)) {
-      toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
+    const nextErrors = {};
+    nextErrors.firstName = validateText(formData.firstName, {
+      label: "Prénom",
+      required: true,
+      minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+      maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+    });
+    nextErrors.lastName = validateText(formData.lastName, {
+      label: "Nom",
+      required: true,
+      minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+      maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+    });
+    nextErrors.gender = validateText(formData.gender, {
+      label: "Sexe",
+      required: true,
+    });
+
+    if (!String(formData.phone || "").trim()) {
+      nextErrors.phone = "Le numero de telephone est obligatoire.";
+    } else if (!isValidDzMobilePhoneNumber(formData.phone)) {
+      nextErrors.phone = "Telephone invalide (ex: 05 51 51 51 51).";
+    }
+
+    if (!String(formData.username || "").trim()) {
+      nextErrors.username = "Le nom d'utilisateur est obligatoire.";
+    } else if (!isValidUsername(formData.username)) {
+      nextErrors.username = "Nom d'utilisateur invalide (3-20 caracteres, lettres/chiffres/._-).";
+    }
+
+    if (!isEditing && !String(formData.password || "").trim()) {
+      nextErrors.password = "Le mot de passe est obligatoire.";
+    } else if (String(formData.password || "").trim() && !isStrongPassword(formData.password)) {
+      nextErrors.password = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.";
+    }
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors(nextErrors);
       return;
     }
 
@@ -185,7 +226,7 @@ const Employees = () => {
       gender: formData.gender,
       dateOfBirth: formData.dateOfBirth || null,
       nationalId: formData.nationalId,
-      phone: formData.phone ? normalizePhoneInput(formData.phone) : null,
+      phone: normalizePhoneInput(formData.phone),
       email: formData.email,
       address: formData.address,
       hireDate: formData.hireDate || null,
@@ -214,6 +255,7 @@ const Employees = () => {
       setShowModal(false);
       setFormStep(0);
       resetForm();
+      setFieldErrors({});
     } catch (err) {
       console.error("❌ Error saving employee:", err.response?.data || err.message);
       toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
@@ -224,6 +266,7 @@ const Employees = () => {
 
   const handleEdit = (emp) => {
     setFormData({ ...emp, phone: formatPhoneNumber(emp.phone) || "" });
+    setFieldErrors({});
     setIsEditing(true);
     setFormStep(1);
     setShowModal(true);
@@ -273,6 +316,13 @@ const Employees = () => {
       accessRole: "RECEPTION",
     });
     setIsEditing(false);
+    setFieldErrors({});
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setFormStep(0);
+    resetForm();
   };
 
   if (loading) {
@@ -313,6 +363,7 @@ const Employees = () => {
             className="btn-primary"
             onClick={() => {
               resetForm();
+              setFieldErrors({});
               setIsEditing(false);
               setFormStep(0);
               setShowModal(true);
@@ -412,13 +463,13 @@ const Employees = () => {
 
       {/* Modal multi-step form */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
               <h2>
                 {isEditing ? "Voir / Modifier Employé" : "Ajouter Employé"}
               </h2>
-              <X className="cursor-pointer" onClick={() => setShowModal(false)} />
+              <X className="cursor-pointer" onClick={closeModal} />
             </div>
 
             <p className="text-sm text-gray-600 mb-4">
@@ -427,7 +478,7 @@ const Employees = () => {
                 : "Ajoutez un employé au cabinet en suivant les étapes ci-dessous."}
             </p>
 
-            <form onSubmit={handleSubmit} className="modal-form">
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               {formStep === 0 && !isEditing && (
                 <div className="employee-role-step">
                   <div className="employee-role-step-header">
@@ -458,30 +509,37 @@ const Employees = () => {
               {formStep === 1 && (
                 <>
                   <span className="field-label">Prénom</span>
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    placeholder="Ex: Ahmed"
-                    required
-                  />
+                    <input
+                      type="text"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      placeholder="Ex: Ahmed"
+                      className={fieldErrors.firstName ? "invalid" : ""}
+                    />
+                  <FieldError message={fieldErrors.firstName} />
                   <span className="field-label">Nom</span>
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    placeholder="Ex: Benali"
-                    required
-                  />
+                    <input
+                      type="text"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      placeholder="Ex: Benali"
+                      className={fieldErrors.lastName ? "invalid" : ""}
+                    />
+                  <FieldError message={fieldErrors.lastName} />
                   <span className="field-label">Téléphone</span>
                   <PhoneInput
                     name="phone"
                     value={formData.phone}
-                    onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
+                    onChangeValue={(v) => {
+                      setFormData((s) => ({ ...s, phone: v }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
                     placeholder="Ex: 05 51 51 51 51"
+                    className={fieldErrors.phone ? "invalid" : ""}
                   />
+                  <FieldError message={fieldErrors.phone} />
                   <span className="field-label">Email</span>
                   <input
                     type="email"
@@ -500,7 +558,6 @@ const Employees = () => {
                           value="Homme"
                           checked={formData.gender === "Homme"}
                           onChange={handleChange}
-                          required
                         />
                         <span>Homme</span>
                       </label>
@@ -511,11 +568,11 @@ const Employees = () => {
                           value="Femme"
                           checked={formData.gender === "Femme"}
                           onChange={handleChange}
-                          required
                         />
                         <span>Femme</span>
                       </label>
                     </div>
+                    <FieldError message={fieldErrors.gender} />
                   </div>
                 </>
               )}
@@ -620,17 +677,19 @@ const Employees = () => {
                     value={formData.username || ""}
                     onChange={handleChange}
                     placeholder="Ex: abenali"
-                    required
+                    className={fieldErrors.username ? "invalid" : ""}
                   />
+                  <FieldError message={fieldErrors.username} />
                   <span className="field-label">Mot de passe</span>
                   <PasswordInput
                     name="password"
                     value={formData.password || ""}
                     onChange={handleChange}
                     placeholder={isEditing ? "Laisser vide pour conserver" : "Choisir un mot de passe"}
-                    required={!isEditing}
                     autoComplete="new-password"
+                    inputClassName={fieldErrors.password ? "invalid" : ""}
                   />
+                  <FieldError message={fieldErrors.password} />
                 </>
               )}
 
@@ -649,7 +708,23 @@ const Employees = () => {
                   <button
                     type="button"
                     className="btn-primary2"
-                    onClick={() => setFormStep((s) => s + 1)}
+                    onClick={() => {
+                      if (formStep === 1) {
+                        const nextErrors = {};
+                        if (!String(formData.firstName || "").trim()) nextErrors.firstName = "Le prenom est obligatoire.";
+                        if (!String(formData.lastName || "").trim()) nextErrors.lastName = "Le nom est obligatoire.";
+                        if (!String(formData.gender || "").trim()) nextErrors.gender = "Le sexe est obligatoire.";
+                        if (!String(formData.phone || "").trim()) nextErrors.phone = "Le numero de telephone est obligatoire.";
+                        else if (!isValidDzMobilePhoneNumber(formData.phone)) {
+                          nextErrors.phone = "Telephone invalide (ex: 05 51 51 51 51).";
+                        }
+                        if (Object.keys(nextErrors).length) {
+                          setFieldErrors((prev) => ({ ...prev, ...nextErrors }));
+                          return;
+                        }
+                      }
+                      setFormStep((s) => s + 1);
+                    }}
                   >
                     Suivant
                   </button>
@@ -664,7 +739,7 @@ const Employees = () => {
                 <button
                   type="button"
                   className="btn-cancel"
-                  onClick={() => setShowModal(false)}
+                  onClick={closeModal}
                   disabled={isSubmitting}
                 >
                   Annuler

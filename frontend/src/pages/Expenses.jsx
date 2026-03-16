@@ -18,8 +18,10 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import ModernDropdown from "../components/ModernDropdown";
+import FieldError from "../components/FieldError";
 import { parseMoneyInput } from "../utils/moneyInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -45,6 +47,7 @@ const Expenses = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingExpense, setIsDeletingExpense] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [formData, setFormData] = useState({
     title: "",
@@ -142,6 +145,7 @@ const Expenses = () => {
   const handleChange = async (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
 
     // Fetch employees if category = SALARY
     if (name === "category") {
@@ -167,9 +171,38 @@ const Expenses = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    const nextErrors = {};
+    const titleError = validateText(formData.title, {
+      label: "Titre",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    if (titleError) nextErrors.title = titleError;
+
+    const rawAmount = String(formData.amount ?? "").trim();
+    const parsedAmount = rawAmount ? parseMoneyInput(rawAmount) : Number.NaN;
+    if (!rawAmount) nextErrors.amount = "Le montant est obligatoire.";
+    else if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) nextErrors.amount = "Le montant est invalide.";
+
+    const descriptionError = validateText(formData.description, {
+      label: "Description",
+      required: false,
+      maxLength: FIELD_LIMITS.NOTES_MAX,
+    });
+    if (descriptionError) nextErrors.description = descriptionError;
+    if (formData.category === "SALARY") {
+      const employeeId = selectedEmployeeId || formData.employeeId;
+      if (!String(employeeId || "").trim()) nextErrors.employeeId = "Selectionnez un employe.";
+    }
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
     try {
       setIsSubmitting(true);
-      const payload = { ...formData, amount: parseMoneyInput(formData.amount) };
+      const payload = { ...formData, amount: parsedAmount };
       if (isEditing) {
         const updated = await updateExpense(editingExpense.id, payload);
         setExpenses(expenses.map((e) => (e.id === updated.id ? updated : e)));
@@ -181,6 +214,7 @@ const Expenses = () => {
       }
       setShowModal(false);
       setFormData({ title: "", amount: "", category: "SUPPLIES", date: "", description: "", employeeId: "" });
+      setFieldErrors({});
       setIsEditing(false);
       setEditingExpense(null);
       setSelectedEmployeeId("");
@@ -197,6 +231,7 @@ const Expenses = () => {
       ...expense,
       amount: expense?.amount != null ? formatMoney(expense.amount) : "",
     });
+    setFieldErrors({});
     setSelectedEmployeeId(expense.employeeId || "");
     setEditingExpense(expense);
     setIsEditing(true);
@@ -278,6 +313,7 @@ const Expenses = () => {
             className="btn-primary"
             onClick={() => {
               setFormData({ title: "", amount: "", category: "SUPPLIES", date: "", description: "", employeeId: "" });
+              setFieldErrors({});
               setIsEditing(false);
               setSelectedEmployeeId("");
               setShowModal(true);
@@ -350,9 +386,18 @@ const Expenses = () => {
             <p className="text-sm text-gray-600 mb-4">
               {isEditing ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
             </p>
-            <form onSubmit={handleSubmit} className="modal-form">
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Titre</span>
-              <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="Ex: Fournitures" required />
+              <input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                placeholder="Ex: Fournitures"
+                required
+                className={fieldErrors.title ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.title} />
 
               <span className="field-label">Catégorie</span>
               <ModernDropdown
@@ -375,16 +420,28 @@ const Expenses = () => {
               <MoneyInput
                 name="amount"
                 value={formData.amount}
-                onChangeValue={(v) => setFormData((s) => ({ ...s, amount: v }))}
+                onChangeValue={(v) => {
+                  setFormData((s) => ({ ...s, amount: v }));
+                  if (fieldErrors.amount) setFieldErrors((prev) => ({ ...prev, amount: "" }));
+                }}
                 placeholder="Ex: 15000"
                 required
+                className={fieldErrors.amount ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.amount} />
 
               <span className="field-label">Date</span>
               <input type="date" name="date" value={formData.date} onChange={handleChange} />
 
               <span className="field-label">Description</span>
-              <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Notes optionnelles..." />
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Notes optionnelles..."
+                className={fieldErrors.description ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.description} />
 
               {/* Employee Dropdown */}
               <span className="field-label">Employé</span>
@@ -393,6 +450,7 @@ const Expenses = () => {
                 onChange={(v) => {
                   setSelectedEmployeeId(v);
                   setFormData((s) => ({ ...s, employeeId: v }));
+                  if (fieldErrors.employeeId) setFieldErrors((prev) => ({ ...prev, employeeId: "" }));
                 }}
                 options={[
                   { value: "", label: "-- Sélectionner un employé --" },
@@ -405,6 +463,7 @@ const Expenses = () => {
                 disabled={formData.category !== "SALARY" || loadingEmployees}
                 fullWidth
               />
+              <FieldError message={fieldErrors.employeeId} />
               <select
                 name="employeeId"
                 value={selectedEmployeeId || formData.employeeId || ""}

@@ -19,6 +19,8 @@ import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import ModernDropdown from "../components/ModernDropdown";
 import { parseMoneyInput } from "../utils/moneyInput";
+import FieldError from "../components/FieldError";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
@@ -67,6 +69,8 @@ const Inventory = () => {
     price: "",
     expiryDate: "",
   });
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [itemDefaultErrors, setItemDefaultErrors] = useState({});
 
   // Search & Filter
   const [search, setSearch] = useState("");
@@ -138,6 +142,7 @@ const Inventory = () => {
     setItemDefaultQuery(itemDefault.name || "");
     setShowItemDefaultSuggestions(false);
     setFilteredItemDefaultOptions([]);
+    if (fieldErrors.itemDefaultId) setFieldErrors((prev) => ({ ...prev, itemDefaultId: "" }));
   };
 
   const handleUnitPriceChange = (value) => {
@@ -150,6 +155,7 @@ const Inventory = () => {
         price: formatMoney(quantity * unitPrice),
       };
     });
+    if (fieldErrors.unitPrice) setFieldErrors((prev) => ({ ...prev, unitPrice: "" }));
   };
 
   const handleChange = (e) => {
@@ -159,24 +165,48 @@ const Inventory = () => {
       updated.price = formatMoney((Number(updated.quantity) || 0) * parseMoneyInput(updated.unitPrice));
     }
     setFormData(updated);
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleCreateItemDefaultInline = async (e) => {
     e.preventDefault();
     if (isCreatingItemDefault) return;
 
-    const name = (newItemDefaultForm.name || "").trim();
-    if (!name) {
-      toast.error("Veuillez saisir un nom d'article");
+    const nextErrors = {};
+    const nameError = validateText(newItemDefaultForm.name, {
+      label: "Nom de l'article",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    if (nameError) nextErrors.name = nameError;
+
+    const descriptionError = validateText(newItemDefaultForm.description, {
+      label: "Description",
+      required: false,
+      maxLength: FIELD_LIMITS.NOTES_MAX,
+    });
+    if (descriptionError) nextErrors.description = descriptionError;
+
+    const defaultPrice = parseMoneyInput(newItemDefaultForm.defaultPrice);
+    if (!Number.isFinite(defaultPrice) || defaultPrice <= 0) {
+      nextErrors.defaultPrice = "Prix par défaut invalide.";
+    }
+
+    if (Object.keys(nextErrors).length) {
+      setItemDefaultErrors(nextErrors);
       return;
     }
+
+    setItemDefaultErrors({});
+    const name = (newItemDefaultForm.name || "").trim();
 
     try {
       setIsCreatingItemDefault(true);
       const payload = {
         name,
         category: newItemDefaultForm.category || "CONSUMABLE",
-        defaultPrice: parseMoneyInput(newItemDefaultForm.defaultPrice),
+        defaultPrice,
         description: (newItemDefaultForm.description || "").trim(),
       };
 
@@ -219,17 +249,32 @@ const Inventory = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    const nextErrors = {};
+    if (!formData.itemDefaultId) nextErrors.itemDefaultId = "Veuillez sélectionner un article par défaut.";
+
+    const quantity = Number(formData.quantity);
+    if (!Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity < 1) {
+      nextErrors.quantity = "Quantité invalide (minimum 1).";
+    }
+
+    const unitPrice = parseMoneyInput(formData.unitPrice);
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      nextErrors.unitPrice = "Prix unitaire invalide.";
+    }
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    setFieldErrors({});
     try {
       setIsSubmitting(true);
-      if (!formData.itemDefaultId) {
-        toast.error("Veuillez sélectionner un article par défaut");
-        return;
-      }
-
       const payload = {
         itemDefaultId: Number(formData.itemDefaultId),
-        quantity: Number(formData.quantity),
-        unitPrice: parseMoneyInput(formData.unitPrice),
+        quantity,
+        unitPrice,
         expiryDate: formData.expiryDate || null,
         createdAt: new Date().toISOString(),
 
@@ -279,6 +324,7 @@ const Inventory = () => {
       price: item.price != null ? formatMoney(item.price) : "",
       expiryDate: item.expiryDate || "",
     });
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -409,6 +455,7 @@ const Inventory = () => {
               setItemDefaultQuery("");
               setShowItemDefaultSuggestions(false);
               setFilteredItemDefaultOptions([]);
+              setFieldErrors({});
               setShowModal(true);
             }}
           >
@@ -475,7 +522,7 @@ const Inventory = () => {
             <p className="text-sm text-gray-600 mb-4">
               {editingItem ? "Modifiez les informations puis enregistrez." : "Renseignez les informations puis enregistrez."}
             </p>
-            <form onSubmit={handleSubmit} className="modal-form">
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               <span className="field-label">Article par défaut</span>
               <div className="relative mt-1" ref={itemDefaultSearchRef}>
                 <input
@@ -485,6 +532,7 @@ const Inventory = () => {
                     const val = e.target.value;
                     setItemDefaultQuery(val);
                     setFormData((prev) => ({ ...prev, itemDefaultId: "", unitPrice: "", price: "" }));
+                    if (fieldErrors.itemDefaultId) setFieldErrors((prev) => ({ ...prev, itemDefaultId: "" }));
 
                     if (val) {
                       const lowered = val.toLowerCase();
@@ -503,7 +551,7 @@ const Inventory = () => {
                   }}
                   onBlur={() => setTimeout(() => setShowItemDefaultSuggestions(false), 120)}
                   placeholder="Rechercher un article..."
-                  className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 !mb-0"
+                  className={`block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 !mb-0 ${fieldErrors.itemDefaultId ? "invalid" : ""}`}
                   autoComplete="off"
                   required
                 />
@@ -513,6 +561,7 @@ const Inventory = () => {
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setNewItemDefaultForm((s) => ({ ...s, name: itemDefaultQuery }));
+                    setItemDefaultErrors({});
                     setShowCreateItemDefaultModal(true);
                   }}
                   className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -541,12 +590,24 @@ const Inventory = () => {
                   </ul>
                 )}
               </div>
+              <FieldError message={fieldErrors.itemDefaultId} />
               <div className="mt-1 mb-3 text-[11px] text-gray-500">
                 Le bouton + ajoute un article au <span className="font-medium">catalogue</span>.
               </div>
 
               <span className="field-label">Quantité</span>
-              <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" placeholder="Ex: 10" required />
+              <input
+                type="number"
+                name="quantity"
+                value={formData.quantity}
+                onChange={handleChange}
+                min="1"
+                step="1"
+                placeholder="Ex: 10"
+                required
+                className={fieldErrors.quantity ? "invalid" : ""}
+              />
+              <FieldError message={fieldErrors.quantity} />
 
               <span className="field-label">Prix unitaire</span>
               <MoneyInput
@@ -555,7 +616,9 @@ const Inventory = () => {
                 onChangeValue={handleUnitPriceChange}
                 placeholder="Ex: 2500"
                 required
+                className={fieldErrors.unitPrice ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.unitPrice} />
 
               <span className="field-label">Prix total</span>
               <input type="text" name="price" value={formData.price} readOnly />
@@ -587,15 +650,22 @@ const Inventory = () => {
               Cet article sera ajouté au catalogue (liste globale). Ensuite, vous pourrez le sélectionner et l'ajouter à l'inventaire.
             </p>
 
-            <form className="modal-form" onSubmit={handleCreateItemDefaultInline}>
+            <form noValidate className="modal-form" onSubmit={handleCreateItemDefaultInline}>
               <label>Nom de l'article</label>
               <input
                 type="text"
                 value={newItemDefaultForm.name}
-                onChange={(e) => setNewItemDefaultForm((s) => ({ ...s, name: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewItemDefaultForm((s) => ({ ...s, name: v }));
+                  if (itemDefaultErrors.name) setItemDefaultErrors((prev) => ({ ...prev, name: "" }));
+                }}
                 placeholder="Ex: Composite"
                 required
+                maxLength={FIELD_LIMITS.TITLE_MAX}
+                className={itemDefaultErrors.name ? "invalid" : ""}
               />
+              <FieldError message={itemDefaultErrors.name} />
 
               <label>Catégorie</label>
               <ModernDropdown
@@ -624,18 +694,30 @@ const Inventory = () => {
               <label>Prix par défaut</label>
               <MoneyInput
                 value={newItemDefaultForm.defaultPrice}
-                onChangeValue={(v) => setNewItemDefaultForm((s) => ({ ...s, defaultPrice: v }))}
+                onChangeValue={(v) => {
+                  setNewItemDefaultForm((s) => ({ ...s, defaultPrice: v }));
+                  if (itemDefaultErrors.defaultPrice) setItemDefaultErrors((prev) => ({ ...prev, defaultPrice: "" }));
+                }}
                 placeholder="Ex: 2500"
                 required
+                className={itemDefaultErrors.defaultPrice ? "invalid" : ""}
               />
+              <FieldError message={itemDefaultErrors.defaultPrice} />
 
               <label>Description</label>
               <textarea
                 value={newItemDefaultForm.description}
-                onChange={(e) => setNewItemDefaultForm((s) => ({ ...s, description: e.target.value }))}
+                onChange={(e) => {
+                  setNewItemDefaultForm((s) => ({ ...s, description: e.target.value }));
+                  if (itemDefaultErrors.description) {
+                    setItemDefaultErrors((prev) => ({ ...prev, description: "" }));
+                  }
+                }}
                 rows={3}
                 placeholder="Notes optionnelles..."
+                className={itemDefaultErrors.description ? "invalid" : ""}
               />
+              <FieldError message={itemDefaultErrors.description} />
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2" disabled={isCreatingItemDefault}>

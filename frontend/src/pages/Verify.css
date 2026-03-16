@@ -74,6 +74,11 @@
     width: 130px; /* Taille fixe pour l'input de code */
 }
 
+.verification-action-group input.invalid {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
 .verification-action-group .auth-form-button {
     /* Rendre le bouton compact */
     flex-shrink: 0; 

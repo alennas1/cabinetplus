@@ -39,6 +39,9 @@ public class TreatmentCatalog {
 
     private boolean isFlatFee = false;
 
+    @Column(name = "is_multi_unit", nullable = false)
+    private boolean isMultiUnit = false;
+
     // ðŸ”¹ Makes the catalog private to a dentist/user
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)

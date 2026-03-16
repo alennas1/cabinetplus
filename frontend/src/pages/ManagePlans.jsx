@@ -24,6 +24,8 @@ import { getApiErrorMessage } from '../utils/error';
 import { formatMoneyWithLabel } from '../utils/format';
 import { getCurrencyLabelPreference } from '../utils/workingHours';
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import FieldError from "../components/FieldError";
+import { FIELD_LIMITS, validateNumber, validateText } from "../utils/validation";
 
 import './Patients.css'; 
 
@@ -47,7 +49,8 @@ const PlanFormModal = ({
   currentPlan, 
   handleInputChange, 
   handleSubmit, 
-  closeModal 
+  closeModal,
+  fieldErrors,
 }) => (
   <div className="modal-overlay" onClick={closeModal}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -60,7 +63,7 @@ const PlanFormModal = ({
         {modalMode === "create" ? "Renseignez les informations du plan puis enregistrez." : "Modifiez les informations du plan puis enregistrez."}
       </p>
 
-      <form onSubmit={handleSubmit} className="modal-form">
+      <form noValidate onSubmit={handleSubmit} className="modal-form">
         <span className="field-label">Code (ex: BASIC, PRO)</span>
         <input
           type="text"
@@ -70,7 +73,10 @@ const PlanFormModal = ({
           onChange={handleInputChange}
           required
           disabled={modalMode === 'edit'}
+          maxLength={FIELD_LIMITS.PLAN_CODE_MAX}
+          className={fieldErrors?.code ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.code} />
 
         <span className="field-label">Nom</span>
         <input
@@ -80,7 +86,10 @@ const PlanFormModal = ({
           value={currentPlan.name}
           onChange={handleInputChange}
           required
+          maxLength={FIELD_LIMITS.PLAN_NAME_MAX}
+          className={fieldErrors?.name ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.name} />
 
         <span className="field-label">Prix Mensuel ({getCurrencyLabelPreference()})</span>
         <input
@@ -91,7 +100,9 @@ const PlanFormModal = ({
           onChange={handleInputChange}
           required
           min="0"
+          className={fieldErrors?.monthlyPrice ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.monthlyPrice} />
 
         <span className="field-label">Prix Annuel Réduit (Mois)</span>
         <input
@@ -101,7 +112,9 @@ const PlanFormModal = ({
           value={currentPlan.yearlyMonthlyPrice}
           onChange={handleInputChange}
           min="0"
+          className={fieldErrors?.yearlyMonthlyPrice ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.yearlyMonthlyPrice} />
         <small className='form-small-text'>Prix mensuel si facturé annuellement (doit être $\le$ au prix mensuel).</small>
 
         <span className="field-label">Durée Jours (pour essai/défaut)</span>
@@ -113,7 +126,10 @@ const PlanFormModal = ({
           onChange={handleInputChange}
           required
           min="1"
+          step="1"
+          className={fieldErrors?.durationDays ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.durationDays} />
 
         <span className="field-label">Maximum dentistes</span>
         <input
@@ -124,7 +140,10 @@ const PlanFormModal = ({
           onChange={handleInputChange}
           required
           min="0"
+          step="1"
+          className={fieldErrors?.maxDentists ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.maxDentists} />
 
         <span className="field-label">Maximum employés</span>
         <input
@@ -135,7 +154,10 @@ const PlanFormModal = ({
           onChange={handleInputChange}
           required
           min="0"
+          step="1"
+          className={fieldErrors?.maxEmployees ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.maxEmployees} />
         <small className='form-small-text'>Assistants et réceptionnistes inclus.</small>
 
         <span className="field-label">Maximum patients</span>
@@ -147,7 +169,10 @@ const PlanFormModal = ({
           onChange={handleInputChange}
           required
           min="0"
+          step="1"
+          className={fieldErrors?.maxPatients ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.maxPatients} />
 
         <span className="field-label">Espace stockage (Go)</span>
         <input
@@ -159,7 +184,9 @@ const PlanFormModal = ({
           required
           min="0"
           step="0.01"
+          className={fieldErrors?.maxStorageGb ? "invalid" : ""}
         />
+        <FieldError message={fieldErrors?.maxStorageGb} />
         <small className='form-small-text'>Valeurs décimales acceptées pour les tests, ex: 0.1 ou 0.01 Go.</small>
 
         <div className="form-field" style={{marginTop: '15px'}}>
@@ -199,6 +226,7 @@ const ManagePlans = () => {
   const [showModal, setShowModal] = useState(false); 
   const [modalMode, setModalMode] = useState('create'); 
   const [currentPlan, setCurrentPlan] = useState(initialPlanState);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [search, setSearch] = useState("");
   const [filterBy, setFilterBy] = useState("name");
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
@@ -291,11 +319,13 @@ const ManagePlans = () => {
           : value
       )
     }));
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const openCreateModal = () => {
     setModalMode('create');
     setCurrentPlan(initialPlanState);
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -311,20 +341,99 @@ const ManagePlans = () => {
       maxPatients: Number(plan.maxPatients ?? 0),
       maxStorageGb: Number(plan.maxStorageGb ?? 0),
     });
+    setFieldErrors({});
     setShowModal(true);
   };
 
   const closeModal = () => {
       setShowModal(false);
       setCurrentPlan(initialPlanState);
+      setFieldErrors({});
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!currentPlan.code || !currentPlan.name) {
-      toast.error("Le code et le nom sont obligatoires.");
+
+    const nextErrors = {};
+
+    const codeError = validateText(currentPlan.code, {
+      label: "Code",
+      required: true,
+      minLength: FIELD_LIMITS.PLAN_CODE_MIN,
+      maxLength: FIELD_LIMITS.PLAN_CODE_MAX,
+    });
+    if (codeError) nextErrors.code = codeError;
+
+    const nameError = validateText(currentPlan.name, {
+      label: "Nom",
+      required: true,
+      minLength: FIELD_LIMITS.PLAN_NAME_MIN,
+      maxLength: FIELD_LIMITS.PLAN_NAME_MAX,
+    });
+    if (nameError) nextErrors.name = nameError;
+
+    const monthlyPriceError = validateNumber(currentPlan.monthlyPrice, {
+      label: "Prix mensuel",
+      required: true,
+      min: 0,
+    });
+    if (monthlyPriceError) nextErrors.monthlyPrice = monthlyPriceError;
+
+    const yearlyMonthlyPriceError = validateNumber(currentPlan.yearlyMonthlyPrice, {
+      label: "Prix annuel (mensuel)",
+      required: false,
+      min: 0,
+    });
+    if (yearlyMonthlyPriceError) nextErrors.yearlyMonthlyPrice = yearlyMonthlyPriceError;
+    else if (Number(currentPlan.yearlyMonthlyPrice) > Number(currentPlan.monthlyPrice)) {
+      nextErrors.yearlyMonthlyPrice = "Le prix annuel (mensuel) doit être ≤ au prix mensuel.";
+    }
+
+    const durationDaysError = validateNumber(currentPlan.durationDays, {
+      label: "Durée (jours)",
+      required: true,
+      min: 1,
+      integer: true,
+    });
+    if (durationDaysError) nextErrors.durationDays = durationDaysError;
+
+    const maxDentistsError = validateNumber(currentPlan.maxDentists, {
+      label: "Maximum dentistes",
+      required: true,
+      min: 0,
+      integer: true,
+    });
+    if (maxDentistsError) nextErrors.maxDentists = maxDentistsError;
+
+    const maxEmployeesError = validateNumber(currentPlan.maxEmployees, {
+      label: "Maximum employés",
+      required: true,
+      min: 0,
+      integer: true,
+    });
+    if (maxEmployeesError) nextErrors.maxEmployees = maxEmployeesError;
+
+    const maxPatientsError = validateNumber(currentPlan.maxPatients, {
+      label: "Maximum patients",
+      required: true,
+      min: 0,
+      integer: true,
+    });
+    if (maxPatientsError) nextErrors.maxPatients = maxPatientsError;
+
+    const maxStorageGbError = validateNumber(currentPlan.maxStorageGb, {
+      label: "Stockage (Go)",
+      required: true,
+      min: 0,
+    });
+    if (maxStorageGbError) nextErrors.maxStorageGb = maxStorageGbError;
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
       return;
     }
+
+    setFieldErrors({});
 
     try {
       if (modalMode === 'create') {
@@ -457,6 +566,7 @@ const ManagePlans = () => {
           handleInputChange={handleInputChange}
           handleSubmit={handleSubmit}
           closeModal={closeModal}
+          fieldErrors={fieldErrors}
         />
       )}
 

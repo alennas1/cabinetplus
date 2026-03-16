@@ -18,6 +18,8 @@ import ModernDropdown from "../components/ModernDropdown";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
+import FieldError from "../components/FieldError";
+import { AGE_LIMITS, FIELD_LIMITS, validateAge, validateText } from "../utils/validation";
 import {
   TIME_FORMATS,
   buildDateAtMinutes,
@@ -79,6 +81,7 @@ export default function Appointments() {
 
   const [slotDuration, setSlotDuration] = useState(30); // Default slot duration: 30 min
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [isCompletingAppointment, setIsCompletingAppointment] = useState(false);
   const [isCancellingAppointment, setIsCancellingAppointment] = useState(false);
   const [workingHours, setWorkingHours] = useState(() => getWorkingHoursWindow());
@@ -104,6 +107,7 @@ export default function Appointments() {
     startTime: "",
     endTime: "",
   });
+  const [shiftErrors, setShiftErrors] = useState({});
 
   const durationOptions = useMemo(() => [15, 30, 45, 60], []);
 
@@ -162,6 +166,7 @@ export default function Appointments() {
 
   const handleSexChange = (e) => {
     setNewPatient({ ...newPatient, sex: e.target.value });
+    if (fieldErrors.sex) setFieldErrors((prev) => ({ ...prev, sex: "" }));
   };
 
   useEffect(() => {
@@ -198,6 +203,8 @@ export default function Appointments() {
 
   const handlePatientSearch = (query) => {
     setPatientSearch(query);
+    setFormData((s) => ({ ...s, patientId: null, patientName: "" }));
+    if (fieldErrors.patientId) setFieldErrors((prev) => ({ ...prev, patientId: "" }));
     if (!query.trim()) {
       setSearchResults([]);
       return;
@@ -332,6 +339,7 @@ export default function Appointments() {
     });
     setIsEditing(false);
     setOpenedFromSlot(true);
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -350,6 +358,7 @@ export default function Appointments() {
     });
     setIsEditing(false);
     setOpenedFromSlot(true);
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -378,6 +387,7 @@ export default function Appointments() {
     setIsNewPatient(false);
     setIsEditing(true);
     setOpenedFromSlot(false);
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -442,52 +452,94 @@ export default function Appointments() {
  const handleSubmit = async (e) => {
    e.preventDefault();
    if (isSavingAppointment) return;
+
+   const nextErrors = {};
+
+   if (isNewPatient) {
+     const firstnameError = validateText(newPatient.firstname, {
+       label: "Prénom",
+       required: true,
+       minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+       maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+     });
+     if (firstnameError) nextErrors.firstname = firstnameError;
+
+     const lastnameError = validateText(newPatient.lastname, {
+       label: "Nom",
+       required: true,
+       minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+       maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+     });
+     if (lastnameError) nextErrors.lastname = lastnameError;
+
+     const ageError = validateAge(newPatient.age);
+     if (ageError) nextErrors.age = ageError;
+
+     if (!String(newPatient.phone || "").trim()) nextErrors.phone = "Le numéro de téléphone est obligatoire.";
+     else if (!isValidPhoneNumber(newPatient.phone)) nextErrors.phone = "Numéro de téléphone invalide.";
+
+     if (!String(newPatient.sex || "").trim()) nextErrors.sex = "Le sexe est obligatoire.";
+   } else if (!formData.patientId) {
+     nextErrors.patientId = "Veuillez sélectionner un patient.";
+   }
+
+   let baseDate = formBaseDate ? new Date(formBaseDate) : new Date();
+   if (!formBaseDate) {
+     if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
+     if (selectedDate === "custom" && customDate) {
+       const [year, month, day] = customDate.split("-");
+       baseDate = new Date(Number(year), Number(month) - 1, Number(day));
+     }
+   }
+
+   const hourRaw = String(formData.hour ?? "").trim();
+   let resolvedHour = Number.NaN;
+   if (!hourRaw) nextErrors.hour = "L'heure est obligatoire.";
+   else {
+     resolvedHour = Number(hourRaw);
+     if (use12HourFormat) {
+       if (Number.isNaN(resolvedHour) || resolvedHour < 1 || resolvedHour > 12) {
+         nextErrors.hour = "Heure invalide.";
+       } else {
+         const period = String(formData.period || "AM").toUpperCase();
+         if (period === "PM" && resolvedHour !== 12) resolvedHour += 12;
+         if (period === "AM" && resolvedHour === 12) resolvedHour = 0;
+       }
+     } else if (Number.isNaN(resolvedHour) || resolvedHour < 0 || resolvedHour > 23) {
+       nextErrors.hour = "Heure invalide.";
+     }
+   }
+
+   const minuteRaw = String(formData.minute ?? "").trim();
+   let resolvedMinute = Number.NaN;
+   if (!minuteRaw) nextErrors.minute = "Les minutes sont obligatoires.";
+   else {
+     resolvedMinute = Number(minuteRaw);
+     if (Number.isNaN(resolvedMinute) || resolvedMinute < 0 || resolvedMinute > 59) {
+       nextErrors.minute = "Minutes invalides.";
+     } else if (resolvedMinute % 15 !== 0) {
+       nextErrors.minute = "Les minutes doivent être par pas de 15.";
+     }
+   }
+
+   if (!nextErrors.hour && !nextErrors.minute) {
+     const startMinutesOfDay = resolvedHour * 60 + resolvedMinute;
+     if (
+       startMinutesOfDay < workingHours.startMinutes ||
+       startMinutesOfDay >= workingHours.endMinutes
+     ) {
+       nextErrors.hour = "Heure hors horaires de travail.";
+     }
+   }
+
+   if (Object.keys(nextErrors).length) {
+     setFieldErrors(nextErrors);
+     return;
+   }
+
+   setFieldErrors({});
    setIsSavingAppointment(true);
    try {
-    let baseDate = formBaseDate ? new Date(formBaseDate) : new Date();
-	    if (!formBaseDate) {
-	      if (selectedDate === "tomorrow") baseDate.setDate(baseDate.getDate() + 1);
-	      if (selectedDate === "custom" && customDate) {
-	        const [year, month, day] = customDate.split("-");
-	        baseDate = new Date(Number(year), Number(month) - 1, Number(day));
-	      }
-	    }
-
-      let resolvedHour = Number(formData.hour);
-      if (use12HourFormat) {
-        if (Number.isNaN(resolvedHour) || resolvedHour < 1 || resolvedHour > 12) {
-          toast.error("Heure invalide");
-          return;
-        }
-        const period = String(formData.period || "AM").toUpperCase();
-        if (period === "PM" && resolvedHour !== 12) resolvedHour += 12;
-        if (period === "AM" && resolvedHour === 12) resolvedHour = 0;
-      } else {
-        if (Number.isNaN(resolvedHour) || resolvedHour < 0 || resolvedHour > 23) {
-          toast.error("Heure invalide");
-          return;
-        }
-      }
-
-      const resolvedMinute = Number(formData.minute);
-      if (Number.isNaN(resolvedMinute) || resolvedMinute < 0 || resolvedMinute > 59) {
-        toast.error("Minutes invalides");
-        return;
-      }
-      if (resolvedMinute % 15 !== 0) {
-        toast.error("Les minutes doivent etre par pas de 15");
-        return;
-      }
-
-      const startMinutesOfDay = resolvedHour * 60 + resolvedMinute;
-      if (
-        startMinutesOfDay < workingHours.startMinutes ||
-        startMinutesOfDay >= workingHours.endMinutes
-      ) {
-        toast.error("Heure hors horaires de travail");
-        return;
-      }
-
 		    const start = new Date(
 		      baseDate.getFullYear(),
 		      baseDate.getMonth(),
@@ -515,11 +567,6 @@ export default function Appointments() {
     let patientId = formData.patientId;
 
     if (isNewPatient) {
-      if (!isValidPhoneNumber(newPatient.phone)) {
-        toast.error("Numéro de téléphone invalide");
-        return;
-      }
-
       const newP = await createPatient({
         ...newPatient,
         phone: normalizePhoneInput(newPatient.phone),
@@ -537,9 +584,6 @@ export default function Appointments() {
       setNewPatient({ firstname: "", lastname: "", phone: "", age: "", sex: "Homme" });
 
       patientId = newP.id;
-    } else if (!patientId) {
-      toast.error("Veuillez sélectionner un patient");
-      return;
     }
 
     const payload = {
@@ -593,6 +637,7 @@ export default function Appointments() {
       startTime: formatMinutesToTime(workingHours.startMinutes),
       endTime: formatMinutesToTime(workingHours.endMinutes),
     });
+    setShiftErrors({});
     setShowShiftModal(true);
   };
 
@@ -611,7 +656,13 @@ export default function Appointments() {
       const startMin = parseTimeToMinutes(shiftForm.startTime);
       const endMin = parseTimeToMinutes(shiftForm.endTime);
       if (startMin === null || endMin === null || endMin <= startMin) {
-        toast.error("Veuillez choisir un intervalle horaire valide");
+        const nextErrors = {};
+        if (startMin === null) nextErrors.startTime = "Heure de début obligatoire.";
+        if (endMin === null) nextErrors.endTime = "Heure de fin obligatoire.";
+        if (startMin !== null && endMin !== null && endMin <= startMin) {
+          nextErrors.endTime = "L'heure de fin doit être après l'heure de début.";
+        }
+        setShiftErrors(nextErrors);
         return;
       }
       rangeFilter = (appt) => {
@@ -729,6 +780,7 @@ export default function Appointments() {
     setShowModal(false);
     setFormBaseDate(null);
     setMinuteDropdownOpen(false);
+    setFieldErrors({});
     setFormData({
       id: null,
       patientId: null,
@@ -1293,7 +1345,7 @@ export default function Appointments() {
 
           <button
             className="btn-primary"
-            onClick={() => { setOpenedFromSlot(false); setShowModal(true); }}
+            onClick={() => { setOpenedFromSlot(false); setFieldErrors({}); setShowModal(true); }}
           >
             <Plus size={16} /> Ajouter un rendez-vous
           </button>
@@ -1431,12 +1483,15 @@ export default function Appointments() {
               <p className="text-sm text-gray-600 mb-4">
                 {isEditing ? "Modifiez les informations du rendez-vous puis enregistrez." : "Renseignez les informations du rendez-vous puis enregistrez."}
               </p>
-              <form onSubmit={handleSubmit} className="modal-form">
+              <form noValidate onSubmit={handleSubmit} className="modal-form">
                 <label className={`chip-toggle ${isNewPatient ? "active" : ""}`}>
                   <input
                     type="checkbox"
                     checked={isNewPatient}
-                    onChange={(e) => setIsNewPatient(e.target.checked)}
+                    onChange={(e) => {
+                      setIsNewPatient(e.target.checked);
+                      setFieldErrors({});
+                    }}
                   />
                   Nouveau patient ?
                 </label>
@@ -1451,11 +1506,16 @@ export default function Appointments() {
                           name="firstname"
                           placeholder="Entrez le prénom..."
                           value={newPatient.firstname}
-                          onChange={(e) =>
-                            setNewPatient((s) => ({ ...s, firstname: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setNewPatient((s) => ({ ...s, firstname: v }));
+                            if (fieldErrors.firstname) setFieldErrors((prev) => ({ ...prev, firstname: "" }));
+                          }}
                           required
+                          maxLength={FIELD_LIMITS.PERSON_NAME_MAX}
+                          className={fieldErrors.firstname ? "invalid" : ""}
                         />
+                        <FieldError message={fieldErrors.firstname} />
                       </div>
 
                       <div>
@@ -1465,11 +1525,16 @@ export default function Appointments() {
                           name="lastname"
                           placeholder="Entrez le nom..."
                           value={newPatient.lastname}
-                          onChange={(e) =>
-                            setNewPatient((s) => ({ ...s, lastname: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setNewPatient((s) => ({ ...s, lastname: v }));
+                            if (fieldErrors.lastname) setFieldErrors((prev) => ({ ...prev, lastname: "" }));
+                          }}
                           required
+                          maxLength={FIELD_LIMITS.PERSON_NAME_MAX}
+                          className={fieldErrors.lastname ? "invalid" : ""}
                         />
+                        <FieldError message={fieldErrors.lastname} />
                       </div>
                     </div>
 
@@ -1480,9 +1545,14 @@ export default function Appointments() {
                           name="phone"
                           placeholder="Ex: 05 51 51 51 51"
                           value={newPatient.phone}
-                          onChangeValue={(v) => setNewPatient((s) => ({ ...s, phone: v }))}
+                          onChangeValue={(v) => {
+                            setNewPatient((s) => ({ ...s, phone: v }));
+                            if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                          }}
+                          className={fieldErrors.phone ? "invalid" : ""}
                           required
                         />
+                        <FieldError message={fieldErrors.phone} />
                       </div>
 
                       <div>
@@ -1492,10 +1562,17 @@ export default function Appointments() {
                           name="age"
                           placeholder="Entrez l'age..."
                           value={newPatient.age}
-                          onChange={(e) =>
-                            setNewPatient((s) => ({ ...s, age: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setNewPatient((s) => ({ ...s, age: v }));
+                            if (fieldErrors.age) setFieldErrors((prev) => ({ ...prev, age: "" }));
+                          }}
+                          min={AGE_LIMITS.MIN}
+                          max={AGE_LIMITS.MAX}
+                          step="1"
+                          className={fieldErrors.age ? "invalid" : ""}
                         />
+                        <FieldError message={fieldErrors.age} />
                       </div>
                     </div>
 
@@ -1540,11 +1617,20 @@ export default function Appointments() {
                           Femme
                         </label>
                       </div>
+                      <FieldError message={fieldErrors.sex} />
                     </div>
                   </>
                 ) : (
                   <div className="form-field" style={{ position: "relative" }}>
-                    <input type="text" placeholder="Search patient..." value={patientSearch} onChange={(e) => handlePatientSearch(e.target.value)} autoComplete="off" required />
+                    <input
+                      type="text"
+                      placeholder="Search patient..."
+                      value={patientSearch}
+                      onChange={(e) => handlePatientSearch(e.target.value)}
+                      autoComplete="off"
+                      required
+                      className={fieldErrors.patientId ? "invalid" : ""}
+                    />
                     {searchResults.length > 0 && (
                       <ul className="patient-search-dropdown">
                         {searchResults.map((p) => (
@@ -1554,6 +1640,7 @@ export default function Appointments() {
                               setFormData({...formData, patientId: p.id, patientName: `${p.firstname} ${p.lastname}`});
                               setPatientSearch(`${p.firstname} ${p.lastname}`);
                               setSearchResults([]);
+                              if (fieldErrors.patientId) setFieldErrors((prev) => ({ ...prev, patientId: "" }));
                             }}
                           >
                             {p.firstname} {p.lastname} • {formatPhoneNumber(p.phone) || p.phone}
@@ -1561,6 +1648,7 @@ export default function Appointments() {
                         ))}
                       </ul>
                     )}
+                    <FieldError message={fieldErrors.patientId} />
                   </div>
                 )}
 
@@ -1574,27 +1662,30 @@ export default function Appointments() {
 
         <input
           type="number"
-          className="time-compact"
+          className={`time-compact ${fieldErrors.hour ? "invalid" : ""}`}
           placeholder="HH"
           min={use12HourFormat ? 1 : hourBounds24.earliest}
           max={use12HourFormat ? 12 : hourBounds24.latest}
           value={formData.hour || ""}
-          onChange={(e) => setFormData({ ...formData, hour: e.target.value })}
+          onChange={(e) => {
+            setFormData({ ...formData, hour: e.target.value });
+            if (fieldErrors.hour) setFieldErrors((prev) => ({ ...prev, hour: "" }));
+          }}
           required
         />
 
         <span>:</span>
 
         <div className="modern-dropdown minute-dropdown" ref={minuteDropdownRef}>
-          <button
-            type="button"
-            className={`dropdown-trigger ${minuteDropdownOpen ? "open" : ""}`}
-            onClick={() => {
-              if (!allowedMinuteOptions.length) return;
-              setMinuteDropdownOpen((prev) => !prev);
-            }}
-            disabled={!allowedMinuteOptions.length}
-          >
+           <button
+             type="button"
+             className={`dropdown-trigger ${minuteDropdownOpen ? "open" : ""} ${fieldErrors.minute ? "invalid" : ""}`}
+             onClick={() => {
+               if (!allowedMinuteOptions.length) return;
+               setMinuteDropdownOpen((prev) => !prev);
+             }}
+             disabled={!allowedMinuteOptions.length}
+           >
             <span>
               {formData.minute === "" ? "--" : String(formData.minute).padStart(2, "0")}
             </span>
@@ -1607,17 +1698,18 @@ export default function Appointments() {
                   key={minute}
                   role="option"
                   aria-selected={String(formData.minute).padStart(2, "0") === minute}
-                  onClick={() => {
-                    setFormData({ ...formData, minute });
-                    setMinuteDropdownOpen(false);
-                  }}
-                >
-                  {minute}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                   onClick={() => {
+                     setFormData({ ...formData, minute });
+                     setMinuteDropdownOpen(false);
+                     if (fieldErrors.minute) setFieldErrors((prev) => ({ ...prev, minute: "" }));
+                   }}
+                 >
+                   {minute}
+                 </li>
+               ))}
+             </ul>
+           )}
+         </div>
 
         {use12HourFormat && (
           <button
@@ -1635,6 +1727,8 @@ export default function Appointments() {
         )}
 		
 		    </div>
+        <FieldError message={fieldErrors.hour} />
+        <FieldError message={fieldErrors.minute} />
 		  </div>
 		)}
                 {/* Appointment Duration Selector */}
@@ -1669,17 +1763,30 @@ export default function Appointments() {
         )}
 
         {showShiftModal && (
-          <div className="modal-overlay" onClick={() => setShowShiftModal(false)}>
+          <div
+            className="modal-overlay"
+            onClick={() => {
+              setShiftErrors({});
+              setShowShiftModal(false);
+            }}
+          >
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-2">
                 <h2>Décaler les rendez-vous</h2>
-                <X className="cursor-pointer" onClick={() => setShowShiftModal(false)} />
+                <X
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setShiftErrors({});
+                    setShowShiftModal(false);
+                  }}
+                />
               </div>
               <p className="text-sm text-gray-600 mb-4">
                 Décalez tous les rendez-vous du jour ou une plage horaire.
               </p>
               <form
                 className="modal-form"
+                noValidate
                 onSubmit={(e) => {
                   e.preventDefault();
                   applyShiftAppointments();
@@ -1688,7 +1795,9 @@ export default function Appointments() {
                 <label>Direction</label>
                 <ModernDropdown
                   value={shiftForm.direction}
-                  onChange={(v) => setShiftForm({ ...shiftForm, direction: v })}
+                  onChange={(v) => {
+                    setShiftForm({ ...shiftForm, direction: v });
+                  }}
                   options={[
                     { value: "forward", label: "Vers le futur" },
                     { value: "backward", label: "Vers le passé" },
@@ -1700,7 +1809,9 @@ export default function Appointments() {
                 <label>Durée</label>
                 <ModernDropdown
                   value={shiftForm.duration}
-                  onChange={(v) => setShiftForm({ ...shiftForm, duration: Number(v) })}
+                  onChange={(v) => {
+                    setShiftForm({ ...shiftForm, duration: Number(v) });
+                  }}
                   options={durationOptions.map((d) => ({ value: d, label: `${d} min` }))}
                   ariaLabel="Durée"
                   fullWidth
@@ -1715,7 +1826,10 @@ export default function Appointments() {
                         name="shift-scope"
                         value="all"
                         checked={shiftForm.scope === "all"}
-                        onChange={() => setShiftForm({ ...shiftForm, scope: "all" })}
+                        onChange={() => {
+                          setShiftForm({ ...shiftForm, scope: "all" });
+                          setShiftErrors({});
+                        }}
                       />
                       <span>Tous les rendez-vous du jour</span>
                     </label>
@@ -1725,7 +1839,10 @@ export default function Appointments() {
                         name="shift-scope"
                         value="range"
                         checked={shiftForm.scope === "range"}
-                        onChange={() => setShiftForm({ ...shiftForm, scope: "range" })}
+                        onChange={() => {
+                          setShiftForm({ ...shiftForm, scope: "range" });
+                          setShiftErrors({});
+                        }}
                       />
                       <span>Entre deux heures</span>
                     </label>
@@ -1734,30 +1851,46 @@ export default function Appointments() {
 
                 {shiftForm.scope === "range" && (
                   <div className="time-range-row">
-                    <input
-                      type="time"
-                      step="900"
-                      value={shiftForm.startTime}
-                      onChange={(e) =>
-                        setShiftForm({ ...shiftForm, startTime: e.target.value })
-                      }
-                      required
-                    />
+                    <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                      <input
+                        type="time"
+                        step="900"
+                        value={shiftForm.startTime}
+                        onChange={(e) => {
+                          setShiftForm({ ...shiftForm, startTime: e.target.value });
+                          if (shiftErrors.startTime) setShiftErrors((prev) => ({ ...prev, startTime: "" }));
+                          if (shiftErrors.endTime) setShiftErrors((prev) => ({ ...prev, endTime: "" }));
+                        }}
+                        className={shiftErrors.startTime ? "invalid" : ""}
+                      />
+                      <FieldError message={shiftErrors.startTime} />
+                    </div>
                     <span>→</span>
-                    <input
-                      type="time"
-                      step="900"
-                      value={shiftForm.endTime}
-                      onChange={(e) =>
-                        setShiftForm({ ...shiftForm, endTime: e.target.value })
-                      }
-                      required
-                    />
+                    <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                      <input
+                        type="time"
+                        step="900"
+                        value={shiftForm.endTime}
+                        onChange={(e) => {
+                          setShiftForm({ ...shiftForm, endTime: e.target.value });
+                          if (shiftErrors.endTime) setShiftErrors((prev) => ({ ...prev, endTime: "" }));
+                        }}
+                        className={shiftErrors.endTime ? "invalid" : ""}
+                      />
+                      <FieldError message={shiftErrors.endTime} />
+                    </div>
                   </div>
                 )}
 
                 <div className="modal-actions">
-                  <button type="button" className="btn-cancel" onClick={() => setShowShiftModal(false)}>
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => {
+                      setShiftErrors({});
+                      setShowShiftModal(false);
+                    }}
+                  >
                     Annuler
                   </button>
                   <button type="submit" className="btn-primary2" disabled={isShiftingAppointments}>

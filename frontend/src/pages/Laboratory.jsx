@@ -8,6 +8,7 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import FieldError from "../components/FieldError";
 import {
   getAllLaboratories,
   createLaboratory,
@@ -18,6 +19,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 import "./Patients.css";
 
 const Laboratories = () => {
@@ -32,6 +34,7 @@ const Laboratories = () => {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [formData, setFormData] = useState({
     id: null,
     name: "",
@@ -101,23 +104,49 @@ const Laboratories = () => {
   const totalPages = Math.ceil(sortedLabs.length / itemsPerPage);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const resetForm = () => {
     setFormData({ id: null, name: "", contactPerson: "", phoneNumber: "", address: "" });
     setIsEditing(false);
+    setFieldErrors({});
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    const nextErrors = {};
+    nextErrors.name = validateText(formData.name, {
+      label: "Nom du Laboratoire",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    nextErrors.contactPerson = validateText(formData.contactPerson, {
+      label: "Personne de contact",
+      required: false,
+      minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+      maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+    });
+    if ((formData.phoneNumber || "").trim() && !isValidPhoneNumber(formData.phoneNumber)) {
+      nextErrors.phoneNumber = "Téléphone invalide (ex: 05 51 51 51 51).";
+    }
+    nextErrors.address = validateText(formData.address, {
+      label: "Adresse",
+      required: false,
+      maxLength: 120,
+    });
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors(nextErrors);
+      return;
+    }
     try {
       setIsSubmitting(true);
-      if ((formData.phoneNumber || "").trim() && !isValidPhoneNumber(formData.phoneNumber)) {
-        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
-        return;
-      }
       const payload = { ...formData, phoneNumber: normalizePhoneInput(formData.phoneNumber) };
       if (isEditing) {
         const updated = await updateLaboratory(formData.id, payload);
@@ -314,28 +343,57 @@ const Laboratories = () => {
               {isEditing ? "Modifiez les informations du laboratoire puis enregistrez." : "Ajoutez un laboratoire partenaire au catalogue, puis enregistrez."}
             </p>
 
-            <form onSubmit={handleSubmit} className="modal-form">
+            <form noValidate onSubmit={handleSubmit} className="modal-form">
               <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
                 <div className="field-group">
                   <span className="field-label">Nom du Laboratoire *</span>
-                  <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ex: Labo Central" required />
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Ex: Labo Central"
+                    className={fieldErrors.name ? "invalid" : ""}
+                  />
+                  <FieldError message={fieldErrors.name} />
                 </div>
                 <div className="field-group">
                   <span className="field-label">Personne de contact</span>
-                  <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} placeholder="Ex: Dr. Karim" />
+                  <input
+                    type="text"
+                    name="contactPerson"
+                    value={formData.contactPerson}
+                    onChange={handleChange}
+                    placeholder="Ex: Dr. Karim"
+                    className={fieldErrors.contactPerson ? "invalid" : ""}
+                  />
+                  <FieldError message={fieldErrors.contactPerson} />
                 </div>
                 <div className="field-group">
                   <span className="field-label">Téléphone</span>
                   <PhoneInput
                     name="phoneNumber"
                     value={formData.phoneNumber}
-                    onChangeValue={(v) => setFormData((s) => ({ ...s, phoneNumber: v }))}
+                    onChangeValue={(v) => {
+                      setFormData((s) => ({ ...s, phoneNumber: v }));
+                      if (fieldErrors.phoneNumber) setFieldErrors((prev) => ({ ...prev, phoneNumber: "" }));
+                    }}
                     placeholder="Ex: 05 51 51 51 51"
+                    className={fieldErrors.phoneNumber ? "invalid" : ""}
                   />
+                  <FieldError message={fieldErrors.phoneNumber} />
                 </div>
                 <div className="field-group">
                   <span className="field-label">Adresse</span>
-                  <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="Ex: 12 rue ..." />
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    placeholder="Ex: 12 rue ..."
+                    className={fieldErrors.address ? "invalid" : ""}
+                  />
+                  <FieldError message={fieldErrors.address} />
                 </div>
               </div>
 

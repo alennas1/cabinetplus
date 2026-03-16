@@ -1,5 +1,7 @@
 package com.cabinetplus.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -10,6 +12,7 @@ public record ProthesisCatalogRequest(
     Long materialId, 
     @NotNull @Positive Double defaultPrice,
     @PositiveOrZero Double defaultLabCost,
-    boolean isFlatFee
+    @JsonProperty("isFlatFee") @JsonAlias("flatFee") boolean isFlatFee,
+    @JsonProperty("isMultiUnit") @JsonAlias("multiUnit") boolean isMultiUnit
 ) {}
 

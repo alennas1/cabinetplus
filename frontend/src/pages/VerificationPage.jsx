@@ -8,6 +8,7 @@ import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { applyUserPreferences } from "../utils/workingHours";
 import { getApiErrorMessage } from "../utils/error";
+import FieldError from "../components/FieldError";
 import "./Verify.css";
 
 const VerificationPage = () => {
@@ -19,6 +20,7 @@ const VerificationPage = () => {
   const [phoneCode, setPhoneCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [phoneSendCooldown, setPhoneSendCooldown] = useState(0);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (phoneSendCooldown <= 0) return;
@@ -84,10 +86,18 @@ const VerificationPage = () => {
   };
 
   const handleSubmitPhoneCode = async () => {
-    if (!phoneCode) return alert("Veuillez entrer le code.");
+    const code = String(phoneCode || "").trim();
+    const nextErrors = {};
+    if (!code) nextErrors.phoneCode = "Veuillez entrer le code.";
+    else if (!/^[0-9]{4,8}$/.test(code)) nextErrors.phoneCode = "Code invalide.";
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+    setFieldErrors({});
     setLoading(true);
     try {
-      const response = await api.post("/api/verify/phone/check", { code: phoneCode });
+      const response = await api.post("/api/verify/phone/check", { code });
       if (response.data?.verified) {
         const updatedUser = await getCurrentUser();
         markAsVerifiedLocally(updatedUser);
@@ -98,7 +108,7 @@ const VerificationPage = () => {
         navigate("/login", { replace: true, state: { reason: "session_expired" } });
         return;
       }
-      alert(getApiErrorMessage(err, "Code OTP invalide."));
+      setFieldErrors({ phoneCode: getApiErrorMessage(err, "Code OTP invalide.") });
     } finally {
       setLoading(false);
     }
@@ -139,12 +149,21 @@ const VerificationPage = () => {
             {needsPhoneVerification && (
               <div className="verification-action-group">
                 {phoneCodeSent && (
-                  <input
-                    type="text"
-                    placeholder="Entrez le code"
-                    value={phoneCode}
-                    onChange={(e) => setPhoneCode(e.target.value)}
-                  />
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Entrez le code"
+                      value={phoneCode}
+                      onChange={(e) => {
+                        setPhoneCode(e.target.value);
+                        if (fieldErrors.phoneCode) setFieldErrors((prev) => ({ ...prev, phoneCode: "" }));
+                      }}
+                      inputMode="numeric"
+                      maxLength={8}
+                      className={fieldErrors.phoneCode ? "invalid" : ""}
+                    />
+                    <FieldError message={fieldErrors.phoneCode} />
+                  </>
                 )}
                 <button
                   className="auth-form-button"

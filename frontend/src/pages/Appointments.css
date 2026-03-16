@@ -876,6 +876,16 @@ html, body {
   cursor: pointer;
 }
 
+.time-input-group .dropdown-trigger.invalid {
+  border-color: #ef4444;
+}
+
+.time-input-group .dropdown-trigger.invalid.open,
+.time-input-group .dropdown-trigger.invalid:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
 .time-input-group .dropdown-trigger:disabled {
   opacity: 0.7;
   cursor: not-allowed;

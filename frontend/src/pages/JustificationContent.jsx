@@ -6,6 +6,7 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import FieldError from "../components/FieldError";
 import {
   getJustificationTemplates,
   createJustificationTemplate,
@@ -14,6 +15,7 @@ import {
 } from "../services/justificationContentService";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { FIELD_LIMITS, trimText, validateText } from "../utils/validation";
 import "./Patients.css";
 
 const PLACEHOLDERS = [
@@ -53,6 +55,7 @@ const JustificationContentPage = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const editableRef = useRef();
 
@@ -136,6 +139,7 @@ const JustificationContentPage = () => {
     range.setEndAfter(span);
     sel.removeAllRanges();
     sel.addRange(range);
+    if (fieldErrors.content) setFieldErrors((prev) => ({ ...prev, content: "" }));
   };
 
   const handleSubmit = async (e) => {
@@ -151,7 +155,21 @@ const JustificationContentPage = () => {
       content = content.replace(text, value);
     });
 
-    const payload = { title: formData.title, content };
+    const nextErrors = {};
+    nextErrors.title = validateText(formData.title, {
+      label: "Titre du document",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+    nextErrors.content = validateText(content, { label: "Contenu", required: true });
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    const payload = { title: trimText(formData.title), content: trimText(content) };
 
     try {
       setIsSubmitting(true);
@@ -177,6 +195,7 @@ const JustificationContentPage = () => {
     setFormData({ id: null, title: "", content: "" });
     if (editableRef.current) editableRef.current.innerHTML = "";
     setIsEditing(false);
+    setFieldErrors({});
   };
 
   const handleEdit = (template) => {
@@ -187,6 +206,7 @@ const JustificationContentPage = () => {
     });
     setIsEditing(true);
     setShowModal(true);
+    setFieldErrors({});
     setTimeout(() => {
       if (editableRef.current) editableRef.current.innerHTML = template.content || "";
     }, 0);
@@ -300,22 +320,36 @@ const JustificationContentPage = () => {
             <p className="text-sm text-gray-600 mb-4">
               {isEditing ? "Modifiez le modèle puis enregistrez." : "Créez un nouveau modèle puis enregistrez."}
             </p>
-            <form className="modal-form" onSubmit={handleSubmit}>
+            <form noValidate className="modal-form" onSubmit={handleSubmit}>
               <span className="field-label">Titre du document</span>
               <input
                 type="text"
                 placeholder="Ex: Certificat d'aptitude sportive"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                required
+                onChange={(e) => {
+                  setFormData({ ...formData, title: e.target.value });
+                  if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: "" }));
+                }}
+                className={fieldErrors.title ? "invalid" : ""}
               />
+              <FieldError message={fieldErrors.title} />
               <span className="field-label">Contenu</span>
               <div className="placeholders-container">
                 {PLACEHOLDERS.map((p) => (
                   <button type="button" key={p.value} className="placeholder-btn" onClick={() => insertPlaceholder(p.value)}>{p.label}</button>
                 ))}
               </div>
-              <div ref={editableRef} className="editable-div" contentEditable suppressContentEditableWarning style={{ minHeight: "250px", border: "1px solid #ddd", padding: "15px", borderRadius: "8px" }}></div>
+              <div
+                ref={editableRef}
+                className={`editable-div ${fieldErrors.content ? "invalid" : ""}`.trim()}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={() => {
+                  if (fieldErrors.content) setFieldErrors((prev) => ({ ...prev, content: "" }));
+                }}
+                style={{ minHeight: "250px", border: "1px solid #ddd", padding: "15px", borderRadius: "8px" }}
+              ></div>
+              <FieldError message={fieldErrors.content} />
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Créer"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>

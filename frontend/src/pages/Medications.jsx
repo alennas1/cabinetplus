@@ -9,6 +9,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import ModernDropdown from "../components/ModernDropdown";
+import FieldError from "../components/FieldError";
 import {
   getMedications,
   createMedication,
@@ -16,6 +17,7 @@ import {
   deleteMedication,
 } from "../services/medicationService";
 import { getApiErrorMessage } from "../utils/error";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
@@ -55,6 +57,7 @@ const Medications = () => {
     description: "",
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -133,12 +136,54 @@ const Medications = () => {
     return sortRowsBy(filteredMedications, getValue, sortConfig.direction);
   }, [filteredMedications, sortConfig.direction, sortConfig.key]);
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    const nextErrors = {};
+    const nameError = validateText(form.name, {
+      label: "Nom commercial",
+      required: true,
+      minLength: FIELD_LIMITS.MEDICATION_NAME_MIN,
+      maxLength: FIELD_LIMITS.MEDICATION_NAME_MAX,
+    });
+    if (nameError) nextErrors.name = nameError;
+
+    const genericNameError = validateText(form.genericName, {
+      label: "Nom générique",
+      required: true,
+      minLength: FIELD_LIMITS.MEDICATION_NAME_MIN,
+      maxLength: FIELD_LIMITS.MEDICATION_NAME_MAX,
+    });
+    if (genericNameError) nextErrors.genericName = genericNameError;
+
+    const strengthError = validateText(form.strength, {
+      label: "Dosage",
+      required: true,
+      minLength: FIELD_LIMITS.MEDICATION_STRENGTH_MIN,
+      maxLength: FIELD_LIMITS.MEDICATION_STRENGTH_MAX,
+    });
+    if (strengthError) nextErrors.strength = strengthError;
+
+    const descriptionError = validateText(form.description, {
+      label: "Description",
+      required: false,
+      maxLength: FIELD_LIMITS.NOTES_MAX,
+    });
+    if (descriptionError) nextErrors.description = descriptionError;
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    setFieldErrors({});
 
     try {
       setIsSubmitting(true);
@@ -155,6 +200,7 @@ const Medications = () => {
       }
 
       setShowModal(false);
+      setFieldErrors({});
       setForm({ name: "", genericName: "", dosageForm: "TABLET", strength: "", description: "" });
       setIsEditing(false);
     } catch (err) {
@@ -175,6 +221,7 @@ const Medications = () => {
       description: med.description || "",
     });
     setIsEditing(true);
+    setFieldErrors({});
     setShowModal(true);
   };
 
@@ -267,6 +314,7 @@ const Medications = () => {
             onClick={() => {
               setForm({ name: "", genericName: "", dosageForm: "TABLET", strength: "", description: "" });
               setIsEditing(false);
+              setFieldErrors({});
               setShowModal(true);
             }}
           >
@@ -345,15 +393,35 @@ const Medications = () => {
             <p className="text-sm text-gray-600 mb-4">
               {isEditing ? "Modifiez les informations du médicament puis enregistrez." : "Ajoutez un médicament au catalogue, puis enregistrez."}
             </p>
-            <form className="modal-form" onSubmit={handleSubmit}>
+            <form noValidate className="modal-form" onSubmit={handleSubmit}>
               <div className="mb-3">
                 <span className="field-label">Nom Commercial (Marque)</span>
-                <input type="text" name="name" value={form.name} onChange={handleChange} required placeholder="ex: Doliprane" />
+                <input
+                  type="text"
+                  name="name"
+                  value={form.name}
+                  onChange={handleChange}
+                  required
+                  placeholder="ex: Doliprane"
+                  maxLength={FIELD_LIMITS.MEDICATION_NAME_MAX}
+                  className={fieldErrors.name ? "invalid" : ""}
+                />
+                <FieldError message={fieldErrors.name} />
               </div>
 
               <div className="mb-3">
                 <span className="field-label">Nom Générique (Molécule)</span>
-                <input type="text" name="genericName" value={form.genericName} onChange={handleChange} required placeholder="ex: Paracétamol" />
+                <input
+                  type="text"
+                  name="genericName"
+                  value={form.genericName}
+                  onChange={handleChange}
+                  required
+                  placeholder="ex: Paracétamol"
+                  maxLength={FIELD_LIMITS.MEDICATION_NAME_MAX}
+                  className={fieldErrors.genericName ? "invalid" : ""}
+                />
+                <FieldError message={fieldErrors.genericName} />
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-3">
@@ -377,13 +445,31 @@ const Medications = () => {
                 </div>
                 <div>
                   <span className="field-label">Dosage</span>
-                  <input type="text" name="strength" value={form.strength} onChange={handleChange} required placeholder="ex: 500mg" />
+                  <input
+                    type="text"
+                    name="strength"
+                    value={form.strength}
+                    onChange={handleChange}
+                    required
+                    placeholder="ex: 500mg"
+                    maxLength={FIELD_LIMITS.MEDICATION_STRENGTH_MAX}
+                    className={fieldErrors.strength ? "invalid" : ""}
+                  />
+                  <FieldError message={fieldErrors.strength} />
                 </div>
               </div>
 
               <div className="mb-3">
                 <span className="field-label">Description / Notes</span>
-                <input type="text" name="description" value={form.description} onChange={handleChange} placeholder="Notes optionnelles..." />
+                <input
+                  type="text"
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  placeholder="Notes optionnelles..."
+                  className={fieldErrors.description ? "invalid" : ""}
+                />
+                <FieldError message={fieldErrors.description} />
               </div>
 
               <div className="modal-actions">

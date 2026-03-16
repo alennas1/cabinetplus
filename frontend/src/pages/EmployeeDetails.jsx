@@ -21,10 +21,12 @@ import { formatMoneyWithLabel } from "../utils/format";
 import SortableTh from "../components/SortableTh";
 import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
-import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { formatPhoneNumber as formatPhoneNumberDisplay, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { isStrongPassword, isValidUsername } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PasswordInput from "../components/PasswordInput";
+import FieldError from "../components/FieldError";
 import "./Patient.css";
 import "./Profile.css";
 
@@ -46,6 +48,7 @@ const EmployeeDetails = () => {
   const [isHoursModalOpen, setIsHoursModalOpen] = useState(false);
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [scheduleSortConfig, setScheduleSortConfig] = useState({ key: "day", direction: SORT_DIRECTIONS.ASC });
   const [monthlySortConfig, setMonthlySortConfig] = useState({ key: "month", direction: SORT_DIRECTIONS.DESC });
   const [expenseSortConfig, setExpenseSortConfig] = useState({ key: null, direction: SORT_DIRECTIONS.ASC });
@@ -318,6 +321,7 @@ const EmployeeDetails = () => {
 
   const startEdit = (field) => {
     setEditingField(field);
+    setFieldErrors({});
     if (field === "password") {
       setTempValue("");
       return;
@@ -332,24 +336,42 @@ const EmployeeDetails = () => {
   const cancelEdit = () => {
     setEditingField(null);
     setTempValue("");
+    setFieldErrors({});
   };
 
   const saveField = async (field) => {
     if (!employee) return;
+
+    const nextErrors = {};
+    if (field === "username" && !isValidUsername(tempValue)) {
+      nextErrors.username = "Nom d'utilisateur invalide (3-20 caracteres, lettres/chiffres/._-).";
+    }
+
+    if (field === "password") {
+      if (!String(tempValue || "").trim()) nextErrors.password = "Entrez un nouveau mot de passe.";
+      else if (!isStrongPassword(tempValue)) {
+        nextErrors.password = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.";
+      }
+    }
+
+    if (field === "phone") {
+      if (!String(tempValue || "").trim()) nextErrors.phone = "Le numero de telephone est obligatoire.";
+      else if (!isValidDzMobilePhoneNumber(tempValue)) {
+        nextErrors.phone = "Telephone invalide (ex: 05 51 51 51 51).";
+      }
+    }
+
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      return;
+    }
 
     let nextValue = tempValue;
     if (field === "salary") {
       nextValue = tempValue === "" ? null : Number(tempValue);
     }
     if (field === "phone") {
-      if ((tempValue || "").trim() === "") {
-        nextValue = null;
-      } else if (!isValidPhoneNumber(tempValue)) {
-        toast.error("Téléphone invalide (ex: 05 51 51 51 51)");
-        return;
-      } else {
-        nextValue = normalizePhoneInput(tempValue);
-      }
+      nextValue = normalizePhoneInput(tempValue);
     }
     if (["dateOfBirth", "hireDate", "endDate"].includes(field)) {
       nextValue = tempValue || null;
@@ -363,6 +385,7 @@ const EmployeeDetails = () => {
       if (updated.workingHours) setWorkingHours(updated.workingHours);
       setEditingField(null);
       setTempValue("");
+      setFieldErrors({});
       toast.success("Champ mis a jour");
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur de mise a jour"));
@@ -402,37 +425,51 @@ const EmployeeDetails = () => {
 
       {editingField === field ? (
         <>
-          {options ? (
-            <ModernDropdown
-              value={tempValue}
-              onChange={(v) => setTempValue(v)}
-              options={options}
-              ariaLabel={label}
-              fullWidth
-            />
-          ) : (
-            type === "password" ? (
+          <div style={{ flex: 1 }}>
+            {options ? (
+              <ModernDropdown
+                value={tempValue}
+                onChange={(v) => {
+                  setTempValue(v);
+                  if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+                }}
+                options={options}
+                ariaLabel={label}
+                fullWidth
+              />
+            ) : type === "password" ? (
               <PasswordInput
                 value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
+                onChange={(e) => {
+                  setTempValue(e.target.value);
+                  if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+                }}
                 autoComplete="new-password"
+                inputClassName={fieldErrors[field] ? "invalid" : ""}
+              />
+            ) : field === "phone" ? (
+              <PhoneInput
+                value={tempValue}
+                onChangeValue={(v) => {
+                  setTempValue(v);
+                  if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+                }}
+                placeholder="Ex: 05 51 51 51 51"
+                className={fieldErrors[field] ? "invalid" : ""}
               />
             ) : (
-              field === "phone" ? (
-                <PhoneInput
-                  value={tempValue}
-                  onChangeValue={(v) => setTempValue(v)}
-                  placeholder="Ex: 05 51 51 51 51"
-                />
-              ) : (
-                <input
-                  type={type}
-                  value={tempValue}
-                  onChange={(e) => setTempValue(e.target.value)}
-                />
-              )
-            )
-          )}
+              <input
+                type={type}
+                value={tempValue}
+                onChange={(e) => {
+                  setTempValue(e.target.value);
+                  if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+                }}
+                className={fieldErrors[field] ? "invalid" : ""}
+              />
+            )}
+            <FieldError message={fieldErrors[field]} />
+          </div>
           <Check size={18} className="icon action confirm" onClick={() => saveField(field)} />
           <X size={18} className="icon action cancel" onClick={cancelEdit} />
         </>

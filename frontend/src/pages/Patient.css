@@ -634,6 +634,12 @@
 .tooth-text{
   margin-bottom: 8px;
 }
+
+.tooth-graph-wrapper {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
 .btn-primary2 {
   background: #3b82f6;
   color: #fff;
@@ -1164,6 +1170,11 @@
   background: #eff6ff;
 }
 
+.document-dropzone.invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
 .document-dropzone p {
   margin: 0;
   font-weight: 600;
@@ -1233,6 +1244,16 @@
   color: #111827;
   font-size: 0.95rem;
   cursor: pointer;
+}
+
+.time-input-group .dropdown-trigger.invalid {
+  border-color: #ef4444;
+}
+
+.time-input-group .dropdown-trigger.invalid.open,
+.time-input-group .dropdown-trigger.invalid:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
 }
 
 .time-input-group .dropdown-trigger:disabled {

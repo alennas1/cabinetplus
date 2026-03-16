@@ -29,6 +29,7 @@ public class ProthesisCatalogService {
             existing.setDefaultPrice(updated.getDefaultPrice());
             existing.setDefaultLabCost(updated.getDefaultLabCost());
             existing.setFlatFee(updated.isFlatFee());
+            existing.setMultiUnit(!updated.isFlatFee() && updated.isMultiUnit());
             if (materialId != null) {
                 existing.setMaterial(materialRepository.findById(materialId).orElse(null));
             }

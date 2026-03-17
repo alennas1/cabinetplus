@@ -1,5 +1,4 @@
 import React from "react";
-import { ChevronDown, ChevronUp } from "react-feather";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import "./SortableTh.css";
 
@@ -19,6 +18,13 @@ export default function SortableTh({
 }) {
   const active = sortConfig?.key === sortKey;
   const direction = sortConfig?.direction || SORT_DIRECTIONS.ASC;
+  const nextDirection = !active
+    ? SORT_DIRECTIONS.ASC
+    : direction === SORT_DIRECTIONS.ASC
+      ? SORT_DIRECTIONS.DESC
+      : SORT_DIRECTIONS.ASC;
+  const toggleTitle =
+    nextDirection === SORT_DIRECTIONS.ASC ? "Trier par ordre croissant" : "Trier par ordre decroissant";
 
   return (
     <th className={`sortable-th ${className}`} style={style} aria-sort={getAriaSort(active, direction)}>
@@ -31,30 +37,25 @@ export default function SortableTh({
         >
           {label}
         </button>
-        <div className="sort-icons" aria-hidden="true">
-          <button
-            type="button"
-            className={`sort-icon-btn ${active && direction === SORT_DIRECTIONS.ASC ? "active" : ""}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSort(sortKey, SORT_DIRECTIONS.ASC);
-            }}
-            title="Trier par ordre croissant"
-          >
-            <ChevronUp size={14} />
-          </button>
-          <button
-            type="button"
-            className={`sort-icon-btn ${active && direction === SORT_DIRECTIONS.DESC ? "active" : ""}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSort(sortKey, SORT_DIRECTIONS.DESC);
-            }}
-            title="Trier par ordre decroissant"
-          >
-            <ChevronDown size={14} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="sort-toggle-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSort(sortKey);
+          }}
+          title={toggleTitle}
+          aria-label={toggleTitle}
+        >
+          <span
+            className={`sort-triangle up ${active && direction === SORT_DIRECTIONS.ASC ? "active" : ""}`}
+            aria-hidden="true"
+          />
+          <span
+            className={`sort-triangle down ${active && direction === SORT_DIRECTIONS.DESC ? "active" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
       </div>
     </th>
   );

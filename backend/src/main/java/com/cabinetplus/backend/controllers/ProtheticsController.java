@@ -2,6 +2,7 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.*;
 import com.cabinetplus.backend.enums.AuditEventType;
+import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
 import com.cabinetplus.backend.services.AuditService;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,7 +49,7 @@ public class ProtheticsController {
     }
 
     @PostMapping
-    public ResponseEntity<ProthesisResponse> create(@RequestBody ProthesisRequest dto, Principal principal) {
+    public ResponseEntity<ProthesisResponse> create(@Valid @RequestBody ProthesisRequest dto, Principal principal) {
         User user = getCurrentUser(principal);
         Prothesis created = service.create(dto, user);
         auditService.logSuccess(
@@ -60,7 +62,7 @@ public class ProtheticsController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ProthesisResponse> update(@PathVariable Long id, @RequestBody ProthesisRequest dto, Principal principal) {
+    public ResponseEntity<ProthesisResponse> update(@PathVariable Long id, @Valid @RequestBody ProthesisRequest dto, Principal principal) {
         User user = getCurrentUser(principal);
         Prothesis updated = service.update(id, dto, user);
         auditService.logSuccess(
@@ -73,7 +75,7 @@ public class ProtheticsController {
     }
 
     @PutMapping("/{id}/assign-lab")
-    public ResponseEntity<ProthesisResponse> assignLab(@PathVariable Long id, @RequestBody LabAssignmentRequest dto, Principal principal) {
+    public ResponseEntity<ProthesisResponse> assignLab(@PathVariable Long id, @Valid @RequestBody LabAssignmentRequest dto, Principal principal) {
         User user = getCurrentUser(principal);
         Prothesis updated = service.assignToLab(id, dto, user);
         auditService.logSuccess(
@@ -104,7 +106,9 @@ public class ProtheticsController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
         User user = getCurrentUser(principal);
-        Prothesis existing = prothesisRepository.findById(id).orElse(null);
+        Prothesis existing = prothesisRepository.findById(id)
+                .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
+                .orElse(null);
         service.delete(id, user);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_DELETE,

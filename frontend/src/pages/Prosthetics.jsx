@@ -142,7 +142,7 @@ const Prosthetics = () => {
       setLaboratories(lData);
       setProthesisCatalog(catalogData);
     } catch (err) {
-      toast.error("Erreur de chargement des donnees");
+      toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
     } finally {
       setLoading(false);
     }
@@ -225,7 +225,7 @@ const Prosthetics = () => {
       clearSelection();
       await loadData();
     } catch (err) {
-      toast.error("Erreur lors du retour des travaux");
+      toast.error(getApiErrorMessage(err, "Erreur lors du retour des travaux"));
     } finally {
       setIsReturningBulk(false);
     }
@@ -277,7 +277,7 @@ const Prosthetics = () => {
       closeConfirmStatusChange(true);
       await loadData();
     } catch (err) {
-      toast.error("Erreur lors du changement de statut");
+      toast.error(getApiErrorMessage(err, "Erreur lors du changement de statut"));
     } finally {
       setBusyStatusId(null);
     }
@@ -1058,7 +1058,7 @@ const Prosthetics = () => {
                   setShowEditModal(false);
                   await loadData();
                 } catch (err) {
-                  toast.error("Erreur de modification");
+                  toast.error(getApiErrorMessage(err, "Erreur de modification"));
                 } finally {
                   setIsSavingEdit(false);
                 }
@@ -1211,7 +1211,7 @@ const Prosthetics = () => {
                   if (wasBulkAssign) clearSelection();
                   await loadData();
                 } catch (err) {
-                  toast.error("Erreur d'assignation");
+                  toast.error(getApiErrorMessage(err, "Erreur d'assignation"));
                 } finally {
                   setIsAssigningLab(false);
                 }

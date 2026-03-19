@@ -13,6 +13,7 @@ import {
 import { Search, Check, X } from "react-feather";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
+import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
@@ -31,7 +32,7 @@ const WaitingPage = () => {
       setPayments(data);
     } catch (err) {
       console.error("Error fetching payments:", err);
-      toast.error("Erreur lors du chargement des paiements");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des paiements"));
     }
   };
 
@@ -47,7 +48,7 @@ const WaitingPage = () => {
       toast.success("Paiement confirmé");
       await loadPayments();
     } catch (err) {
-      toast.error("Erreur lors de la confirmation");
+      toast.error(getApiErrorMessage(err, "Erreur lors de la confirmation"));
     } finally {
       setBusyPaymentAction({ id: null, type: null });
     }
@@ -61,7 +62,7 @@ const WaitingPage = () => {
       toast.error("Paiement rejeté");
       await loadPayments();
     } catch (err) {
-      toast.error("Erreur lors du rejet");
+      toast.error(getApiErrorMessage(err, "Erreur lors du rejet"));
     } finally {
       setBusyPaymentAction({ id: null, type: null });
     }

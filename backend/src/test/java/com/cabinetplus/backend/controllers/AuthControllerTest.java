@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
@@ -70,6 +71,7 @@ class AuthControllerTest {
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .setValidator(validator)
                 .build();
@@ -88,7 +90,8 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"bad\",\"password\":\"bad\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Mot de passe invalide"));
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.fieldErrors.password").value("Mot de passe invalide"));
     }
 
     @Test
@@ -111,7 +114,8 @@ class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Ce nom d'utilisateur est deja utilise"));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.username").value("Ce nom d'utilisateur est deja utilise"));
     }
 
     @Test
@@ -172,6 +176,7 @@ class AuthControllerTest {
 
         MockMvc mvc = MockMvcBuilders
                 .standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .setValidator(validator)
                 .build();

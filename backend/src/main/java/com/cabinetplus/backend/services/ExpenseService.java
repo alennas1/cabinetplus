@@ -3,14 +3,14 @@ package com.cabinetplus.backend.services;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.ExpenseRequestDTO;
 import com.cabinetplus.backend.dto.ExpenseResponseDTO;
 import com.cabinetplus.backend.enums.ExpenseCategory;
+import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
@@ -40,7 +40,6 @@ public class ExpenseService {
     public Expense createExpense(ExpenseRequestDTO dto, User user) {
         Expense expense = new Expense();
         mapDtoToExpense(dto, expense, user);
-        validateExpense(expense);
         return expenseRepository.save(expense);
     }
 
@@ -49,23 +48,22 @@ public class ExpenseService {
         return expenseRepository.findByIdAndCreatedBy(id, user)
                 .map(expense -> {
                     mapDtoToExpense(dto, expense, user);
-                    validateExpense(expense);
                     return expenseRepository.save(expense);
                 })
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Depense introuvable"));
+                .orElseThrow(() -> new NotFoundException("Depense introuvable"));
     }
 
     // Delete expense
     public void deleteExpense(Long id, User user) {
         Expense expense = expenseRepository.findByIdAndCreatedBy(id, user)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Depense introuvable"));
+                .orElseThrow(() -> new NotFoundException("Depense introuvable"));
         expenseRepository.delete(expense);
     }
 
     // Get all expenses for a specific employee, only for the dentist
 public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
     Employee employee = employeeRepository.findById(employeeId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable"));
+            .orElseThrow(() -> new NotFoundException("Employe introuvable"));
 
     // Ensure the employee belongs to this dentist
     if (!employee.getDentist().getId().equals(dentist.getId())) {
@@ -91,24 +89,37 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
     // --- Helpers ---
     private void mapDtoToExpense(ExpenseRequestDTO dto, Expense expense, User user) {
         expense.setTitle(dto.getTitle());
-        expense.setAmount(dto.getAmount());
+        Double amount = dto.getAmount();
+        if (amount == null || amount <= 0) {
+            throw new BadRequestException(java.util.Map.of("amount", "Le montant doit etre superieur a 0"));
+        }
+        expense.setAmount(amount);
         expense.setCategory(dto.getCategory());
         expense.setDate(dto.getDate() != null ? dto.getDate() : java.time.LocalDate.now());
         expense.setDescription(dto.getDescription());
         expense.setCreatedBy(user);
 
-        if (dto.getEmployeeId() != null) {
-            Employee employee = employeeRepository.findById(dto.getEmployeeId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable"));
+        ExpenseCategory category = dto.getCategory();
+        Long employeeId = dto.getEmployeeId();
+
+        if (category == ExpenseCategory.SALARY) {
+            if (employeeId == null) {
+                throw new BadRequestException(java.util.Map.of("employeeId", "Selectionnez un employe pour une depense SALARY"));
+            }
+
+            Employee employee = employeeRepository.findById(employeeId)
+                    .orElseThrow(() -> new NotFoundException("Employe introuvable"));
+            if (employee.getDentist() == null || employee.getDentist().getId() == null
+                    || !employee.getDentist().getId().equals(user.getId())) {
+                throw new AccessDeniedException("Vous n'etes pas autorise a utiliser cet employe");
+            }
             expense.setEmployee(employee);
         } else {
+            if (employeeId != null) {
+                throw new BadRequestException(java.util.Map.of("employeeId", "Le champ employe est reserve aux depenses SALARY"));
+            }
             expense.setEmployee(null);
         }
     }
 
-    private void validateExpense(Expense expense) {
-        if (expense.getCategory() == ExpenseCategory.SALARY && expense.getEmployee() == null) {
-            throw new IllegalArgumentException("Un employe doit etre selectionne pour une depense SALARY");
-        }
-    }
 }

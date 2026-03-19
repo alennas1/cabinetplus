@@ -16,6 +16,9 @@ public interface LaboratoryRepository extends JpaRepository<Laboratory, Long> {
 
     Optional<Laboratory> findByIdAndCreatedBy(Long id, User user);
     Optional<Laboratory> findByPublicIdAndCreatedBy(UUID publicId, User user);
+
+    boolean existsByCreatedByAndNameIgnoreCase(User user, String name);
+    boolean existsByCreatedByAndNameIgnoreCaseAndIdNot(User user, String name, Long id);
     
     // Search for a lab by name (useful for dropdowns)
     List<Laboratory> findByNameContainingIgnoreCase(String name);

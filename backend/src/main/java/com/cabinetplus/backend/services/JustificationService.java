@@ -7,6 +7,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.JustificationRepository;
 import com.cabinetplus.backend.repositories.JustificationContentRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,8 @@ public class JustificationService {
 
     @Transactional
     public Justification save(Justification justification) {
+        assertPatientOwnedByClinic(justification != null ? justification.getPatient() : null,
+                justification != null ? justification.getPractitioner() : null);
         return justificationRepository.save(justification);
     }
 
@@ -74,8 +77,9 @@ public class JustificationService {
     // ðŸ”µ GENERATE FROM JUSTIFICATION CONTENT (ID-BASED)
     public String generateFromContent(Long patientId, Long templateId, User practitioner) {
 
-        Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        User clinicOwner = resolveClinicOwner(practitioner);
+        Patient patient = patientRepository.findByIdAndCreatedBy(patientId, clinicOwner)
+                .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
 
         JustificationContent contentEntity = contentRepository.findById(templateId)
                 .filter(c -> c.getPractitioner().getId().equals(practitioner.getId()))
@@ -108,6 +112,22 @@ values.put("{{todayDate}}", LocalDate.now().format(DateTimeFormatter.ofPattern("
         }
 
         return content;
+    }
+
+    private void assertPatientOwnedByClinic(Patient patient, User practitioner) {
+        if (patient == null || practitioner == null) {
+            throw new BadRequestException(java.util.Map.of("patientId", "Patient introuvable"));
+        }
+        User clinicOwner = resolveClinicOwner(practitioner);
+        Long ownerId = patient.getCreatedBy() != null ? patient.getCreatedBy().getId() : null;
+        if (ownerId == null || clinicOwner == null || clinicOwner.getId() == null || !ownerId.equals(clinicOwner.getId())) {
+            throw new BadRequestException(java.util.Map.of("patientId", "Patient introuvable"));
+        }
+    }
+
+    private User resolveClinicOwner(User user) {
+        if (user == null) return null;
+        return user.getOwnerDentist() != null ? user.getOwnerDentist() : user;
     }
 
     private String safe(String value) {

@@ -181,7 +181,7 @@ export default function Appointments() {
         setAppointments(filterCancelledAppointments(appointmentsData));
       } catch (err) {
         console.error("Error fetching appointments page data:", err);
-        toast.error("Erreur lors du chargement des rendez-vous");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des rendez-vous"));
       } finally {
         setLoading(false);
       }
@@ -418,7 +418,7 @@ export default function Appointments() {
       toast.success("Rendez-vous complété ");
     } catch (err) {
       console.error("Error marking complete:", err);
-      toast.error("Erreur lors du changement d'état ");
+      toast.error(getApiErrorMessage(err, "Erreur lors du changement d'état "));
     } finally {
       setIsCompletingAppointment(false);
       setShowCompleteConfirm(false);
@@ -441,7 +441,7 @@ export default function Appointments() {
       toast.success("Rendez-vous annulé ");
     } catch (err) {
       console.error("Error marking cancelled:", err);
-      toast.error("Erreur lors du changement d'état ");
+      toast.error(getApiErrorMessage(err, "Erreur lors du changement d'état "));
     } finally {
       setIsCancellingAppointment(false);
       setShowCancelConfirm(false);
@@ -607,11 +607,28 @@ export default function Appointments() {
   } catch (err) {
     console.error("Error saving appointment:", err);
 
+    const backendFieldErrors = err?.response?.data?.fieldErrors;
+    if (err?.response?.status === 400 && backendFieldErrors && typeof backendFieldErrors === "object") {
+      const mapped = {};
+      if (backendFieldErrors.patientId) mapped.patientId = backendFieldErrors.patientId;
+      if (backendFieldErrors.status) mapped.status = backendFieldErrors.status;
+      if (backendFieldErrors.notes) mapped.notes = backendFieldErrors.notes;
+      const timeError = backendFieldErrors.dateTimeEnd || backendFieldErrors.dateTimeStart;
+      if (timeError) mapped.hour = timeError;
+
+      setFieldErrors(mapped);
+      toast.error(getApiErrorMessage(err, "Veuillez corriger les informations."));
+      return;
+    }
+
     if (err.response && err.response.status === 409) {
       toast.error(
-        isEditing
-          ? "Impossible de modifier le rendez-vous : il chevauche un autre rendez-vous !"
-          : "Impossible de créer le rendez-vous : il chevauche un autre rendez-vous !"
+        getApiErrorMessage(
+          err,
+          isEditing
+            ? "Impossible de modifier le rendez-vous : il chevauche un autre rendez-vous !"
+            : "Impossible de créer le rendez-vous : il chevauche un autre rendez-vous !"
+        )
       );
     } else {
       toast.error(
@@ -697,6 +714,16 @@ export default function Appointments() {
       setShowShiftModal(false);
     } catch (err) {
       console.error("Error shifting appointments:", err);
+      const backendFieldErrors = err?.response?.data?.fieldErrors;
+      if (err?.response?.status === 400 && backendFieldErrors && typeof backendFieldErrors === "object") {
+        const mapped = {};
+        if (backendFieldErrors.startTime) mapped.startTime = backendFieldErrors.startTime;
+        if (backendFieldErrors.endTime) mapped.endTime = backendFieldErrors.endTime;
+        if (backendFieldErrors.scope) mapped.scope = backendFieldErrors.scope;
+        setShiftErrors(mapped);
+        toast.error(getApiErrorMessage(err, "Veuillez corriger les informations."));
+        return;
+      }
       toast.error(getApiErrorMessage(err, "Erreur lors du décalage"));
     } finally {
       setIsShiftingAppointments(false);

@@ -14,4 +14,9 @@ public interface MedicationRepository extends JpaRepository<Medication, Long> {
     Optional<Medication> findByNameAndCreatedBy(String name, User user);
     Optional<Medication> findByNameAndStrength(String name, String strength);
 
+    boolean existsByCreatedByAndNameIgnoreCaseAndStrengthIgnoreCase(User user, String name, String strength);
+    boolean existsByCreatedByAndNameIgnoreCaseAndStrengthIsNull(User user, String name);
+    boolean existsByCreatedByAndNameIgnoreCaseAndStrengthIgnoreCaseAndIdNot(User user, String name, String strength, Long id);
+    boolean existsByCreatedByAndNameIgnoreCaseAndStrengthIsNullAndIdNot(User user, String name, Long id);
+
 }

@@ -78,7 +78,7 @@ const Items = () => {
       setItems(data);
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors du chargement des articles");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des articles"));
     } finally {
       setLoading(false);
     }
@@ -203,7 +203,7 @@ const Items = () => {
       setEditingItem(null);
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     } finally {
       setIsSubmitting(false);
     }

@@ -3,6 +3,7 @@ package com.cabinetplus.backend.services;
 import com.cabinetplus.backend.dto.LaboratoryPaymentRequest;
 import com.cabinetplus.backend.dto.LaboratoryBillingEntryResponse;
 import com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.LaboratoryPayment;
 import com.cabinetplus.backend.models.Laboratory;
 import com.cabinetplus.backend.models.User;
@@ -32,14 +33,37 @@ public class LaboratoryService {
     }
 
     public Laboratory save(Laboratory lab) {
+        if (lab == null) {
+            throw new BadRequestException(java.util.Map.of("_", "Corps de requete invalide"));
+        }
+        if (lab.getCreatedBy() == null) {
+            throw new BadRequestException(java.util.Map.of("createdBy", "Utilisateur invalide"));
+        }
+
+        String name = lab.getName() != null ? lab.getName().trim() : null;
+        lab.setName(name);
+        if (name != null && !name.isBlank()) {
+            boolean exists = lab.getId() == null
+                    ? repository.existsByCreatedByAndNameIgnoreCase(lab.getCreatedBy(), name)
+                    : repository.existsByCreatedByAndNameIgnoreCaseAndIdNot(lab.getCreatedBy(), name, lab.getId());
+            if (exists) {
+                throw new BadRequestException(java.util.Map.of("name", "Ce laboratoire existe deja"));
+            }
+        }
         return repository.save(lab);
     }
 
     public Optional<Laboratory> update(Long id, Laboratory updated, User user) {
-        return repository.findById(id)
-            .filter(l -> l.getCreatedBy().equals(user))
+        return repository.findByIdAndCreatedBy(id, user)
             .map(existing -> {
-                existing.setName(updated.getName());
+                String nextName = updated.getName() != null ? updated.getName().trim() : null;
+                if (nextName != null && !nextName.isBlank()) {
+                    boolean exists = repository.existsByCreatedByAndNameIgnoreCaseAndIdNot(user, nextName, id);
+                    if (exists) {
+                        throw new BadRequestException(java.util.Map.of("name", "Ce laboratoire existe deja"));
+                    }
+                }
+                existing.setName(nextName);
                 existing.setContactPerson(updated.getContactPerson());
                 existing.setPhoneNumber(updated.getPhoneNumber());
                 existing.setAddress(updated.getAddress());
@@ -87,6 +111,10 @@ public class LaboratoryService {
     public LaboratoryPayment addPayment(Long laboratoryId, LaboratoryPaymentRequest request, User user) {
         Laboratory laboratory = findByIdAndUser(laboratoryId, user)
             .orElseThrow(() -> new RuntimeException("Laboratoire introuvable"));
+
+        if (request.amount() == null || request.amount() <= 0) {
+            throw new BadRequestException(java.util.Map.of("amount", "Montant invalide"));
+        }
 
         LaboratoryPayment payment = new LaboratoryPayment();
         payment.setLaboratory(laboratory);

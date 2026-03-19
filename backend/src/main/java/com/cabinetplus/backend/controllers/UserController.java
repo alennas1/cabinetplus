@@ -23,6 +23,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.cabinetplus.backend.dto.AdminCreateAdminRequest;
+import com.cabinetplus.backend.dto.AdminUserCreateRequest;
+import com.cabinetplus.backend.dto.AdminUserUpdateRequest;
+import com.cabinetplus.backend.dto.CurrentUserUpdateRequest;
+import com.cabinetplus.backend.dto.PasswordChangeRequest;
+import com.cabinetplus.backend.dto.PasswordVerifyRequest;
+import com.cabinetplus.backend.dto.PlanSelectRequest;
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.dto.UserSessionResponse;
 import com.cabinetplus.backend.dto.PatientManagementSettingsRequest;
@@ -33,6 +40,7 @@ import com.cabinetplus.backend.dto.PlanUsageDto;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.RefreshToken;
 import com.cabinetplus.backend.models.User;
@@ -46,6 +54,7 @@ import com.cabinetplus.backend.services.UserService;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/users")
@@ -121,16 +130,42 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public User createUser(@RequestBody User user) {
+    public User createUser(@Valid @RequestBody AdminUserCreateRequest request) {
+        User user = new User();
+        user.setUsername(request.username() != null ? request.username().trim() : null);
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setFirstname(trimToNull(request.firstname()));
+        user.setLastname(trimToNull(request.lastname()));
+        user.setPhoneNumber(trimToNull(request.phoneNumber()));
+
+        UserRole role = UserRole.valueOf(request.role().trim().toUpperCase());
+        user.setRole(role);
+        if (role == UserRole.ADMIN) {
+            user.setClinicAccessRole(null);
+        }
+
+        user.setPhoneVerified(false);
+        user.setCreatedAt(LocalDateTime.now());
+        user.setPlanStatus(UserPlanStatus.PENDING);
+        user.setCanDeleteAdmin(false);
+
         return userService.save(user);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public User updateUser(@PathVariable String id, @RequestBody User user) {
+    public User updateUser(@PathVariable String id, @Valid @RequestBody AdminUserUpdateRequest request) {
         User existing = publicIdResolutionService.requireUserByIdOrPublicId(id);
-        user.setId(existing.getId());
-        return userService.save(user);
+
+        if (request.username() != null) existing.setUsername(request.username().trim());
+        if (request.password() != null && !request.password().isBlank()) {
+            existing.setPasswordHash(passwordEncoder.encode(request.password()));
+        }
+        if (request.firstname() != null) existing.setFirstname(trimToNull(request.firstname()));
+        if (request.lastname() != null) existing.setLastname(trimToNull(request.lastname()));
+        if (request.phoneNumber() != null) existing.setPhoneNumber(trimToNull(request.phoneNumber()));
+
+        return userService.save(existing);
     }
 
     // ===============================
@@ -182,7 +217,7 @@ public class UserController {
     @PutMapping("/me/preferences")
     public UserPreferencesResponse updateCurrentUserPreferences(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-            @RequestBody UserPreferencesRequest request
+            @Valid @RequestBody UserPreferencesRequest request
     ) {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
@@ -213,7 +248,7 @@ public class UserController {
     @PutMapping("/me/patient-management")
     public PatientManagementSettingsResponse updateCurrentPatientManagementSettings(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-            @RequestBody PatientManagementSettingsRequest request
+            @Valid @RequestBody PatientManagementSettingsRequest request
     ) {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
@@ -241,20 +276,21 @@ public class UserController {
 
     @PutMapping("/me")
     public User updateCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-                                  @RequestBody Map<String, Object> updates) {
+                                  @Valid @RequestBody CurrentUserUpdateRequest updates) {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
-        if (updates.containsKey("firstname")) user.setFirstname((String) updates.get("firstname"));
-        if (updates.containsKey("lastname")) user.setLastname((String) updates.get("lastname"));
-        if (updates.containsKey("phoneNumber")) {
+        if (updates.phoneNumber() != null && !updates.phoneNumber().isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Le numero de telephone se modifie depuis la page Securite (verification SMS requise)."
             );
         }
-        if (updates.containsKey("clinicName")) user.setClinicName((String) updates.get("clinicName"));
-        if (updates.containsKey("address")) user.setAddress((String) updates.get("address"));
+
+        if (updates.firstname() != null) user.setFirstname(trimToNull(updates.firstname()));
+        if (updates.lastname() != null) user.setLastname(trimToNull(updates.lastname()));
+        if (updates.clinicName() != null) user.setClinicName(trimToNull(updates.clinicName()));
+        if (updates.address() != null) user.setAddress(trimToNull(updates.address()));
 
         return userService.save(user);
     }
@@ -264,7 +300,7 @@ public class UserController {
     // ===============================
     @PutMapping("/me/password")
     public User updatePassword(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-                               @RequestBody Map<String, Object> passwords) {
+                               @Valid @RequestBody PasswordChangeRequest request) {
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
@@ -272,20 +308,16 @@ public class UserController {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Les comptes employes ne peuvent pas modifier le mot de passe. Contactez le proprietaire du cabinet."
-            );
+                    );
         }
 
-        String oldPassword = passwords.get("oldPassword") != null ? String.valueOf(passwords.get("oldPassword")) : null;
-        String newPassword = passwords.get("newPassword") != null ? String.valueOf(passwords.get("newPassword")) : null;
-        boolean logoutAll = shouldLogoutAll(passwords.get("logoutAll"));
-
-        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
-            throw new AccessDeniedException("Ancien mot de passe incorrect");
+        if (!passwordEncoder.matches(request.oldPassword(), user.getPasswordHash())) {
+            throw new BadRequestException(Map.of("oldPassword", "Ancien mot de passe incorrect"));
         }
 
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         User saved = userService.save(user);
-        if (logoutAll) {
+        if (request.logoutAllOrFalse()) {
             refreshTokenRepository.deleteAllByUser(saved);
         }
         auditService.logSuccessAsUser(saved, AuditEventType.USER_PASSWORD_CHANGE, "USER", String.valueOf(saved.getId()), "Mot de passe modifie");
@@ -295,18 +327,13 @@ public class UserController {
     @PostMapping("/me/verify-password")
     public Map<String, Object> verifyPassword(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-            @RequestBody Map<String, String> payload) {
+            @Valid @RequestBody PasswordVerifyRequest payload) {
 
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
-        String password = payload.get("password");
-        if (password == null || password.isBlank()) {
-            throw new IllegalArgumentException("Mot de passe requis");
-        }
-
-        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            throw new AccessDeniedException("Mot de passe incorrect");
+        if (!passwordEncoder.matches(payload.password(), user.getPasswordHash())) {
+            throw new BadRequestException(Map.of("password", "Mot de passe incorrect"));
         }
 
         return Map.of("valid", true);
@@ -401,7 +428,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     // ===============================
     @PutMapping("/me/plan")
     public User selectPlan(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
-                           @RequestBody Map<String, String> planData) {
+                           @Valid @RequestBody PlanSelectRequest planData) {
 
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
@@ -410,12 +437,8 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
             throw new AccessDeniedException("Les comptes employes heritent le plan du proprietaire");
         }
 
-        if (!planData.containsKey("planId")) {
-            throw new IllegalArgumentException("planId est obligatoire");
-        }
-
-        Plan plan = planService.findById(Long.parseLong(planData.get("planId")))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plan introuvable"));
+        Plan plan = planService.findById(planData.planId())
+                .orElseThrow(() -> new BadRequestException(Map.of("planId", "Plan introuvable")));
 
         user.setPlan(plan);
         user.setPlanStatus(UserPlanStatus.WAITING);
@@ -464,20 +487,26 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     @PostMapping("/admin/create")
     public Map<String, Object> createAdmin(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails currentDetails,
-            @RequestBody User newAdmin,
+            @Valid @RequestBody AdminCreateAdminRequest request,
             HttpServletResponse response) {
 
         User currentUser = userService.findByUsername(currentDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
 
+        boolean requestedSuperAdmin = request.canDeleteAdmin();
+
         // Seul le super-admin peut creer un autre super-admin
-        if (newAdmin.isCanDeleteAdmin() && !currentUser.isCanDeleteAdmin()) {
+        if (requestedSuperAdmin && !currentUser.isCanDeleteAdmin()) {
             throw new AccessDeniedException("Seul le super-admin peut creer un autre super-admin");
         }
 
-        if (newAdmin.getPasswordHash() == null || newAdmin.getPasswordHash().isBlank()) {
-            newAdmin.setPasswordHash(passwordEncoder.encode("DefaultPassword123!"));
-        }
+        User newAdmin = new User();
+        newAdmin.setUsername(request.username() != null ? request.username().trim() : null);
+        newAdmin.setPasswordHash(passwordEncoder.encode(request.password()));
+        newAdmin.setFirstname(trimToNull(request.firstname()));
+        newAdmin.setLastname(trimToNull(request.lastname()));
+        newAdmin.setPhoneNumber(trimToNull(request.phoneNumber()));
+        newAdmin.setCanDeleteAdmin(requestedSuperAdmin);
 
         newAdmin.setRole(UserRole.ADMIN);
         newAdmin.setClinicAccessRole(null);
@@ -513,6 +542,12 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                 "user", dto,
                 "accessToken", accessToken
         );
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String v = value.trim();
+        return v.isBlank() ? null : v;
     }
 
     private UserPreferencesResponse mapPreferences(User user) {

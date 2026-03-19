@@ -73,7 +73,7 @@ const Medications = () => {
         setMedications(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching medications:", err);
-        toast.error("Erreur lors du chargement des médicaments");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des médicaments"));
         setMedications([]);
       } finally {
         setLoading(false);
@@ -205,7 +205,7 @@ const Medications = () => {
       setIsEditing(false);
     } catch (err) {
       console.error("Error saving medication:", err);
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     } finally {
       setIsSubmitting(false);
     }

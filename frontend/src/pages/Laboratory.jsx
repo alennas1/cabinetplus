@@ -53,7 +53,7 @@ const Laboratories = () => {
         const data = await getAllLaboratories();
         setLaboratories(data);
       } catch (err) {
-        toast.error("Erreur lors du chargement des données");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
       } finally {
         setLoading(false);
       }
@@ -160,7 +160,7 @@ const Laboratories = () => {
       setShowModal(false);
       resetForm();
     } catch (err) {
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     } finally {
       setIsSubmitting(false);
     }

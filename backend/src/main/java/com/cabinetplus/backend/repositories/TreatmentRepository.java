@@ -37,6 +37,8 @@ public interface TreatmentRepository extends JpaRepository<Treatment, Long> {
     List<Treatment> findByPractitionerAndDateBetween(User dentist, LocalDateTime start, LocalDateTime end);
     List<Treatment> findByPatientId(Long patientId);
 
+    long countByTreatmentCatalogIdAndPractitioner(Long treatmentCatalogId, User practitioner);
+
     @Query("""
         SELECT t.patient.id, COALESCE(SUM(t.price), 0)
         FROM Treatment t

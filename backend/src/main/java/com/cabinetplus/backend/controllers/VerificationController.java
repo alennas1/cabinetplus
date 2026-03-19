@@ -18,12 +18,22 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.OtpCodeRequest;
+import com.cabinetplus.backend.dto.PhoneChangeConfirmRequest;
+import com.cabinetplus.backend.dto.PhoneChangeSendRequest;
+import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.exceptions.BadGatewayException;
+import com.cabinetplus.backend.exceptions.ForbiddenException;
+import com.cabinetplus.backend.exceptions.InternalServerErrorException;
+import com.cabinetplus.backend.exceptions.TooManyRequestsException;
+import com.cabinetplus.backend.exceptions.UnauthorizedException;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import com.twilio.exception.ApiException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/verify")
@@ -53,17 +63,23 @@ public class VerificationController {
     @PostMapping("/phone/send")
     public ResponseEntity<?> sendPhoneOtp(Principal principal, HttpServletRequest httpRequest) {
         logger.info("Request received: /api/verify/phone/send");
-        User user = getUser(principal);
-        if (user == null) return unauthorizedResponse();
+        User user = requireUser(principal);
 
-        var cooldown = checkCooldown(user.getPhoneVerificationOtpLastSentAt());
-        if (cooldown != null) {
-            return ResponseEntity.status(429).body(cooldown);
+        Long retryAfterSeconds = checkCooldown(user.getPhoneVerificationOtpLastSentAt());
+        if (retryAfterSeconds != null) {
+            throw new TooManyRequestsException(
+                    "Veuillez patienter avant de renvoyer un code.",
+                    Map.of(
+                            "_", "Veuillez patienter avant de renvoyer un code.",
+                            "reason", "cooldown",
+                            "retryAfterSeconds", String.valueOf(retryAfterSeconds)
+                    )
+            );
         }
 
         String formattedNumber = formatPhoneNumber(user.getPhoneNumber());
         if (formattedNumber == null || formattedNumber.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Numero de telephone invalide ou manquant."));
+            throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide ou manquant."));
         }
 
         try {
@@ -80,8 +96,10 @@ public class VerificationController {
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye au " + formattedNumber));
         } catch (IllegalStateException e) {
             logger.error("Twilio Verify not configured for phone verification send (to={})", formattedNumber, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible", "reason", "not_configured"));
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+            );
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
@@ -89,69 +107,43 @@ public class VerificationController {
             // Special-case Verify blocks (Fraud Guard / risk prevention) to return a clear message.
             // 60410 = Fraud Guard temporary block (typically 12h). See Twilio error dictionary.
             if (twilioCode != null && twilioCode == 60410) {
-                var body = new java.util.HashMap<String, Object>();
-                body.put("error", "Envoi SMS temporairement bloque. Reessayez plus tard.");
-                body.put("reason", "fraud_guard_blocked");
-                body.put("twilioStatus", status);
-                body.put("twilioCode", twilioCode);
-                body.put("retryAfterSeconds", 60 * 60 * 12);
-                return ResponseEntity.status(429).body(body);
+                throw new TooManyRequestsException(
+                        "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                        Map.of(
+                                "_", "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                                "reason", "fraud_guard_blocked",
+                                "retryAfterSeconds", String.valueOf(60 * 60 * 12)
+                        )
+                );
             }
             if (status == 400) {
-                var body = new java.util.HashMap<String, Object>();
-                body.put("error", "Numero de telephone invalide");
-                body.put("reason", "twilio_rejected");
-                body.put("twilioStatus", status);
-                if (twilioCode != null) body.put("twilioCode", twilioCode);
-                return ResponseEntity.badRequest().body(body);
+                throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide"));
             }
             if (status == 429) {
-                var body = new java.util.HashMap<String, Object>();
-                body.put("error", "Trop de demandes. Reessayez plus tard.");
-                body.put("reason", "rate_limited");
-                body.put("twilioStatus", status);
-                if (twilioCode != null) body.put("twilioCode", twilioCode);
-                return ResponseEntity.status(429).body(body);
+                throw new TooManyRequestsException("Trop de demandes. Reessayez plus tard.");
             }
             if (status == 401 || status == 403) {
-                var body = new java.util.HashMap<String, Object>();
-                body.put("error", "Configuration SMS invalide");
-                body.put("reason", "auth_failed");
-                body.put("twilioStatus", status);
-                if (twilioCode != null) body.put("twilioCode", twilioCode);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+                throw new InternalServerErrorException("Configuration SMS invalide");
             }
             if (status == 404) {
-                var body = new java.util.HashMap<String, Object>();
-                body.put("error", "Configuration SMS invalide");
-                body.put("reason", "service_not_found");
-                body.put("twilioStatus", status);
-                if (twilioCode != null) body.put("twilioCode", twilioCode);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+                throw new InternalServerErrorException("Configuration SMS invalide");
             }
-            var body = new java.util.HashMap<String, Object>();
-            body.put("error", "Service SMS indisponible");
-            body.put("reason", "upstream_error");
-            body.put("twilioStatus", status);
-            if (twilioCode != null) body.put("twilioCode", twilioCode);
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+            throw new BadGatewayException("Service SMS indisponible");
         } catch (Exception e) {
             logger.error("Error sending SMS OTP: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible"));
+            throw new InternalServerErrorException("Service SMS indisponible");
         }
     }
 
     // ------------------- CHECK PHONE OTP -------------------
     @PostMapping("/phone/check")
-    public ResponseEntity<?> checkPhoneOtp(Principal principal, @RequestBody Map<String, String> body, HttpServletRequest httpRequest) {
-        User user = getUser(principal);
-        if (user == null) return unauthorizedResponse();
+    public ResponseEntity<?> checkPhoneOtp(Principal principal, @Valid @RequestBody OtpCodeRequest body, HttpServletRequest httpRequest) {
+        User user = requireUser(principal);
 
-        String code = body.get("code");
+        String code = body.code();
         String formattedNumber = formatPhoneNumber(user.getPhoneNumber());
         if (formattedNumber == null || formattedNumber.isEmpty() || code == null || code.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Code SMS invalide"));
+            throw new BadRequestException(Map.of("code", "Code SMS invalide"));
         }
 
         boolean approved;
@@ -163,54 +155,30 @@ public class VerificationController {
             }
         } catch (IllegalStateException e) {
             logger.error("Twilio Verify not configured for phone verification check (to={})", formattedNumber, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible", "reason", "not_configured"));
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+            );
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
             logger.warn("Twilio Verify check failed (to={}, status={})", formattedNumber, status, e);
             if (status == 400) {
-                var respBody = new java.util.HashMap<String, Object>();
-                respBody.put("error", "Code SMS invalide");
-                respBody.put("reason", "twilio_rejected");
-                respBody.put("twilioStatus", status);
-                if (twilioCode != null) respBody.put("twilioCode", twilioCode);
-                return ResponseEntity.badRequest().body(respBody);
+                throw new BadRequestException(Map.of("code", "Code SMS invalide"));
             }
             if (status == 429) {
-                var respBody = new java.util.HashMap<String, Object>();
-                respBody.put("error", "Trop de demandes. Reessayez plus tard.");
-                respBody.put("reason", "rate_limited");
-                respBody.put("twilioStatus", status);
-                if (twilioCode != null) respBody.put("twilioCode", twilioCode);
-                return ResponseEntity.status(429).body(respBody);
+                throw new TooManyRequestsException("Trop de demandes. Reessayez plus tard.");
             }
             if (status == 401 || status == 403) {
-                var respBody = new java.util.HashMap<String, Object>();
-                respBody.put("error", "Configuration SMS invalide");
-                respBody.put("reason", "auth_failed");
-                respBody.put("twilioStatus", status);
-                if (twilioCode != null) respBody.put("twilioCode", twilioCode);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(respBody);
+                throw new InternalServerErrorException("Configuration SMS invalide");
             }
             if (status == 404) {
-                var respBody = new java.util.HashMap<String, Object>();
-                respBody.put("error", "Configuration SMS invalide");
-                respBody.put("reason", "service_not_found");
-                respBody.put("twilioStatus", status);
-                if (twilioCode != null) respBody.put("twilioCode", twilioCode);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(respBody);
+                throw new InternalServerErrorException("Configuration SMS invalide");
             }
-            var respBody = new java.util.HashMap<String, Object>();
-            respBody.put("error", "Service SMS indisponible");
-            respBody.put("reason", "upstream_error");
-            respBody.put("twilioStatus", status);
-            if (twilioCode != null) respBody.put("twilioCode", twilioCode);
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(respBody);
+            throw new BadGatewayException("Service SMS indisponible");
         } catch (Exception e) {
             logger.error("Error verifying SMS OTP: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible"));
+            throw new InternalServerErrorException("Service SMS indisponible");
         }
 
         if (approved) {
@@ -220,45 +188,45 @@ public class VerificationController {
             return ResponseEntity.ok(Map.of("verified", true));
         }
 
-        return ResponseEntity.badRequest().body(Map.of("error", "Code SMS invalide"));
+        throw new BadRequestException(Map.of("code", "Code SMS invalide"));
     }
 
     // ------------------- SEND PHONE CHANGE OTP -------------------
     @PostMapping("/phone-change/send")
     public ResponseEntity<?> sendPhoneChangeOtp(Principal principal,
-                                                @RequestBody Map<String, String> body,
+                                                @Valid @RequestBody PhoneChangeSendRequest body,
                                                 HttpServletRequest httpRequest) {
-        User user = getUser(principal);
-        if (user == null) return unauthorizedResponse();
+        User user = requireUser(principal);
 
         // Only the owner dentist can change their phone number.
         if (user.getRole() == com.cabinetplus.backend.enums.UserRole.DENTIST
                 && user.getClinicAccessRole() != null
                 && user.getClinicAccessRole() != com.cabinetplus.backend.enums.ClinicAccessRole.DENTIST) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
-                    "error",
-                    "Les comptes employes ne peuvent pas modifier le numero de telephone. Contactez le proprietaire du cabinet."
-            ));
+            throw new ForbiddenException("Les comptes employes ne peuvent pas modifier le numero de telephone. Contactez le proprietaire du cabinet.");
         }
 
-        var cooldown = checkCooldown(user.getPhoneChangeOtpLastSentAt());
-        if (cooldown != null) {
-            return ResponseEntity.status(429).body(cooldown);
+        Long retryAfterSeconds = checkCooldown(user.getPhoneChangeOtpLastSentAt());
+        if (retryAfterSeconds != null) {
+            throw new TooManyRequestsException(
+                    "Veuillez patienter avant de renvoyer un code.",
+                    Map.of(
+                            "_", "Veuillez patienter avant de renvoyer un code.",
+                            "reason", "cooldown",
+                            "retryAfterSeconds", String.valueOf(retryAfterSeconds)
+                    )
+            );
         }
 
-        String requestedNumber = body != null ? body.get("phoneNumber") : null;
-        if (requestedNumber == null || requestedNumber.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Numero de telephone invalide ou manquant."));
-        }
+        String requestedNumber = body.phoneNumber();
 
         String formattedNumber = formatPhoneNumber(requestedNumber);
         if (formattedNumber == null || formattedNumber.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Numero de telephone invalide ou manquant."));
+            throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide ou manquant."));
         }
 
         // Prevent using a phone number already bound to another account (common confusion with reset password).
         if (isPhoneNumberUsedByAnotherUser(user, requestedNumber)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Ce numero de telephone est deja utilise."));
+            throw new BadRequestException(Map.of("phoneNumber", "Ce numero de telephone est deja utilise."));
         }
 
         try {
@@ -273,68 +241,64 @@ public class VerificationController {
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye"));
         } catch (IllegalStateException e) {
             logger.error("Twilio Verify not configured for phone change send (to={})", formattedNumber, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible", "reason", "not_configured"));
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+            );
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
             logger.warn("Twilio Verify send failed for phone change (to={}, status={})", formattedNumber, status, e);
             if (twilioCode != null && twilioCode == 60410) {
-                var resp = new java.util.HashMap<String, Object>();
-                resp.put("error", "Envoi SMS temporairement bloque. Reessayez plus tard.");
-                resp.put("reason", "fraud_guard_blocked");
-                resp.put("twilioStatus", status);
-                resp.put("twilioCode", twilioCode);
-                resp.put("retryAfterSeconds", 60 * 60 * 12);
-                return ResponseEntity.status(429).body(resp);
+                throw new TooManyRequestsException(
+                        "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                        Map.of(
+                                "_", "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                                "reason", "fraud_guard_blocked",
+                                "retryAfterSeconds", String.valueOf(60 * 60 * 12)
+                        )
+                );
             }
-            var resp = new java.util.HashMap<String, Object>();
-            resp.put("error", "Service SMS indisponible");
-            resp.put("reason", "upstream_error");
-            resp.put("twilioStatus", status);
-            if (twilioCode != null) resp.put("twilioCode", twilioCode);
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(resp);
+            throw new BadGatewayException("Service SMS indisponible");
         } catch (Exception e) {
             logger.error("Unexpected error during phone change send (to={})", formattedNumber, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible", "reason", "unexpected"));
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "unexpected")
+            );
         }
     }
 
     // ------------------- CONFIRM PHONE CHANGE OTP -------------------
     @PostMapping("/phone-change/confirm")
     public ResponseEntity<?> confirmPhoneChangeOtp(Principal principal,
-                                                   @RequestBody Map<String, String> body,
+                                                   @Valid @RequestBody PhoneChangeConfirmRequest body,
                                                    HttpServletRequest httpRequest) {
-        User user = getUser(principal);
-        if (user == null) return unauthorizedResponse();
+        User user = requireUser(principal);
 
         if (user.getRole() == com.cabinetplus.backend.enums.UserRole.DENTIST
                 && user.getClinicAccessRole() != null
                 && user.getClinicAccessRole() != com.cabinetplus.backend.enums.ClinicAccessRole.DENTIST) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
-                    "error",
-                    "Les comptes employes ne peuvent pas modifier le numero de telephone. Contactez le proprietaire du cabinet."
-            ));
+            throw new ForbiddenException("Les comptes employes ne peuvent pas modifier le numero de telephone. Contactez le proprietaire du cabinet.");
         }
 
-        String requestedNumber = body != null ? body.get("phoneNumber") : null;
-        String code = body != null ? body.get("code") : null;
-        String password = body != null ? body.get("password") : null;
+        String requestedNumber = body.phoneNumber();
+        String code = body.code();
+        String password = body.password();
 
         String formattedNumber = formatPhoneNumber(requestedNumber);
         if (formattedNumber == null || formattedNumber.isEmpty() || code == null || code.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Code SMS invalide"));
+            throw new BadRequestException(Map.of("code", "Code SMS invalide"));
         }
         if (password == null || password.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Mot de passe requis"));
+            throw new BadRequestException(Map.of("password", "Mot de passe requis"));
         }
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Mot de passe incorrect"));
+            throw new BadRequestException(Map.of("password", "Mot de passe incorrect"));
         }
 
         if (isPhoneNumberUsedByAnotherUser(user, requestedNumber)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Ce numero de telephone est deja utilise."));
+            throw new BadRequestException(Map.of("phoneNumber", "Ce numero de telephone est deja utilise."));
         }
 
         boolean approved;
@@ -346,33 +310,28 @@ public class VerificationController {
             }
         } catch (IllegalStateException e) {
             logger.error("Twilio Verify not configured for phone change confirm (to={})", formattedNumber, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible", "reason", "not_configured"));
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+            );
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
             logger.warn("Twilio Verify check failed for phone change (to={}, status={})", formattedNumber, status, e);
-            var respBody = new java.util.HashMap<String, Object>();
             if (status == 400) {
-                respBody.put("error", "Code SMS invalide");
-                respBody.put("reason", "twilio_rejected");
-                respBody.put("twilioStatus", status);
-                if (twilioCode != null) respBody.put("twilioCode", twilioCode);
-                return ResponseEntity.badRequest().body(respBody);
+                throw new BadRequestException(Map.of("code", "Code SMS invalide"));
             }
-            respBody.put("error", "Service SMS indisponible");
-            respBody.put("reason", "upstream_error");
-            respBody.put("twilioStatus", status);
-            if (twilioCode != null) respBody.put("twilioCode", twilioCode);
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(respBody);
+            throw new BadGatewayException("Service SMS indisponible");
         } catch (Exception e) {
             logger.error("Unexpected error during phone change confirm (to={})", formattedNumber, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Service SMS indisponible", "reason", "unexpected"));
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "unexpected")
+            );
         }
 
         if (!approved) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Code SMS invalide"));
+            throw new BadRequestException(Map.of("code", "Code SMS invalide"));
         }
 
         user.setPhoneNumber(normalizeStoredPhoneNumber(requestedNumber));
@@ -394,30 +353,21 @@ public class VerificationController {
         return null;
     }
 
-    private User getUser(Principal principal) {
+    private User requireUser(Principal principal) {
         if (principal == null) {
             logger.warn("Principal is null - user not authenticated");
-            return null;
+            throw new UnauthorizedException("Session expiree. Veuillez vous reconnecter.");
         }
-        return userRepo.findByUsername(principal.getName()).orElse(null);
+        return userRepo.findByUsername(principal.getName())
+                .orElseThrow(() -> new UnauthorizedException("Session expiree. Veuillez vous reconnecter."));
     }
 
-    private ResponseEntity<?> unauthorizedResponse() {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "Session expiree. Veuillez vous reconnecter."));
-    }
-
-    private Map<String, Object> checkCooldown(LocalDateTime lastSentAt) {
+    private Long checkCooldown(LocalDateTime lastSentAt) {
         if (lastSentAt == null) return null;
         LocalDateTime now = LocalDateTime.now();
         long elapsed = Duration.between(lastSentAt, now).getSeconds();
         if (elapsed < otpCooldownSeconds) {
-            long retryAfterSeconds = Math.max(otpCooldownSeconds - elapsed, 1);
-            return Map.of(
-                    "error", "Veuillez patienter avant de renvoyer un code.",
-                    "reason", "cooldown",
-                    "retryAfterSeconds", retryAfterSeconds
-            );
+            return Math.max(otpCooldownSeconds - elapsed, 1);
         }
         return null;
     }

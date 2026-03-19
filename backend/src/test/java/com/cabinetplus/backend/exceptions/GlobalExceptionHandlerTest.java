@@ -46,8 +46,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/response-status"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.error").value("Conflict happened"))
-                .andExpect(jsonPath("$.path").value("/test/response-status"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Conflit"));
     }
 
     @Test
@@ -55,8 +54,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/illegal-argument"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Invalid input"))
-                .andExpect(jsonPath("$.path").value("/test/illegal-argument"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Donnees invalides"));
     }
 
     @Test
@@ -64,8 +62,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/access-denied"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("Acces refuse"))
-                .andExpect(jsonPath("$.path").value("/test/access-denied"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Acces refuse"));
     }
 
     @Test
@@ -73,8 +70,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/runtime"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Runtime failure"))
-                .andExpect(jsonPath("$.path").value("/test/runtime"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Runtime failure"));
     }
 
     @Test
@@ -82,8 +78,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/unhandled"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.status").value(500))
-                .andExpect(jsonPath("$.error").value("Une erreur interne est survenue"))
-                .andExpect(jsonPath("$.path").value("/test/unhandled"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Une erreur interne est survenue"));
     }
 
     @Test
@@ -91,8 +86,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/data-integrity"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Ce nom d'utilisateur est deja utilise"))
-                .andExpect(jsonPath("$.path").value("/test/data-integrity"));
+                .andExpect(jsonPath("$.fieldErrors.username").value("Ce nom d'utilisateur est deja utilise"));
     }
 
     @Test
@@ -100,9 +94,16 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/data-integrity-fk"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.error").value(
-                        "Suppression impossible: cet element est utilise dans le catalogue des protheses. Supprimez d'abord les donnees liees."))
-                .andExpect(jsonPath("$.path").value("/test/data-integrity-fk"));
+                .andExpect(jsonPath("$.fieldErrors._").value(
+                        "Suppression impossible: cet element est utilise dans le catalogue des protheses. Supprimez d'abord les donnees liees."));
+    }
+
+    @Test
+    void handlesCheckConstraintViolationAsFieldErrors() throws Exception {
+        mockMvc.perform(get("/test/data-integrity-check"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.sex").exists());
     }
 
     @Test
@@ -112,8 +113,6 @@ class GlobalExceptionHandlerTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Certaines informations sont invalides"))
-                .andExpect(jsonPath("$.path").value("/test/validate"))
                 .andExpect(jsonPath("$.fieldErrors.name").exists());
     }
 
@@ -123,7 +122,7 @@ class GlobalExceptionHandlerTest {
 
         @GetMapping("/response-status")
         String responseStatus() {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Conflict happened");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Conflit");
         }
 
         @GetMapping("/illegal-argument")
@@ -161,6 +160,16 @@ class GlobalExceptionHandlerTest {
                     new RuntimeException(
                             "update or delete on table \"materials\" violates foreign key constraint "
                                     + "\"fk_prothesis_catalog_material\" on table \"prothesis_catalog\""
+                    )
+            );
+        }
+
+        @GetMapping("/data-integrity-check")
+        String dataIntegrityCheck() {
+            throw new DataIntegrityViolationException(
+                    "CHECK violation",
+                    new RuntimeException(
+                            "new row for relation \"patients\" violates check constraint \"chk_patients_sex_domain\""
                     )
             );
         }

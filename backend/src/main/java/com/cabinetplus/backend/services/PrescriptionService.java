@@ -19,9 +19,12 @@ import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Prescription;
 import com.cabinetplus.backend.models.PrescriptionMedication;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.repositories.MedicationRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.PrescriptionRepository;
+import com.cabinetplus.backend.repositories.UserRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -33,14 +36,16 @@ public class PrescriptionService {
     private final PrescriptionRepository prescriptionRepository;
     private final PatientRepository patientRepository;
     private final MedicationRepository medicationRepository;
+    private final UserRepository userRepository;
     
     // Formatter to remove trailing .0 but keep other decimals
     private final DecimalFormat df = new DecimalFormat("###.##");
 
     @Transactional
     public Prescription createPrescription(PrescriptionRequestDTO dto, User practitioner) {
-        Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
+        User clinicOwner = resolveClinicOwner(practitioner);
+        Patient patient = patientRepository.findByIdAndCreatedBy(dto.getPatientId(), clinicOwner)
+                .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
 
         Prescription prescription = new Prescription();
         prescription.setDate(LocalDateTime.now());
@@ -49,16 +54,16 @@ public class PrescriptionService {
         prescription.setPractitioner(practitioner);
 
         List<PrescriptionMedication> medications = dto.getMedications().stream()
-                .map(m -> mapToPrescriptionMedication(m, prescription))
+                .map(m -> mapToPrescriptionMedication(m, prescription, clinicOwner))
                 .collect(Collectors.toList());
 
         prescription.setMedications(medications);
         return prescriptionRepository.save(prescription);
     }
 
-    private PrescriptionMedication mapToPrescriptionMedication(PrescriptionMedicationDTO medDto, Prescription prescription) {
-        Medication medication = medicationRepository.findById(medDto.getMedicationId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medicament introuvable"));
+    private PrescriptionMedication mapToPrescriptionMedication(PrescriptionMedicationDTO medDto, Prescription prescription, User clinicOwner) {
+        Medication medication = medicationRepository.findByIdAndCreatedBy(medDto.getMedicationId(), clinicOwner)
+                .orElseThrow(() -> new BadRequestException(java.util.Map.of("medicationId", "Medicament introuvable")));
 
         PrescriptionMedication pm = new PrescriptionMedication();
         pm.setPrescription(prescription);
@@ -114,19 +119,6 @@ public class PrescriptionService {
         return dto;
     }
 
-    public List<PrescriptionSummaryDTO> getPrescriptionsByPatientId(Long patientId) {
-        return prescriptionRepository.findByPatientId(patientId).stream()
-                .map(p -> new PrescriptionSummaryDTO(p.getId(), p.getPublicId(), p.getRxId(), p.getDate()))
-                .collect(Collectors.toList());
-    }
-
-    public void deletePrescription(Long id) {
-        if (!prescriptionRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable");
-        }
-        prescriptionRepository.deleteById(id);
-    }
-
     public PrescriptionResponseDTO getPrescriptionById(Long id, User practitioner) {
         return mapToResponseDTO(getPrescriptionEntity(id, practitioner));
     }
@@ -138,8 +130,9 @@ public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User
     
     // 2. Update basic fields
     prescription.setNotes(dto.getNotes());
-    Patient patient = patientRepository.findById(dto.getPatientId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
+    User clinicOwner = resolveClinicOwner(practitioner);
+    Patient patient = patientRepository.findByIdAndCreatedBy(dto.getPatientId(), clinicOwner)
+            .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
     prescription.setPatient(patient);
 
     // 3. Identify which items to KEEP vs. which to DELETE
@@ -172,10 +165,52 @@ public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User
                 });
         } else {
             // CASE: This is a brand new medication added during the edit session
-            prescription.getMedications().add(mapToPrescriptionMedication(medDto, prescription));
+            prescription.getMedications().add(mapToPrescriptionMedication(medDto, prescription, clinicOwner));
         }
     }
 
     return prescriptionRepository.save(prescription);
 }
+
+    public List<PrescriptionSummaryDTO> getPrescriptionsByPatientId(Long patientId, User requester) {
+        User clinicOwner = resolveClinicOwner(requester);
+        boolean owned = patientRepository.findByIdAndCreatedBy(patientId, clinicOwner).isPresent();
+        if (!owned) {
+            throw new NotFoundException("Patient introuvable");
+        }
+
+        List<User> practitioners = userRepository.findByOwnerDentist(clinicOwner);
+        java.util.ArrayList<User> allowed = new java.util.ArrayList<>(practitioners.size() + 1);
+        allowed.add(clinicOwner);
+        allowed.addAll(practitioners);
+
+        return prescriptionRepository.findByPatientIdAndPractitionerInOrderByDateDesc(patientId, allowed).stream()
+                .map(p -> new PrescriptionSummaryDTO(p.getId(), p.getPublicId(), p.getRxId(), p.getDate()))
+                .collect(Collectors.toList());
+    }
+
+    public void deletePrescription(Long id, User requester) {
+        User clinicOwner = resolveClinicOwner(requester);
+        Prescription existing = prescriptionRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Ordonnance introuvable"));
+
+        if (!isUserInClinic(existing.getPractitioner(), clinicOwner)) {
+            throw new NotFoundException("Ordonnance introuvable");
+        }
+
+        prescriptionRepository.delete(existing);
+    }
+
+    private User resolveClinicOwner(User user) {
+        if (user == null) return null;
+        return user.getOwnerDentist() != null ? user.getOwnerDentist() : user;
+    }
+
+    private boolean isUserInClinic(User user, User clinicOwner) {
+        if (user == null || clinicOwner == null) return false;
+        if (user.getId() != null && user.getId().equals(clinicOwner.getId())) return true;
+        return user.getOwnerDentist() != null
+                && user.getOwnerDentist().getId() != null
+                && user.getOwnerDentist().getId().equals(clinicOwner.getId());
+    }
 }

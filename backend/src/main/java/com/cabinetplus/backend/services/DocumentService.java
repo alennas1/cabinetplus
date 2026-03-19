@@ -160,14 +160,6 @@ public class DocumentService {
         }
     }
 
-    public List<Document> findAll() {
-        return documentRepository.findAll();
-    }
-
-    public Optional<Document> findById(Long id) {
-        return documentRepository.findById(id);
-    }
-
     private Document getOwnedDocument(Long documentId, User ownerDentist) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new RuntimeException("Document introuvable"));

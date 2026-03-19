@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { initializeSession, getCurrentUser } from "./services/authService";
 import { setCredentials, sessionExpired, setLoading } from "./store/authSlice";
 import LoadingLogo from "./components/LoadingLogo"; // <-- adjust the path if needed
+import { initPwaUpdatePrompt } from "./pwa/registerPwaUpdate";
 // --- Pages ---
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -76,6 +77,10 @@ const AppContent = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
+
+  useEffect(() => {
+    initPwaUpdatePrompt();
+  }, []);
 
   // Lock background scroll whenever a modal overlay is present.
   useEffect(() => {

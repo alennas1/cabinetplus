@@ -69,7 +69,7 @@ const JustificationContentPage = () => {
         const data = await getJustificationTemplates();
         setTemplates(Array.isArray(data) ? data : []);
       } catch (err) {
-        toast.error("Erreur lors du chargement des modèles");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des modèles"));
       } finally {
         setLoading(false);
       }
@@ -185,7 +185,7 @@ const JustificationContentPage = () => {
       setShowModal(false);
       resetForm();
     } catch (err) {
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     } finally {
       setIsSubmitting(false);
     }

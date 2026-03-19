@@ -10,6 +10,7 @@ import "./Finance.css";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
+import { getApiErrorMessage } from "../utils/error";
 
 const AdminFinance = () => {
   const token = useSelector((state) => state.auth.token);
@@ -36,7 +37,7 @@ const AdminFinance = () => {
         setPayments(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Fetch error:", err);
-        toast.error("Erreur lors du chargement des données financières");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données financières"));
       } finally {
         setLoading(false);
       }

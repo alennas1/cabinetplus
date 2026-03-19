@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Column;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -30,6 +31,8 @@ public class Appointment {
 
     private LocalDateTime dateTimeStart;
     private LocalDateTime dateTimeEnd;
+
+    @Column(length = 500)
     private String notes;
 
 

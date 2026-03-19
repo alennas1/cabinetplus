@@ -94,7 +94,7 @@ const Inventory = () => {
       setItemDefaults(data);
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors du chargement des articles par défaut");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des articles par défaut"));
     }
   };
 
@@ -119,7 +119,7 @@ const Inventory = () => {
       setInventoryItems(data);
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors du chargement des articles en stock");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des articles en stock"));
     } finally {
       setLoading(false);
     }
@@ -277,7 +277,6 @@ const Inventory = () => {
         unitPrice,
         expiryDate: formData.expiryDate || null,
         createdAt: new Date().toISOString(),
-
       };
       
       let newItem;
@@ -306,7 +305,7 @@ const Inventory = () => {
       });
     } catch (err) {
       console.error(err.response?.data || err);
-      toast.error("Erreur lors de l'enregistrement de l'article");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement de l'article"));
     } finally {
       setIsSubmitting(false);
     }

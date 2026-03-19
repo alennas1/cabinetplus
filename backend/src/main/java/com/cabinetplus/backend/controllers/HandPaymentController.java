@@ -15,6 +15,7 @@ import com.cabinetplus.backend.dto.HandPaymentDTO;
 import com.cabinetplus.backend.dto.HandPaymentResponseDTO;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.BillingCycle;
+import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.HandPayment;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
@@ -24,6 +25,7 @@ import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.HandPaymentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -42,17 +44,32 @@ public class HandPaymentController {
      */
 
     @GetMapping("/all")
-public ResponseEntity<List<HandPaymentResponseDTO>> getAllPayments() {
+public ResponseEntity<List<HandPaymentResponseDTO>> getAllPayments(Principal principal) {
+    User admin = userRepository.findByUsername(principal.getName())
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    if (admin.getRole() != UserRole.ADMIN) {
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
+    }
     return ResponseEntity.ok(handPaymentService.getAllPayments());
 }
 
     @GetMapping("/pending")
-    public ResponseEntity<List<HandPaymentResponseDTO>> getPendingPayments() {
+    public ResponseEntity<List<HandPaymentResponseDTO>> getPendingPayments(Principal principal) {
+    User admin = userRepository.findByUsername(principal.getName())
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    if (admin.getRole() != UserRole.ADMIN) {
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
+    }
     return ResponseEntity.ok(handPaymentService.getAllPendingPayments());
 }
 
 @GetMapping("/user/{userId}")
-public ResponseEntity<List<HandPaymentResponseDTO>> getPaymentsByUserId(@PathVariable String userId) {
+public ResponseEntity<List<HandPaymentResponseDTO>> getPaymentsByUserId(@PathVariable String userId, Principal principal) {
+    User admin = userRepository.findByUsername(principal.getName())
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    if (admin.getRole() != UserRole.ADMIN) {
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
+    }
     User user = publicIdResolutionService.requireUserByIdOrPublicId(userId);
 
     return ResponseEntity.ok(handPaymentService.getPaymentsByUser(user));
@@ -69,13 +86,13 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getMyPayments(Principal prin
     /**
      * Create a new hand payment for the authenticated user
      */
-   @PostMapping("/create")
-public ResponseEntity<HandPayment> createPayment(@RequestBody HandPaymentDTO dto, Principal principal) {
-    User user = userRepository.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
-
-    Plan plan = planRepository.findById(dto.getPlanId())
-            .orElseThrow(() -> new RuntimeException("Plan introuvable"));
+    @PostMapping("/create")
+ public ResponseEntity<HandPayment> createPayment(@Valid @RequestBody HandPaymentDTO dto, Principal principal) {
+     User user = userRepository.findByUsername(principal.getName())
+             .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+ 
+     Plan plan = planRepository.findById(dto.getPlanId())
+             .orElseThrow(() -> new RuntimeException("Plan introuvable"));
 
     HandPayment payment = new HandPayment();
     payment.setUser(user);
@@ -106,6 +123,9 @@ public ResponseEntity<HandPayment> createPayment(@RequestBody HandPaymentDTO dto
     public ResponseEntity<HandPayment> confirmPayment(@PathVariable Long id, Principal principal) {
         User admin = userRepository.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        if (admin.getRole() != UserRole.ADMIN) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
+        }
         try {
             HandPayment payment = handPaymentService.confirmPayment(id);
             auditService.logSuccessAsUser(admin, AuditEventType.HAND_PAYMENT_CONFIRM, "HAND_PAYMENT", String.valueOf(id), "Paiement confirme");
@@ -123,6 +143,9 @@ public ResponseEntity<HandPayment> createPayment(@RequestBody HandPaymentDTO dto
     public ResponseEntity<HandPayment> rejectPayment(@PathVariable Long id, Principal principal) {
         User admin = userRepository.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        if (admin.getRole() != UserRole.ADMIN) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
+        }
         try {
             HandPayment payment = handPaymentService.rejectPayment(id);
             auditService.logSuccessAsUser(admin, AuditEventType.HAND_PAYMENT_REJECT, "HAND_PAYMENT", String.valueOf(id), "Paiement rejete");

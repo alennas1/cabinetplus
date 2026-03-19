@@ -42,7 +42,7 @@ const MaterialsSettings = () => {
             const data = await getAllMaterials();
             setMaterials(data);
         } catch (err) {
-            toast.error("Erreur lors du chargement des matÃ©riaux.");
+            toast.error(getApiErrorMessage(err, "Erreur lors du chargement des matériaux."));
         } finally {
             setLoading(false);
         }
@@ -76,7 +76,7 @@ const MaterialsSettings = () => {
             setFieldErrors({});
             toast.success("MatÃ©riau ajoutÃ© avec succÃ¨s");
         } catch (err) {
-            toast.error("Impossible d'ajouter le matériau.");
+            toast.error(getApiErrorMessage(err, "Impossible d'ajouter le matériau."));
         } finally {
             setIsSubmitting(false);
         }

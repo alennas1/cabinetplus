@@ -4,18 +4,23 @@ import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.repositories.*;
 import com.cabinetplus.backend.dto.*;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class ProthesisService {
+    private static final Set<String> ALLOWED_STATUSES = Set.of("PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED");
+
     private final ProthesisRepository repository;
     private final ProthesisCatalogRepository catalogRepository;
     private final PatientRepository patientRepository;
@@ -30,102 +35,122 @@ public class ProthesisService {
 
     @Transactional
     public Prothesis create(ProthesisRequest dto, User user) {
-        Patient patient = patientRepository.findById(dto.patientId())
-                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
-        ProthesisCatalog catalog = catalogRepository.findById(dto.catalogId())
-                .orElseThrow(() -> new RuntimeException("Element du catalogue introuvable"));
+        Patient patient = requirePatientOwnedBy(dto.patientId(), user);
+        ProthesisCatalog catalog = requireCatalogOwnedBy(dto.catalogId(), user);
+        List<Integer> teeth = normalizeTeeth(dto.teeth());
+        assertCatalogRules(catalog, teeth);
 
         Prothesis p = new Prothesis();
         p.setPatient(patient);
         p.setProthesisCatalog(catalog);
         p.setPractitioner(user);
-        p.setTeeth(dto.teeth());
+        p.setTeeth(teeth);
         p.setFinalPrice(dto.finalPrice());
         p.setLabCost(dto.labCost());
-        if (dto.code() != null) {
-            p.setCode(dto.code());
-        }
-        p.setNotes(dto.notes());
+        p.setCode(trimToNull(dto.code()));
+        p.setNotes(trimToNull(dto.notes()));
         p.setStatus("PENDING");
         p.setDateCreated(LocalDateTime.now());
 
         // Keep manually edited price when provided; otherwise fall back to catalog logic.
         if (dto.finalPrice() == null) {
-            p.setFinalPrice(resolveCatalogAmount(catalog.getDefaultPrice(), catalog.isFlatFee(), dto.teeth()));
+            p.setFinalPrice(resolveCatalogAmount(catalog.getDefaultPrice(), catalog.isFlatFee(), teeth));
         }
 
         // Auto-fill lab cost from catalog when not manually provided.
         if (dto.labCost() == null) {
-            p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), dto.teeth()));
+            p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), teeth));
         }
 
+        assertUniqueCode(p.getCode(), p.getPractitioner(), null);
+        assertAmounts(p.getFinalPrice(), p.getLabCost());
         return repository.save(p);
     }
 
     @Transactional
     public Prothesis update(Long id, ProthesisRequest dto, User user) {
-        Prothesis p = repository.findById(id)
-                .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
+        Prothesis p = requireProthesisOwnedBy(id, user);
 
-        if (dto.catalogId() != null) {
-            ProthesisCatalog catalog = catalogRepository.findById(dto.catalogId())
-                    .orElseThrow(() -> new RuntimeException("Element du catalogue introuvable"));
-            p.setProthesisCatalog(catalog);
-        }
+        Patient patient = requirePatientOwnedBy(dto.patientId(), user);
+        ProthesisCatalog catalog = requireCatalogOwnedBy(dto.catalogId(), user);
+        List<Integer> teeth = normalizeTeeth(dto.teeth());
+        assertCatalogRules(catalog, teeth);
 
-        if (dto.teeth() != null) {
-            p.setTeeth(dto.teeth());
-        }
+        boolean catalogChanged = p.getProthesisCatalog() == null || !p.getProthesisCatalog().getId().equals(catalog.getId());
+        boolean teethChanged = p.getTeeth() == null || !p.getTeeth().equals(teeth);
 
-        p.setCode(dto.code());
-        p.setNotes(dto.notes());
+        p.setPatient(patient);
+        p.setProthesisCatalog(catalog);
+        p.setTeeth(teeth);
+        p.setCode(trimToNull(dto.code()));
+        p.setNotes(trimToNull(dto.notes()));
 
         if (dto.finalPrice() != null) {
             p.setFinalPrice(dto.finalPrice());
         } else {
-            ProthesisCatalog catalog = p.getProthesisCatalog();
-            p.setFinalPrice(resolveCatalogAmount(catalog.getDefaultPrice(), catalog.isFlatFee(), p.getTeeth()));
+            p.setFinalPrice(resolveCatalogAmount(catalog.getDefaultPrice(), catalog.isFlatFee(), teeth));
         }
 
         if (dto.labCost() != null) {
             p.setLabCost(dto.labCost());
-        } else if (p.getLabCost() == null || dto.catalogId() != null || dto.teeth() != null) {
-            ProthesisCatalog catalog = p.getProthesisCatalog();
-            p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), p.getTeeth()));
+        } else if (p.getLabCost() == null || catalogChanged || teethChanged) {
+            p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), teeth));
         }
 
+        assertUniqueCode(p.getCode(), p.getPractitioner(), p.getId());
+        assertAmounts(p.getFinalPrice(), p.getLabCost());
         return repository.save(p);
     }
 
     @Transactional
     public Prothesis assignToLab(Long id, LabAssignmentRequest dto, User user) {
-        Prothesis p = repository.findById(id)
-                .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
-        
+        Prothesis p = requireProthesisOwnedBy(id, user);
+        String currentStatus = normalizeStatus(p.getStatus());
+        if (!"PENDING".equals(currentStatus)) {
+            throw new BadRequestException(java.util.Map.of("status", "Envoi au laboratoire autorise uniquement depuis le statut PENDING"));
+        }
+
         Laboratory lab = user.getRole() == UserRole.ADMIN
                 ? labRepository.findById(dto.laboratoryId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"))
-                : labRepository.findByIdAndCreatedBy(dto.laboratoryId(), user)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
+                .orElse(null)
+                : labRepository.findByIdAndCreatedBy(dto.laboratoryId(), user).orElse(null);
+
+        if (lab == null) {
+            throw new BadRequestException(java.util.Map.of("laboratoryId", "Laboratoire introuvable"));
+        }
 
         p.setLaboratory(lab);
         p.setLabCost(dto.labCost()); // Cost in DZD
         p.setStatus("SENT_TO_LAB");
         p.setSentToLabDate(LocalDateTime.now());
-        
+
+        assertAmounts(p.getFinalPrice(), p.getLabCost());
         return repository.save(p);
     }
 
     @Transactional
     public Prothesis updateStatus(Long id, String newStatus, User user) {
-        Prothesis p = repository.findById(id)
-                .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
+        Prothesis p = requireProthesisOwnedBy(id, user);
 
-        String statusUpper = newStatus.toUpperCase();
+        String statusUpper = normalizeStatus(newStatus);
+        if (!ALLOWED_STATUSES.contains(statusUpper)) {
+            throw new BadRequestException(java.util.Map.of("status", "Statut invalide"));
+        }
+
+        String currentStatus = normalizeStatus(p.getStatus());
+        if (!isAllowedStatusTransition(currentStatus, statusUpper)) {
+            throw new BadRequestException(java.util.Map.of("status", "Transition de statut invalide"));
+        }
+
+        if ("SENT_TO_LAB".equals(statusUpper) && p.getLaboratory() == null) {
+            throw new BadRequestException(java.util.Map.of("laboratoryId", "Laboratoire obligatoire"));
+        }
+
         p.setStatus(statusUpper);
+
+        if ("SENT_TO_LAB".equals(statusUpper) && p.getSentToLabDate() == null) {
+            p.setSentToLabDate(LocalDateTime.now());
+        }
         
         // Track specifically when the work arrived back at the cabinet
         if ("RECEIVED".equals(statusUpper)) {
@@ -151,9 +176,7 @@ public List<Prothesis> findByPatientAndPractitioner(Long patientId, User user) {
 
     @Transactional
     public void delete(Long id, User user) {
-        Prothesis p = repository.findById(id)
-                .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
-                .orElseThrow(() -> new RuntimeException("Prothese introuvable ou acces refuse"));
+        Prothesis p = requireProthesisOwnedBy(id, user);
         repository.delete(p);
     }
 
@@ -164,5 +187,89 @@ public List<Prothesis> findByPatientAndPractitioner(Long patientId, User user) {
         }
         int count = (teeth != null && !teeth.isEmpty()) ? teeth.size() : 1;
         return amount * count;
+    }
+
+    private Prothesis requireProthesisOwnedBy(Long id, User user) {
+        return repository.findById(id)
+                .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
+                .orElseThrow(() -> new NotFoundException("Prothese introuvable"));
+    }
+
+    private Patient requirePatientOwnedBy(Long patientId, User user) {
+        Patient patient = user.getRole() == UserRole.ADMIN
+                ? patientRepository.findById(patientId).orElse(null)
+                : patientRepository.findByIdAndCreatedBy(patientId, user).orElse(null);
+        if (patient == null) {
+            throw new BadRequestException(java.util.Map.of("patientId", "Patient introuvable"));
+        }
+        return patient;
+    }
+
+    private ProthesisCatalog requireCatalogOwnedBy(Long catalogId, User user) {
+        ProthesisCatalog catalog = user.getRole() == UserRole.ADMIN
+                ? catalogRepository.findById(catalogId).orElse(null)
+                : catalogRepository.findByIdAndCreatedBy(catalogId, user).orElse(null);
+        if (catalog == null) {
+            throw new BadRequestException(java.util.Map.of("catalogId", "Element du catalogue introuvable"));
+        }
+        return catalog;
+    }
+
+    private void assertCatalogRules(ProthesisCatalog catalog, List<Integer> teeth) {
+        if (catalog == null) {
+            throw new BadRequestException(java.util.Map.of("catalogId", "Prothese obligatoire"));
+        }
+        List<Integer> safeTeeth = teeth != null ? teeth : List.of();
+        if (!catalog.isFlatFee() && !catalog.isMultiUnit() && safeTeeth.size() > 1) {
+            throw new BadRequestException(java.util.Map.of("teeth", "Pour unitaire, veuillez selectionner une seule dent"));
+        }
+    }
+
+    private List<Integer> normalizeTeeth(List<Integer> teeth) {
+        return teeth == null ? List.of() : new ArrayList<>(teeth);
+    }
+
+    private void assertAmounts(Double finalPrice, Double labCost) {
+        if (finalPrice != null && labCost != null && finalPrice < labCost) {
+            throw new BadRequestException(java.util.Map.of("finalPrice", "Le prix doit etre superieur ou egal au cout labo"));
+        }
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null) return "";
+        return status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String v = value.trim();
+        return v.isEmpty() ? null : v;
+    }
+
+
+    private void assertUniqueCode(String code, User practitioner, Long excludeProthesisId) {
+        String normalized = trimToNull(code);
+        if (normalized == null) return;
+
+        boolean exists = excludeProthesisId == null
+                ? repository.existsByPractitionerAndCodeIgnoreCase(practitioner, normalized)
+                : repository.existsByPractitionerAndCodeIgnoreCaseAndIdNot(practitioner, normalized, excludeProthesisId);
+
+        if (exists) {
+            throw new BadRequestException(java.util.Map.of("code", "Ce code est deja utilise"));
+        }
+    }
+
+    private boolean isAllowedStatusTransition(String current, String next) {
+        if (current == null || current.isBlank()) current = "PENDING";
+        if (current.equals(next)) return true;
+
+        return switch (current) {
+            case "PENDING" -> "SENT_TO_LAB".equals(next);
+            case "SENT_TO_LAB" -> "RECEIVED".equals(next);
+            case "RECEIVED" -> "FITTED".equals(next);
+            case "FITTED" -> false;
+            default -> false;
+        };
     }
 }

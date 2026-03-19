@@ -177,12 +177,6 @@ public class PublicPdfController {
     }
 
     private Patient resolvePatient(String idOrPublicId) {
-        if (idOrPublicId != null && idOrPublicId.chars().allMatch(Character::isDigit)) {
-            Long internalId = Long.parseLong(idOrPublicId);
-            return patientRepository.findById(internalId)
-                    .orElseThrow(() -> new RuntimeException("Patient introuvable"));
-        }
-
         try {
             UUID publicId = UUID.fromString(idOrPublicId);
             return patientRepository.findByPublicId(publicId)

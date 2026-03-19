@@ -1,40 +1,8 @@
 export const getApiErrorMessage = (error, fallback = "Une erreur est survenue") => {
-  const normalizeUserMessage = (message) => {
+  const clean = (message) => {
     if (typeof message !== "string") return "";
     const trimmed = message.trim();
-    if (!trimmed) return "";
-
-    const lower = trimmed.toLowerCase();
-
-    if (lower.includes("data integrity violation")) {
-      return "Operation impossible: cet element est lie a d'autres donnees";
-    }
-    if (lower.includes("validation failed")) {
-      return "Certaines informations sont invalides";
-    }
-    if (lower.includes("internal server error")) {
-      return "Une erreur interne est survenue";
-    }
-    if (lower.includes("access denied")) {
-      return "Acces refuse";
-    }
-    if (lower.includes("user not found") || lower.includes("current user not found")) {
-      return "Utilisateur introuvable";
-    }
-    if (lower.includes("patient not found")) return "Patient introuvable";
-    if (lower.includes("plan not found")) return "Plan introuvable";
-    if (lower.includes("payment not found")) return "Paiement introuvable";
-    if (lower.includes("template not found")) return "Modele introuvable";
-    if (lower.includes("laboratory not found")) return "Laboratoire introuvable";
-    if (lower.includes("employee not found")) return "Employe introuvable";
-    if (lower.includes("username already exists")) return "Ce nom d'utilisateur est deja utilise";
-    if (lower.includes("email already exists")) return "Cet email est deja utilise";
-    if (lower.includes("appointment overlaps with existing appointments")) {
-      return "Ce rendez-vous chevauche un autre rendez-vous";
-    }
-    if (lower.includes("payment is already processed")) return "Ce paiement est deja traite";
-
-    return trimmed;
+    return trimmed || "";
   };
 
   if (!error) return fallback;
@@ -43,12 +11,23 @@ export const getApiErrorMessage = (error, fallback = "Une erreur est survenue") 
     const data = error.response.data;
 
     if (typeof data === "string" && data.trim()) {
-      return normalizeUserMessage(data);
+      return clean(data) || fallback;
     }
 
     if (data && typeof data === "object") {
-      if (typeof data.error === "string" && data.error.trim()) return normalizeUserMessage(data.error);
-      if (typeof data.message === "string" && data.message.trim()) return normalizeUserMessage(data.message);
+      if (typeof data.error === "string" && data.error.trim()) return clean(data.error) || fallback;
+      if (typeof data.message === "string" && data.message.trim()) return clean(data.message) || fallback;
+
+      if (data.fieldErrors && typeof data.fieldErrors === "object") {
+        // Prefer the global form-level error (our backend envelope uses "_").
+        if (typeof data.fieldErrors._ === "string" && data.fieldErrors._.trim()) {
+          return clean(data.fieldErrors._) || fallback;
+        }
+        const firstFieldError = Object.entries(data.fieldErrors).find(
+          ([, value]) => typeof value === "string" && value.trim().length > 0
+        );
+        if (firstFieldError) return clean(firstFieldError[1]) || fallback;
+      }
 
       // Support validation maps like { field: message } from Spring @Valid handlers.
       const firstFieldMessage = Object.entries(data).find(
@@ -58,12 +37,19 @@ export const getApiErrorMessage = (error, fallback = "Une erreur est survenue") 
           typeof value === "string" &&
           value.trim().length > 0
       );
-      if (firstFieldMessage) return normalizeUserMessage(firstFieldMessage[1]);
+      if (firstFieldMessage) return clean(firstFieldMessage[1]) || fallback;
     }
   }
 
   if (error.request) return "Impossible de contacter le serveur";
-  if (typeof error.message === "string" && error.message.trim()) return normalizeUserMessage(error.message);
+  if (typeof error.message === "string" && error.message.trim()) return clean(error.message) || fallback;
 
   return fallback;
+};
+
+export const getApiFieldErrors = (error) => {
+  const data = error?.response?.data;
+  const fieldErrors = data?.fieldErrors;
+  if (!fieldErrors || typeof fieldErrors !== "object" || Array.isArray(fieldErrors)) return {};
+  return fieldErrors;
 };

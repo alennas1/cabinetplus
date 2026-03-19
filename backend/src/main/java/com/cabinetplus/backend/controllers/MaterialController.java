@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.MaterialRequest;
 import com.cabinetplus.backend.dto.MaterialResponse;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Material;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.MaterialService;
@@ -59,7 +60,10 @@ public class MaterialController {
         User currentUser = getCurrentUser(principal);
 
         boolean deleted = materialService.deleteByUser(id, currentUser);
-        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (!deleted) {
+            throw new NotFoundException("Materiau introuvable");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     // ðŸ”¹ Helpers

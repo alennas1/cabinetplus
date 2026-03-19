@@ -19,6 +19,8 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     List<Item> findByCreatedBy(User user);
     Optional<Item> findByIdAndCreatedBy(Long id, User user);
 
+    long countByCreatedByAndItemDefault_Id(User user, Long itemDefaultId);
+
  @Query("SELECT SUM(i.price) FROM Item i WHERE i.createdBy = :dentist AND i.createdAt BETWEEN :start AND :end")
     Optional<Double> sumPriceByDentist(@Param("dentist") User dentist,
                                        @Param("start") LocalDateTime start,

@@ -2,6 +2,7 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.services.PlanService;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,6 +34,6 @@ public class PlanClientController {
     public ResponseEntity<Plan> getPlanById(@PathVariable Long id) {
         return planService.findById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Plan introuvable"));
     }
 }

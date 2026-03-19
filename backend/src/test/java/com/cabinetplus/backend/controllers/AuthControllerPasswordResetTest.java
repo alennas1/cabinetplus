@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
@@ -57,6 +58,7 @@ class AuthControllerPasswordResetTest {
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
     }
@@ -75,7 +77,8 @@ class AuthControllerPasswordResetTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"phoneNumber\":\"0550000000\"}"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.fieldErrors._").exists());
     }
 
     @Test
@@ -92,7 +95,7 @@ class AuthControllerPasswordResetTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"phoneNumber\":\"0550000000\",\"code\":\"000000\",\"newPassword\":\"NewPassword123!\"}"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.fieldErrors._").exists());
     }
 }
-

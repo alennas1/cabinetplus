@@ -7,6 +7,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { getUserProfile, updateUserProfile } from "../services/userService";
 import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
+import { getApiErrorMessage } from "../utils/error";
 import "./Profile.css";
 
 const fieldLabels = {
@@ -41,7 +42,7 @@ const Profile = () => {
         setProfile({ ...data, profession: "Dentiste" });
       } catch (err) {
         console.error(err);
-        toast.error("Erreur lors du chargement du profil");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement du profil"));
       }
     };
     fetchProfile();
@@ -87,7 +88,7 @@ const Profile = () => {
       setEditingField(null);
       toast.success(`${fieldLabels[field]} mis à jour avec succès`);
     } catch (err) {
-      toast.error(`Erreur lors de la mise à jour`);
+      toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour"));
     }
   };
 

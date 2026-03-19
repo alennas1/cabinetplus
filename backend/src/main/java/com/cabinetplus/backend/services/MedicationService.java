@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.services;
 
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Medication;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.MedicationRepository;
@@ -18,6 +19,13 @@ public class MedicationService {
     }
 
     public Medication save(Medication medication) {
+        if (medication == null) {
+            throw new BadRequestException(java.util.Map.of("_", "Corps de requete invalide"));
+        }
+        if (medication.getCreatedBy() == null) {
+            throw new BadRequestException(java.util.Map.of("createdBy", "Utilisateur invalide"));
+        }
+        assertUniqueNameStrength(medication.getName(), medication.getStrength(), medication.getCreatedBy(), medication.getId());
         return medicationRepository.save(medication);
     }
 
@@ -36,6 +44,7 @@ public class MedicationService {
     public Optional<Medication> update(Long id, Medication updated, User user) {
         return medicationRepository.findByIdAndCreatedBy(id, user)
                 .map(existing -> {
+                    assertUniqueNameStrength(updated.getName(), updated.getStrength(), user, id);
                     updated.setId(id);
                     updated.setCreatedBy(user);
                     return medicationRepository.save(updated);
@@ -49,5 +58,26 @@ public class MedicationService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    private void assertUniqueNameStrength(String name, String strength, User user, Long excludeId) {
+        String normalizedName = name != null ? name.trim() : "";
+        if (normalizedName.isBlank()) return;
+
+        String normalizedStrength = strength != null ? strength.trim() : null;
+        boolean exists;
+        if (excludeId == null) {
+            exists = normalizedStrength == null || normalizedStrength.isBlank()
+                    ? medicationRepository.existsByCreatedByAndNameIgnoreCaseAndStrengthIsNull(user, normalizedName)
+                    : medicationRepository.existsByCreatedByAndNameIgnoreCaseAndStrengthIgnoreCase(user, normalizedName, normalizedStrength);
+        } else {
+            exists = normalizedStrength == null || normalizedStrength.isBlank()
+                    ? medicationRepository.existsByCreatedByAndNameIgnoreCaseAndStrengthIsNullAndIdNot(user, normalizedName, excludeId)
+                    : medicationRepository.existsByCreatedByAndNameIgnoreCaseAndStrengthIgnoreCaseAndIdNot(user, normalizedName, normalizedStrength, excludeId);
+        }
+
+        if (exists) {
+            throw new BadRequestException(java.util.Map.of("name", "Ce medicament existe deja"));
+        }
     }
 }

@@ -16,11 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cabinetplus.backend.dto.CreateItemDTO;
 import com.cabinetplus.backend.dto.ItemDTO;
 import com.cabinetplus.backend.dto.UpdateItemDTO;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Item;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.ItemService;
 import com.cabinetplus.backend.services.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -44,14 +46,13 @@ public class ItemController {
     @GetMapping("/{id}")
     public ResponseEntity<ItemDTO> getById(@PathVariable Long id, Principal principal) {
         User dentist = getClinicUser(principal);
-        return itemService.getItemByIdForDentist(id, dentist)
-                .map(itemService::toDTO)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        Item item = itemService.getItemByIdForDentist(id, dentist)
+                .orElseThrow(() -> new NotFoundException("Article introuvable"));
+        return ResponseEntity.ok(itemService.toDTO(item));
     }
 
     @PostMapping
-public ResponseEntity<ItemDTO> create(@RequestBody CreateItemDTO dto, Principal principal) {
+public ResponseEntity<ItemDTO> create(@Valid @RequestBody CreateItemDTO dto, Principal principal) {
     User dentist = getClinicUser(principal);
     
     Item saved = itemService.createItemFromDTO(dto, dentist);
@@ -60,20 +61,10 @@ public ResponseEntity<ItemDTO> create(@RequestBody CreateItemDTO dto, Principal 
 
    @PutMapping("/{id}")
 public ResponseEntity<ItemDTO> update(@PathVariable Long id,
-                                      @RequestBody UpdateItemDTO dto,
+                                      @Valid @RequestBody UpdateItemDTO dto,
                                       Principal principal) {
     User dentist = getClinicUser(principal);
-
-    // fetch existing item
-    Item existingItem = itemService.getItemByIdForDentist(id, dentist)
-            .orElseThrow(() -> new RuntimeException("Article introuvable"));
-
-    // update only editable fields
-    existingItem.setQuantity(dto.getQuantity());
-    existingItem.setUnitPrice(dto.getUnitPrice());
-    existingItem.calculatePrice(); // recalc total price
-existingItem.setExpiryDate(dto.getExpiryDate());
-    Item saved = itemService.updateItem(id, existingItem, dentist);
+    Item saved = itemService.updateItemFromDTO(id, dto, dentist);
 
     return ResponseEntity.ok(itemService.toDTO(saved));
 }
@@ -84,7 +75,7 @@ public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
 
     // Option 1: hard delete
     itemService.getItemByIdForDentist(id, dentist)
-            .orElseThrow(() -> new RuntimeException("Article introuvable"));
+            .orElseThrow(() -> new NotFoundException("Article introuvable"));
 
     itemService.deleteItem(id, dentist);
     return ResponseEntity.noContent().build();

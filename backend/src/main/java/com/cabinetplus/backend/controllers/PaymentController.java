@@ -34,8 +34,10 @@ public class PaymentController {
     private final PublicIdResolutionService publicIdResolutionService;
 
     @PostMapping("/payments")
-    public ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request) {
-        PaymentResponse created = paymentService.create(request);
+    public ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request, Principal principal) {
+        User actor = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        PaymentResponse created = paymentService.create(request, actor);
         Patient patient = patientRepository.findById(request.patientId()).orElse(null);
         auditService.logSuccess(
                 AuditEventType.PAYMENT_CREATE,
@@ -52,15 +54,19 @@ public class PaymentController {
 
     @GetMapping("/patients/{patientId}/payments")
     public ResponseEntity<List<Payment>> listByPatient(@PathVariable String patientId, Principal principal) {
-        User ownerDentist = getClinicUser(principal);
+        User actor = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User ownerDentist = userService.resolveClinicOwner(actor);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
-        return ResponseEntity.ok(paymentService.listByPatient(internalPatientId));
+        return ResponseEntity.ok(paymentService.listByPatient(internalPatientId, actor));
     }
 
     @DeleteMapping("/payments/{paymentId}")
-    public ResponseEntity<Void> delete(@PathVariable Long paymentId) {
+    public ResponseEntity<Void> delete(@PathVariable Long paymentId, Principal principal) {
+        User actor = userService.findByUsername(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         Payment existing = paymentRepository.findById(paymentId).orElse(null);
-        paymentService.delete(paymentId);
+        paymentService.delete(paymentId, actor);
         auditService.logSuccess(
                 AuditEventType.PAYMENT_DELETE,
                 "PATIENT",

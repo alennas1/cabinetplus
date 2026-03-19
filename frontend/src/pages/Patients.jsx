@@ -275,7 +275,14 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
     }
     setIsSubmitting(true);
     try {
-      const payload = { ...formData, phone: normalizePhoneInput(formData.phone) };
+      const rawAge = String(formData.age ?? "").trim();
+      const payload = {
+        firstname: String(formData.firstname ?? "").trim(),
+        lastname: String(formData.lastname ?? "").trim(),
+        age: rawAge ? Number(rawAge) : null,
+        phone: normalizePhoneInput(formData.phone),
+        sex: String(formData.sex ?? "").trim(),
+      };
       if (isEditing) {
         const updated = await updatePatient(formData.id, payload, token);
         setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));

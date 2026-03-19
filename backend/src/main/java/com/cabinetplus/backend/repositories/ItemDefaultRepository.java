@@ -14,4 +14,7 @@ public interface ItemDefaultRepository extends JpaRepository<ItemDefault, Long> 
     List<ItemDefault> findByCreatedBy(User user);
 
     Optional<ItemDefault> findByIdAndCreatedBy(Long id, User user);
+
+    boolean existsByCreatedByAndNameIgnoreCase(User user, String name);
+    boolean existsByCreatedByAndNameIgnoreCaseAndIdNot(User user, String name, Long id);
 }

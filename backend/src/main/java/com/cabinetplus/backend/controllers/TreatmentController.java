@@ -1,6 +1,9 @@
 package com.cabinetplus.backend.controllers;
 
+import com.cabinetplus.backend.dto.TreatmentCreateRequest;
+import com.cabinetplus.backend.dto.TreatmentUpdateRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
@@ -11,6 +14,7 @@ import com.cabinetplus.backend.services.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
@@ -49,17 +53,16 @@ public class TreatmentController {
     @GetMapping("/{id}")
     public ResponseEntity<Treatment> getTreatmentById(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
-        Optional<Treatment> treatment = treatmentService.findByIdAndPractitioner(id, currentUser);
-        return treatment.map(ResponseEntity::ok)
-                        .orElse(ResponseEntity.notFound().build());
+        Treatment treatment = treatmentService.findByIdAndPractitioner(id, currentUser)
+                .orElseThrow(() -> new NotFoundException("Traitement introuvable"));
+        return ResponseEntity.ok(treatment);
     }
 
     // Create treatment
     @PostMapping
-    public ResponseEntity<Treatment> createTreatment(@RequestBody Treatment treatment, Principal principal) {
+    public ResponseEntity<Treatment> createTreatment(@Valid @RequestBody TreatmentCreateRequest request, Principal principal) {
         User currentUser = getCurrentUser(principal);
-        treatment.setPractitioner(currentUser);
-        Treatment saved = treatmentService.save(treatment);
+        Treatment saved = treatmentService.createTreatment(request, currentUser);
         auditService.logSuccess(
                 AuditEventType.TREATMENT_CREATE,
                 "PATIENT",
@@ -72,37 +75,38 @@ public class TreatmentController {
     // Update treatment
     @PutMapping("/{id}")
     public ResponseEntity<Treatment> updateTreatment(@PathVariable Long id,
-                                                     @RequestBody Treatment treatment,
+                                                     @Valid @RequestBody TreatmentUpdateRequest request,
                                                      Principal principal) {
         User currentUser = getCurrentUser(principal);
-        Optional<Treatment> updated = treatmentService.update(id, treatment, currentUser);
-        updated.ifPresent(saved -> auditService.logSuccess(
+        Treatment saved = treatmentService.updateTreatment(id, request, currentUser);
+        auditService.logSuccess(
                 AuditEventType.TREATMENT_UPDATE,
                 "PATIENT",
                 saved.getPatient() != null ? String.valueOf(saved.getPatient().getId()) : null,
                 "Traitement modifie pour " + formatPatientName(saved.getPatient())
-        ));
-        return updated.map(ResponseEntity::ok)
-                      .orElse(ResponseEntity.notFound().build());
+        );
+        return ResponseEntity.ok(saved);
     }
 
     // Delete treatment
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTreatment(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
-        Optional<Treatment> existing = treatmentService.findByIdAndPractitioner(id, currentUser);
+        Treatment existing = treatmentService.findByIdAndPractitioner(id, currentUser)
+                .orElseThrow(() -> new NotFoundException("Traitement introuvable"));
+
         boolean deleted = treatmentService.deleteByPractitioner(id, currentUser);
-        if (deleted) {
-            auditService.logSuccess(
-                    AuditEventType.TREATMENT_DELETE,
-                    "PATIENT",
-                    existing.map(treatment -> treatment.getPatient() != null ? String.valueOf(treatment.getPatient().getId()) : null)
-                            .orElse(null),
-                    existing.map(treatment -> "Traitement supprime pour " + formatPatientName(treatment.getPatient()))
-                            .orElse("Traitement supprime: #" + id)
-            );
+        if (!deleted) {
+            throw new NotFoundException("Traitement introuvable");
         }
-        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+
+        auditService.logSuccess(
+                AuditEventType.TREATMENT_DELETE,
+                "PATIENT",
+                existing.getPatient() != null ? String.valueOf(existing.getPatient().getId()) : null,
+                "Traitement supprime pour " + formatPatientName(existing.getPatient())
+        );
+        return ResponseEntity.noContent().build();
     }
 
     // Get treatments by patient scoped to current user

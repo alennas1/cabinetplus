@@ -1,13 +1,13 @@
 package com.cabinetplus.backend.services;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,6 +17,7 @@ import com.cabinetplus.backend.dto.EmployeeResponseDTO;
 import com.cabinetplus.backend.dto.EmployeeWorkingHoursDTO;
 import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.EmployeeWorkingHours;
 import com.cabinetplus.backend.models.User;
@@ -29,11 +30,6 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class EmployeeService {
-    private static final Pattern DZ_PHONE_REGEX = Pattern.compile("^(?:0[5-7]\\d{8}|(?:\\+?213)[5-7]\\d{8})$");
-    private static final Pattern USERNAME_REGEX = Pattern.compile("^[A-Za-z0-9._-]{3,20}$");
-    private static final Pattern STRONG_PASSWORD_REGEX = Pattern.compile(
-            "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,100}$");
-
     private final EmployeeRepository employeeRepository;
     private final EmployeeWorkingHoursRepository workingHoursRepository;
     private final UserRepository userRepository;
@@ -42,8 +38,8 @@ public class EmployeeService {
 
     // --- Create ---
     public EmployeeResponseDTO saveEmployee(EmployeeRequestDTO dto, User dentist) {
-        validatePhoneForLogin(dto.getPhone(), null);
         String normalizedPhone = normalizePhone(dto.getPhone());
+        assertDatesCoherent(dto.getHireDate(), dto.getEndDate());
         planLimitService.assertEmployeeRoleAllowed(dentist, dto.getAccessRole());
         User linkedUser = createLinkedUser(dentist, dto);
 
@@ -101,8 +97,9 @@ public class EmployeeService {
         User linkedUser = existing.getUser();
         ClinicAccessRole previousRole = linkedUser != null ? linkedUser.getClinicAccessRole() : null;
         Long linkedUserId = linkedUser != null ? linkedUser.getId() : null;
-        validatePhoneForLogin(dto.getPhone(), linkedUserId);
         String normalizedPhone = normalizePhone(dto.getPhone());
+        assertDatesCoherent(dto.getHireDate(), dto.getEndDate());
+        assertPhoneUnique(normalizedPhone, linkedUserId);
         ClinicAccessRole nextRole = dto.getAccessRole() != null ? dto.getAccessRole() : previousRole;
         if (roleCategoryChanged(previousRole, nextRole)) {
             planLimitService.assertEmployeeRoleAllowed(dentist, nextRole);
@@ -118,15 +115,12 @@ public class EmployeeService {
             }
 
             if (hasText(dto.getUsername()) && !dto.getUsername().equalsIgnoreCase(linkedUser.getUsername())) {
-                validateUsername(dto.getUsername());
-                if (userRepository.findByUsername(dto.getUsername()).isPresent()) {
-                    throw new IllegalArgumentException("Nom d'utilisateur deja utilise");
-                }
-                linkedUser.setUsername(dto.getUsername());
+                String nextUsername = dto.getUsername().trim();
+                assertUsernameUnique(nextUsername, linkedUser.getId());
+                linkedUser.setUsername(nextUsername);
             }
 
             if (hasText(dto.getPassword())) {
-                validatePassword(dto.getPassword());
                 linkedUser.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
             }
         }
@@ -247,26 +241,33 @@ public class EmployeeService {
     }
 
     private User createLinkedUser(User ownerDentist, EmployeeRequestDTO dto) {
-        if (!hasText(dto.getUsername()) || !hasText(dto.getPassword()) || dto.getAccessRole() == null) {
-            throw new IllegalArgumentException("Username, password et role d'acces sont obligatoires");
+        if (!hasText(dto.getUsername())) {
+            throw new BadRequestException(java.util.Map.of("username", "Nom d'utilisateur obligatoire"));
         }
-        validateUsername(dto.getUsername());
-        validatePassword(dto.getPassword());
-        validateStaffRole(dto.getAccessRole());
-        validatePhoneForLogin(dto.getPhone(), null);
-        if (userRepository.findByUsername(dto.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Nom d'utilisateur deja utilise");
+        if (!hasText(dto.getPassword())) {
+            throw new BadRequestException(java.util.Map.of("password", "Mot de passe obligatoire"));
+        }
+        if (dto.getAccessRole() == null) {
+            throw new BadRequestException(java.util.Map.of("accessRole", "Role d'acces obligatoire"));
         }
 
+        validateStaffRole(dto.getAccessRole());
+
+        String normalizedUsername = dto.getUsername().trim();
+        assertUsernameUnique(normalizedUsername, null);
+
+        String normalizedPhone = normalizePhone(dto.getPhone());
+        assertPhoneUnique(normalizedPhone, null);
+
         User user = new User();
-        user.setUsername(dto.getUsername());
+        user.setUsername(normalizedUsername);
         user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         user.setRole(UserRole.DENTIST);
         user.setClinicAccessRole(dto.getAccessRole());
         user.setOwnerDentist(ownerDentist);
         user.setFirstname(dto.getFirstName());
         user.setLastname(dto.getLastName());
-        user.setPhoneNumber(normalizePhone(dto.getPhone()));
+        user.setPhoneNumber(normalizedPhone);
         user.setPhoneVerified(true);
         user.setCreatedAt(LocalDateTime.now());
         user.setPlan(ownerDentist.getPlan());
@@ -276,15 +277,9 @@ public class EmployeeService {
         return userRepository.save(user);
     }
 
-    private void validatePhoneForLogin(String phone, Long currentUserId) {
-        if (!hasText(phone)) {
-            throw new IllegalArgumentException("Le numero de telephone est obligatoire");
-        }
-
-        String normalizedPhone = normalizePhone(phone);
-        if (!DZ_PHONE_REGEX.matcher(normalizedPhone).matches()) {
-            throw new IllegalArgumentException(
-                    "Numero de telephone algerien invalide (ex: 0550123456 ou +213550123456)");
+    private void assertPhoneUnique(String normalizedPhone, Long currentUserId) {
+        if (!hasText(normalizedPhone)) {
+            throw new BadRequestException(java.util.Map.of("phone", "Le numero de telephone est obligatoire"));
         }
 
         boolean alreadyUsed = currentUserId == null
@@ -292,7 +287,7 @@ public class EmployeeService {
                 : userRepository.existsByPhoneNumberAndIdNot(normalizedPhone, currentUserId);
 
         if (alreadyUsed) {
-            throw new IllegalArgumentException("Ce numero de telephone est deja utilise");
+            throw new BadRequestException(java.util.Map.of("phone", "Ce numero de telephone est deja utilise"));
         }
     }
 
@@ -302,35 +297,34 @@ public class EmployeeService {
         return phone.replaceAll("[\\s-]", "").trim();
     }
 
-    private void validateUsername(String username) {
+    private void assertUsernameUnique(String username, Long currentUserId) {
         if (!hasText(username)) {
-            throw new IllegalArgumentException("Le nom d'utilisateur est obligatoire");
+            throw new BadRequestException(java.util.Map.of("username", "Nom d'utilisateur obligatoire"));
         }
-        String normalized = username.trim();
-        if (!USERNAME_REGEX.matcher(normalized).matches()) {
-            throw new IllegalArgumentException(
-                    "Nom d'utilisateur invalide (3-20 caracteres, lettres/chiffres/._-)");
-        }
-    }
 
-    private void validatePassword(String password) {
-        if (!hasText(password)) {
-            throw new IllegalArgumentException("Le mot de passe est obligatoire");
-        }
-        if (!STRONG_PASSWORD_REGEX.matcher(password).matches()) {
-            throw new IllegalArgumentException(
-                    "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole");
+        boolean exists = currentUserId == null
+                ? userRepository.existsByUsernameIgnoreCase(username)
+                : userRepository.existsByUsernameIgnoreCaseAndIdNot(username, currentUserId);
+
+        if (exists) {
+            throw new BadRequestException(java.util.Map.of("username", "Nom d'utilisateur deja utilise"));
         }
     }
 
     private void validateStaffRole(ClinicAccessRole role) {
         if (role == ClinicAccessRole.DENTIST) {
-            throw new IllegalArgumentException("Le role DENTIST est reserve au proprietaire");
+            throw new BadRequestException(java.util.Map.of("accessRole", "Le role DENTIST est reserve au proprietaire"));
         }
     }
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private void assertDatesCoherent(LocalDate hireDate, LocalDate endDate) {
+        if (hireDate != null && endDate != null && endDate.isBefore(hireDate)) {
+            throw new BadRequestException(java.util.Map.of("endDate", "La date de fin doit etre apres la date d'embauche"));
+        }
     }
 
     private boolean roleCategoryChanged(ClinicAccessRole previousRole, ClinicAccessRole nextRole) {

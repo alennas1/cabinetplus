@@ -8,11 +8,13 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.EmployeeService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -26,7 +28,7 @@ public class EmployeeController {
 
     @PostMapping
     public ResponseEntity<EmployeeResponseDTO> createEmployee(
-            @RequestBody EmployeeRequestDTO dto,
+            @Valid @RequestBody EmployeeRequestDTO dto,
             Principal principal) {
 
         User dentist = getClinicUser(principal);
@@ -38,7 +40,7 @@ public class EmployeeController {
     @PutMapping("/{id}")
     public ResponseEntity<EmployeeResponseDTO> updateEmployee(
             @PathVariable String id,
-            @RequestBody EmployeeRequestDTO dto,
+            @Valid @RequestBody EmployeeRequestDTO dto,
             Principal principal) {
 
         User dentist = getClinicUser(principal);
@@ -64,7 +66,7 @@ public class EmployeeController {
         Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(id, dentist).getId();
         return employeeService.getEmployeeByIdForDentist(internalEmployeeId, dentist)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Employe introuvable"));
     }
 
     @DeleteMapping("/{id}")

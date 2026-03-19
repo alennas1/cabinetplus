@@ -15,12 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.ExpenseRequestDTO;
 import com.cabinetplus.backend.dto.ExpenseResponseDTO;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.ExpenseService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -48,14 +50,13 @@ public class ExpenseController {
     public ResponseEntity<ExpenseResponseDTO> getById(@PathVariable Long id, Principal principal) {
         User user = getClinicUser(principal);
 
-        return expenseService.getExpenseByIdForUser(id, user)
-                .map(expenseService::toDTO)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        Expense expense = expenseService.getExpenseByIdForUser(id, user)
+                .orElseThrow(() -> new NotFoundException("Depense introuvable"));
+        return ResponseEntity.ok(expenseService.toDTO(expense));
     }
 
     @PostMapping
-    public ResponseEntity<ExpenseResponseDTO> create(@RequestBody ExpenseRequestDTO dto, Principal principal) {
+    public ResponseEntity<ExpenseResponseDTO> create(@RequestBody @Valid ExpenseRequestDTO dto, Principal principal) {
         User user = getClinicUser(principal);
 
         Expense expense = expenseService.createExpense(dto, user);
@@ -64,7 +65,7 @@ public class ExpenseController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ExpenseResponseDTO> update(@PathVariable Long id,
-                                                     @RequestBody ExpenseRequestDTO dto,
+                                                     @RequestBody @Valid ExpenseRequestDTO dto,
                                                      Principal principal) {
         User user = getClinicUser(principal);
 
@@ -99,7 +100,7 @@ public ResponseEntity<List<ExpenseResponseDTO>> getByEmployee(
 
 private User getClinicUser(Principal principal) {
     User user = userService.findByUsername(principal.getName())
-            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+            .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
     return userService.resolveClinicOwner(user);
 }
 }

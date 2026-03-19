@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import com.cabinetplus.backend.dto.*;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.services.*;
 import jakarta.validation.Valid;
@@ -59,7 +60,10 @@ public class LaboratoryController {
         updateData.setContactPerson(dto.contactPerson());
         updateData.setPhoneNumber(dto.phoneNumber());
         updateData.setAddress(dto.address());
-        return service.update(internalLabId, updateData, user).map(this::mapToResponse).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+        return service.update(internalLabId, updateData, user)
+                .map(this::mapToResponse)
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new NotFoundException("Laboratoire introuvable"));
     }
 
     @PostMapping("/{id}/payments")
@@ -80,12 +84,13 @@ public class LaboratoryController {
         Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
         Laboratory laboratory = service.findByIdAndUser(internalLabId, user).orElse(null);
         if (laboratory == null) {
-            return ResponseEntity.notFound().build();
+            throw new NotFoundException("Laboratoire introuvable");
         }
 
-        return service.deletePayment(internalLabId, paymentId, user)
-                ? ResponseEntity.noContent().build()
-                : ResponseEntity.notFound().build();
+        if (!service.deletePayment(internalLabId, paymentId, user)) {
+            throw new NotFoundException("Paiement introuvable");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
@@ -94,7 +99,7 @@ public class LaboratoryController {
         Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
         Laboratory laboratory = service.findByIdAndUser(internalLabId, user).orElse(null);
         if (laboratory == null) {
-            return ResponseEntity.notFound().build();
+            throw new NotFoundException("Laboratoire introuvable");
         }
 
         if (!service.deleteByUser(internalLabId, user)) {
@@ -106,7 +111,7 @@ public class LaboratoryController {
 
     private User getCurrentUser(Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+                .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }
 

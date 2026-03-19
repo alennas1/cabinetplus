@@ -1,8 +1,5 @@
 package com.cabinetplus.backend.controllers;
 
-import com.cabinetplus.backend.dto.HandPaymentDTO;
-import com.cabinetplus.backend.enums.BillingCycle;
-import com.cabinetplus.backend.enums.PaymentStatus;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.HandPayment;
 import com.cabinetplus.backend.models.Plan;
@@ -66,8 +63,7 @@ class HandPaymentControllerTest {
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/hand-payments/create"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
     }
 
     @Test
@@ -85,12 +81,11 @@ class HandPaymentControllerTest {
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Plan introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/hand-payments/create"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Plan introuvable"));
     }
 
     @Test
-    void createWithInvalidBillingCycleFallsBackToMonthly() throws Exception {
+    void createWithInvalidBillingCycleReturns400WithFieldErrors() throws Exception {
         User user = new User();
         user.setId(1L);
         user.setUsername("dentist");
@@ -99,12 +94,6 @@ class HandPaymentControllerTest {
 
         when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
         when(planRepository.findById(2L)).thenReturn(Optional.of(plan));
-        when(handPaymentService.createHandPayment(any(HandPayment.class))).thenAnswer(inv -> {
-            HandPayment p = inv.getArgument(0);
-            p.setId(77L);
-            p.setStatus(PaymentStatus.PENDING);
-            return p;
-        });
 
         mockMvc.perform(post("/api/hand-payments/create")
                         .with(userPrincipal("dentist"))
@@ -112,10 +101,9 @@ class HandPaymentControllerTest {
                         .content("""
                                 {"planId":2,"amount":3000,"billingCycle":"whatever","notes":"n"}
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(77))
-                .andExpect(jsonPath("$.billingCycle").value(BillingCycle.MONTHLY.name()))
-                .andExpect(jsonPath("$.status").value(PaymentStatus.PENDING.name()));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.billingCycle").value("Cycle de facturation invalide"));
     }
 
     private static RequestPostProcessor userPrincipal(String username) {

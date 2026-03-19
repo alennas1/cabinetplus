@@ -105,7 +105,7 @@ const LaboratoryDetails = () => {
       const data = await getLaboratoryById(id);
       setLaboratory(data);
     } catch (err) {
-      toast.error("Impossible de charger le laboratoire");
+      toast.error(getApiErrorMessage(err, "Impossible de charger le laboratoire"));
     } finally {
       if (!silent) setLoading(false);
     }

@@ -10,6 +10,7 @@ import { getAllDentists } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { Eye, ChevronDown, Search } from "react-feather";
 import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
@@ -48,7 +49,7 @@ const Dentists = () => {
       setDentists(data);
     } catch (err) {
       console.error("Error fetching dentists:", err);
-      toast.error("Erreur lors du chargement des dentistes");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des dentistes"));
     }
   };
 

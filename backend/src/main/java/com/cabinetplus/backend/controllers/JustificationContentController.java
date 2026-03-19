@@ -4,6 +4,7 @@ import com.cabinetplus.backend.dto.JustificationContentRequestDTO;
 import com.cabinetplus.backend.dto.JustificationContentResponseDTO;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.services.JustificationContentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -33,7 +34,7 @@ public class JustificationContentController {
 
     private User getPractitioner(Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Praticien introuvable"));
+                .orElseThrow(() -> new NotFoundException("Praticien introuvable"));
         return userService.resolveClinicOwner(user);
     }
 
@@ -121,9 +122,10 @@ public class JustificationContentController {
 
         boolean deleted = service.delete(internalId, practitioner);
 
-        return deleted
-                ? ResponseEntity.noContent().build()
-                : ResponseEntity.notFound().build();
+        if (!deleted) {
+            throw new NotFoundException("Modele introuvable");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     // =========================

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.dto.MedicationRequest;
 import com.cabinetplus.backend.dto.MedicationResponse;
 import com.cabinetplus.backend.models.Medication;
@@ -58,17 +59,17 @@ public class MedicationController {
     public ResponseEntity<MedicationResponse> getMedicationById(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
 
-        return medicationService.findByIdAndUser(id, currentUser)
-                .map(m -> new MedicationResponse(
-                        m.getId(),
-                        m.getName(),
-                        m.getGenericName(),
-                        m.getDosageForm(),
-                        m.getStrength(),
-                        m.getDescription()
-                ))
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        Medication m = medicationService.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new NotFoundException("Medicament introuvable"));
+
+        return ResponseEntity.ok(new MedicationResponse(
+                m.getId(),
+                m.getName(),
+                m.getGenericName(),
+                m.getDosageForm(),
+                m.getStrength(),
+                m.getDescription()
+        ));
     }
 
     @PostMapping
@@ -108,7 +109,7 @@ public class MedicationController {
 
         User currentUser = getCurrentUser(principal);
 
-        return medicationService.update(id, new Medication(
+        Medication saved = medicationService.update(id, new Medication(
                 id,
                 dto.getName(),
                 dto.getGenericName(),
@@ -116,15 +117,16 @@ public class MedicationController {
                 dto.getStrength(),
                 dto.getDescription(),
                 currentUser
-        ), currentUser).map(saved -> new MedicationResponse(
+        ), currentUser).orElseThrow(() -> new NotFoundException("Medicament introuvable"));
+
+        return ResponseEntity.ok(new MedicationResponse(
                 saved.getId(),
                 saved.getName(),
                 saved.getGenericName(),
                 saved.getDosageForm(),
                 saved.getStrength(),
                 saved.getDescription()
-        )).map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        ));
     }
 
     @DeleteMapping("/{id}")
@@ -132,7 +134,10 @@ public class MedicationController {
         User currentUser = getCurrentUser(principal);
 
         boolean deleted = medicationService.deleteByUser(id, currentUser);
-        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (!deleted) {
+            throw new NotFoundException("Medicament introuvable");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     private User getCurrentUser(Principal principal) {

@@ -2,6 +2,7 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 let isLoggingOut = false;
+const MANUAL_LOGOUT_KEY = "cabinetplus:manual_logout_at";
 
 const api = axios.create({
   baseURL: API_URL,
@@ -23,6 +24,30 @@ const processQueue = (error, token = null) => {
 const isNetworkError = (error) => !error?.response || error?.response?.status === 0;
 const notifyOffline = () => {
   window.dispatchEvent(new Event("appOffline"));
+};
+
+const markManualLogout = () => {
+  try {
+    localStorage.setItem(MANUAL_LOGOUT_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+};
+
+const clearManualLogout = () => {
+  try {
+    localStorage.removeItem(MANUAL_LOGOUT_KEY);
+  } catch {
+    // ignore
+  }
+};
+
+const hasManualLogout = () => {
+  try {
+    return !!localStorage.getItem(MANUAL_LOGOUT_KEY);
+  } catch {
+    return false;
+  }
 };
 
 export const setAccessToken = (token, expiresInMs = DEFAULT_ACCESS_TOKEN_MS) => {
@@ -136,6 +161,19 @@ api.interceptors.response.use(
 
 export const initializeSession = async () => {
   try {
+    // If the user explicitly logged out, don't silently restore the session on reload,
+    // even if the refresh cookie is still present (e.g. logout request blocked/offline).
+    if (hasManualLogout()) {
+      try {
+        // Best-effort server-side revoke + cookie clear.
+        await api.post("/auth/logout");
+      } catch {
+        // ignore
+      }
+      clearAccessToken();
+      return false;
+    }
+
     const { data } = await api.post("/auth/session");
     if (data.accessToken) {
       setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
@@ -157,12 +195,14 @@ export const login = async (username, password) => {
   // Ensure stale refresh timers/tokens from a previous session don't trigger
   // a session-expired popup while the user is simply retrying credentials.
   clearAccessToken();
+  clearManualLogout();
   const { data } = await api.post("/auth/login", { username, password });
   setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
   return data;
 };
 
 export const register = async (userData) => {
+  clearManualLogout();
   const { data } = await api.post("/auth/register", userData);
   setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
   return data;
@@ -184,10 +224,16 @@ export const confirmPasswordReset = async ({ phoneNumber, code, newPassword }) =
 
 export const logout = async () => {
   isLoggingOut = true;
+  markManualLogout();
   try {
     await api.post("/auth/logout");
   } finally {
     clearAccessToken();
+    try {
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
     isLoggingOut = false;
   }
 };

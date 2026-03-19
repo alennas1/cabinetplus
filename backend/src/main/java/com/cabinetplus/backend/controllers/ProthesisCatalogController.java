@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.cabinetplus.backend.dto.*;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.services.*;
 import jakarta.validation.Valid;
@@ -49,17 +50,22 @@ public class ProthesisCatalogController {
         updateData.setFlatFee(dto.isFlatFee());
         updateData.setMultiUnit(!dto.isFlatFee() && dto.isMultiUnit());
         return service.update(id, updateData, dto.materialId(), user)
-                .map(this::mapToResponse).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+                .map(this::mapToResponse)
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new NotFoundException("Prothese introuvable"));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
-        return service.deleteByUser(id, getCurrentUser(principal)) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (!service.deleteByUser(id, getCurrentUser(principal))) {
+            throw new NotFoundException("Prothese introuvable");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     private User getCurrentUser(Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+                .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }
 

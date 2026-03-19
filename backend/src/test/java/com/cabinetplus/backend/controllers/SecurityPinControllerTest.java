@@ -1,5 +1,9 @@
 package com.cabinetplus.backend.controllers;
 
+import com.cabinetplus.backend.dto.SecurityPinChangeRequest;
+import com.cabinetplus.backend.dto.SecurityPinEnableRequest;
+import com.cabinetplus.backend.dto.SecurityPinVerifyRequest;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.UserService;
@@ -8,13 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,8 +61,8 @@ class SecurityPinControllerTest {
     @Test
     void enableWithInvalidPinThrowsBadRequest() {
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
-        assertThrows(IllegalArgumentException.class,
-                () -> controller.enable(userDetails, Map.of("pin", "12")));
+        assertThrows(BadRequestException.class,
+                () -> controller.enable(userDetails, new SecurityPinEnableRequest("12")));
     }
 
     @Test
@@ -68,8 +70,8 @@ class SecurityPinControllerTest {
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("bad", "hash")).thenReturn(false);
 
-        assertThrows(AccessDeniedException.class,
-                () -> controller.change(userDetails, Map.of("password", "bad", "pin", "1234")));
+        assertThrows(BadRequestException.class,
+                () -> controller.change(userDetails, new SecurityPinChangeRequest("bad", "1234")));
     }
 
     @Test
@@ -81,7 +83,7 @@ class SecurityPinControllerTest {
     @Test
     void verifyReturnsFalseWhenDisabled() {
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
-        Map<String, Object> out = controller.verify(userDetails, Map.of("pin", "1234"));
+        var out = controller.verify(userDetails, new SecurityPinVerifyRequest("1234"));
         assertFalse((Boolean) out.get("valid"));
     }
 
@@ -91,7 +93,7 @@ class SecurityPinControllerTest {
         when(passwordEncoder.encode("1234")).thenReturn("hashedPin");
         when(userService.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Map<String, Object> out = controller.enable(userDetails, Map.of("pin", "1234"));
+        var out = controller.enable(userDetails, new SecurityPinEnableRequest("1234"));
 
         assertTrue((Boolean) out.get("enabled"));
         assertTrue(user.isGestionCabinetPinEnabled());

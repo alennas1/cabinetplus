@@ -141,7 +141,7 @@ const Devise = () => {
             setFieldErrors({});
             await loadData();
         } catch (err) {
-            toast.error("Erreur lors de l'enregistrement");
+            toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
         } finally {
             setIsSubmitting(false);
         }

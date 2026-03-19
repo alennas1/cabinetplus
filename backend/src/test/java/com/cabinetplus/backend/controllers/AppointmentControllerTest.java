@@ -2,7 +2,9 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.enums.AppointmentStatus;
+import com.cabinetplus.backend.exceptions.ConflictException;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
@@ -20,9 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -70,8 +70,7 @@ class AppointmentControllerTest {
         mockMvc.perform(get("/api/appointments").with(userPrincipal("missing")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/appointments"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
     }
 
     @Test
@@ -82,11 +81,8 @@ class AppointmentControllerTest {
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
-        Appointment existing = new Appointment();
-        existing.setId(10L);
-        existing.setDateTimeStart(LocalDateTime.parse("2026-03-10T10:00:00"));
-        existing.setDateTimeEnd(LocalDateTime.parse("2026-03-10T11:00:00"));
-        when(appointmentService.findByPractitioner(current)).thenReturn(List.of(existing));
+        when(appointmentService.createAppointment(any(), eq(current)))
+                .thenThrow(new ConflictException("Ce rendez-vous chevauche un autre rendez-vous"));
 
         mockMvc.perform(post("/api/appointments")
                         .with(userPrincipal("dentist"))
@@ -102,8 +98,7 @@ class AppointmentControllerTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.error").value("Ce rendez-vous chevauche un autre rendez-vous"))
-                .andExpect(jsonPath("$.path").value("/api/appointments"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Ce rendez-vous chevauche un autre rendez-vous"));
     }
 
     @Test
@@ -113,8 +108,8 @@ class AppointmentControllerTest {
         current.setUsername("dentist");
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
-        when(appointmentService.findByPractitioner(current)).thenReturn(List.of());
-        when(patientService.findById(99L)).thenReturn(Optional.empty());
+        when(appointmentService.createAppointment(any(), eq(current)))
+                .thenThrow(new NotFoundException("Patient introuvable"));
 
         mockMvc.perform(post("/api/appointments")
                         .with(userPrincipal("dentist"))
@@ -130,8 +125,7 @@ class AppointmentControllerTest {
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Patient introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/appointments"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Patient introuvable"));
     }
 
     @Test
@@ -143,10 +137,9 @@ class AppointmentControllerTest {
         current.setUsername("dentist");
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
-        when(appointmentService.findByPractitioner(current)).thenReturn(List.of());
 
         PatientDto patientDto = new PatientDto(5L, "Ali", "Ben", 32, "Homme", "0550000000", LocalDateTime.now(), 0L, 0.0, false, false, false);
-        when(patientService.findById(5L)).thenReturn(Optional.of(patientDto));
+        when(patientService.findByIdAndUser(5L, current)).thenReturn(patientDto);
 
         Appointment saved = new Appointment();
         saved.setId(123L);
@@ -154,7 +147,7 @@ class AppointmentControllerTest {
         saved.setDateTimeEnd(LocalDateTime.parse("2026-03-10T12:30:00"));
         saved.setStatus(AppointmentStatus.SCHEDULED);
         saved.setNotes("ok");
-        when(appointmentService.save(any(Appointment.class))).thenReturn(saved);
+        when(appointmentService.createAppointment(any(), eq(current))).thenReturn(saved);
 
         mockMvc.perform(post("/api/appointments")
                         .with(userPrincipal("dentist"))
@@ -181,8 +174,27 @@ class AppointmentControllerTest {
         mockMvc.perform(get("/api/appointments/stats/completed-today").with(userPrincipal("missing")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/appointments/stats/completed-today"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
+    }
+
+    @Test
+    void createAppointmentWhenMissingFieldsReturns400WithFieldErrors() throws Exception {
+        User current = new User();
+        current.setId(1L);
+        current.setUsername("dentist");
+        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        when(userService.resolveClinicOwner(current)).thenReturn(current);
+
+        mockMvc.perform(post("/api/appointments")
+                        .with(userPrincipal("dentist"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.dateTimeStart").exists())
+                .andExpect(jsonPath("$.fieldErrors.dateTimeEnd").exists())
+                .andExpect(jsonPath("$.fieldErrors.status").exists())
+                .andExpect(jsonPath("$.fieldErrors.patientId").exists());
     }
 
     private static RequestPostProcessor userPrincipal(String username) {

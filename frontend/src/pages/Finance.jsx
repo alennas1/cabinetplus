@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { formatMoneyWithLabel } from "../utils/format";
+import { getApiErrorMessage } from "../utils/error";
 import "./Finance.css";
 
 const Finance = () => {
@@ -47,43 +48,6 @@ const translations = {
   DECEMBER: "Déc",
 };
 
-const [patients, setPatients] = useState([]);
-const [loadingPatients, setLoadingPatients] = useState(false);
-
-const fetchPatients = async () => {
-  setLoadingPatients(true);
-  try {
-    const response = await fetch("/api/patients");
-    
-    // Check if the response is actually OK (status 200-299)
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
-    }
-
-    // Check if the content type is actually JSON
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      throw new TypeError("Oops, we didn't get JSON back from the server!");
-    }
-
-    const data = await response.json();
-    setPatients(data);
-  } catch (error) {
-    console.error("Erreur fetch patients:", error);
-    // Don't toast if it's just a 404 you expect during dev
-    if (error instanceof TypeError) {
-      console.warn("API Route likely missing or returning HTML");
-    } else {
-      toast.error("Impossible de charger la liste des patients.");
-    }
-  } finally {
-    setLoadingPatients(false);
-  }
-};
-
-useEffect(() => {
-  fetchPatients();
-}, []);
 
   // --- API state & loaders (Étape 1) ---
   const [cards, setCards] = useState(null);
@@ -129,7 +93,7 @@ const monthsList = Array.from({ length: 12 }).map((_, i) => {
     setCards(data);
   } catch (error) {
     console.error("fetchCards error:", error);
-    toast.error("Erreur : impossible de charger les indicateurs financiers.");
+    toast.error(getApiErrorMessage(error, "Erreur : impossible de charger les indicateurs financiers."));
   } finally {
     setLoadingCards(false);
   }
@@ -154,7 +118,7 @@ const [timeframeDropdownOpen, setTimeframeDropdownOpen] = useState(false);
     setGraph(data);
   } catch (error) {
     console.error("❌ fetchGraph error:", error);
-    toast.error("Erreur : impossible de charger les graphiques.");
+    toast.error(getApiErrorMessage(error, "Erreur : impossible de charger les graphiques."));
   } finally {
     setLoadingGraph(false);
   }

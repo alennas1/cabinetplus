@@ -117,10 +117,23 @@ public class PublicIdResolutionService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordonnance introuvable"));
         }
 
-        if (!rx.getPractitioner().getId().equals(practitioner.getId())) {
+        if (!isUserInClinic(rx.getPractitioner(), resolveClinicOwner(practitioner))) {
             throw new AccessDeniedException("Acces refuse a cette ordonnance");
         }
         return rx;
+    }
+
+    private static User resolveClinicOwner(User user) {
+        if (user == null) return null;
+        return user.getOwnerDentist() != null ? user.getOwnerDentist() : user;
+    }
+
+    private static boolean isUserInClinic(User user, User clinicOwner) {
+        if (user == null || clinicOwner == null) return false;
+        if (user.getId() != null && user.getId().equals(clinicOwner.getId())) return true;
+        return user.getOwnerDentist() != null
+                && user.getOwnerDentist().getId() != null
+                && user.getOwnerDentist().getId().equals(clinicOwner.getId());
     }
 
     private static boolean isNumeric(String value) {
@@ -147,4 +160,3 @@ public class PublicIdResolutionService {
         }
     }
 }
-

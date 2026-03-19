@@ -13,8 +13,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.time.LocalDate;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -54,8 +52,7 @@ class FinanceControllerTest {
                         .param("timeframe", "daily"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/finance/graph"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
     }
 
     @Test
@@ -63,6 +60,7 @@ class FinanceControllerTest {
         User dentist = new User();
         dentist.setUsername("dentist");
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(dentist));
+        when(userService.resolveClinicOwner(dentist)).thenReturn(dentist);
         when(financeService.getFinanceGraph(dentist, "invalid"))
                 .thenThrow(new IllegalArgumentException("Periode invalide: invalid"));
 
@@ -71,8 +69,7 @@ class FinanceControllerTest {
                         .param("timeframe", "invalid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Periode invalide: invalid"))
-                .andExpect(jsonPath("$.path").value("/api/finance/graph"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Periode invalide: invalid"));
     }
 
     @Test
@@ -80,6 +77,7 @@ class FinanceControllerTest {
         User dentist = new User();
         dentist.setUsername("dentist");
         when(userService.findByUsername("dentist")).thenReturn(Optional.of(dentist));
+        when(userService.resolveClinicOwner(dentist)).thenReturn(dentist);
 
         FinanceCardsResponseDTO dto = new FinanceCardsResponseDTO();
         dto.setRevenue(new FinanceCardsResponseDTO.RevenueDTO(

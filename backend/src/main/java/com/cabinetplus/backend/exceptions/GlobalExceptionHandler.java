@@ -6,13 +6,22 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
+
+import jakarta.validation.ConstraintViolationException;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -25,6 +34,7 @@ public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final Pattern TABLE_NAME_PATTERN = Pattern.compile("on table \"([^\"]+)\"");
     private static final Pattern CONSTRAINT_NAME_PATTERN = Pattern.compile("constraint \"([^\"]+)\"");
+    private static final Pattern COLUMN_NAME_PATTERN = Pattern.compile("column \"([^\"]+)\"");
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(
@@ -36,12 +46,42 @@ public class GlobalExceptionHandler {
             errors.put(error.getField(), error.getDefaultMessage())
         );
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Certaines informations sont invalides");
-        body.put("path", request.getRequestURI());
-        body.put("fieldErrors", errors);
-        return ResponseEntity.badRequest().body(body);
+        ex.getBindingResult().getGlobalErrors().forEach(error ->
+                errors.putIfAbsent("_", error.getDefaultMessage())
+        );
+
+        return ResponseEntity.badRequest().body(Map.of(
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "fieldErrors", errors
+        ));
+    }
+
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<Map<String, Object>> handleApiException(
+            ApiException ex,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = ex.getStatus();
+
+        if (!ex.getFieldErrors().isEmpty()) {
+            return ResponseEntity.status(status).body(Map.of(
+                    "status", status.value(),
+                    "fieldErrors", ex.getFieldErrors()
+            ));
+        }
+
+        return buildError(status, ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.badRequest().body(Map.of(
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "fieldErrors", Map.of("_", "Corps de requete invalide")
+        ));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -53,21 +93,53 @@ public class GlobalExceptionHandler {
         String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
 
         if (isForeignKeyViolation(normalized)) {
-            return buildError(HttpStatus.CONFLICT, buildForeignKeyDeleteMessage(message), request.getRequestURI());
+            boolean looksLikeDeleteConflict = normalized.contains("update or delete on table")
+                    || "DELETE".equalsIgnoreCase(request.getMethod());
+            if (looksLikeDeleteConflict) {
+                return buildError(HttpStatus.CONFLICT, buildForeignKeyDeleteMessage(message), request.getRequestURI());
+            }
+            return badRequestFieldErrors(Map.of("_", "Reference invalide"));
         }
 
         if (normalized.contains("username")) {
-            return buildError(HttpStatus.BAD_REQUEST, "Ce nom d'utilisateur est deja utilise", request.getRequestURI());
+            return badRequestFieldErrors(Map.of("username", "Ce nom d'utilisateur est deja utilise"));
         }
         if (normalized.contains("email")) {
-            return buildError(HttpStatus.BAD_REQUEST, "Cet email est deja utilise", request.getRequestURI());
+            return badRequestFieldErrors(Map.of("email", "Cet email est deja utilise"));
         }
 
-        return buildError(
-                HttpStatus.BAD_REQUEST,
-                "Operation impossible: cet element est lie a d'autres donnees",
-                request.getRequestURI()
-        );
+        String constraint = extractConstraintName(message);
+        if (constraint != null) {
+            Map<String, String> mapped = mapConstraintToFieldErrors(constraint);
+            if (!mapped.isEmpty()) {
+                return badRequestFieldErrors(mapped);
+            }
+        }
+
+        String column = extractColumnName(message);
+        if (column != null) {
+            String field = toCamelCase(column);
+            if (!field.isBlank()) {
+                return badRequestFieldErrors(Map.of(field, "Valeur invalide"));
+            }
+        }
+
+        return badRequestFieldErrors(Map.of("_", "Donnees invalides"));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getConstraintViolations().forEach(v -> {
+            String path = v.getPropertyPath() != null ? v.getPropertyPath().toString() : "_";
+            String key = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
+            if (key.isBlank()) key = "_";
+            errors.put(key, v.getMessage());
+        });
+        if (errors.isEmpty()) {
+            errors.put("_", "Donnees invalides");
+        }
+        return badRequestFieldErrors(errors);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
@@ -77,6 +149,9 @@ public class GlobalExceptionHandler {
     ) {
         HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
         String reason = ex.getReason() != null ? ex.getReason() : status.getReasonPhrase();
+        if (status == HttpStatus.BAD_REQUEST) {
+            return badRequestFieldErrors(Map.of("_", normalizeUserMessage(status, reason)));
+        }
         return buildError(status, reason, request.getRequestURI());
     }
 
@@ -85,7 +160,8 @@ public class GlobalExceptionHandler {
             IllegalArgumentException ex,
             HttpServletRequest request
     ) {
-        return buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
+        String message = ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Donnees invalides";
+        return badRequestFieldErrors(Map.of("_", normalizeUserMessage(HttpStatus.BAD_REQUEST, message)));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -94,7 +170,16 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         String name = ex.getName() != null ? ex.getName() : "parametre";
-        return buildError(HttpStatus.BAD_REQUEST, "Paramètre invalide: " + name, request.getRequestURI());
+        return badRequestFieldErrors(Map.of(name, "Parametre invalide"));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingRequestParam(
+            MissingServletRequestParameterException ex,
+            HttpServletRequest request
+    ) {
+        String name = ex.getParameterName() != null ? ex.getParameterName() : "parametre";
+        return badRequestFieldErrors(Map.of(name, "Parametre obligatoire"));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
@@ -108,6 +193,46 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(HttpServletRequest request) {
         return buildError(HttpStatus.FORBIDDEN, "Acces refuse", request.getRequestURI());
+    }
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoHandlerFound(
+            NoHandlerFoundException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.NOT_FOUND, "Route introuvable", request.getRequestURI());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResourceFound(
+            NoResourceFoundException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.NOT_FOUND, "Route introuvable", request.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.METHOD_NOT_ALLOWED, "Methode non autorisee", request.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Type de contenu non supporte", request.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<Map<String, Object>> handleMediaTypeNotAcceptable(
+            HttpMediaTypeNotAcceptableException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.NOT_ACCEPTABLE, "Format de reponse non supporte", request.getRequestURI());
     }
 
     @ExceptionHandler(RuntimeException.class)
@@ -124,11 +249,17 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<Map<String, Object>> buildError(HttpStatus status, String message, String path) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("status", status.value());
-        body.put("error", normalizeUserMessage(status, message));
-        body.put("path", path);
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(status).body(Map.of(
+                "status", status.value(),
+                "fieldErrors", Map.of("_", normalizeUserMessage(status, message))
+        ));
+    }
+
+    private ResponseEntity<Map<String, Object>> badRequestFieldErrors(Map<String, String> fieldErrors) {
+        return ResponseEntity.badRequest().body(Map.of(
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "fieldErrors", fieldErrors
+        ));
     }
 
     private HttpStatus resolveRuntimeStatus(String message) {
@@ -194,6 +325,104 @@ public class GlobalExceptionHandler {
         return matcher.find() ? matcher.group(1) : null;
     }
 
+    private String extractColumnName(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return null;
+        }
+        Matcher matcher = COLUMN_NAME_PATTERN.matcher(rawMessage);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private Map<String, String> mapConstraintToFieldErrors(String constraintName) {
+        String c = constraintName != null ? constraintName.toLowerCase(Locale.ROOT) : "";
+        if (c.isBlank()) {
+            return Map.of();
+        }
+
+        if (c.contains("patients_firstname")) return Map.of("firstname", "Le prenom est obligatoire");
+        if (c.contains("patients_lastname")) return Map.of("lastname", "Le nom est obligatoire");
+        if (c.contains("patients_phone")) return Map.of("phone", "Le numero de telephone est obligatoire");
+        if (c.contains("patients_sex")) return Map.of("sex", "Le sexe est obligatoire");
+        if (c.contains("patients_age")) return Map.of("age", "Age invalide");
+
+        if (c.contains("appointments_end_after_start")) {
+            return Map.of("dateTimeEnd", "La date de fin doit etre apres la date de debut");
+        }
+        if (c.contains("expenses_amount")) return Map.of("amount", "Le montant doit etre superieur a 0");
+        if (c.contains("expenses_title")) return Map.of("title", "Le titre est obligatoire");
+        if (c.contains("expenses_employee")) return Map.of("employeeId", "Employe invalide");
+
+        if (c.contains("treatments_patient")) return Map.of("patientId", "Patient obligatoire");
+        if (c.contains("treatments_catalog")) return Map.of("treatmentCatalogId", "Traitement obligatoire");
+        if (c.contains("treatments_date")) return Map.of("date", "Date obligatoire");
+        if (c.contains("treatments_price")) return Map.of("price", "Prix invalide");
+        if (c.contains("treatments_status")) return Map.of("status", "Statut invalide");
+        if (c.contains("treatment_teeth_tooth_number_range")) return Map.of("teeth", "Dents invalides");
+        if (c.contains("ux_treatment_teeth_treatment_tooth")) return Map.of("teeth", "Les dents doivent etre uniques");
+
+        if (c.contains("treatment_catalog_name")) return Map.of("name", "Le nom est obligatoire");
+        if (c.contains("treatment_catalog_default_price")) {
+            return Map.of("defaultPrice", "Le prix par defaut doit etre superieur a 0");
+        }
+
+        if (c.contains("prothesis_catalog_name")) return Map.of("name", "Le nom est obligatoire");
+        if (c.contains("prothesis_catalog_default_price")) return Map.of("defaultPrice", "Prix invalide");
+        if (c.contains("prothesis_catalog_default_lab_cost")) return Map.of("defaultLabCost", "Cout labo invalide");
+
+        if (c.contains("item_defaults_name")) return Map.of("name", "Le nom est obligatoire");
+        if (c.contains("chk_item_defaults_default_price")) return Map.of("defaultPrice", "Prix invalide");
+        if (c.contains("items_quantity")) return Map.of("quantity", "La quantite doit etre superieure a 0");
+        if (c.contains("items_unit_price")) return Map.of("unitPrice", "Le prix unitaire doit etre superieur a 0");
+        if (c.contains("items_price")) return Map.of("price", "Prix invalide");
+        if (c.contains("items_created_at")) return Map.of("createdAt", "Date obligatoire");
+
+        if (c.contains("protheses_patient")) return Map.of("patientId", "Patient obligatoire");
+        if (c.contains("protheses_catalog")) return Map.of("catalogId", "Prothese obligatoire");
+        if (c.contains("protheses_final_price_gte_lab_cost")) {
+            return Map.of("finalPrice", "Le prix doit etre superieur ou egal au cout labo");
+        }
+        if (c.contains("protheses_final_price")) return Map.of("finalPrice", "Prix invalide");
+        if (c.contains("protheses_lab_cost")) return Map.of("labCost", "Cout labo invalide");
+        if (c.contains("protheses_status")) return Map.of("status", "Statut invalide");
+        if (c.contains("prothesis_teeth_tooth_number_range")) return Map.of("teeth", "Dents invalides");
+        if (c.contains("ux_prothesis_teeth_prothesis_tooth")) return Map.of("teeth", "Les dents doivent etre uniques");
+
+        if (c.contains("appointments_no_overlap_per_practitioner")) {
+            return Map.of("_", "Ce rendez-vous chevauche un autre rendez-vous");
+        }
+
+        if (c.contains("ux_materials_created_by_name_ci")) return Map.of("name", "Ce materiau existe deja");
+        if (c.contains("ux_laboratories_created_by_name_ci")) return Map.of("name", "Ce laboratoire existe deja");
+        if (c.contains("ux_item_defaults_created_by_name_ci")) return Map.of("name", "Cet article existe deja");
+        if (c.contains("ux_treatment_catalog_created_by_name_ci")) return Map.of("name", "Ce traitement existe deja");
+        if (c.contains("ux_prothesis_catalog_created_by_name_ci")) return Map.of("name", "Cette prothese existe deja");
+        if (c.contains("ux_medications_created_by_name_strength_ci")) return Map.of("name", "Ce medicament existe deja");
+
+        return Map.of("_", "Donnees invalides");
+    }
+
+    private String toCamelCase(String snake) {
+        if (snake == null) return "";
+        String s = snake.trim();
+        if (s.isEmpty()) return "";
+        StringBuilder out = new StringBuilder();
+        boolean upper = false;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch == '_') {
+                upper = true;
+                continue;
+            }
+            if (upper) {
+                out.append(Character.toUpperCase(ch));
+                upper = false;
+            } else {
+                out.append(ch);
+            }
+        }
+        return out.toString();
+    }
+
     private String mapTableToDomain(String tableName) {
         String normalized = tableName.toLowerCase(Locale.ROOT);
         return switch (normalized) {
@@ -214,6 +443,16 @@ public class GlobalExceptionHandler {
         String m = message.trim();
         String n = m.toLowerCase(Locale.ROOT);
 
+        if (n.equals("bad request")) return "Requete invalide";
+        if (n.equals("unauthorized")) return "Non authentifie";
+        if (n.equals("forbidden")) return "Acces refuse";
+        if (n.equals("not found")) return "Ressource introuvable";
+        if (n.equals("method not allowed")) return "Methode non autorisee";
+        if (n.equals("unsupported media type")) return "Type de contenu non supporte";
+        if (n.equals("not acceptable")) return "Format de reponse non supporte";
+        if (n.equals("conflict")) return "Conflit";
+
+        if (n.equals("invalid input")) return "Donnees invalides";
         if (n.equals("validation failed")) return "Certaines informations sont invalides";
         if (n.equals("data integrity violation")) return "Operation impossible: donnees invalides ou deja utilisees";
         if (n.equals("access denied")) return "Acces refuse";

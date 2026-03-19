@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { buildDateAtMinutes, formatHour, getWorkingHoursWindow } from "../utils/workingHours";
 import { formatMoneyWithLabel } from "../utils/format";
+import { getApiErrorMessage } from "../utils/error";
 import "react-toastify/dist/ReactToastify.css";
 import "./Finance.css";
 
@@ -49,7 +50,7 @@ export default function DashboardUpdated() {
       });
     } catch (error) {
       console.error("Erreur fetch revenue:", error);
-      toast.error("Impossible de charger les revenus du jour.");
+      toast.error(getApiErrorMessage(error, "Impossible de charger les revenus du jour."));
     } finally {
       setLoadingRevenue(false);
     }
@@ -76,7 +77,7 @@ export default function DashboardUpdated() {
       });
     } catch (error) {
       console.error("Erreur fetch completed appointments stats:", error);
-      toast.error("Impossible de charger les statistiques des rendez-vous.");
+      toast.error(getApiErrorMessage(error, "Impossible de charger les statistiques des rendez-vous."));
     } finally {
       setLoadingStats(false);
     }
@@ -97,7 +98,7 @@ export default function DashboardUpdated() {
       setAppointments(data);
     } catch (err) {
       console.error("Error fetching appointments:", err);
-      toast.error("Erreur lors du chargement des rendez-vous");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des rendez-vous"));
     } finally {
       setLoadingAppointments(false);
     }

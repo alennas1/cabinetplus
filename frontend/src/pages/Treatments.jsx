@@ -67,7 +67,7 @@ const Treatments = () => {
         setTreatments(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching treatments:", err);
-        toast.error("Erreur lors du chargement des traitements");
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des traitements"));
         setTreatments([]);
       } finally {
         setLoading(false);
@@ -174,8 +174,11 @@ const Treatments = () => {
 
     setFieldErrors({});
     const payload = {
-      ...formData,
+      name: String(formData.name ?? "").trim(),
+      description: String(formData.description ?? "").trim() || null,
       defaultPrice,
+      isFlatFee: !!formData.isFlatFee,
+      isMultiUnit: !!formData.isMultiUnit,
     };
 
     try {
@@ -195,7 +198,7 @@ const Treatments = () => {
       closeModal();
     } catch (err) {
       console.error("Error saving treatment:", err);
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     } finally {
       setIsSubmitting(false);
     }

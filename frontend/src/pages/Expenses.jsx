@@ -25,6 +25,7 @@ import { FIELD_LIMITS, validateText } from "../utils/validation";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
+  OFFICE: "Bureau",
   SUPPLIES: "Fournitures",
   RENT: "Loyer",
   SALARY: "Salaires",
@@ -81,7 +82,7 @@ const Expenses = () => {
       setExpenses(data);
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors du chargement des dépenses");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des dépenses"));
     } finally {
       setLoading(false);
     }
@@ -156,7 +157,7 @@ const Expenses = () => {
           setEmployees(data);
         } catch (err) {
           console.error(err);
-          toast.error("Erreur lors du chargement des employés");
+          toast.error(getApiErrorMessage(err, "Erreur lors du chargement des employés"));
         } finally {
           setLoadingEmployees(false);
         }
@@ -177,7 +178,7 @@ const Expenses = () => {
       label: "Titre",
       required: true,
       minLength: FIELD_LIMITS.TITLE_MIN,
-      maxLength: FIELD_LIMITS.TITLE_MAX,
+      maxLength: 255,
     });
     if (titleError) nextErrors.title = titleError;
 
@@ -202,7 +203,20 @@ const Expenses = () => {
     }
     try {
       setIsSubmitting(true);
-      const payload = { ...formData, amount: parsedAmount };
+      const rawEmployeeId = selectedEmployeeId || formData.employeeId;
+      const employeeId =
+        formData.category === "SALARY" && String(rawEmployeeId || "").trim()
+          ? Number(rawEmployeeId)
+          : null;
+
+      const payload = {
+        title: String(formData.title || "").trim(),
+        amount: parsedAmount,
+        category: formData.category,
+        date: formData.date || null,
+        description: String(formData.description || "").trim() || null,
+        employeeId,
+      };
       if (isEditing) {
         const updated = await updateExpense(editingExpense.id, payload);
         setExpenses(expenses.map((e) => (e.id === updated.id ? updated : e)));
@@ -220,7 +234,13 @@ const Expenses = () => {
       setSelectedEmployeeId("");
     } catch (err) {
       console.error(err);
-      toast.error("Erreur lors de l'enregistrement");
+      const backendFieldErrors = err?.response?.data?.fieldErrors;
+      if (err?.response?.status === 400 && backendFieldErrors && typeof backendFieldErrors === "object") {
+        setFieldErrors(backendFieldErrors);
+        toast.error(getApiErrorMessage(err, "Veuillez corriger les informations."));
+        return;
+      }
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
     } finally {
       setIsSubmitting(false);
     }
@@ -395,6 +415,7 @@ const Expenses = () => {
                 onChange={handleChange}
                 placeholder="Ex: Fournitures"
                 required
+                maxLength={255}
                 className={fieldErrors.title ? "invalid" : ""}
               />
               <FieldError message={fieldErrors.title} />
@@ -439,6 +460,7 @@ const Expenses = () => {
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="Notes optionnelles..."
+                maxLength={500}
                 className={fieldErrors.description ? "invalid" : ""}
               />
               <FieldError message={fieldErrors.description} />

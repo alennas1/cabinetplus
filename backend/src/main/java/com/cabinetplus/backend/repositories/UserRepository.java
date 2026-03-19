@@ -15,6 +15,8 @@ import com.cabinetplus.backend.models.User;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     Optional<User> findFirstByPhoneNumberOrderByIdAsc(String phoneNumber);
+    boolean existsByUsernameIgnoreCase(String username);
+    boolean existsByUsernameIgnoreCaseAndIdNot(String username, Long id);
     boolean existsByPhoneNumber(String phoneNumber);
     boolean existsByPhoneNumberAndIdNot(String phoneNumber, Long id);
     List<User> findByPlanStatus(UserPlanStatus planStatus);

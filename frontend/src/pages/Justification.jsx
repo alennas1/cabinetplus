@@ -10,6 +10,7 @@ import {
 } from "../services/justificationService";
 import { getPatientById } from "../services/patientService";
 import { formatDateByPreference } from "../utils/dateFormat";
+import { getApiErrorMessage } from "../utils/error";
 import "react-toastify/dist/ReactToastify.css";
 
 const Justification = () => {
@@ -47,7 +48,10 @@ const Justification = () => {
     // Chargement des données du patient
     getPatientById(patientId)
       .then((data) => setPatient(data))
-      .catch((err) => console.error("Error fetching patient:", err));
+      .catch((err) => {
+        console.error("Error fetching patient:", err);
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement du patient"));
+      });
 
     const fetchDraft = async () => {
       if (!patientId || !templateId) {
@@ -62,7 +66,7 @@ const Justification = () => {
           initialSnapshotRef.current = buildSnapshot({ title, draft: draftText });
         }
       } catch (error) {
-        toast.error("Impossible de générer le brouillon");
+        toast.error(getApiErrorMessage(error, "Impossible de générer le brouillon"));
       } finally {
         setLoadingDraft(false);
       }
@@ -103,7 +107,7 @@ const Justification = () => {
         navigate(`/patients/${patientId}`);
       }
     } catch (error) {
-      toast.error("Erreur de sauvegarde");
+      toast.error(getApiErrorMessage(error, "Erreur de sauvegarde"));
     } finally {
       setSaving(false);
     }

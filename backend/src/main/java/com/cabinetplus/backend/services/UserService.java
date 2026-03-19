@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
 
@@ -27,6 +28,8 @@ public class UserService {
     // BASIC CRUD
     // ===============================
     public User save(User user) {
+        assertBusinessRules(user);
+
         if (user.getCreatedAt() == null) {
             user.setCreatedAt(LocalDateTime.now());
         }
@@ -109,6 +112,8 @@ public class UserService {
             throw new AccessDeniedException("Seul le super-admin peut creer un autre super-admin");
         }
 
+        assertBusinessRules(newAdmin);
+
         newAdmin.setRole(UserRole.ADMIN);
         if (newAdmin.getCreatedAt() == null) newAdmin.setCreatedAt(LocalDateTime.now());
         if (newAdmin.getPlanStatus() == null) newAdmin.setPlanStatus(UserPlanStatus.PENDING);
@@ -128,5 +133,47 @@ public class UserService {
         LocalDateTime targetDateStart = now.plusDays(days).withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime targetDateEnd = targetDateStart.plusDays(1); // full day
         return userRepository.findUsersWithExpiringPlans(targetDateStart, targetDateEnd);
+    }
+
+    private void assertBusinessRules(User user) {
+        if (user == null) {
+            throw new BadRequestException(java.util.Map.of("_", "Corps de requete invalide"));
+        }
+
+        String username = user.getUsername() != null ? user.getUsername().trim() : null;
+        if (username != null) {
+            user.setUsername(username);
+        }
+
+        String phone = user.getPhoneNumber() != null ? user.getPhoneNumber().trim() : null;
+        if (phone != null) {
+            user.setPhoneNumber(phone);
+        }
+
+        if (username != null && !username.isBlank()) {
+            boolean exists = user.getId() == null
+                    ? userRepository.existsByUsernameIgnoreCase(username)
+                    : userRepository.existsByUsernameIgnoreCaseAndIdNot(username, user.getId());
+            if (exists) {
+                throw new BadRequestException(java.util.Map.of("username", "Ce nom d'utilisateur est deja utilise"));
+            }
+        }
+
+        if (phone != null && !phone.isBlank()) {
+            boolean exists = user.getId() == null
+                    ? userRepository.existsByPhoneNumber(phone)
+                    : userRepository.existsByPhoneNumberAndIdNot(phone, user.getId());
+            if (exists) {
+                throw new BadRequestException(java.util.Map.of("phoneNumber", "Ce numero de telephone est deja utilise"));
+            }
+        }
+
+        // Clinic scoping invariant: staff dentist accounts must be attached to an owner dentist.
+        if (user.getRole() == UserRole.DENTIST) {
+            ClinicAccessRole role = user.getClinicAccessRole();
+            if (role != null && role != ClinicAccessRole.DENTIST && user.getOwnerDentist() == null) {
+                throw new BadRequestException(java.util.Map.of("ownerDentist", "Le compte staff doit etre lie au proprietaire"));
+            }
+        }
     }
 }

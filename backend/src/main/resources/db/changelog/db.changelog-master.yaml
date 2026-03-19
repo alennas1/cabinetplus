@@ -43,3 +43,102 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 006-length-fixes-and-checks
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 006-length-fixes-and-checks.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 007-appointment-expense-validation
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 007-appointment-expense-validation.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 008-patient-validation
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 008-patient-validation.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 009-treatment-validation
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 009-treatment-validation.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 010-prothesis-validation
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 010-prothesis-validation.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 011-treatment-catalog-validation
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 011-treatment-catalog-validation.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 012-prothesis-catalog-validation
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 012-prothesis-catalog-validation.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 013-item-validation
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 013-item-validation.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 014-validate-business-constraints
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 014-validate-business-constraints.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 015-appointments-no-overlap
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 015-appointments-no-overlap.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 016-owner-uniqueness
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 016-owner-uniqueness.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

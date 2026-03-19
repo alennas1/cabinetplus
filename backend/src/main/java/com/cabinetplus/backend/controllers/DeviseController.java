@@ -6,6 +6,7 @@ import com.cabinetplus.backend.dto.DeviseResponse;
 import com.cabinetplus.backend.models.Devise;
 import com.cabinetplus.backend.models.DeviseItem;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.services.DeviseService;
 import com.cabinetplus.backend.services.UserService;
 import com.lowagie.text.FontFactory;
@@ -57,7 +58,7 @@ public ResponseEntity<DeviseResponse> getById(@PathVariable Long id, Principal p
             .filter(d -> d.getPractitioner().equals(currentUser))
             .map(this::mapToResponse)
             .map(ResponseEntity::ok)
-            .orElse(ResponseEntity.notFound().build());
+            .orElseThrow(() -> new NotFoundException("Devis introuvable"));
 }
 
     @PostMapping
@@ -71,13 +72,16 @@ public ResponseEntity<DeviseResponse> getById(@PathVariable Long id, Principal p
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
         boolean deleted = deviseService.deleteByUser(id, currentUser);
-        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (!deleted) {
+            throw new NotFoundException("Devis introuvable");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     // Helpers (Consistent with your MaterialController)
     private User getCurrentUser(Principal principal) {
         User user = userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+                .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }
 
@@ -118,7 +122,7 @@ public void generateDevisePdf(
     // Assuming you add a findById method in service that checks the practitioner
     Devise devise = deviseService.findById(id)
             .filter(d -> d.getPractitioner().equals(practitioner))
-            .orElseThrow(() -> new RuntimeException("Devis introuvable"));
+            .orElseThrow(() -> new NotFoundException("Devis introuvable"));
 
     response.setContentType("application/pdf");
     String fileNameTitle = (devise.getTitle() != null) 

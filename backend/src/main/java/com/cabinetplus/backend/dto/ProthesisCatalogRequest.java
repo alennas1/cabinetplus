@@ -6,9 +6,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 public record ProthesisCatalogRequest(
-    @NotBlank(message = "Le nom est obligatoire") String name,
+    @NotBlank(message = "Le nom est obligatoire")
+    @Size(max = 255, message = "Le nom ne doit pas depasser 255 caracteres")
+    String name,
     Long materialId, 
     @NotNull @Positive Double defaultPrice,
     @PositiveOrZero Double defaultLabCost,

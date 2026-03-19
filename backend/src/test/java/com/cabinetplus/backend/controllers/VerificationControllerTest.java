@@ -2,6 +2,8 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
+
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,7 @@ class VerificationControllerTest {
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
     }
@@ -49,7 +52,8 @@ class VerificationControllerTest {
     void sendPhoneOtpWithoutPrincipalReturns401AndErrorKey() throws Exception {
         mockMvc.perform(post("/api/verify/phone/send"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.fieldErrors._").exists());
     }
 
     @Test
@@ -61,7 +65,8 @@ class VerificationControllerTest {
 
         mockMvc.perform(post("/api/verify/phone/send").with(userPrincipal("dentist")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.phoneNumber").exists());
     }
 
     @Test
@@ -74,7 +79,8 @@ class VerificationControllerTest {
 
         mockMvc.perform(post("/api/verify/phone/send").with(userPrincipal("dentist")))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("Service SMS indisponible"));
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.fieldErrors._").value("Service SMS indisponible"));
     }
 
     @Test
@@ -88,9 +94,10 @@ class VerificationControllerTest {
         mockMvc.perform(post("/api/verify/phone/check")
                         .with(userPrincipal("dentist"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"000000\"}"))
+                .content("{\"code\":\"000000\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Code SMS invalide"));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.code").value("Code SMS invalide"));
     }
 
     private static RequestPostProcessor userPrincipal(String username) {

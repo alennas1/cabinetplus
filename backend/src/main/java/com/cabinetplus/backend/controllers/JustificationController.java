@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.JustificationDTO;
 import com.cabinetplus.backend.dto.JustificationRequest;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Justification;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
@@ -21,6 +22,7 @@ import com.lowagie.text.pdf.*;
 import com.lowagie.text.pdf.draw.LineSeparator;
 
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/justifications")
@@ -44,7 +46,7 @@ public class JustificationController {
 
     private User getCurrentUser(Principal principal) {
         return userService.findByUsername(principal.getName())
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+                .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
     }
 
     private static JustificationDTO mapToDTO(Justification j) {
@@ -94,12 +96,13 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
 
     @PostMapping
     public ResponseEntity<JustificationDTO> create(
-            @RequestBody JustificationRequest request,
+            @Valid @RequestBody JustificationRequest request,
             Principal principal) {
 
         User currentUser = getCurrentUser(principal);
-        Patient patient = patientRepository.findById(request.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        User ownerDentist = userService.resolveClinicOwner(currentUser);
+        Patient patient = patientRepository.findByIdAndCreatedBy(request.getPatientId(), ownerDentist)
+                .orElseThrow(() -> new NotFoundException("Patient introuvable"));
 
         Justification justification = new Justification();
         justification.setPatient(patient);
@@ -114,7 +117,7 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
     @PutMapping("/{id}")
     public ResponseEntity<JustificationDTO> update(
             @PathVariable Long id,
-            @RequestBody JustificationRequest request,
+            @Valid @RequestBody JustificationRequest request,
             Principal principal) {
 
         User currentUser = getCurrentUser(principal);
@@ -126,7 +129,7 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
                     Justification saved = justificationService.save(existing);
                     return ResponseEntity.ok(mapToDTO(saved));
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Justificatif introuvable"));
     }
 @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
@@ -141,7 +144,7 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
                     justificationService.deleteByPractitioner(justification.getId(), currentUser);
                     return ResponseEntity.noContent().<Void>build(); 
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Justificatif introuvable"));
     }
     @GetMapping("/{id}/pdf")
 public void generateJustificationPdf(
@@ -151,7 +154,7 @@ public void generateJustificationPdf(
 
     User practitioner = getCurrentUser(principal);
     Justification justification = justificationService.findByIdAndPractitioner(id, practitioner)
-            .orElseThrow(() -> new RuntimeException("Justificatif introuvable"));
+            .orElseThrow(() -> new NotFoundException("Justificatif introuvable"));
 
     // Set response headers
     response.setContentType("application/pdf");

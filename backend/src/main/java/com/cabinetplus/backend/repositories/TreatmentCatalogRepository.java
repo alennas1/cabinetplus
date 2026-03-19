@@ -11,4 +11,7 @@ import com.cabinetplus.backend.models.User;
 public interface TreatmentCatalogRepository extends JpaRepository<TreatmentCatalog, Long> {
     List<TreatmentCatalog> findByCreatedBy(User user);
     Optional<TreatmentCatalog> findByIdAndCreatedBy(Long id, User user);
+
+    boolean existsByCreatedByAndNameIgnoreCase(User user, String name);
+    boolean existsByCreatedByAndNameIgnoreCaseAndIdNot(User user, String name, Long id);
 }

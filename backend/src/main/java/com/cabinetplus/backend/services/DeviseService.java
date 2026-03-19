@@ -7,6 +7,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.DeviseRepository;
 import com.cabinetplus.backend.repositories.ProthesisCatalogRepository;
 import com.cabinetplus.backend.repositories.TreatmentCatalogRepository;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,11 +37,16 @@ public class DeviseService {
 
             // Handle polymorphic selection
             if (itemDto.treatmentCatalogId() != null) {
-                item.setTreatmentCatalog(treatmentCatalogRepository.findById(itemDto.treatmentCatalogId())
-                        .orElseThrow(() -> new RuntimeException("Traitement introuvable")));
+                if (itemDto.prothesisCatalogId() != null) {
+                    throw new BadRequestException(java.util.Map.of("_", "Selection invalide: choisissez soit un traitement soit une prothese"));
+                }
+                item.setTreatmentCatalog(treatmentCatalogRepository.findByIdAndCreatedBy(itemDto.treatmentCatalogId(), user)
+                        .orElseThrow(() -> new BadRequestException(java.util.Map.of("treatmentCatalogId", "Traitement introuvable"))));
             } else if (itemDto.prothesisCatalogId() != null) {
-                item.setProthesisCatalog(prothesisCatalogRepository.findById(itemDto.prothesisCatalogId())
-                        .orElseThrow(() -> new RuntimeException("Prothese introuvable")));
+                item.setProthesisCatalog(prothesisCatalogRepository.findByIdAndCreatedBy(itemDto.prothesisCatalogId(), user)
+                        .orElseThrow(() -> new BadRequestException(java.util.Map.of("prothesisCatalogId", "Prothese introuvable"))));
+            } else {
+                throw new BadRequestException(java.util.Map.of("_", "Selection invalide: choisissez un traitement ou une prothese"));
             }
 
             return item;

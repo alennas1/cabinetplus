@@ -6,7 +6,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.CreateItemDTO;
+import com.cabinetplus.backend.dto.UpdateItemDTO;
 import com.cabinetplus.backend.dto.ItemDTO;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Item;
 import com.cabinetplus.backend.models.ItemDefault;
 import com.cabinetplus.backend.models.User;
@@ -14,6 +16,7 @@ import com.cabinetplus.backend.repositories.ItemDefaultRepository;
 import com.cabinetplus.backend.repositories.ItemRepository;
 
 import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -39,26 +42,38 @@ public class ItemService {
     }
 
     public Item createItemFromDTO(CreateItemDTO dto, User dentist) {
-    ItemDefault def = itemDefaultRepository.findById(dto.getItemDefaultId())
-                     .orElseThrow(() -> new RuntimeException("Article par defaut introuvable"));
-    Item item = new Item();
-    item.setItemDefault(def);
-    item.setQuantity(dto.getQuantity());
-    item.setUnitPrice(dto.getUnitPrice()); // new field
-    item.calculatePrice(); // automatically sets total price
-    item.setExpiryDate(dto.getExpiryDate());
-    item.setCreatedAt(dto.getCreatedAt());
-    item.setCreatedBy(dentist);
-    return itemRepository.save(item);
-}
+        ItemDefault def = itemDefaultRepository.findByIdAndCreatedBy(dto.getItemDefaultId(), dentist)
+                .orElseThrow(() -> new BadRequestException(java.util.Map.of("itemDefaultId", "Article par defaut introuvable")));
+
+        Item item = new Item();
+        item.setItemDefault(def);
+        item.setQuantity(dto.getQuantity());
+        item.setUnitPrice(dto.getUnitPrice());
+        item.calculatePrice();
+        item.setExpiryDate(dto.getExpiryDate());
+        item.setCreatedAt(LocalDateTime.now());
+        item.setCreatedBy(dentist);
+        return itemRepository.save(item);
+    }
+
+    public Item updateItemFromDTO(Long id, UpdateItemDTO dto, User dentist) {
+        return itemRepository.findByIdAndCreatedBy(id, dentist)
+                .map(item -> {
+                    item.setQuantity(dto.getQuantity());
+                    item.setUnitPrice(dto.getUnitPrice());
+                    item.calculatePrice();
+                    item.setExpiryDate(dto.getExpiryDate());
+                    return itemRepository.save(item);
+                }).orElseThrow(() -> new RuntimeException("Article introuvable"));
+    }
 
     // Update item (only if it belongs to this dentist)
     public Item updateItem(Long id, Item updated, User dentist) {
         return itemRepository.findByIdAndCreatedBy(id, dentist)
                 .map(item -> {
-                    item.setItemDefault(updated.getItemDefault());
                     item.setQuantity(updated.getQuantity());
-                    item.setPrice(updated.getPrice());
+                    item.setUnitPrice(updated.getUnitPrice());
+                    item.calculatePrice();
                     item.setExpiryDate(updated.getExpiryDate());
                     return itemRepository.save(item);
                 }).orElseThrow(() -> new RuntimeException("Article introuvable"));

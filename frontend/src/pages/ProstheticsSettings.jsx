@@ -74,7 +74,7 @@ const ProstheticsSettings = () => {
       setProsthetics(prosData);
       setMaterials(matsData);
     } catch (err) {
-      toast.error("Erreur de chargement des donnees");
+      toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
     } finally {
       setLoading(false);
     }

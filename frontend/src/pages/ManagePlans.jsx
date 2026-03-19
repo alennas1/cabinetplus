@@ -240,7 +240,7 @@ const ManagePlans = () => {
       setPlans(data);
     } catch (err) {
       setError('Erreur lors du chargement des plans.');
-      toast.error('Erreur lors du chargement des plans.');
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des plans."));
     } finally {
       setLoading(false);
     }
@@ -457,7 +457,7 @@ const ManagePlans = () => {
         toast.success("Plan désactivé.");
         fetchPlans();
       } catch (err) {
-        toast.error("Erreur de désactivation.");
+        toast.error(getApiErrorMessage(err, "Erreur de désactivation."));
       }
     }
   };

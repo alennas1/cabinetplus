@@ -33,6 +33,10 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
 
     List<Prothesis> findByPatientId(Long patientId);
 
+    boolean existsByPractitionerAndCodeIgnoreCase(User practitioner, String code);
+
+    boolean existsByPractitionerAndCodeIgnoreCaseAndIdNot(User practitioner, String code, Long id);
+
     @Query("""
         SELECT p.patient.id, COALESCE(SUM(p.finalPrice), 0)
         FROM Prothesis p
@@ -52,6 +56,8 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                                                  @Param("laboratoryId") Long laboratoryId);
 
     long countByLaboratoryIdAndPractitioner(Long laboratoryId, User practitioner);
+
+    long countByPractitionerAndProthesisCatalog_Id(User practitioner, Long prothesisCatalogId);
 
     @Query("""
         select new com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse(

@@ -80,8 +80,7 @@ class UserControllerTest {
         mockMvc.perform(get("/api/users/404"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/users/404"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
     }
 
     @Test
@@ -95,8 +94,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Cet utilisateur n'a pas choisi de plan"))
-                .andExpect(jsonPath("$.path").value("/api/users/admin/activate-plan/5"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Cet utilisateur n'a pas choisi de plan"));
     }
 
     @Test
@@ -107,8 +105,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Utilisateur introuvable"))
-                .andExpect(jsonPath("$.path").value("/api/users/admin/deactivate-plan/11"));
+                .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
     }
 
     @Test

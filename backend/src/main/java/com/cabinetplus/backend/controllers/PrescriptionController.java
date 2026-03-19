@@ -61,7 +61,7 @@ public class PrescriptionController {
         User practitioner = getPractitioner(principal);
         User ownerDentist = userService.resolveClinicOwner(practitioner);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
-        return ResponseEntity.ok(prescriptionService.getPrescriptionsByPatientId(internalPatientId));
+        return ResponseEntity.ok(prescriptionService.getPrescriptionsByPatientId(internalPatientId, practitioner));
     }
 
     @GetMapping("/{id}")
@@ -83,7 +83,7 @@ public class PrescriptionController {
     public ResponseEntity<?> deletePrescription(@PathVariable String id, Principal principal) {
         User practitioner = getPractitioner(principal);
         Prescription existing = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
-        prescriptionService.deletePrescription(existing.getId());
+        prescriptionService.deletePrescription(existing.getId(), practitioner);
         return ResponseEntity.ok("Prescription deleted successfully");
     }
 

@@ -134,15 +134,12 @@ const ManageAdmins = () => {
         username: formData.username,
         password: formData.password,
         phoneNumber: formData.phoneNumber ? normalizePhoneInput(formData.phoneNumber) : null,
-        role: "ADMIN",
         canDeleteAdmin: formData.canDeleteAdmin,
-        createdAt: new Date().toISOString(),
-        planStatus: "PENDING",
-        isPhoneVerified: false,
       };
 
-      const newAdmin = await createAdmin(payload, token);
-      setAdmins((prev) => [...prev, newAdmin]);
+      const created = await createAdmin(payload, token);
+      const createdUser = created?.user || created;
+      if (createdUser) setAdmins((prev) => [...prev, createdUser]);
       toast.success("Admin ajouté");
       setShowModal(false);
       setFieldErrors({});

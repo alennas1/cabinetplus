@@ -9,6 +9,7 @@ import { getUsersExpiringInDays } from "../services/userService";
 import { Eye, ChevronDown, Search } from "react-feather";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
@@ -47,7 +48,7 @@ const EndingPlans = () => {
       setUsers(data);
     } catch (err) {
       console.error("Error fetching users:", err);
-      toast.error("Erreur lors du chargement des utilisateurs avec fin de plan proche");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des utilisateurs avec fin de plan proche"));
     }
   };
 

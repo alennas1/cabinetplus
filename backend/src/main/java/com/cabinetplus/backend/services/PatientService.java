@@ -24,6 +24,13 @@ public class PatientService {
 
     // Save + return DTO
     public PatientDto saveAndConvert(Patient patient) {
+        if (patient == null) {
+            throw new com.cabinetplus.backend.exceptions.BadRequestException(java.util.Map.of("_", "Corps de requete invalide"));
+        }
+        if (patient.getCreatedBy() == null) {
+            throw new com.cabinetplus.backend.exceptions.BadRequestException(java.util.Map.of("createdBy", "Utilisateur invalide"));
+        }
+
         planLimitService.assertPatientLimitNotReached(patient.getCreatedBy());
         Patient saved = patientRepository.save(patient);
         return toDto(saved);
@@ -33,26 +40,19 @@ public class PatientService {
     public PatientDto update(Long id, Patient updatedPatient, User ownerDentist) {
         Patient existing = patientRepository.findByIdAndCreatedBy(id, ownerDentist)
                 .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        if (updatedPatient == null) {
+            throw new com.cabinetplus.backend.exceptions.BadRequestException(java.util.Map.of("_", "Corps de requete invalide"));
+        }
 
-        existing.setFirstname(updatedPatient.getFirstname());
-        existing.setLastname(updatedPatient.getLastname());
-        existing.setAge(updatedPatient.getAge());
-        existing.setSex(updatedPatient.getSex());   //  added
-        existing.setPhone(updatedPatient.getPhone());
+        // Partial update: apply only provided fields (null means "no change").
+        if (updatedPatient.getFirstname() != null) existing.setFirstname(updatedPatient.getFirstname());
+        if (updatedPatient.getLastname() != null) existing.setLastname(updatedPatient.getLastname());
+        if (updatedPatient.getAge() != null) existing.setAge(updatedPatient.getAge());
+        if (updatedPatient.getSex() != null) existing.setSex(updatedPatient.getSex());
+        if (updatedPatient.getPhone() != null) existing.setPhone(updatedPatient.getPhone());
 
         Patient saved = patientRepository.save(existing);
         return toDto(saved);
-    }
-
-    public List<PatientDto> findAll() {
-        return patientRepository.findAll()
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
-    }
-
-    public Optional<PatientDto> findById(Long id) {
-        return patientRepository.findById(id).map(this::toDto);
     }
 
     public void delete(Long id, User ownerDentist) {

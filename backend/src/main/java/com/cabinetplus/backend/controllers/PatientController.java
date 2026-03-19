@@ -4,7 +4,6 @@ import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,7 +15,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.PatientCreateRequest;
 import com.cabinetplus.backend.dto.PatientDto;
+import com.cabinetplus.backend.dto.PatientUpdateRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
@@ -47,6 +48,7 @@ import com.lowagie.text.pdf.PdfWriter;
 import com.lowagie.text.pdf.draw.LineSeparator;
 
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/patients")
@@ -119,16 +121,14 @@ public class PatientController {
     }
 
     @GetMapping("/{id}")
-    public Optional<PatientDto> getPatientById(@PathVariable String id, Principal principal) {
+    public PatientDto getPatientById(@PathVariable String id, Principal principal) {
         User currentUser = getClinicUser(principal);
         Integer cancelledThreshold = currentUser.getPatientCancelledAppointmentsThreshold();
         Double owedThreshold = currentUser.getPatientMoneyOwedThreshold();
 
-        return publicIdResolutionService.findPatientOwnedBy(id, currentUser)
-                .map(p -> {
-                    var metricsById = patientRiskService.getMetricsByPatientIds(List.of(p.getId()));
-                    return toDtoWithMetrics(p, metricsById.get(p.getId()), cancelledThreshold, owedThreshold);
-                });
+        Patient patient = publicIdResolutionService.requirePatientOwnedBy(id, currentUser);
+        var metricsById = patientRiskService.getMetricsByPatientIds(List.of(patient.getId()));
+        return toDtoWithMetrics(patient, metricsById.get(patient.getId()), cancelledThreshold, owedThreshold);
     }
 
     @PutMapping("/{id}/archive")
@@ -172,10 +172,18 @@ public class PatientController {
     }
 
     @PostMapping
-    public PatientDto createPatient(@RequestBody Patient patient, Principal principal) {
+    public PatientDto createPatient(@RequestBody @Valid PatientCreateRequest request, Principal principal) {
         User currentUser = getClinicUser(principal);
+
+        Patient patient = new Patient();
+        patient.setFirstname(request.firstname() != null ? request.firstname().trim() : null);
+        patient.setLastname(request.lastname() != null ? request.lastname().trim() : null);
+        patient.setAge(request.age());
+        patient.setSex(request.sex() != null ? request.sex().trim() : null);
+        patient.setPhone(request.phone() != null ? request.phone().trim() : null);
         patient.setCreatedBy(currentUser);
         patient.setCreatedAt(LocalDateTime.now());
+
         PatientDto saved = patientService.saveAndConvert(patient);
         auditService.logSuccess(
                 AuditEventType.PATIENT_CREATE,
@@ -187,9 +195,17 @@ public class PatientController {
     }
 
     @PutMapping("/{id}")
-    public PatientDto updatePatient(@PathVariable String id, @RequestBody Patient patient, Principal principal) {
+    public PatientDto updatePatient(@PathVariable String id, @RequestBody @Valid PatientUpdateRequest request, Principal principal) {
         User currentUser = getClinicUser(principal);
         Patient existing = publicIdResolutionService.requirePatientOwnedBy(id, currentUser);
+
+        Patient patient = new Patient();
+        patient.setFirstname(request.firstname() != null ? request.firstname().trim() : null);
+        patient.setLastname(request.lastname() != null ? request.lastname().trim() : null);
+        patient.setAge(request.age());
+        patient.setSex(request.sex() != null ? request.sex().trim() : null);
+        patient.setPhone(request.phone() != null ? request.phone().trim() : null);
+
         PatientDto updated = patientService.update(existing.getId(), patient, currentUser);
         auditService.logSuccess(
                 AuditEventType.PATIENT_UPDATE,

@@ -7,22 +7,25 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.cabinetplus.backend.dto.AppointmentRequest;
+import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.exceptions.ConflictException;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.AppointmentRepository;
+import com.cabinetplus.backend.repositories.PatientRepository;
 
 @Service
 public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
+    private final PatientRepository patientRepository;
 
-    public AppointmentService(AppointmentRepository appointmentRepository) {
+    public AppointmentService(AppointmentRepository appointmentRepository, PatientRepository patientRepository) {
         this.appointmentRepository = appointmentRepository;
-    }
-
-    public Appointment save(Appointment appointment) {
-        return appointmentRepository.save(appointment);
+        this.patientRepository = patientRepository;
     }
 
     public List<Appointment> findAll() {
@@ -45,8 +48,109 @@ public class AppointmentService {
         return appointmentRepository.findByDateTimeStartBetween(start, end);
     }
 
-    public void delete(Long id) {
-        appointmentRepository.deleteById(id);
+    public Appointment requireByIdForPractitioner(Long id, User practitioner) {
+        return appointmentRepository.findByIdAndPractitioner(id, practitioner)
+                .orElseThrow(() -> new NotFoundException("Rendez-vous introuvable"));
+    }
+
+    public Appointment createAppointment(AppointmentRequest request, User practitioner) {
+        validateTimeRange(request.dateTimeStart(), request.dateTimeEnd());
+        assertNoOverlap(practitioner, request.dateTimeStart(), request.dateTimeEnd(), null);
+
+        Patient patient = patientRepository.findByIdAndCreatedBy(request.patientId(), practitioner)
+                .orElseThrow(() -> new NotFoundException("Patient introuvable"));
+
+        Appointment appointment = new Appointment();
+        appointment.setDateTimeStart(request.dateTimeStart());
+        appointment.setDateTimeEnd(request.dateTimeEnd());
+        appointment.setStatus(request.status());
+        appointment.setNotes(request.notes());
+        appointment.setPatient(patient);
+        appointment.setPractitioner(practitioner);
+
+        return appointmentRepository.save(appointment);
+    }
+
+    public Appointment updateAppointment(Long id, AppointmentRequest request, User practitioner) {
+        validateTimeRange(request.dateTimeStart(), request.dateTimeEnd());
+        assertNoOverlap(practitioner, request.dateTimeStart(), request.dateTimeEnd(), id);
+
+        Appointment existing = requireByIdForPractitioner(id, practitioner);
+
+        Patient patient = patientRepository.findByIdAndCreatedBy(request.patientId(), practitioner)
+                .orElseThrow(() -> new NotFoundException("Patient introuvable"));
+
+        existing.setDateTimeStart(request.dateTimeStart());
+        existing.setDateTimeEnd(request.dateTimeEnd());
+        existing.setStatus(request.status());
+        existing.setNotes(request.notes());
+        existing.setPatient(patient);
+        existing.setPractitioner(practitioner);
+
+        return appointmentRepository.save(existing);
+    }
+
+    public Appointment deleteAppointment(Long id, User practitioner) {
+        Appointment existing = requireByIdForPractitioner(id, practitioner);
+        appointmentRepository.delete(existing);
+        return existing;
+    }
+
+    public record RescheduleItem(Long appointmentId, LocalDateTime start, LocalDateTime end) {
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void rescheduleAppointments(List<RescheduleItem> updates, User practitioner) {
+        if (updates == null || updates.isEmpty()) {
+            return;
+        }
+
+        List<Long> ids = updates.stream().map(RescheduleItem::appointmentId).distinct().toList();
+        if (ids.size() != updates.size()) {
+            throw new BadRequestException("Ids invalides");
+        }
+
+        // Ownership: must all belong to practitioner.
+        List<Appointment> appointments = appointmentRepository.findByIdInAndPractitioner(ids, practitioner);
+        if (appointments.size() != ids.size()) {
+            throw new NotFoundException("Rendez-vous introuvable");
+        }
+
+        java.util.Map<Long, RescheduleItem> updateById = updates.stream()
+                .collect(java.util.stream.Collectors.toMap(RescheduleItem::appointmentId, u -> u));
+
+        // Validate time ranges + cross-field consistency.
+        for (RescheduleItem u : updates) {
+            validateTimeRange(u.start(), u.end());
+        }
+
+        // In-group overlap check (pure in-memory).
+        List<RescheduleItem> sorted = updates.stream()
+                .sorted(java.util.Comparator.comparing(RescheduleItem::start))
+                .toList();
+        for (int i = 1; i < sorted.size(); i++) {
+            RescheduleItem prev = sorted.get(i - 1);
+            RescheduleItem cur = sorted.get(i);
+            if (cur.start().isBefore(prev.end())) {
+                throw new ConflictException("Ce rendez-vous chevauche un autre rendez-vous");
+            }
+        }
+
+        // Overlap check vs other appointments (exclude the whole reschedule set).
+        for (RescheduleItem u : updates) {
+            boolean overlaps = appointmentRepository.existsOverlappingExcludingIds(practitioner, u.start(), u.end(), ids);
+            if (overlaps) {
+                throw new ConflictException("Ce rendez-vous chevauche un autre rendez-vous");
+            }
+        }
+
+        // Apply updates.
+        appointments.forEach(appt -> {
+            RescheduleItem u = updateById.get(appt.getId());
+            appt.setDateTimeStart(u.start());
+            appt.setDateTimeEnd(u.end());
+        });
+        appointmentRepository.saveAll(appointments);
     }
 
     public Long getCompletedAppointmentsForPractitionerOnDate(User practitioner, LocalDate date) {
@@ -59,5 +163,23 @@ public Long getCompletedAppointmentsWithNewPatientsForPractitionerOnDate(User pr
             practitioner, date.atStartOfDay(), date.plusDays(1).atStartOfDay());
 }
 
+    private void validateTimeRange(LocalDateTime start, LocalDateTime end) {
+        if (start == null || end == null) {
+            throw new BadRequestException("Dates invalides");
+        }
+        if (!end.isAfter(start)) {
+            throw new BadRequestException(
+                    "Intervalle horaire invalide",
+                    java.util.Map.of("dateTimeEnd", "La date de fin doit etre apres la date de debut")
+            );
+        }
+    }
+
+    private void assertNoOverlap(User practitioner, LocalDateTime start, LocalDateTime end, Long excludeId) {
+        boolean overlaps = appointmentRepository.existsOverlapping(practitioner, start, end, excludeId);
+        if (overlaps) {
+            throw new ConflictException("Ce rendez-vous chevauche un autre rendez-vous");
+        }
+    }
 
 }

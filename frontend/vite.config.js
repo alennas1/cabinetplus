@@ -7,7 +7,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // We'll register manually so we can show an in-app "update available" prompt.
+      injectRegister: null,
+      registerType: 'prompt',
       includeAssets: [
         'logo.png',
         'apple-touch-icon.png',

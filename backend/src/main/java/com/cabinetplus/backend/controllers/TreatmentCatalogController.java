@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.TreatmentCatalogRequest;
 import com.cabinetplus.backend.dto.TreatmentCatalogResponse;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.TreatmentCatalog;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.TreatmentCatalogService;
@@ -53,10 +54,9 @@ public class TreatmentCatalogController {
                                                                             Principal principal) {
         User currentUser = getCurrentUser(principal);
 
-        return treatmentCatalogService.findByIdAndUser(id, currentUser)
-                .map(this::mapToResponse)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        TreatmentCatalog catalog = treatmentCatalogService.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new NotFoundException("Element du catalogue introuvable"));
+        return ResponseEntity.ok(mapToResponse(catalog));
     }
 
     @PostMapping
@@ -92,10 +92,9 @@ public class TreatmentCatalogController {
         toUpdate.setMultiUnit(!dto.isFlatFee() && dto.isMultiUnit());
         toUpdate.setCreatedBy(currentUser);
 
-        return treatmentCatalogService.update(id, toUpdate, currentUser)
-                .map(this::mapToResponse)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        TreatmentCatalog saved = treatmentCatalogService.update(id, toUpdate, currentUser)
+                .orElseThrow(() -> new NotFoundException("Element du catalogue introuvable"));
+        return ResponseEntity.ok(mapToResponse(saved));
     }
 
     @DeleteMapping("/{id}")
@@ -104,7 +103,10 @@ public class TreatmentCatalogController {
         User currentUser = getCurrentUser(principal);
 
         boolean deleted = treatmentCatalogService.deleteByUser(id, currentUser);
-        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (!deleted) {
+            throw new NotFoundException("Element du catalogue introuvable");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     // ðŸ”¹ Helpers

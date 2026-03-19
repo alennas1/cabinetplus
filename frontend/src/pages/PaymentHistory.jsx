@@ -8,6 +8,7 @@ import { getAllHandPayments } from "../services/handPaymentService";
 import { Search, ChevronDown } from "react-feather";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
+import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
@@ -28,7 +29,7 @@ const AllPayments = () => {
       setPayments(data);
     } catch (err) {
       console.error("Error fetching payments:", err);
-      toast.error("Erreur lors du chargement des paiements");
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des paiements"));
     }
   };
 

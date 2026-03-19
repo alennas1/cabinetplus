@@ -34,6 +34,8 @@ import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/appointments")
 public class AppointmentController {
@@ -61,43 +63,17 @@ public class AppointmentController {
     }
 
     @GetMapping("/{id:\\d+}")
-    public Optional<Appointment> getAppointmentById(@PathVariable Long id) {
-        return appointmentService.findById(id);
+    public Appointment getAppointmentById(@PathVariable Long id, Principal principal) {
+        User currentUser = getClinicUser(principal);
+        return appointmentService.requireByIdForPractitioner(id, currentUser);
     }
 
     @PostMapping
-    public AppointmentResponse createAppointment(@RequestBody AppointmentRequest request, Principal principal) {
+    public AppointmentResponse createAppointment(@RequestBody @Valid AppointmentRequest request, Principal principal) {
         User currentUser = getClinicUser(principal);
 
-        // Overlap check
-        List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
-                .filter(a -> !"CANCELLED".equalsIgnoreCase(String.valueOf(a.getStatus())))
-                .filter(a -> !"CANCELED".equalsIgnoreCase(String.valueOf(a.getStatus())))
-                .filter(a ->
-                        a.getDateTimeStart().isBefore(request.dateTimeEnd()) &&
-                        a.getDateTimeEnd().isAfter(request.dateTimeStart())
-                )
-                .collect(Collectors.toList());
-
-        if (!overlapping.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce rendez-vous chevauche un autre rendez-vous");
-        }
-
-        // Build appointment
-        Appointment appointment = new Appointment();
-        appointment.setDateTimeStart(request.dateTimeStart());
-        appointment.setDateTimeEnd(request.dateTimeEnd());
-        appointment.setStatus(request.status());
-
-        PatientDto patientDto = patientService.findById(request.patientId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
-        Patient patientEntity = new Patient();
-        patientEntity.setId(patientDto.id());
-        appointment.setPatient(patientEntity);
-
-        appointment.setPractitioner(currentUser);
-
-        Appointment saved = appointmentService.save(appointment);
+        Appointment saved = appointmentService.createAppointment(request, currentUser);
+        PatientDto patientDto = patientService.findByIdAndUser(request.patientId(), currentUser);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_CREATE,
                 "PATIENT",
@@ -119,40 +95,11 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id:\\d+}")
-    public AppointmentResponse updateAppointment(@PathVariable Long id, @RequestBody AppointmentRequest request, Principal principal) {
+    public AppointmentResponse updateAppointment(@PathVariable Long id, @RequestBody @Valid AppointmentRequest request, Principal principal) {
         User currentUser = getClinicUser(principal);
 
-        // Overlap check (ignore current appointment)
-        List<Appointment> overlapping = appointmentService.findByPractitioner(currentUser).stream()
-                .filter(a -> !a.getId().equals(id)) // ignore itself
-                .filter(a -> !"CANCELLED".equalsIgnoreCase(String.valueOf(a.getStatus())))
-                .filter(a -> !"CANCELED".equalsIgnoreCase(String.valueOf(a.getStatus())))
-                .filter(a ->
-                        a.getDateTimeStart().isBefore(request.dateTimeEnd()) &&
-                        a.getDateTimeEnd().isAfter(request.dateTimeStart())
-                )
-                .collect(Collectors.toList());
-
-        if (!overlapping.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce rendez-vous chevauche un autre rendez-vous");
-        }
-        PatientDto patientDto = patientService.findById(request.patientId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
-
-        Appointment existing = appointmentService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rendez-vous introuvable"));
-
-        Patient patientEntity = new Patient();
-        patientEntity.setId(patientDto.id());
-
-        existing.setDateTimeStart(request.dateTimeStart());
-        existing.setDateTimeEnd(request.dateTimeEnd());
-        existing.setStatus(request.status());
-        existing.setNotes(request.notes());
-        existing.setPatient(patientEntity);
-        existing.setPractitioner(currentUser);
-
-        Appointment saved = appointmentService.save(existing);
+        Appointment saved = appointmentService.updateAppointment(id, request, currentUser);
+        PatientDto patientDto = patientService.findByIdAndUser(request.patientId(), currentUser);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_UPDATE,
                 "PATIENT",
@@ -173,7 +120,7 @@ public class AppointmentController {
     }
 
     @PostMapping("/shift")
-    public void shiftAppointments(@RequestBody AppointmentShiftRequest request, Principal principal) {
+    public void shiftAppointments(@RequestBody @Valid AppointmentShiftRequest request, Principal principal) {
         User currentUser = getClinicUser(principal);
 
         if (request == null || request.date() == null || request.minutes() == null) {
@@ -196,6 +143,7 @@ public class AppointmentController {
 
         List<Appointment> dayAppointments = appointmentService.findByPractitioner(currentUser).stream()
                 .filter(a -> a.getDateTimeStart() != null)
+                .filter(a -> a.getDateTimeEnd() != null)
                 .filter(a -> a.getDateTimeStart().toLocalDate().equals(baseDate))
                 .collect(Collectors.toList());
 
@@ -274,14 +222,18 @@ public class AppointmentController {
         shifted.forEach(item -> {
             item.appt.setDateTimeStart(item.newStart);
             item.appt.setDateTimeEnd(item.newEnd);
-            appointmentService.save(item.appt);
         });
+
+        List<AppointmentService.RescheduleItem> updates = shifted.stream()
+                .map(item -> new AppointmentService.RescheduleItem(item.appt.getId(), item.newStart, item.newEnd))
+                .collect(Collectors.toList());
+        appointmentService.rescheduleAppointments(updates, currentUser);
     }
 
     @DeleteMapping("/{id:\\d+}")
-    public void deleteAppointment(@PathVariable Long id) {
-        Appointment existing = appointmentService.findById(id).orElse(null);
-        appointmentService.delete(id);
+    public void deleteAppointment(@PathVariable Long id, Principal principal) {
+        User currentUser = getClinicUser(principal);
+        Appointment existing = appointmentService.deleteAppointment(id, currentUser);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_DELETE,
                 "PATIENT",
@@ -307,9 +259,9 @@ public class AppointmentController {
     }
 
     @GetMapping("/practitioner/{practitionerId}")
-    public List<Appointment> getAppointmentsByPractitioner(@PathVariable Long practitionerId) {
-        User practitioner = new User();
-        practitioner.setId(practitionerId);
+    public List<Appointment> getAppointmentsByPractitioner(@PathVariable Long practitionerId, Principal principal) {
+        User requester = getClinicUser(principal);
+        User practitioner = requireClinicPractitioner(practitionerId, requester);
         return appointmentService.findByPractitioner(practitioner);
     }
 
@@ -345,6 +297,22 @@ public Map<String, Object> getComparisonStats(Principal principal) {
         User currentUser = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         return userService.resolveClinicOwner(currentUser);
+    }
+
+    private User requireClinicPractitioner(Long practitionerId, User clinicOwner) {
+        User target = userService.findById(practitionerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Praticien introuvable"));
+
+        User targetOwner = userService.resolveClinicOwner(target);
+        if (targetOwner == null
+                || clinicOwner == null
+                || clinicOwner.getId() == null
+                || targetOwner.getId() == null
+                || !targetOwner.getId().equals(clinicOwner.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Praticien introuvable");
+        }
+
+        return target;
     }
 
     private LocalTime parseTime(String value) {

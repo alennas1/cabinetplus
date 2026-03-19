@@ -1303,6 +1303,32 @@
   margin-bottom: 20px;
 }
 
+.employee-modal-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 0 0 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.employee-modal-stepper-count {
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.employee-modal-stepper-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
 .employee-role-step-header h3 {
   margin: 0 0 6px;
   font-size: 22px;

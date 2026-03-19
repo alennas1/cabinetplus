@@ -478,7 +478,31 @@ const Employees = () => {
                 : "Ajoutez un employé au cabinet en suivant les étapes ci-dessous."}
             </p>
 
-            <form noValidate onSubmit={handleSubmit} className="modal-form">
+            <div className="employee-modal-stepper">
+              {(() => {
+                const totalSteps = isEditing ? 4 : 5;
+                const currentStep = isEditing ? formStep : formStep + 1;
+                const stepTitles = ["Rôle", "Informations", "Identité", "Contrat", "Compte"];
+                const title = stepTitles[formStep] || "Etape";
+                return (
+                  <>
+                    <span className="employee-modal-stepper-count">Etape {currentStep} / {totalSteps}</span>
+                    <span className="employee-modal-stepper-title">{title}</span>
+                  </>
+                );
+              })()}
+            </div>
+
+            <form
+              noValidate
+              onSubmit={handleSubmit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && formStep !== 4) {
+                  e.preventDefault();
+                }
+              }}
+              className="modal-form"
+            >
               {formStep === 0 && !isEditing && (
                 <div className="employee-role-step">
                   <div className="employee-role-step-header">
@@ -550,26 +574,43 @@ const Employees = () => {
                   />
                   <div className="form-field">
                     <span className="field-label">Sexe</span>
-                    <div className="radio-group">
-                      <label className="radio-option">
+                    <div className="flex flex-wrap gap-2">
+                      <label
+                        className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                          formData.gender === "Homme"
+                            ? "bg-blue-50 border-blue-200 text-blue-700"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
                         <input
                           type="radio"
                           name="gender"
                           value="Homme"
                           checked={formData.gender === "Homme"}
                           onChange={handleChange}
+                          className="sr-only"
+                          required
                         />
-                        <span>Homme</span>
+                        Homme
                       </label>
-                      <label className="radio-option">
+
+                      <label
+                        className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
+                          formData.gender === "Femme"
+                            ? "bg-rose-50 border-rose-200 text-rose-700"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
                         <input
                           type="radio"
                           name="gender"
                           value="Femme"
                           checked={formData.gender === "Femme"}
                           onChange={handleChange}
+                          className="sr-only"
+                          required
                         />
-                        <span>Femme</span>
+                        Femme
                       </label>
                     </div>
                     <FieldError message={fieldErrors.gender} />
@@ -670,6 +711,11 @@ const Employees = () => {
                     <option value="INACTIVE">Inactif</option>
                     <option value="ON_LEAVE">En congé</option>
                   </select>
+                </>
+              )}
+
+              {formStep === 4 && (
+                <>
                   <span className="field-label">Nom d'utilisateur</span>
                   <input
                     type="text"
@@ -694,7 +740,7 @@ const Employees = () => {
               )}
 
               <div className="modal-actions">
-                {formStep > 1 && (
+                {formStep > (isEditing ? 1 : 0) && (
                   <button
                     type="button"
                     className="btn-cancel"
@@ -704,7 +750,7 @@ const Employees = () => {
                   </button>
                 )}
 
-                {formStep > 0 && formStep < 3 && (
+                {formStep > 0 && formStep < 4 && (
                   <button
                     type="button"
                     className="btn-primary2"
@@ -730,7 +776,7 @@ const Employees = () => {
                   </button>
                 )}
 
-                {formStep === 3 && (
+                {formStep === 4 && (
                   <button type="submit" className="btn-primary2" disabled={isSubmitting}>
                     {isSubmitting ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}
                   </button>

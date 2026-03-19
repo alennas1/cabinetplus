@@ -567,8 +567,12 @@ export default function Appointments() {
     let patientId = formData.patientId;
 
     if (isNewPatient) {
+      const rawAge = String(newPatient.age ?? "").trim();
       const newP = await createPatient({
-        ...newPatient,
+        firstname: String(newPatient.firstname ?? "").trim(),
+        lastname: String(newPatient.lastname ?? "").trim(),
+        age: rawAge ? Number(rawAge) : null,
+        sex: String(newPatient.sex ?? "").trim() || "Homme",
         phone: normalizePhoneInput(newPatient.phone),
       });
 

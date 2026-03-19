@@ -1392,7 +1392,15 @@ const handleSubmit = async (e) => {
   setPatientFieldErrors({});
   try {
     if (isEditing) {
-      const updated = await updatePatient(patient.id, { ...formData, phone: normalizePhoneInput(formData.phone) });
+      const rawAge = String(formData.age ?? "").trim();
+      const payload = {
+        firstname: String(formData.firstname ?? "").trim() || null,
+        lastname: String(formData.lastname ?? "").trim() || null,
+        age: rawAge ? Number(rawAge) : null,
+        sex: String(formData.sex ?? "").trim() || null,
+        phone: normalizePhoneInput(formData.phone),
+      };
+      const updated = await updatePatient(patient.id, payload);
       setPatient(updated);
       toast.success("Patient mis à jour !");
     } else {

@@ -269,10 +269,13 @@ const ProstheticsSettings = () => {
       setIsSubmitting(true);
 
       const payload = {
-        ...formData,
+        // Backend expects ProthesisCatalogRequest (no id field).
+        name: String(formData.name ?? "").trim(),
+        materialId: formData.materialId ? parseInt(formData.materialId, 10) : null,
         defaultPrice,
         defaultLabCost,
-        materialId: formData.materialId ? parseInt(formData.materialId, 10) : null,
+        isFlatFee: !!formData.isFlatFee,
+        isMultiUnit: !!formData.isMultiUnit,
       };
 
       if (isEditing && editingId) {

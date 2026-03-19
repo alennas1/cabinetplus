@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown, RefreshCw, Search } from "react-feather";
+import { ArrowUpRight, ChevronDown, RefreshCw, Search } from "react-feather";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -120,6 +120,10 @@ const getDisplayDetails = (log) => {
     return "-";
   }
 
+  if (log?.targetType === "PATIENT" && typeof log?.targetDisplay === "string" && log.targetDisplay.trim()) {
+    return log.targetDisplay.trim();
+  }
+
   const message = log?.message || "";
   const nameMatch =
     message.match(/:\s*(.+)$/) ||
@@ -196,7 +200,8 @@ const AuditLogs = () => {
           className="table-link"
           onClick={() => navigate(`/patients/${patientId}`)}
         >
-          {label}
+          <span>{label}</span>
+          <ArrowUpRight size={14} />
         </button>
       );
     }

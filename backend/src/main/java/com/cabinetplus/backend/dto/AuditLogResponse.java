@@ -9,6 +9,7 @@ public record AuditLogResponse(
         String message,
         String targetType,
         String targetId,
+        String targetDisplay,
         Long actorUserId,
         String actorDisplayName,
         String ipAddress,

@@ -3,6 +3,7 @@ package com.cabinetplus.backend.services;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.JustificationContentRepository;
+import com.cabinetplus.backend.enums.JustificationType;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,6 +25,9 @@ public class JustificationContentService {
     // =========================
     public JustificationContent save(JustificationContent content, User practitioner) {
         content.setPractitioner(practitioner);
+        if (content.getType() == null) {
+            content.setType(JustificationType.OTHER);
+        }
 
         // Optional: prevent duplicate titles per practitioner
         repository.findByTitleAndPractitioner(content.getTitle(), practitioner)

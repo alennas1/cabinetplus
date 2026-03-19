@@ -14,6 +14,7 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     List<Patient> findByCreatedByAndArchivedAtIsNull(User user);
     List<Patient> findByCreatedByAndArchivedAtIsNotNull(User user);
     Optional<Patient> findByIdAndCreatedBy(Long id, User user); // optional for security
+    List<Patient> findByIdInAndCreatedBy(List<Long> ids, User user);
     Optional<Patient> findByPublicIdAndCreatedBy(UUID publicId, User user);
     Optional<Patient> findByPublicId(UUID publicId);
     long countByCreatedBy(User user);

@@ -347,10 +347,15 @@ const handleCancelAppointment = async (a) => {
 
   try {
     setBusyAppointmentStatusId(a.id);
-    const updatedAppointment = await updateAppointment(a.id, { 
-      ...a, 
-      status: "CANCELLED" 
-    });
+    // Backend expects AppointmentRequest shape; avoid spreading `a` (contains extra fields).
+    const payload = {
+      dateTimeStart: a.dateTimeStart,
+      dateTimeEnd: a.dateTimeEnd,
+      status: "CANCELLED",
+      notes: a.notes ?? null,
+      patientId: a.patient?.id ?? a.patientId,
+    };
+    const updatedAppointment = await updateAppointment(a.id, payload);
 
     setAppointments(appointments.map(ap => 
       ap.id === updatedAppointment.id ? updatedAppointment : ap
@@ -367,10 +372,15 @@ const handleCompleteAppointment = async (a) => {
   if (busyAppointmentStatusId === a.id) return;
   try {
     setBusyAppointmentStatusId(a.id);
-    const updatedAppointment = await updateAppointment(a.id, { 
-      ...a, 
-      status: "COMPLETED" 
-    }, );
+    // Backend expects AppointmentRequest shape; avoid spreading `a` (contains extra fields).
+    const payload = {
+      dateTimeStart: a.dateTimeStart,
+      dateTimeEnd: a.dateTimeEnd,
+      status: "COMPLETED",
+      notes: a.notes ?? null,
+      patientId: a.patient?.id ?? a.patientId,
+    };
+    const updatedAppointment = await updateAppointment(a.id, payload);
 
     setAppointments(appointments.map(ap => 
       ap.id === updatedAppointment.id ? updatedAppointment : ap
@@ -387,14 +397,8 @@ const handleCompleteTreatment = async (t) => {
   if (busyTreatmentStatusId === t.id) return;
   try {
     setBusyTreatmentStatusId(t.id);
-    const payload = {
-      ...t,
-      patient: { id: patient?.id },
-      treatmentCatalog: { id: t.treatmentCatalog?.id || t.treatmentCatalogId },
-      status: "DONE",
-    };
-
-    const updatedTreatment = await updateTreatment(t.id, payload);
+    // Backend expects TreatmentUpdateRequest fields only; avoid spreading `t` (contains extra fields).
+    const updatedTreatment = await updateTreatment(t.id, { status: "DONE" });
 
     const catalogObj = treatmentCatalog.find(
       (tc) => tc.id === updatedTreatment.treatmentCatalog?.id
@@ -417,14 +421,8 @@ const handleStartTreatment = async (t) => {
   if (busyTreatmentStatusId === t.id) return;
   try {
     setBusyTreatmentStatusId(t.id);
-    const payload = {
-      ...t,
-      patient: { id: patient?.id },
-      treatmentCatalog: { id: t.treatmentCatalog?.id || t.treatmentCatalogId },
-      status: "IN_PROGRESS",
-    };
-
-    const updatedTreatment = await updateTreatment(t.id, payload);
+    // Backend expects TreatmentUpdateRequest fields only; avoid spreading `t` (contains extra fields).
+    const updatedTreatment = await updateTreatment(t.id, { status: "IN_PROGRESS" });
 
     const catalogObj = treatmentCatalog.find(
       (tc) => tc.id === updatedTreatment.treatmentCatalog?.id
@@ -2451,13 +2449,29 @@ const handleCreateOrUpdateTreatment = async (e) => {
   try {
     let savedTreatment;
 
+     const formatLocalDateTime = (date = new Date()) => {
+       const d = date instanceof Date ? date : new Date(date);
+       const year = d.getFullYear();
+       const month = String(d.getMonth() + 1).padStart(2, "0");
+       const day = String(d.getDate()).padStart(2, "0");
+       const hours = String(d.getHours()).padStart(2, "0");
+       const minutes = String(d.getMinutes()).padStart(2, "0");
+       const seconds = String(d.getSeconds()).padStart(2, "0");
+       return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+     };
+
+     const buildTreatmentPayload = ({ teeth, date, status } = {}) => ({
+       patient: { id: patient?.id },
+       treatmentCatalog: { id: Number(treatmentForm.treatmentCatalogId) },
+       price: parsedPrice,
+       notes: String(treatmentForm.notes ?? "").trim() || null,
+       status: status ?? (String(treatmentForm.status ?? "").trim() || null),
+       teeth: Array.isArray(teeth) ? teeth : (treatmentForm.teeth ?? []),
+       ...(date ? { date } : {}),
+     });
+
      if (isEditingTreatment) {
-       const payload = {
-         ...treatmentForm,
-         price: parsedPrice,
-         patient: { id: patient?.id },
-         treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
-       };
+       const payload = buildTreatmentPayload();
        
 
        savedTreatment = await updateTreatment(treatmentForm.id, payload);
@@ -2474,18 +2488,19 @@ const handleCreateOrUpdateTreatment = async (e) => {
        );
        toast.success("Traitement mis à jour !");
      } else {
-       const createdDate = new Date().toISOString();
+       const createdDate = formatLocalDateTime(new Date());
 
        if (!treatmentIsFlatFee && !treatmentIsMultiUnit && treatmentTeethCount > 1) {
          const perToothPrice = parsedPrice / treatmentTeethCount;
          const createdItems = await Promise.all(
            treatmentForm.teeth.map((tooth) =>
              createTreatment({
-               ...treatmentForm,
-               teeth: [tooth],
-               price: perToothPrice,
                patient: { id: patient?.id },
-               treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
+               treatmentCatalog: { id: Number(treatmentForm.treatmentCatalogId) },
+               price: perToothPrice,
+               notes: String(treatmentForm.notes ?? "").trim() || null,
+               status: String(treatmentForm.status ?? "").trim() || null,
+               teeth: [tooth],
                date: createdDate,
              })
            )
@@ -2500,13 +2515,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
          setTreatments((prev) => [...normalizedCreated, ...prev]);
          toast.success("Traitements ajoutés !");
        } else {
-         const payload = {
-           ...treatmentForm,
-           price: parsedPrice,
-           patient: { id: patient?.id },
-           treatmentCatalog: { id: treatmentForm.treatmentCatalogId },
-           date: createdDate,
-         };
+         const payload = buildTreatmentPayload({ date: createdDate });
 
          savedTreatment = await createTreatment(payload);
 
@@ -2776,7 +2785,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
     const hour = String(resolvedHour).padStart(2, "0");
     const minute = String(resolvedMinute).padStart(2, "0");
 
-    const startDateTime = `${appointmentForm.date}T${hour}:${minute}`;
+    const startDateTime = `${appointmentForm.date}T${hour}:${minute}:00`;
     const startDateObj = new Date(startDateTime);
 
     const durationMinutes = Number(appointmentForm.duration) || 30;
@@ -2784,7 +2793,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
 
     const endHour = String(endDateObj.getHours()).padStart(2, "0");
     const endMinute = String(endDateObj.getMinutes()).padStart(2, "0");
-    const endDateTime = `${appointmentForm.date}T${endHour}:${endMinute}`;
+    const endDateTime = `${appointmentForm.date}T${endHour}:${endMinute}:00`;
 
     let payload;
     let savedAppointment;
@@ -2794,11 +2803,11 @@ const handleCreateOrUpdateAppointment = async (e) => {
       if (!existing) throw new Error("Rendez-vous introuvable pour la mise à jour");
 
       payload = {
-        ...existing,
         dateTimeStart: startDateTime,
         dateTimeEnd: endDateTime,
-        notes: appointmentForm.notes,
+        notes: String(appointmentForm.notes ?? "").trim() || null,
         status: "SCHEDULED",
+        patientId: existing.patient?.id ?? existing.patientId ?? patient?.id,
       };
 
       savedAppointment = await updateAppointment(appointmentForm.id, payload);

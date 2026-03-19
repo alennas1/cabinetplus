@@ -15,6 +15,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -62,9 +63,20 @@ public class Patient {
     private LocalDateTime archivedAt;
 
     @PrePersist
-    private void ensurePublicId() {
+    private void ensureDefaultsOnCreate() {
         if (publicId == null) {
             publicId = UuidV7.randomUuidV7();
+        }
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    private void ensureDefaultsOnUpdate() {
+        // Legacy rows may have null createdAt; enforce a sane value so DB CHECK constraints don't block updates.
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
         }
     }
 }

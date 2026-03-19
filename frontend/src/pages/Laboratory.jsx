@@ -147,7 +147,13 @@ const Laboratories = () => {
     }
     try {
       setIsSubmitting(true);
-      const payload = { ...formData, phoneNumber: normalizePhoneInput(formData.phoneNumber) };
+      // Backend expects LaboratoryRequest (no id field).
+      const payload = {
+        name: String(formData.name ?? "").trim(),
+        contactPerson: String(formData.contactPerson ?? "").trim() || null,
+        phoneNumber: normalizePhoneInput(formData.phoneNumber) || null,
+        address: String(formData.address ?? "").trim() || null,
+      };
       if (isEditing) {
         const updated = await updateLaboratory(formData.id, payload);
         setLaboratories(laboratories.map((lab) => (lab.id === updated.id ? updated : lab)));

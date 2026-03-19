@@ -407,7 +407,14 @@ export default function Appointments() {
       slot.appointments?.some((a) => a.id === completeAppt.id)
     );
     try {
-      const payload = { ...completeAppt, status: "COMPLETED", patientId: completeAppt.patient?.id ?? completeAppt.patientId };
+      // Backend expects AppointmentRequest shape. Avoid sending extra fields (id, patient object, practitioner, etc.).
+      const payload = {
+        dateTimeStart: completeAppt.dateTimeStart,
+        dateTimeEnd: completeAppt.dateTimeEnd,
+        status: "COMPLETED",
+        notes: completeAppt.notes ?? null,
+        patientId: completeAppt.patient?.id ?? completeAppt.patientId,
+      };
       const updated = await updateAppointment(completeAppt.id, payload);
       setAppointments((prev) =>
         prev.map((a) => (a.id === updated.id ? updated : a))
@@ -432,7 +439,14 @@ export default function Appointments() {
       slot.appointments?.some((a) => a.id === cancelAppt.id)
     );
     try {
-      const payload = { ...cancelAppt, status: "CANCELLED", patientId: cancelAppt.patient?.id ?? cancelAppt.patientId };
+      // Backend expects AppointmentRequest shape. Avoid sending extra fields (id, patient object, practitioner, etc.).
+      const payload = {
+        dateTimeStart: cancelAppt.dateTimeStart,
+        dateTimeEnd: cancelAppt.dateTimeEnd,
+        status: "CANCELLED",
+        notes: cancelAppt.notes ?? null,
+        patientId: cancelAppt.patient?.id ?? cancelAppt.patientId,
+      };
       const updated = await updateAppointment(cancelAppt.id, payload);
       setAppointments((prev) => prev.filter((a) => a.id !== updated.id));
       if (cancelledSlotIndex >= 0) {

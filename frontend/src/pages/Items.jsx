@@ -186,7 +186,13 @@ const Items = () => {
     }
     try {
       setIsSubmitting(true);
-      const payload = { ...formData, defaultPrice: parsedDefaultPrice };
+      // Backend expects ItemDefaultRequest (no id/createdAt/etc).
+      const payload = {
+        name: String(formData.name ?? "").trim(),
+        category: formData.category,
+        defaultPrice: parsedDefaultPrice,
+        description: String(formData.description ?? "").trim() || null,
+      };
       if (isEditing) {
         const updated = await updateItemDefault(editingItem.id, payload, token);
         setItems(items.map((i) => (i.id === updated.id ? updated : i)));

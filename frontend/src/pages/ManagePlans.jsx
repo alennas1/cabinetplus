@@ -436,11 +436,24 @@ const ManagePlans = () => {
     setFieldErrors({});
 
     try {
+      // Backend expects PlanRequest; avoid sending the full plan object (extra fields like id/createdAt).
+      const payload = {
+        code: String(currentPlan.code ?? "").trim(),
+        name: String(currentPlan.name ?? "").trim() || null,
+        monthlyPrice: currentPlan.monthlyPrice === "" ? null : Number(currentPlan.monthlyPrice),
+        yearlyMonthlyPrice: currentPlan.yearlyMonthlyPrice === "" ? null : Number(currentPlan.yearlyMonthlyPrice),
+        durationDays: currentPlan.durationDays === "" ? null : Number(currentPlan.durationDays),
+        maxDentists: Number(currentPlan.maxDentists),
+        maxEmployees: Number(currentPlan.maxEmployees),
+        maxPatients: Number(currentPlan.maxPatients),
+        maxStorageGb: Number(currentPlan.maxStorageGb),
+        active: currentPlan.active,
+      };
       if (modalMode === 'create') {
-        await createPlanAdmin(currentPlan, token);
+        await createPlanAdmin(payload, token);
         toast.success("Plan créé avec succès !");
       } else {
-        await updatePlanAdmin(currentPlan.id, currentPlan, token);
+        await updatePlanAdmin(currentPlan.id, payload, token);
         toast.success("Plan mis à jour avec succès !");
       }
       closeModal();

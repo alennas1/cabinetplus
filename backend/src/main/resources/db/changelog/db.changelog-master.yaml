@@ -151,3 +151,21 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 018-drop-patient-sex-domain-check
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 018-drop-patient-sex-domain-check.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 019-encrypt-justification-text-columns
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 019-encrypt-justification-text-columns.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

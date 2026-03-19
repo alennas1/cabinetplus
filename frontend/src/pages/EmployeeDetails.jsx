@@ -409,7 +409,14 @@ const EmployeeDetails = () => {
   const handleSaveWorkingHours = async () => {
     try {
       for (const h of workingHours) {
-        if (h.id) await updateWorkingHour(h.id, h);
+        if (h.id) {
+          // Backend expects EmployeeWorkingHoursUpdateRequest; avoid sending extra fields (id/employee/etc).
+          await updateWorkingHour(h.id, {
+            dayOfWeek: h.dayOfWeek,
+            startTime: h.startTime ? h.startTime : null,
+            endTime: h.endTime ? h.endTime : null,
+          });
+        }
       }
       setEmployee((prev) => ({ ...prev, workingHours }));
       setIsHoursModalOpen(false);

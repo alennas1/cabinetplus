@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.models;
 
 import com.cabinetplus.backend.enums.JustificationType;
+import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -28,7 +29,15 @@ public class JustificationContent {
     private String title;
 
     @Column(nullable = false, columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String content;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private JustificationType type = JustificationType.OTHER;
+
+    @Column(name = "custom_type")
+    private String customType;
 
     @ManyToOne
     @JoinColumn(name = "practitioner_id", nullable = false)

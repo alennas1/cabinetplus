@@ -304,6 +304,7 @@ const Prosthetics = () => {
   const handleEditClick = (p) => {
     setEditingProthesis({
       id: p.id,
+      patientId: p.patientId,
       catalogId: p.catalogId,
       labCost: p.labCost || 0,
       finalPrice: p.finalPrice || 0,
@@ -1045,13 +1046,15 @@ const Prosthetics = () => {
                 }
                 try {
                   setIsSavingEdit(true);
+                  // Backend expects ProthesisRequest; avoid spreading `editingProthesis` (extra fields).
                   const dataToSend = {
-                    ...editingProthesis,
+                    patientId: editingProthesis.patientId,
+                    catalogId: Number(editingProthesis.catalogId),
                     teeth: editingProthesis.teeth || [],
                     labCost: parseFloat(editingProthesis.labCost),
                     finalPrice: parseFloat(editingProthesis.finalPrice),
-                    code: (editingProthesis.code || "").trim(),
-                    notes: (editingProthesis.notes || "").trim(),
+                    code: (editingProthesis.code || "").trim() || null,
+                    notes: (editingProthesis.notes || "").trim() || null,
                   };
                   await updateProthetics(editingProthesis.id, dataToSend);
                   toast.success("Mise a jour reussie");

@@ -1,5 +1,9 @@
 package com.cabinetplus.backend.exceptions;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 import jakarta.validation.ConstraintViolationException;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -34,7 +39,11 @@ public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final Pattern TABLE_NAME_PATTERN = Pattern.compile("on table \"([^\"]+)\"");
     private static final Pattern CONSTRAINT_NAME_PATTERN = Pattern.compile("constraint \"([^\"]+)\"");
+    private static final Pattern CONSTRAINT_NAME_PATTERN_NO_QUOTES = Pattern.compile("constraint\\s+([a-zA-Z0-9_]+)");
+    private static final Pattern CHECK_CONSTRAINT_PATTERN_NO_QUOTES = Pattern.compile("check constraint\\s+([a-zA-Z0-9_]+)");
     private static final Pattern COLUMN_NAME_PATTERN = Pattern.compile("column \"([^\"]+)\"");
+    private static final Pattern COLUMN_NAME_PATTERN_NO_QUOTES = Pattern.compile("column\\s+([a-zA-Z0-9_]+)");
+    private static final Pattern MYSQL_COLUMN_PATTERN = Pattern.compile("Column '([^']+)'", Pattern.CASE_INSENSITIVE);
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(
@@ -78,10 +87,53 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException ex,
             HttpServletRequest request
     ) {
+        Map<String, String> fieldErrors = mapNotReadableToFieldErrors(ex);
+        if (fieldErrors != null && !fieldErrors.isEmpty()) {
+            return badRequestFieldErrors(fieldErrors);
+        }
+
         return ResponseEntity.badRequest().body(Map.of(
                 "status", HttpStatus.BAD_REQUEST.value(),
                 "fieldErrors", Map.of("_", "Corps de requete invalide")
         ));
+    }
+
+    private Map<String, String> mapNotReadableToFieldErrors(HttpMessageNotReadableException ex) {
+        Throwable root = ex != null ? ex.getMostSpecificCause() : null;
+        if (root == null) {
+            root = ex != null ? ex.getCause() : null;
+        }
+
+        if (root instanceof UnrecognizedPropertyException u) {
+            String field = u.getPropertyName();
+            if (field == null || field.isBlank()) field = "_";
+            return Map.of(field, "Champ non supporte");
+        }
+
+        if (root instanceof InvalidFormatException i) {
+            String field = lastJsonPathField(i);
+            return Map.of(field, "Valeur invalide");
+        }
+
+        if (root instanceof MismatchedInputException m) {
+            String field = lastJsonPathField(m);
+            return Map.of(field, "Valeur invalide");
+        }
+
+        return Map.of();
+    }
+
+    private String lastJsonPathField(JsonMappingException ex) {
+        if (ex == null) return "_";
+        List<JsonMappingException.Reference> path = ex.getPath();
+        if (path == null || path.isEmpty()) return "_";
+
+        JsonMappingException.Reference last = path.get(path.size() - 1);
+        if (last == null) return "_";
+
+        String field = last.getFieldName();
+        if (field == null || field.isBlank()) return "_";
+        return field;
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -91,6 +143,14 @@ public class GlobalExceptionHandler {
     ) {
         String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : null;
         String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
+
+        logger.error("Data integrity violation on {}: {}", request.getRequestURI(), message, ex);
+
+        if (normalized.contains("value too long for type character varying")
+                || normalized.contains("data too long")
+                || normalized.contains("data truncation")) {
+            return badRequestFieldErrors(Map.of("_", "Base de donnees non a jour: champs trop longs (migration requise)"));
+        }
 
         if (isForeignKeyViolation(normalized)) {
             boolean looksLikeDeleteConflict = normalized.contains("update or delete on table")
@@ -322,6 +382,12 @@ public class GlobalExceptionHandler {
             return null;
         }
         Matcher matcher = CONSTRAINT_NAME_PATTERN.matcher(rawMessage);
+        if (matcher.find()) return matcher.group(1);
+
+        matcher = CHECK_CONSTRAINT_PATTERN_NO_QUOTES.matcher(rawMessage);
+        if (matcher.find()) return matcher.group(1);
+
+        matcher = CONSTRAINT_NAME_PATTERN_NO_QUOTES.matcher(rawMessage);
         return matcher.find() ? matcher.group(1) : null;
     }
 
@@ -330,6 +396,12 @@ public class GlobalExceptionHandler {
             return null;
         }
         Matcher matcher = COLUMN_NAME_PATTERN.matcher(rawMessage);
+        if (matcher.find()) return matcher.group(1);
+
+        matcher = MYSQL_COLUMN_PATTERN.matcher(rawMessage);
+        if (matcher.find()) return matcher.group(1);
+
+        matcher = COLUMN_NAME_PATTERN_NO_QUOTES.matcher(rawMessage);
         return matcher.find() ? matcher.group(1) : null;
     }
 
@@ -344,6 +416,8 @@ public class GlobalExceptionHandler {
         if (c.contains("patients_phone")) return Map.of("phone", "Le numero de telephone est obligatoire");
         if (c.contains("patients_sex")) return Map.of("sex", "Le sexe est obligatoire");
         if (c.contains("patients_age")) return Map.of("age", "Age invalide");
+        if (c.contains("patients_created_at")) return Map.of("_", "Patient incomplet: date de creation manquante");
+        if (c.contains("patients_created_by")) return Map.of("_", "Utilisateur invalide");
 
         if (c.contains("appointments_end_after_start")) {
             return Map.of("dateTimeEnd", "La date de fin doit etre apres la date de debut");

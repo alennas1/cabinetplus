@@ -19,6 +19,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.AuditLog;
 import com.cabinetplus.backend.repositories.AuditLogRepository;
+import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,11 +31,14 @@ class AuditServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private PatientRepository patientRepository;
+
     private AuditService auditService;
 
     @BeforeEach
     void setUp() {
-        auditService = new AuditService(auditLogRepository, userRepository);
+        auditService = new AuditService(auditLogRepository, userRepository, patientRepository);
         when(auditLogRepository.save(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 

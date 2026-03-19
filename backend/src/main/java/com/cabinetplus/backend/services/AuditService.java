@@ -18,8 +18,10 @@ import com.cabinetplus.backend.dto.AuditLogResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.AuditStatus;
 import com.cabinetplus.backend.models.AuditLog;
+import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.AuditLogRepository;
+import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +33,7 @@ public class AuditService {
 
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
+    private final PatientRepository patientRepository;
     private static final List<String> ADMIN_SECURITY_EVENT_TYPES = List.of(
             AuditEventType.AUTH_LOGIN.name(),
             AuditEventType.AUTH_LOGOUT.name(),
@@ -46,9 +49,10 @@ public class AuditService {
             AuditEventType.HAND_PAYMENT_REJECT.name()
     );
 
-    public AuditService(AuditLogRepository auditLogRepository, UserRepository userRepository) {
+    public AuditService(AuditLogRepository auditLogRepository, UserRepository userRepository, PatientRepository patientRepository) {
         this.auditLogRepository = auditLogRepository;
         this.userRepository = userRepository;
+        this.patientRepository = patientRepository;
     }
 
     public void logSuccess(AuditEventType eventType, String targetType, String targetId, String message) {
@@ -72,10 +76,14 @@ public class AuditService {
             return List.of();
         }
 
-        List<Long> actorUserIds = resolveVisibleActorIds(currentUser);
-        return auditLogRepository.findTop200ByActorUserIdInOrderByOccurredAtDesc(actorUserIds)
-                .stream()
-                .map(this::toResponse)
+        User clinicOwner = currentUser.getOwnerDentist() != null ? currentUser.getOwnerDentist() : currentUser;
+        List<Long> actorUserIds = resolveVisibleActorIds(clinicOwner);
+        List<AuditLog> logs = auditLogRepository.findTop200ByActorUserIdInOrderByOccurredAtDesc(actorUserIds);
+
+        var patientNames = resolvePatientNames(logs, clinicOwner);
+
+        return logs.stream()
+                .map(log -> toResponse(log, patientNames))
                 .toList();
     }
 
@@ -83,7 +91,7 @@ public class AuditService {
         return auditLogRepository.findTop200ByActorRoleInOrderByOccurredAtDesc(List.of("ADMIN", "SYSTEM"))
                 .stream()
                 .filter(log -> ADMIN_SECURITY_EVENT_TYPES.contains(log.getEventType()))
-                .map(this::toResponse)
+                .map(log -> toResponse(log, java.util.Map.of()))
                 .toList();
     }
 
@@ -149,8 +157,15 @@ public class AuditService {
         return request.getRemoteAddr();
     }
 
-    private AuditLogResponse toResponse(AuditLog log) {
+    private AuditLogResponse toResponse(AuditLog log, java.util.Map<Long, String> patientNames) {
         String actorDisplayName = resolveActorDisplayName(log.getActorUserId(), log.getActorUsername());
+        String targetDisplay = null;
+        if ("PATIENT".equalsIgnoreCase(log.getTargetType())) {
+            Long id = parseLongOrNull(log.getTargetId());
+            if (id != null) {
+                targetDisplay = patientNames.get(id);
+            }
+        }
         return new AuditLogResponse(
                 log.getOccurredAt(),
                 log.getEventType(),
@@ -158,6 +173,7 @@ public class AuditService {
                 log.getMessage(),
                 log.getTargetType(),
                 log.getTargetId(),
+                targetDisplay,
                 log.getActorUserId(),
                 actorDisplayName,
                 log.getIpAddress(),
@@ -165,8 +181,7 @@ public class AuditService {
         );
     }
 
-    private List<Long> resolveVisibleActorIds(User currentUser) {
-        User clinicOwner = currentUser.getOwnerDentist() != null ? currentUser.getOwnerDentist() : currentUser;
+    private List<Long> resolveVisibleActorIds(User clinicOwner) {
         List<Long> actorUserIds = new ArrayList<>();
         actorUserIds.add(clinicOwner.getId());
         userRepository.findByOwnerDentist(clinicOwner)
@@ -174,6 +189,49 @@ public class AuditService {
                 .map(User::getId)
                 .forEach(actorUserIds::add);
         return actorUserIds.stream().distinct().toList();
+    }
+
+    private java.util.Map<Long, String> resolvePatientNames(List<AuditLog> logs, User clinicOwner) {
+        if (logs == null || logs.isEmpty()) {
+            return java.util.Map.of();
+        }
+
+        List<Long> ids = logs.stream()
+                .filter(l -> l != null && "PATIENT".equalsIgnoreCase(l.getTargetType()))
+                .map(AuditLog::getTargetId)
+                .map(this::parseLongOrNull)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (ids.isEmpty()) {
+            return java.util.Map.of();
+        }
+
+        List<Patient> patients = patientRepository.findByIdInAndCreatedBy(ids, clinicOwner);
+        java.util.Map<Long, String> out = new java.util.HashMap<>();
+        for (Patient p : patients) {
+            if (p == null || p.getId() == null) continue;
+            String first = p.getFirstname() != null ? p.getFirstname().trim() : "";
+            String last = p.getLastname() != null ? p.getLastname().trim() : "";
+            String full = (first + " " + last).trim();
+            out.put(p.getId(), full.isEmpty() ? ("Patient #" + p.getId()) : full);
+        }
+        return out;
+    }
+
+    private Long parseLongOrNull(String value) {
+        if (value == null) return null;
+        String v = value.trim();
+        if (v.isEmpty()) return null;
+        for (int i = 0; i < v.length(); i++) {
+            if (!Character.isDigit(v.charAt(i))) return null;
+        }
+        try {
+            return Long.parseLong(v);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private String resolveActorDisplayName(Long actorUserId, String fallbackUsername) {

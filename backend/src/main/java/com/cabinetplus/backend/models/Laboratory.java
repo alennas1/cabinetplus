@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.models;
 
+import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -28,10 +29,16 @@ public class Laboratory {
     @Column(nullable = false)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String contactPerson;
-    
+
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String phoneNumber;
-    
+
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String address;
 
     @ManyToOne(optional = false)

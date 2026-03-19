@@ -73,7 +73,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 1. PUBLIC ENDPOINTS
                 .requestMatchers("/auth/**").permitAll()
-                .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/public/patients/*/fiche-pdf").permitAll()
                 .requestMatchers("/api/verify/**").permitAll() // KEPT FOR PHONE VERIFICATION
                 .requestMatchers("/error").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

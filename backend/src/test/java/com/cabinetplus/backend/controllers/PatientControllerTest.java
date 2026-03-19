@@ -19,12 +19,10 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
-import com.cabinetplus.backend.repositories.AppointmentRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
-import com.cabinetplus.backend.repositories.PaymentRepository;
-import com.cabinetplus.backend.repositories.ProthesisRepository;
-import com.cabinetplus.backend.repositories.TreatmentRepository;
+import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.PatientFichePdfService;
 import com.cabinetplus.backend.services.PatientRiskService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
@@ -46,25 +44,22 @@ class PatientControllerTest {
         PatientService patientService = mock(PatientService.class);
         userService = mock(UserService.class);
         PatientRepository patientRepository = mock(PatientRepository.class);
-        TreatmentRepository treatmentRepository = mock(TreatmentRepository.class);
-        AppointmentRepository appointmentRepository = mock(AppointmentRepository.class);
-        PaymentRepository paymentRepository = mock(PaymentRepository.class);
-        ProthesisRepository prothesisRepository = mock(ProthesisRepository.class);
         AuditService auditService = mock(AuditService.class);
         PatientRiskService patientRiskService = mock(PatientRiskService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
+        PatientFichePdfService patientFichePdfService = mock(PatientFichePdfService.class);
+        JwtUtil jwtUtil = mock(JwtUtil.class);
 
         PatientController controller = new PatientController(
                 patientService,
                 userService,
                 patientRepository,
-                treatmentRepository,
-                appointmentRepository,
-                paymentRepository,
-                prothesisRepository,
                 auditService,
                 patientRiskService,
-                publicIdResolutionService
+                publicIdResolutionService,
+                patientFichePdfService,
+                jwtUtil,
+                900L
         );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();

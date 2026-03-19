@@ -24,8 +24,6 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtUtil {
 
-    private static final String DEFAULT_SECRET = "3zQnXLz+v0Wm+9j8fH9Sv+rb3VbA9M/cD4xPTfFhM7Y=";
-
     @Value("${jwt.secret:}")
     private String secretKey;
 
@@ -39,7 +37,20 @@ public class JwtUtil {
     private void initSecret() {
         if (secretKey == null || secretKey.isBlank()) {
             String envSecret = System.getenv("JWT_SECRET");
-            secretKey = (envSecret != null && !envSecret.isBlank()) ? envSecret : DEFAULT_SECRET;
+            secretKey = (envSecret != null && !envSecret.isBlank()) ? envSecret : null;
+        }
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException("Missing JWT secret. Set 'jwt.secret' or env var 'JWT_SECRET' (base64).");
+        }
+
+        byte[] decoded;
+        try {
+            decoded = Decoders.BASE64.decode(secretKey);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("Invalid base64 for JWT secret (jwt.secret / JWT_SECRET).", ex);
+        }
+        if (decoded.length < 32) {
+            throw new IllegalStateException("JWT secret too short. Provide at least 32 bytes after base64 decoding (256-bit).");
         }
     }
 
@@ -123,15 +134,67 @@ public class JwtUtil {
                 .build()
                 .parseClaimsJws(token);
     }
-    // In JwtUtil.java
-public boolean validateRefreshToken(String token) {
-    try {
-        parseClaims(token); // same as access token validation
-        return true;
-    } catch (ExpiredJwtException e) {
-        return false; // refresh token expired
-    } catch (JwtException | IllegalArgumentException e) {
-        return false;
+
+    public boolean validateRefreshToken(String token) {
+        try {
+            parseClaims(token); // same as access token validation
+            return true;
+        } catch (ExpiredJwtException e) {
+            return false; // refresh token expired
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public String generatePublicPatientFichePdfToken(UUID patientPublicId, Long ownerDentistId, long ttlSeconds) {
+        if (patientPublicId == null) {
+            throw new IllegalArgumentException("patientPublicId is required");
+        }
+        if (ownerDentistId == null) {
+            throw new IllegalArgumentException("ownerDentistId is required");
+        }
+        if (ttlSeconds <= 0) {
+            throw new IllegalArgumentException("ttlSeconds must be > 0");
+        }
+
+        long ttlMs = ttlSeconds * 1000L;
+        return Jwts.builder()
+                .setSubject("public_patient_fiche_pdf")
+                .claim("patientPublicId", patientPublicId.toString())
+                .claim("ownerDentistId", ownerDentistId)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + ttlMs))
+                .setId(UUID.randomUUID().toString())
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public PublicPatientFichePdfToken validatePublicPatientFichePdfToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token is required");
+        }
+
+        Claims claims = parseClaims(token).getBody();
+        if (!"public_patient_fiche_pdf".equals(claims.getSubject())) {
+            throw new JwtException("Invalid token subject");
+        }
+
+        String patientPublicIdRaw = claims.get("patientPublicId", String.class);
+        Number ownerDentistIdRaw = claims.get("ownerDentistId", Number.class);
+        if (patientPublicIdRaw == null || patientPublicIdRaw.isBlank() || ownerDentistIdRaw == null) {
+            throw new JwtException("Missing required claims");
+        }
+
+        UUID patientPublicId;
+        try {
+            patientPublicId = UUID.fromString(patientPublicIdRaw);
+        } catch (IllegalArgumentException ex) {
+            throw new JwtException("Invalid patientPublicId", ex);
+        }
+
+        return new PublicPatientFichePdfToken(patientPublicId, ownerDentistIdRaw.longValue(), claims.getExpiration());
+    }
+
+    public record PublicPatientFichePdfToken(UUID patientPublicId, Long ownerDentistId, Date expiresAt) {
     }
 }
-} 

@@ -8,7 +8,7 @@ import ToothGraph from "./ToothGraph";
 import SortableTh from "../components/SortableTh";
 import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
-import { downloadPatientFiche } from "../services/patientService";
+import { downloadPatientFiche, getPublicPatientFicheLink } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
 import { QRCodeCanvas } from "qrcode.react";
 import { DownloadCloud, Send, X, Smartphone } from "react-feather";
@@ -473,10 +473,11 @@ const handleQuickPrintJustification = async (template) => {
 };
 
 const [showQrModal, setShowQrModal] = useState(false);
-
-const [qrTimestamp, setQrTimestamp] = useState(Date.now());
+const [qrLoading, setQrLoading] = useState(false);
+const [qrTtlSeconds, setQrTtlSeconds] = useState(null);
+const [publicDownloadUrl, setPublicDownloadUrl] = useState("");
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
-const publicDownloadUrl = `${API_URL}/api/public/pdf/${id}?t=${qrTimestamp}`;const [isDownloading, setIsDownloading] = useState(false);
+const [isDownloading, setIsDownloading] = useState(false);
 
 const handleDownloadPdf = async () => {
   setIsDownloading(true);
@@ -486,6 +487,28 @@ const handleDownloadPdf = async () => {
     console.error(err);
   } finally {
     setIsDownloading(false);
+  }
+};
+
+const handleOpenQrModal = async () => {
+  setShowQrModal(true);
+  setQrLoading(true);
+  setPublicDownloadUrl("");
+  try {
+    const data = await getPublicPatientFicheLink(id);
+    setQrTtlSeconds(data?.ttlSeconds ?? null);
+    const patientPublicId = data?.patientPublicId ?? id;
+    const token = data?.token;
+    if (!token) {
+      throw new Error("Missing token");
+    }
+    const url = `${API_URL}/api/public/patients/${patientPublicId}/fiche-pdf?token=${encodeURIComponent(token)}`;
+    setPublicDownloadUrl(url);
+  } catch (err) {
+    console.error(err);
+    toast.error(getApiErrorMessage(err, "Erreur lors de la génération du lien QR"));
+  } finally {
+    setQrLoading(false);
   }
 };
 const handlePrintJustification = async (justificationId, title) => {
@@ -2981,8 +3004,7 @@ const handleDeleteAppointment = (a) => {
  <button 
   className="action-btn view" 
   onClick={() => {
-    setQrTimestamp(Date.now());
-    setShowQrModal(true);
+    handleOpenQrModal();
   }}
   title="Générer QR Code"
   style={{ 
@@ -3743,11 +3765,18 @@ const handleDeleteAppointment = (a) => {
             </div>
             
             <p style={{fontSize: '14px', color: '#666', margin: '15px 0'}}>
-              Le patient peut scanner ce code pour télécharger son dossier PDF instantanément.
+              Le patient peut scanner ce code pour télécharger son dossier PDF. Ce lien est temporaire
+              {qrTtlSeconds ? ` (≈ ${Math.round(qrTtlSeconds / 60)} min).` : "."}
             </p>
 
             <div style={{ background: 'white', padding: '15px', display: 'inline-block', borderRadius: '10px', border: '1px solid #eee' }}>
-              <QRCodeCanvas value={publicDownloadUrl} size={250} />
+              {qrLoading ? (
+                <p style={{ margin: 0 }}>Génération du lien...</p>
+              ) : publicDownloadUrl ? (
+                <QRCodeCanvas value={publicDownloadUrl} size={250} />
+              ) : (
+                <p style={{ margin: 0, color: "#b91c1c" }}>Lien indisponible</p>
+              )}
             </div>
 
             <p style={{ marginTop: '15px', fontWeight: 'bold', color: '#3b82f6' }}>

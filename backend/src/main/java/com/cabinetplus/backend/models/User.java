@@ -6,9 +6,11 @@ import java.util.UUID;
 import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -48,7 +50,12 @@ public class User {
     @Enumerated(EnumType.STRING)
     private ClinicAccessRole clinicAccessRole = ClinicAccessRole.DENTIST;
 
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String firstname;
+
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String lastname;
 
     private boolean isPhoneVerified = false;
@@ -73,9 +80,12 @@ public class User {
     private boolean canDeleteAdmin = false; // super-admin flag
 
     // --- NEW OPTIONAL CLINIC FIELDS ---
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String clinicName;
     
     @Column(columnDefinition = "TEXT") // TEXT allows for longer addresses
+    @Convert(converter = EncryptionConverter.class)
     private String address;
 
     // --- Gestion Cabinet PIN (optional) ---

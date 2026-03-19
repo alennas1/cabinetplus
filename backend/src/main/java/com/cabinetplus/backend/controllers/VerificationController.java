@@ -88,14 +88,14 @@ public class VerificationController {
                 userRepo.save(user);
                 return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
             }
-            logger.info("Attempting to send SMS OTP to: {}", formattedNumber);
+            logger.info("Attempting to send SMS OTP to: {}", maskPhone(formattedNumber));
             phoneVerificationService.sendVerificationCode(formattedNumber);
             user.setPhoneVerificationOtpLastSentAt(LocalDateTime.now());
             userRepo.save(user);
 
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye au " + formattedNumber));
         } catch (IllegalStateException e) {
-            logger.error("Twilio Verify not configured for phone verification send (to={})", formattedNumber, e);
+            logger.error("Twilio Verify not configured for phone verification send (to={})", maskPhone(formattedNumber), e);
             throw new InternalServerErrorException(
                     "Service SMS indisponible",
                     Map.of("_", "Service SMS indisponible", "reason", "not_configured")
@@ -103,7 +103,7 @@ public class VerificationController {
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
-            logger.warn("Twilio Verify send failed (to={}, status={})", formattedNumber, status, e);
+            logger.warn("Twilio Verify send failed (to={}, status={})", maskPhone(formattedNumber), status, e);
             // Special-case Verify blocks (Fraud Guard / risk prevention) to return a clear message.
             // 60410 = Fraud Guard temporary block (typically 12h). See Twilio error dictionary.
             if (twilioCode != null && twilioCode == 60410) {
@@ -154,7 +154,7 @@ public class VerificationController {
                 approved = phoneVerificationService.checkVerificationCode(formattedNumber, code);
             }
         } catch (IllegalStateException e) {
-            logger.error("Twilio Verify not configured for phone verification check (to={})", formattedNumber, e);
+            logger.error("Twilio Verify not configured for phone verification check (to={})", maskPhone(formattedNumber), e);
             throw new InternalServerErrorException(
                     "Service SMS indisponible",
                     Map.of("_", "Service SMS indisponible", "reason", "not_configured")
@@ -162,7 +162,7 @@ public class VerificationController {
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
-            logger.warn("Twilio Verify check failed (to={}, status={})", formattedNumber, status, e);
+            logger.warn("Twilio Verify check failed (to={}, status={})", maskPhone(formattedNumber), status, e);
             if (status == 400) {
                 throw new BadRequestException(Map.of("code", "Code SMS invalide"));
             }
@@ -240,7 +240,7 @@ public class VerificationController {
             userRepo.save(user);
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye"));
         } catch (IllegalStateException e) {
-            logger.error("Twilio Verify not configured for phone change send (to={})", formattedNumber, e);
+            logger.error("Twilio Verify not configured for phone change send (to={})", maskPhone(formattedNumber), e);
             throw new InternalServerErrorException(
                     "Service SMS indisponible",
                     Map.of("_", "Service SMS indisponible", "reason", "not_configured")
@@ -248,7 +248,7 @@ public class VerificationController {
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
-            logger.warn("Twilio Verify send failed for phone change (to={}, status={})", formattedNumber, status, e);
+            logger.warn("Twilio Verify send failed for phone change (to={}, status={})", maskPhone(formattedNumber), status, e);
             if (twilioCode != null && twilioCode == 60410) {
                 throw new TooManyRequestsException(
                         "Envoi SMS temporairement bloque. Reessayez plus tard.",
@@ -261,7 +261,7 @@ public class VerificationController {
             }
             throw new BadGatewayException("Service SMS indisponible");
         } catch (Exception e) {
-            logger.error("Unexpected error during phone change send (to={})", formattedNumber, e);
+            logger.error("Unexpected error during phone change send (to={})", maskPhone(formattedNumber), e);
             throw new InternalServerErrorException(
                     "Service SMS indisponible",
                     Map.of("_", "Service SMS indisponible", "reason", "unexpected")
@@ -309,7 +309,7 @@ public class VerificationController {
                 approved = phoneVerificationService.checkVerificationCode(formattedNumber, code);
             }
         } catch (IllegalStateException e) {
-            logger.error("Twilio Verify not configured for phone change confirm (to={})", formattedNumber, e);
+            logger.error("Twilio Verify not configured for phone change confirm (to={})", maskPhone(formattedNumber), e);
             throw new InternalServerErrorException(
                     "Service SMS indisponible",
                     Map.of("_", "Service SMS indisponible", "reason", "not_configured")
@@ -317,13 +317,13 @@ public class VerificationController {
         } catch (ApiException e) {
             int status = e.getStatusCode();
             Integer twilioCode = e.getCode();
-            logger.warn("Twilio Verify check failed for phone change (to={}, status={})", formattedNumber, status, e);
+            logger.warn("Twilio Verify check failed for phone change (to={}, status={})", maskPhone(formattedNumber), status, e);
             if (status == 400) {
                 throw new BadRequestException(Map.of("code", "Code SMS invalide"));
             }
             throw new BadGatewayException("Service SMS indisponible");
         } catch (Exception e) {
-            logger.error("Unexpected error during phone change confirm (to={})", formattedNumber, e);
+            logger.error("Unexpected error during phone change confirm (to={})", maskPhone(formattedNumber), e);
             throw new InternalServerErrorException(
                     "Service SMS indisponible",
                     Map.of("_", "Service SMS indisponible", "reason", "unexpected")
@@ -342,6 +342,13 @@ public class VerificationController {
     }
 
     // ------------------- HELPER METHODS -------------------
+    private String maskPhone(String value) {
+        if (value == null || value.isBlank()) return "<empty>";
+        String digits = value.replaceAll("[^0-9]", "");
+        if (digits.length() <= 4) return "****";
+        return "****" + digits.substring(digits.length() - 4);
+    }
+
     private String formatPhoneNumber(String number) {
         if (number == null || number.isBlank()) return null;
         String clean = number.replaceAll("[^0-9]", "");

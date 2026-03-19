@@ -4,8 +4,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -46,6 +48,9 @@ public class Treatment {
 
     private LocalDateTime date;
     private Double price;
+
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String notes;
     private String status = "PLANNED";
     private LocalDateTime updatedAt;

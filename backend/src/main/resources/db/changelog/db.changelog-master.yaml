@@ -142,3 +142,12 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 017-field-encryption-text-columns
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 017-field-encryption-text-columns.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

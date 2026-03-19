@@ -56,7 +56,7 @@ public class ProtheticsController {
                 AuditEventType.PROTHESIS_CREATE,
                 "PATIENT",
                 created.getPatient() != null ? String.valueOf(created.getPatient().getId()) : null,
-                "Prothese ajoutee pour " + formatPatientName(created.getPatient())
+                "Prothese ajoutee"
         );
         return ResponseEntity.ok(mapToResponse(created));
     }
@@ -69,7 +69,7 @@ public class ProtheticsController {
                 AuditEventType.PROTHESIS_UPDATE,
                 "PATIENT",
                 updated.getPatient() != null ? String.valueOf(updated.getPatient().getId()) : null,
-                "Prothese modifiee pour " + formatPatientName(updated.getPatient())
+                "Prothese modifiee"
         );
         return ResponseEntity.ok(mapToResponse(updated));
     }
@@ -82,7 +82,7 @@ public class ProtheticsController {
                 AuditEventType.PROTHESIS_ASSIGN_LAB,
                 "PATIENT",
                 updated.getPatient() != null ? String.valueOf(updated.getPatient().getId()) : null,
-                "Prothese envoyee au laboratoire pour " + formatPatientName(updated.getPatient())
+                "Prothese envoyee au laboratoire"
         );
         return ResponseEntity.ok(mapToResponse(updated));
     }
@@ -98,7 +98,7 @@ public class ProtheticsController {
                 AuditEventType.PROTHESIS_STATUS_CHANGE,
                 "PATIENT",
                 updated.getPatient() != null ? String.valueOf(updated.getPatient().getId()) : null,
-                "Statut prothese modifie pour " + formatPatientName(updated.getPatient()) + ": " + updated.getStatus()
+                "Statut prothese modifie: " + updated.getStatus()
         );
         return ResponseEntity.ok(mapToResponse(updated));
     }
@@ -117,7 +117,7 @@ public class ProtheticsController {
                         ? String.valueOf(existing.getPatient().getId())
                         : null,
                 existing != null
-                        ? "Prothese supprimee pour " + formatPatientName(existing.getPatient())
+                        ? "Prothese supprimee"
                         : "Prothese supprimee: #" + id
         );
         return ResponseEntity.noContent().build();
@@ -166,12 +166,6 @@ public ResponseEntity<List<ProthesisResponse>> getByPatient(
             .collect(Collectors.toList()));
 }
 
-private String formatPatientName(Patient patient) {
-    if (patient == null) return "patient inconnu";
-    String first = patient.getFirstname() != null ? patient.getFirstname().trim() : "";
-    String last = patient.getLastname() != null ? patient.getLastname().trim() : "";
-    String fullName = (first + " " + last).trim();
-    return fullName.isEmpty() ? "patient inconnu" : fullName;
-}
+
 }
 

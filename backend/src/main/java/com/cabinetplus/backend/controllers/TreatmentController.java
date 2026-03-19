@@ -67,7 +67,7 @@ public class TreatmentController {
                 AuditEventType.TREATMENT_CREATE,
                 "PATIENT",
                 saved.getPatient() != null ? String.valueOf(saved.getPatient().getId()) : null,
-                "Traitement ajoute pour " + formatPatientName(saved.getPatient())
+                "Traitement ajoute"
         );
         return ResponseEntity.ok(saved);
     }
@@ -83,7 +83,7 @@ public class TreatmentController {
                 AuditEventType.TREATMENT_UPDATE,
                 "PATIENT",
                 saved.getPatient() != null ? String.valueOf(saved.getPatient().getId()) : null,
-                "Traitement modifie pour " + formatPatientName(saved.getPatient())
+                "Traitement modifie"
         );
         return ResponseEntity.ok(saved);
     }
@@ -104,7 +104,7 @@ public class TreatmentController {
                 AuditEventType.TREATMENT_DELETE,
                 "PATIENT",
                 existing.getPatient() != null ? String.valueOf(existing.getPatient().getId()) : null,
-                "Traitement supprime pour " + formatPatientName(existing.getPatient())
+                "Traitement supprime"
         );
         return ResponseEntity.noContent().build();
     }
@@ -121,12 +121,6 @@ public class TreatmentController {
         return ResponseEntity.ok(treatments);
     }
 
-    private String formatPatientName(Patient patient) {
-        if (patient == null) return "patient inconnu";
-        String first = patient.getFirstname() != null ? patient.getFirstname().trim() : "";
-        String last = patient.getLastname() != null ? patient.getLastname().trim() : "";
-        String fullName = (first + " " + last).trim();
-        return fullName.isEmpty() ? "patient inconnu" : fullName;
-    }
+
 }
 

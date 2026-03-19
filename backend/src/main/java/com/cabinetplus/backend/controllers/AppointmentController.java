@@ -78,7 +78,7 @@ public class AppointmentController {
                 AuditEventType.APPOINTMENT_CREATE,
                 "PATIENT",
                 String.valueOf(patientDto.id()),
-                "Rendez-vous ajoute pour " + formatPatientName(patientDto.firstname(), patientDto.lastname())
+                "Rendez-vous ajoute"
         );
 
         return new AppointmentResponse(
@@ -104,7 +104,7 @@ public class AppointmentController {
                 AuditEventType.APPOINTMENT_UPDATE,
                 "PATIENT",
                 String.valueOf(patientDto.id()),
-                "Rendez-vous modifie pour " + formatPatientName(patientDto.firstname(), patientDto.lastname())
+                "Rendez-vous modifie"
         );
         return new AppointmentResponse(
                 saved.getId(),
@@ -241,10 +241,7 @@ public class AppointmentController {
                         ? String.valueOf(existing.getPatient().getId())
                         : null,
                 existing != null
-                        ? "Rendez-vous supprime pour " + formatPatientName(
-                                existing.getPatient() != null ? existing.getPatient().getFirstname() : null,
-                                existing.getPatient() != null ? existing.getPatient().getLastname() : null
-                        )
+                        ? "Rendez-vous supprime"
                         : "Rendez-vous supprime: #" + id
         );
     }

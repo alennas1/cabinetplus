@@ -44,6 +44,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
+import com.cabinetplus.backend.security.RefreshTokenHash;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import com.twilio.exception.ApiException;
@@ -106,7 +107,7 @@ public class AuthController {
                 .httpOnly(true)   // secure in production
                 .secure(cookieSecure)
                 .sameSite(cookieSameSite)
-                .path("/")
+                .path("/auth")
                 .maxAge(maxAgeSeconds)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -128,7 +129,7 @@ private void addDeviceCookie(HttpServletResponse response, String deviceId) {
             .httpOnly(true)
             .secure(cookieSecure)
             .sameSite(cookieSameSite)
-            .path("/")
+            .path("/auth")
             .maxAge(60L * 60 * 24 * 365)
             .build();
 
@@ -172,7 +173,8 @@ if (deviceId == null || deviceId.isBlank()) {
             revokeActiveSessionsForDevice(user, deviceId);
             RefreshToken refreshToken = new RefreshToken();
             refreshToken.setUser(user);
-            refreshToken.setToken(jwtUtil.generateRefreshToken(resolvedUsername, refreshTokenMs));
+            String rawRefreshToken = jwtUtil.generateRefreshToken(resolvedUsername, refreshTokenMs);
+            refreshToken.setToken(RefreshTokenHash.hash(rawRefreshToken));
             refreshToken.setDeviceId(deviceId);
             refreshToken.setCreatedAt(LocalDateTime.now());
             refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
@@ -180,7 +182,7 @@ if (deviceId == null || deviceId.isBlank()) {
             fillSessionMeta(refreshToken, request);
             refreshRepo.save(refreshToken);
 
-            addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
+            addRefreshCookie(response, rawRefreshToken, refreshTokenMs / 1000);
             auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGIN, "SESSION", null, "Connexion reussie");
 
             return ResponseEntity.ok(Map.of("accessToken", accessToken));
@@ -251,7 +253,8 @@ if (deviceId == null || deviceId.isBlank()) {
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(saved);
-        refreshToken.setToken(jwtUtil.generateRefreshToken(saved.getUsername(), refreshTokenMs));
+        String rawRefreshToken = jwtUtil.generateRefreshToken(saved.getUsername(), refreshTokenMs);
+        refreshToken.setToken(RefreshTokenHash.hash(rawRefreshToken));
         refreshToken.setDeviceId(deviceId);
 
         refreshToken.setCreatedAt(LocalDateTime.now());
@@ -260,7 +263,7 @@ if (deviceId == null || deviceId.isBlank()) {
         fillSessionMeta(refreshToken, httpRequest);
         refreshRepo.save(refreshToken);
 
-        addRefreshCookie(response, refreshToken.getToken(), refreshTokenMs / 1000);
+        addRefreshCookie(response, rawRefreshToken, refreshTokenMs / 1000);
         auditService.logSuccessAsUser(saved, AuditEventType.AUTH_REGISTER, "USER", String.valueOf(saved.getId()), "Inscription reussie");
 
         UserDto dto = new UserDto(
@@ -284,10 +287,20 @@ if (deviceId == null || deviceId.isBlank()) {
             return ResponseEntity.ok(Map.of("accessToken", ""));
         }
 
-        return refreshRepo.findByTokenWithUser(refreshTokenCookie)
+        String tokenHash = RefreshTokenHash.hash(refreshTokenCookie);
+        var byHash = refreshRepo.findByTokenWithUser(tokenHash);
+        var tokenLookup = byHash.isPresent()
+                ? byHash
+                : refreshRepo.findByTokenWithUser(refreshTokenCookie).map(tokenEntity -> {
+                    // Migrate legacy rows storing plaintext refresh tokens.
+                    tokenEntity.setToken(tokenHash);
+                    return refreshRepo.save(tokenEntity);
+                });
+
+        return tokenLookup
                 .map(tokenEntity -> {
                     User user = tokenEntity.getUser();
-                    boolean expiredJwt = !jwtUtil.validateRefreshToken(tokenEntity.getToken());
+                    boolean expiredJwt = !jwtUtil.validateRefreshToken(refreshTokenCookie);
 
                     if (tokenEntity.isRevoked() || tokenEntity.getExpiresAt().isBefore(LocalDateTime.now())
                             || user == null || expiredJwt) {
@@ -310,7 +323,16 @@ if (deviceId == null || deviceId.isBlank()) {
     public ResponseEntity<Void> logout(@CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
                                        HttpServletResponse response) {
         if (refreshTokenCookie != null) {
-            refreshRepo.findByToken(refreshTokenCookie).ifPresent(tokenEntity -> {
+            String tokenHash = RefreshTokenHash.hash(refreshTokenCookie);
+            var byHash = refreshRepo.findByToken(tokenHash);
+            var tokenLookup = byHash.isPresent()
+                    ? byHash
+                    : refreshRepo.findByToken(refreshTokenCookie).map(tokenEntity -> {
+                        tokenEntity.setToken(tokenHash);
+                        return refreshRepo.save(tokenEntity);
+                    });
+
+            tokenLookup.ifPresent(tokenEntity -> {
                 tokenEntity.setRevoked(true);
                 refreshRepo.save(tokenEntity);
                 if (tokenEntity.getUser() != null) {
@@ -329,7 +351,7 @@ if (deviceId == null || deviceId.isBlank()) {
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite(cookieSameSite)
-                .path("/")
+                .path("/auth")
                 .maxAge(0)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -350,7 +372,7 @@ if (deviceId == null || deviceId.isBlank()) {
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite(cookieSameSite)
-                .path("/")
+                .path("/auth")
                 .maxAge(0)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

@@ -3,8 +3,10 @@ package com.cabinetplus.backend.models;
 import java.time.LocalDate;
 
 import com.cabinetplus.backend.enums.ExpenseCategory;
+import com.cabinetplus.backend.security.EncryptionConverter;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -31,7 +33,8 @@ public class Expense {
     private Long id;
 
     @NotNull(message = "Le titre est obligatoire")
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String title;
 
     @NotNull(message = "Le montant est obligatoire")
@@ -45,7 +48,8 @@ public class Expense {
 
     private LocalDate date;
 
-    @Column(length = 500)
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String description;
 
     @ManyToOne(optional = false)

@@ -4,7 +4,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.*;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -49,6 +51,9 @@ public class Prothesis {
     // --- Pricing & Details ---
     private Double finalPrice; // Calculated: (catalog.price * teeth.size()) or flat fee
     private String code;
+
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
     private String notes;
 
     @ElementCollection(fetch = FetchType.EAGER)

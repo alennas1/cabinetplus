@@ -34,16 +34,21 @@ public class Patient {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
+    @Column(columnDefinition = "TEXT")
     @Convert(converter = EncryptionConverter.class)
     private String firstname;
 
+    @Column(columnDefinition = "TEXT")
     @Convert(converter = EncryptionConverter.class)
     private String lastname;
 
     private Integer age;
 
-    private String sex;  
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
+    private String sex;
 
+    @Column(columnDefinition = "TEXT")
     @Convert(converter = EncryptionConverter.class)
     private String phone;
 

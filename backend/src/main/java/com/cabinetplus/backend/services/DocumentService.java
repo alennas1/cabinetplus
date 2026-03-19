@@ -6,8 +6,10 @@ import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.DocumentRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
+import com.cabinetplus.backend.security.crypto.DecryptingFileResource;
+import com.cabinetplus.backend.security.crypto.EncryptedFileIO;
+import com.cabinetplus.backend.security.crypto.EncryptionKeyProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
@@ -15,10 +17,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -93,8 +96,11 @@ public class DocumentService {
         if (fileSizeBytes > MAX_FILE_SIZE_BYTES) {
             throw new IllegalArgumentException("La taille maximale par fichier est de 25 MB");
         }
+
+        // Encrypted storage adds a small header + GCM tag + wrapped DEK.
+        long estimatedStoredBytes = fileSizeBytes + 256;
         long currentStorageBytes = planLimitService.getCurrentStorageBytes(ownerDentist);
-        long nextTotalBytes = currentStorageBytes + fileSizeBytes;
+        long nextTotalBytes = currentStorageBytes + estimatedStoredBytes;
         planLimitService.assertStorageWithinLimit(ownerDentist, nextTotalBytes);
 
         try {
@@ -102,13 +108,18 @@ public class DocumentService {
 
             String storedFilename = UUID.randomUUID() + "." + extension;
             Path destination = uploadRoot.resolve(storedFilename).normalize();
-            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+
+            byte[] kek = EncryptionKeyProvider.getOrLoadKek();
+            try (InputStream in = file.getInputStream(); OutputStream out = Files.newOutputStream(destination)) {
+                EncryptedFileIO.encryptToStream(in, out, kek);
+            }
+            long storedBytes = Files.size(destination);
 
             Document document = new Document();
             document.setTitle(cleanTitle);
             document.setFilename(sanitizeFilename(originalFilename, storedFilename));
             document.setFileType(resolveFileType(file, extension));
-            document.setFileSizeBytes(fileSizeBytes);
+            document.setFileSizeBytes(storedBytes);
             document.setUploadedAt(LocalDateTime.now());
             document.setPathOrUrl(destination.toString());
             document.setPatient(patient);
@@ -123,7 +134,7 @@ public class DocumentService {
     public Resource getDocumentResource(Long documentId, User ownerDentist) {
         Document document = getOwnedDocument(documentId, ownerDentist);
         Path path = resolveExistingPath(document);
-        return new FileSystemResource(path);
+        return new DecryptingFileResource(path, EncryptionKeyProvider.getOrLoadKek());
     }
 
     public DocumentResponseDTO getDocumentMetadata(Long documentId, User ownerDentist) {

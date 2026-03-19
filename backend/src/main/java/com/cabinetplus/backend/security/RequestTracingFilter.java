@@ -31,6 +31,15 @@ public class RequestTracingFilter extends OncePerRequestFilter {
         MDC.put(AuditService.REQUEST_ID_KEY, requestId);
         response.setHeader(AuditService.REQUEST_ID_HEADER, requestId);
 
+        String path = request.getRequestURI();
+        if (path != null && (path.startsWith("/api/") || path.startsWith("/auth/"))) {
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setDateHeader("Expires", 0);
+            response.setHeader("Referrer-Policy", "no-referrer");
+            response.setHeader("X-Robots-Tag", "noindex, nofollow");
+        }
+
         try {
             filterChain.doFilter(request, response);
         } finally {

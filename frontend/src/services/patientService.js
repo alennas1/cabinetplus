@@ -91,3 +91,9 @@ export const downloadPatientFiche = async (id) => {
     throw error;
   }
 };
+
+// ----------------- Generate Public Patient Fiche Link (QR) -----------------
+export const getPublicPatientFicheLink = async (id) => {
+  const response = await api.get(`/api/patients/${id}/fiche-pdf-link`);
+  return response.data;
+};

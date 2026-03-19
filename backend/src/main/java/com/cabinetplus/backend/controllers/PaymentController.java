@@ -3,10 +3,8 @@ package com.cabinetplus.backend.controllers;
 import com.cabinetplus.backend.dto.PaymentRequest;
 import com.cabinetplus.backend.dto.PaymentResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
-import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Payment;
 import com.cabinetplus.backend.models.User;
-import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.PaymentRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PaymentService;
@@ -28,7 +26,6 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final AuditService auditService;
-    private final PatientRepository patientRepository;
     private final PaymentRepository paymentRepository;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
@@ -38,14 +35,11 @@ public class PaymentController {
         User actor = userService.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         PaymentResponse created = paymentService.create(request, actor);
-        Patient patient = patientRepository.findById(request.patientId()).orElse(null);
         auditService.logSuccess(
                 AuditEventType.PAYMENT_CREATE,
                 "PATIENT",
                 String.valueOf(request.patientId()),
-                patient != null
-                        ? "Paiement ajoute pour " + formatPatientName(patient)
-                        : "Paiement ajoute pour le patient #" + request.patientId()
+                "Paiement ajoute"
         );
         return ResponseEntity
                 .created(URI.create("/api/payments/" + created.id()))
@@ -73,18 +67,11 @@ public class PaymentController {
                 existing != null && existing.getPatient() != null
                         ? String.valueOf(existing.getPatient().getId())
                         : null,
-                existing != null && existing.getPatient() != null
-                        ? "Paiement supprime pour " + formatPatientName(existing.getPatient())
+                existing != null
+                        ? "Paiement supprime"
                         : "Paiement supprime: #" + paymentId
         );
         return ResponseEntity.noContent().build();
-    }
-
-    private String formatPatientName(Patient patient) {
-        String first = patient.getFirstname() != null ? patient.getFirstname().trim() : "";
-        String last = patient.getLastname() != null ? patient.getLastname().trim() : "";
-        String fullName = (first + " " + last).trim();
-        return fullName.isEmpty() ? "patient inconnu" : fullName;
     }
 
     private User getClinicUser(Principal principal) {

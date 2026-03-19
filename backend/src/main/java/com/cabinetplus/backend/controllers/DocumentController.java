@@ -1,7 +1,9 @@
 package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.DocumentResponseDTO;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.DocumentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -24,11 +26,18 @@ public class DocumentController {
     private final DocumentService documentService;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
-    public DocumentController(DocumentService documentService, UserService userService, PublicIdResolutionService publicIdResolutionService) {
+    public DocumentController(
+            DocumentService documentService,
+            UserService userService,
+            PublicIdResolutionService publicIdResolutionService,
+            AuditService auditService
+    ) {
         this.documentService = documentService;
         this.userService = userService;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.auditService = auditService;
     }
 
     @GetMapping("/patient/{patientId}")
@@ -61,6 +70,13 @@ public class DocumentController {
         DocumentResponseDTO metadata = documentService.getDocumentMetadata(id, ownerDentist);
         Resource resource = documentService.getDocumentResource(id, ownerDentist);
         MediaType mediaType = documentService.resolveMediaType(id, ownerDentist);
+
+        auditService.logSuccess(
+                AuditEventType.DOCUMENT_READ,
+                "DOCUMENT",
+                String.valueOf(id),
+                download ? "Document telecharge" : "Document consulte"
+        );
 
         ContentDisposition disposition = (download
                 ? ContentDisposition.attachment()

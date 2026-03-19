@@ -178,3 +178,12 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 021-add-justification-type
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 021-add-justification-type.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

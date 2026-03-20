@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import com.cabinetplus.backend.dto.*;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.services.*;
@@ -19,11 +20,13 @@ public class LaboratoryController {
     private final LaboratoryService service;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
-    public LaboratoryController(LaboratoryService service, UserService userService, PublicIdResolutionService publicIdResolutionService) {
+    public LaboratoryController(LaboratoryService service, UserService userService, PublicIdResolutionService publicIdResolutionService, AuditService auditService) {
         this.service = service;
         this.userService = userService;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.auditService = auditService;
     }
 
     @GetMapping
@@ -36,6 +39,12 @@ public class LaboratoryController {
     public ResponseEntity<LaboratoryResponse> getOne(@PathVariable String id, Principal principal) {
         User user = getCurrentUser(principal);
         Laboratory laboratory = publicIdResolutionService.requireLaboratoryOwnedBy(id, user);
+        auditService.logSuccess(
+                AuditEventType.LABORATORY_READ,
+                "LABORATORY",
+                String.valueOf(laboratory.getId()),
+                "Laboratoire consulté"
+        );
         return ResponseEntity.ok(mapToResponse(laboratory));
     }
 
@@ -48,7 +57,14 @@ public class LaboratoryController {
         entity.setPhoneNumber(dto.phoneNumber());
         entity.setAddress(dto.address());
         entity.setCreatedBy(user);
-        return ResponseEntity.ok(mapToResponse(service.save(entity)));
+        Laboratory saved = service.save(entity);
+        auditService.logSuccess(
+                AuditEventType.LABORATORY_CREATE,
+                "LABORATORY",
+                String.valueOf(saved.getId()),
+                "Laboratoire créé"
+        );
+        return ResponseEntity.ok(mapToResponse(saved));
     }
 
     @PutMapping("/{id}")
@@ -62,6 +78,15 @@ public class LaboratoryController {
         updateData.setAddress(dto.address());
         return service.update(internalLabId, updateData, user)
                 .map(this::mapToResponse)
+                .map(resp -> {
+                    auditService.logSuccess(
+                            AuditEventType.LABORATORY_UPDATE,
+                            "LABORATORY",
+                            String.valueOf(internalLabId),
+                            "Laboratoire modifié"
+                    );
+                    return resp;
+                })
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new NotFoundException("Laboratoire introuvable"));
     }
@@ -73,6 +98,12 @@ public class LaboratoryController {
         User user = getCurrentUser(principal);
         Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
         service.addPayment(internalLabId, dto, user);
+        auditService.logSuccess(
+                AuditEventType.LAB_PAYMENT_CREATE,
+                "LABORATORY",
+                String.valueOf(internalLabId),
+                "Paiement laboratoire ajouté"
+        );
         Laboratory laboratory = service.findByIdAndUser(internalLabId, user)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
         return ResponseEntity.ok(mapToResponse(laboratory));
@@ -90,6 +121,12 @@ public class LaboratoryController {
         if (!service.deletePayment(internalLabId, paymentId, user)) {
             throw new NotFoundException("Paiement introuvable");
         }
+        auditService.logSuccess(
+                AuditEventType.LAB_PAYMENT_DELETE,
+                "LABORATORY",
+                String.valueOf(internalLabId),
+                "Paiement laboratoire supprimé"
+        );
         return ResponseEntity.noContent().build();
     }
 
@@ -105,6 +142,12 @@ public class LaboratoryController {
         if (!service.deleteByUser(internalLabId, user)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Suppression impossible: ce laboratoire est lie a des paiements ou protheses");
         }
+        auditService.logSuccess(
+                AuditEventType.LABORATORY_DELETE,
+                "LABORATORY",
+                String.valueOf(internalLabId),
+                "Laboratoire supprimé"
+        );
 
         return ResponseEntity.noContent().build();
     }

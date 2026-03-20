@@ -1,19 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { AlertCircle, ChevronLeft, X } from "react-feather";
+import { AlertCircle, X } from "react-feather";
 import PageHeader from "../components/PageHeader";
+import BackButton from "../components/BackButton";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
-import ModernDropdown from "../components/ModernDropdown";
-import FieldError from "../components/FieldError";
+import PlanCard from "../components/PlanCard";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment, getMyHandPayments } from "../services/handPaymentService";
 import { getCurrentPlanUsage } from "../services/userService";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
-import { validateText } from "../utils/validation";
 import "./Patients.css";
 import "./PaymentHistory.css";
 
@@ -70,11 +69,11 @@ const HandPaymentHistory = () => {
   const [upgradeStartMode, setUpgradeStartMode] = useState("IMMEDIATE");
   const [showRenewModal, setShowRenewModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showUpgradeConfirmModal, setShowUpgradeConfirmModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submittingType, setSubmittingType] = useState("");
   const [error, setError] = useState("");
   const [planUsage, setPlanUsage] = useState(null);
-  const [fieldErrors, setFieldErrors] = useState({});
 
   const currentPlanCode = (user?.plan?.code || "").toUpperCase();
   const planStartDate = user?.planStartDate || user?.subscriptionStartDate || user?.createdAt;
@@ -90,6 +89,28 @@ const HandPaymentHistory = () => {
     () => plans.find((plan) => String(plan.id) === String(upgradePlanId)),
     [plans, upgradePlanId]
   );
+
+  const sortedUpgradePlans = useMemo(() => {
+    const isYearly = String(upgradeBillingCycle).toUpperCase() === "YEARLY";
+    const getSortPrice = (plan) => {
+      const monthly = Number(plan?.monthlyPrice || 0);
+      if (monthly === 0) return 0;
+      if (isYearly) {
+        const yearlyMonthly = Number(plan?.yearlyMonthlyPrice || 0);
+        return yearlyMonthly > 0 ? yearlyMonthly : monthly;
+      }
+      return monthly;
+    };
+
+    return [...(plans || [])].sort((a, b) => {
+      const priceA = getSortPrice(a);
+      const priceB = getSortPrice(b);
+      if (priceA !== priceB) return priceA - priceB;
+      const nameA = String(a?.name || a?.code || "");
+      const nameB = String(b?.name || b?.code || "");
+      return nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
+    });
+  }, [plans, upgradeBillingCycle]);
 
   const renewAmount = useMemo(() => computeAmount(currentPlan, "MONTHLY"), [currentPlan]);
   const upgradeAmount = useMemo(
@@ -112,13 +133,28 @@ const HandPaymentHistory = () => {
   };
 
   const sortedPayments = useMemo(() => {
+    const getBillingCycle = (payment) => {
+      const raw = payment?.billingCycle || payment?.billing_cycle || payment?.cycle;
+      const normalized = String(raw || "MONTHLY").toUpperCase();
+      return normalized.includes("YEAR") ? "YEARLY" : "MONTHLY";
+    };
+
+    const getMonthlyAmount = (payment) => {
+      const amount = Number(payment?.amount || 0);
+      return getBillingCycle(payment) === "YEARLY" ? amount / 12 : amount;
+    };
+
     const getValue = (payment) => {
       const status = (payment.status || payment.paymentStatus || "PENDING").toUpperCase();
       switch (sortConfig.key) {
         case "planName":
           return payment.planName;
-        case "amount":
-          return payment.amount || 0;
+        case "amountMonthly":
+          return getMonthlyAmount(payment);
+        case "totalAmount":
+          return Number(payment?.amount || 0);
+        case "billingCycle":
+          return getBillingCycle(payment) === "YEARLY" ? 1 : 0;
         case "paymentDate":
           return payment.paymentDate;
         case "status":
@@ -133,13 +169,6 @@ const HandPaymentHistory = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, sortConfig.key, sortConfig.direction]);
-
-  useEffect(() => {
-    if (!showUpgradeModal) return;
-    if (upgradePlanId) return;
-    if (!plans.length) return;
-    setUpgradePlanId(String(plans[0].id));
-  }, [plans, showUpgradeModal, upgradePlanId]);
 
   const indexOfLastPayment = currentPage * paymentsPerPage;
   const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
@@ -184,16 +213,6 @@ const HandPaymentHistory = () => {
     const isRenewal = type === "RENEWAL";
     const startAtEnd = isRenewal || startMode === "AT_END_OF_CURRENT";
     const effectiveDate = startAtEnd && planEndDate ? planEndDate : new Date();
-    const requestLabel = isRenewal ? "renouvellement" : "changement";
-
-    const confirmed = window.confirm(
-      `Confirmer la demande de ${requestLabel} ?\n\n` +
-        `Plan: ${plan.name}\n` +
-        `Cycle: ${billingCycle === "YEARLY" ? "Annuel" : "Mensuel"}\n` +
-        `Date d'effet demandee: ${formatDate(effectiveDate)}\n` +
-        `Validation admin requise.`
-    );
-    if (!confirmed) return;
 
     setSubmittingType(type);
     setError("");
@@ -215,6 +234,7 @@ const HandPaymentHistory = () => {
       });
       setShowRenewModal(false);
       setShowUpgradeModal(false);
+      setShowUpgradeConfirmModal(false);
       await loadData();
     } catch (err) {
       setError(err?.response?.data?.message || "Impossible d'envoyer la demande. Reessayez.");
@@ -239,15 +259,7 @@ const HandPaymentHistory = () => {
 
   return (
     <div className="patients-container plans-payments-page">
-      <button
-        className="back-btn"
-        onClick={() => {
-          if (window.history.length > 1) navigate(-1);
-          else navigate("/settings", { replace: true });
-        }}
-      >
-        <ChevronLeft size={18} /> Retour aux parametres
-      </button>
+      <BackButton fallbackTo="/settings" />
 
       <PageHeader
         title="Abonnement et facturation"
@@ -313,13 +325,23 @@ const HandPaymentHistory = () => {
           ) : null}
 
           <div className="actions-row">
-            <button className="btn-primary2" onClick={() => setShowRenewModal(true)}>
+            <button className="btn-primary2" onClick={() => {
+              setShowUpgradeModal(false);
+              setShowUpgradeConfirmModal(false);
+              setShowRenewModal(true);
+            }}>
               Renouveler
             </button>
             <button
               className="btn-cancel changer-btn"
               onClick={() => {
-                setFieldErrors({});
+                if (!plans.length) return;
+                const defaultPlanId = String(currentPlan?.id || plans[0]?.id || "");
+                setUpgradePlanId(defaultPlanId);
+                setUpgradeBillingCycle("MONTHLY");
+                setUpgradeStartMode("IMMEDIATE");
+                setShowRenewModal(false);
+                setShowUpgradeConfirmModal(false);
                 setShowUpgradeModal(true);
               }}
             >
@@ -335,7 +357,9 @@ const HandPaymentHistory = () => {
             <thead>
               <tr>
                 <SortableTh label="Plan" sortKey="planName" sortConfig={sortConfig} onSort={handleSort} />
-                <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
+                <SortableTh label="Montant / mois" sortKey="amountMonthly" sortConfig={sortConfig} onSort={handleSort} />
+                <SortableTh label="Total" sortKey="totalAmount" sortConfig={sortConfig} onSort={handleSort} />
+                <SortableTh label="Type" sortKey="billingCycle" sortConfig={sortConfig} onSort={handleSort} />
                 <SortableTh label="Date" sortKey="paymentDate" sortConfig={sortConfig} onSort={handleSort} />
                 <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
               </tr>
@@ -343,7 +367,7 @@ const HandPaymentHistory = () => {
             <tbody>
               {sortedPayments.length === 0 ? (
                 <tr>
-                  <td colSpan="4" style={{ textAlign: "center" }}>
+                  <td colSpan="6" style={{ textAlign: "center" }}>
                     Aucun paiement trouve
                   </td>
                 </tr>
@@ -357,10 +381,18 @@ const HandPaymentHistory = () => {
                       ? "inactive"
                       : "on_leave";
 
+                  const rawCycle = payment?.billingCycle || payment?.billing_cycle || payment?.cycle;
+                  const cycle = String(rawCycle || "MONTHLY").toUpperCase().includes("YEAR") ? "YEARLY" : "MONTHLY";
+                  const totalAmount = Number(payment.amount || 0);
+                  const monthlyAmount = cycle === "YEARLY" ? totalAmount / 12 : totalAmount;
+                  const cycleLabel = cycle === "YEARLY" ? "Annuel" : "Mensuel";
+
                   return (
                     <tr key={payment.id || payment.paymentId}>
                       <td>{payment.planName || "-"}</td>
-                      <td>{formatMoneyWithLabel(payment.amount || 0)}</td>
+                      <td>{formatMoneyWithLabel(monthlyAmount)}</td>
+                      <td>{formatMoneyWithLabel(totalAmount)}</td>
+                      <td>{cycleLabel}</td>
                       <td>{formatDate(payment.paymentDate)}</td>
                       <td>
                         <span className={`payment-status ${statusClass}`}>{STATUS_LABELS[status] || status}</span>
@@ -396,19 +428,28 @@ const HandPaymentHistory = () => {
         </section>
       )}
 
-      {showRenewModal && (
+      {showRenewModal && currentPlan ? (
         <div className="modal-overlay" onClick={() => setShowRenewModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-2">
-              <h2>Renouveler</h2>
-              <X className="cursor-pointer" onClick={() => setShowRenewModal(false)} />
-            </div>
-            <p className="text-sm text-gray-600 mb-4">Vérifiez le récapitulatif puis confirmez l’envoi de la demande.</p>
-            <form
-              className="modal-form"
-              noValidate
-              onSubmit={(e) => {
-                e.preventDefault();
+          <button
+            type="button"
+            className="hp-modal-float-close"
+            aria-label="Fermer"
+            onClick={() => setShowRenewModal(false)}
+          >
+            <X size={18} />
+          </button>
+          <div onClick={(e) => e.stopPropagation()}>
+            <PlanCard
+              plan={currentPlan}
+              featured={Boolean(currentPlan?.recommended)}
+              variant="full"
+              headerBadge="Renouvellement"
+              footerNote={`Ce plan démarrera à la fin de votre plan actuel (${formatDate(planEndDate)}).`}
+              className="is-modal"
+              buttonVariant="primary"
+              buttonLabel={submittingType === "RENEWAL" ? "Envoi..." : "Confirmer"}
+              onSelect={() => {
+                if (submittingType !== "") return;
                 submitRequest({
                   type: "RENEWAL",
                   plan: currentPlan,
@@ -417,74 +458,124 @@ const HandPaymentHistory = () => {
                   startMode: "AT_END_OF_CURRENT",
                 });
               }}
-            >
-              <div className="rules-box">
-                <p>
-                  Continuer avec le plan <strong>{currentPlan?.name || "-"}</strong>.
-                </p>
-                <p>
-                  Debut: <strong>{formatDate(planEndDate)}</strong>
-                </p>
-                <p>
-                  Duree: <strong>{currentPlan?.durationDays || 30} jours</strong>
-                </p>
-                <p>
-                  Montant: <strong>{formatMoneyWithLabel(renewAmount)}</strong>
-                </p>
-              </div>
-
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary2" disabled={submittingType !== ""}>
-                  {submittingType === "RENEWAL" ? "Envoi..." : "Confirmer"}
-                </button>
-                <button type="button" className="btn-cancel" onClick={() => setShowRenewModal(false)} disabled={submittingType !== ""}>
-                  Annuler
-                </button>
-              </div>
-            </form>
+            />
           </div>
         </div>
-      )}
+      ) : null}
 
-      {showUpgradeModal && (
-        <div
-          className="modal-overlay"
-          onClick={() => {
-            setFieldErrors({});
-            setShowUpgradeModal(false);
-          }}
-        >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-2">
-              <h2>Changer</h2>
-              <X
-                className="cursor-pointer"
-                onClick={() => {
-                  setFieldErrors({});
-                  setShowUpgradeModal(false);
-                }}
-              />
+      {showUpgradeModal ? (
+        <div className="modal-overlay" onClick={() => setShowUpgradeModal(false)}>
+          <button
+            type="button"
+            className="hp-modal-float-close"
+            aria-label="Fermer"
+            onClick={() => setShowUpgradeModal(false)}
+          >
+            <X size={18} />
+          </button>
+          <div className="hp-modal-grid" onClick={(e) => e.stopPropagation()}>
+            <div className="hp-billing-toggle">
+              <span className={!String(upgradeBillingCycle).includes("YEAR") ? "active" : ""}>Mensuel</span>
+              <button
+                type="button"
+                className={`hp-switch ${String(upgradeBillingCycle).includes("YEAR") ? "active" : ""}`}
+                onClick={() => setUpgradeBillingCycle((prev) => (prev === "YEARLY" ? "MONTHLY" : "YEARLY"))}
+                aria-label="Changer le cycle de facturation"
+              >
+                <span className="hp-slider" />
+              </button>
+              <span className={String(upgradeBillingCycle).includes("YEAR") ? "active" : ""}>Annuel</span>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Choisissez l’offre et les options, puis confirmez l’envoi de la demande.</p>
-            <form
-              className="modal-form"
-              noValidate
-              onSubmit={(e) => {
-                e.preventDefault();
-                const nextErrors = {};
-                nextErrors.upgradePlanId = validateText(upgradePlanId, { label: "Offre", required: true });
-                if (!upgradeSelectedPlan) nextErrors.upgradePlanId = "Offre est invalide.";
-                if (!["MONTHLY", "YEARLY"].includes(String(upgradeBillingCycle))) {
-                  nextErrors.upgradeBillingCycle = "Facturation est invalide.";
-                }
-                if (!["IMMEDIATE", "AT_END_OF_CURRENT"].includes(String(upgradeStartMode))) {
-                  nextErrors.upgradeStartMode = "Debut du changement est invalide.";
-                }
 
-                if (Object.values(nextErrors).some(Boolean)) {
-                  setFieldErrors(nextErrors);
-                  return;
-                }
+            <div className="hp-plan-grid">
+              {sortedUpgradePlans.map((plan) => {
+                const isCurrent = String(plan.id) === String(currentPlan?.id);
+                const badges = [];
+                if (isCurrent) badges.push("Actuel");
+                if (plan.recommended) badges.push("Recommandé");
+
+                return (
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    isYearly={upgradeBillingCycle === "YEARLY"}
+                    featured={Boolean(plan.recommended)}
+                    headerBadges={badges}
+                    onSelect={() => {
+                      setUpgradePlanId(String(plan.id));
+                      setShowUpgradeModal(false);
+                      setShowUpgradeConfirmModal(true);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showUpgradeConfirmModal && upgradeSelectedPlan ? (
+        <div className="modal-overlay" onClick={() => setShowUpgradeConfirmModal(false)}>
+          <button
+            type="button"
+            className="hp-modal-float-close"
+            aria-label="Fermer"
+            onClick={() => setShowUpgradeConfirmModal(false)}
+          >
+            <X size={18} />
+          </button>
+          <div onClick={(e) => e.stopPropagation()}>
+            <PlanCard
+              plan={upgradeSelectedPlan}
+              isYearly={upgradeBillingCycle === "YEARLY"}
+              featured={Boolean(upgradeSelectedPlan?.recommended)}
+              variant="full"
+              headerBadges={upgradeSelectedPlan?.recommended ? ["Changement", "Recommandé"] : ["Changement"]}
+              footerNote={
+                upgradeStartMode === "AT_END_OF_CURRENT"
+                  ? `Ce plan démarrera à la fin du plan actuel (${formatDate(planEndDate)}).`
+                  : "Ce plan démarrera dès la validation admin."
+              }
+              className="is-modal"
+              extraContent={
+                <>
+                  <div className="hp-start-mode">
+                    <div className="hp-plan-modal-title">Début du changement</div>
+                    <div className="hp-pill-row">
+                      <button
+                        type="button"
+                        className={`hp-pill ${upgradeStartMode === "IMMEDIATE" ? "active" : ""}`}
+                        onClick={() => setUpgradeStartMode("IMMEDIATE")}
+                      >
+                        Immédiat
+                      </button>
+                      <button
+                        type="button"
+                        className={`hp-pill ${upgradeStartMode === "AT_END_OF_CURRENT" ? "active" : ""}`}
+                        onClick={() => setUpgradeStartMode("AT_END_OF_CURRENT")}
+                      >
+                        À la fin du plan actuel
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="hp-plan-secondary"
+                    disabled={submittingType !== ""}
+                    onClick={() => {
+                      setShowUpgradeConfirmModal(false);
+                      setShowUpgradeModal(true);
+                    }}
+                  >
+                    Choisir un autre plan
+                  </button>
+                </>
+              }
+              buttonVariant="primary"
+              buttonLabel={submittingType === "UPGRADE" ? "Envoi..." : "Confirmer"}
+              onSelect={() => {
+                if (submittingType !== "") return;
                 submitRequest({
                   type: "UPGRADE",
                   plan: upgradeSelectedPlan,
@@ -493,101 +584,11 @@ const HandPaymentHistory = () => {
                   startMode: upgradeStartMode,
                 });
               }}
-            >
-              <label>Offre</label>
-              <ModernDropdown
-                value={upgradePlanId}
-                onChange={(v) => {
-                  setUpgradePlanId(v);
-                  if (fieldErrors.upgradePlanId) setFieldErrors((prev) => ({ ...prev, upgradePlanId: "" }));
-                }}
-                options={plans.map((plan) => ({ value: plan.id, label: plan.name }))}
-                ariaLabel="Offre"
-                fullWidth
-                triggerClassName={fieldErrors.upgradePlanId ? "invalid" : ""}
-              />
-              <FieldError message={fieldErrors.upgradePlanId} />
-              <select value={upgradePlanId} onChange={(e) => setUpgradePlanId(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
-                {plans.map((plan) => (
-                  <option value={plan.id} key={plan.id}>
-                    {plan.name}
-                  </option>
-                ))}
-              </select>
-
-              <label>Facturation</label>
-              <ModernDropdown
-                value={upgradeBillingCycle}
-                onChange={(v) => {
-                  setUpgradeBillingCycle(v);
-                  if (fieldErrors.upgradeBillingCycle) setFieldErrors((prev) => ({ ...prev, upgradeBillingCycle: "" }));
-                }}
-                options={[
-                  { value: "MONTHLY", label: "Mensuelle" },
-                  { value: "YEARLY", label: "Annuelle" },
-                ]}
-                ariaLabel="Facturation"
-                fullWidth
-                triggerClassName={fieldErrors.upgradeBillingCycle ? "invalid" : ""}
-              />
-              <FieldError message={fieldErrors.upgradeBillingCycle} />
-              <select value={upgradeBillingCycle} onChange={(e) => setUpgradeBillingCycle(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
-                <option value="MONTHLY">Mensuelle</option>
-                <option value="YEARLY">Annuelle</option>
-              </select>
-
-              <label>Debut du changement</label>
-              <ModernDropdown
-                value={upgradeStartMode}
-                onChange={(v) => {
-                  setUpgradeStartMode(v);
-                  if (fieldErrors.upgradeStartMode) setFieldErrors((prev) => ({ ...prev, upgradeStartMode: "" }));
-                }}
-                options={[
-                  { value: "IMMEDIATE", label: "Immediate" },
-                  { value: "AT_END_OF_CURRENT", label: "A la fin du plan actuel" },
-                ]}
-                ariaLabel="Debut du changement"
-                fullWidth
-                triggerClassName={fieldErrors.upgradeStartMode ? "invalid" : ""}
-              />
-              <FieldError message={fieldErrors.upgradeStartMode} />
-              <select value={upgradeStartMode} onChange={(e) => setUpgradeStartMode(e.target.value)} aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
-                <option value="IMMEDIATE">Immediate</option>
-                <option value="AT_END_OF_CURRENT">A la fin du plan actuel</option>
-              </select>
-
-              <div className="rules-box">
-                <p>
-                  {upgradeStartMode === "IMMEDIATE"
-                    ? "Le changement demarre directement apres validation admin."
-                    : `Le changement demarre a la fin du plan actuel (${formatDate(planEndDate)}).`}
-                </p>
-                <p>
-                  Montant: <strong>{formatMoneyWithLabel(upgradeAmount)}</strong>
-                </p>
-              </div>
-
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary2" disabled={submittingType !== ""}>
-                  {submittingType === "UPGRADE" ? "Envoi..." : "Confirmer"}
-                </button>
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  onClick={() => {
-                    setFieldErrors({});
-                    setShowUpgradeModal(false);
-                  }}
-                  disabled={submittingType !== ""}
-                >
-                  Annuler
-                </button>
-              </div>
-            </form>
+            />
           </div>
         </div>
-      )}
+      ) : null}
+
     </div>
   );
 };

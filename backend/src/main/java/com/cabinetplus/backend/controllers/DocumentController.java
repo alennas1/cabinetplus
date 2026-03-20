@@ -57,7 +57,14 @@ public class DocumentController {
         User currentUser = getCurrentUser(principal);
         User ownerDentist = userService.resolveClinicOwner(currentUser);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
-        return documentService.store(internalPatientId, title, file, ownerDentist, currentUser);
+        DocumentResponseDTO saved = documentService.store(internalPatientId, title, file, ownerDentist, currentUser);
+        auditService.logSuccess(
+                AuditEventType.DOCUMENT_CREATE,
+                "DOCUMENT",
+                saved != null && saved.id() != null ? String.valueOf(saved.id()) : null,
+                "Document ajouté"
+        );
+        return saved;
     }
 
     @GetMapping("/{id}/file")
@@ -93,6 +100,12 @@ public class DocumentController {
     @DeleteMapping("/{id}")
     public void deleteDocument(@PathVariable Long id, Principal principal) {
         documentService.delete(id, getClinicUser(principal));
+        auditService.logSuccess(
+                AuditEventType.DOCUMENT_DELETE,
+                "DOCUMENT",
+                String.valueOf(id),
+                "Document supprimé"
+        );
     }
 
     private User getCurrentUser(Principal principal) {

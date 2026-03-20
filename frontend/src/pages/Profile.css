@@ -88,3 +88,48 @@
 .icon.action.cancel {
   color: #ef4444;
 }
+
+.profile-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  white-space: nowrap;
+}
+
+.profile-action-btn:hover {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+  transform: translateY(-1px);
+}
+
+.profile-action-btn:active {
+  transform: translateY(0);
+}
+
+.profile-phone-modal {
+  width: 520px;
+}
+
+.profile-modal-subtitle {
+  margin: -8px 0 12px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.profile-modal-field + .profile-modal-field {
+  margin-top: 12px;
+}
+
+.profile-modal-actions-split {
+  justify-content: space-between;
+}

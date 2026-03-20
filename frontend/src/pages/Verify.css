@@ -1,115 +1,231 @@
-/*
-  Styles specific to the VerificationPage, leveraging the theme
-  established in Login.css (for .auth-container, .auth-card, etc.)
-*/
-
-/* --- Status Box Base Style --- */
-.verification-step-box {
-    margin: 1rem 0;
-    padding: 1rem;
-    border-radius: 8px;
-    
-    /* Using theme primary color for consistency */
-    border: 1px solid #3498db; 
-    background-color: #f0f7ff; /* Light blue background */
-    
-    color: #2c3e50; /* Dark text for readability */
-    text-align: left;
-    transition: all 0.2s ease;
+.verify-shell {
+  min-height: 100vh;
+  background: #f5f6f8;
+  padding: 32px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
 }
 
-/* --- Verified/Completed State --- */
-.verification-step-box.verified {
-    border: 1px solid #2ecc71; /* Green for success */
-    background-color: #e6f7f0;
-    color: #27ae60;
+.verify-card {
+  width: min(560px, 100%);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.1);
+  padding: 26px 24px;
 }
 
-/* --- General Step Content --- */
-.verification-step-box p {
-    margin: 0;
+.verify-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
-/* ---------------------------------------------------- */
-/* --- NOUVEAUX STYLES POUR ALIGNEMENT HORIZONTAL --- */
-/* ---------------------------------------------------- */
-
-/* Container pour aligner le Statut (gauche) et l'Action (droite) */
-.verification-content-container {
-    display: flex;
-    justify-content: space-between; /* Pousse le statut à gauche et l'action à droite */
-    align-items: center;
-    width: 100%;
+.verify-logo {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
 }
 
-/* Ligne de statut - Laisser la marge à 0 */
-.verification-status-row {
-    font-weight: 600;
-    display: flex;
-    /* justify-content: space-between; -> inutile ici car il est dans verification-content-container */
-    align-items: center;
-    font-size: 1rem;
-    margin-bottom: 0; 
-    /* Le statut Vérifié/En attente doit être affiché ici si besoin, sinon l'alignement interne est géré par le flex ci-dessus */
-    gap: 10px; /* Espace entre "Vérification E-mail:" et "✅ Vérifié" */
+.verify-brand-name {
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.1;
 }
 
-/* Input and Button Container within Step Box */
-.verification-action-group {
-    /* Mettre l'input et le bouton sur la même ligne */
-    display: flex;
-    flex-direction: row; 
-    align-items: center;
-    gap: 10px;
-    margin-top: 0; /* Important: enlève l'espace vertical */
+.verify-brand-subtitle {
+  margin-top: 2px;
+  font-size: 0.9rem;
+  color: #64748b;
 }
 
-.verification-action-group input {
-    /* Taille réduite pour laisser de la place au bouton */
-    padding: 0.85rem;
-    border: 1px solid #dcdfe3;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    box-sizing: border-box; 
-    width: 130px; /* Taille fixe pour l'input de code */
+.verify-title {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
 }
 
-.verification-action-group input.invalid {
-    border-color: #ef4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+.verify-subtitle {
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 0.98rem;
+  line-height: 1.35;
 }
 
-.verification-action-group .auth-form-button {
-    /* Rendre le bouton compact */
-    flex-shrink: 0; 
-    padding: 0.85rem 1rem;
-    font-size: 0.95rem;
-    width: auto;
+.verify-step {
+  margin-top: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 16px;
 }
 
-/* ---------------------------------------------------- */
-/* --- Autres styles (inchangés ou ajustés si nécessaire) --- */
-/* ---------------------------------------------------- */
-
-/* Custom Logout Button Style */
-.verification-logout-btn {
-    /* Inherit the primary button style from Login.css */
-    width: 100%;
-    padding: 0.9rem;
-    background: #e74c3c; /* Red color for logout */
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    margin-top: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.verify-step.is-verified {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.06);
 }
 
-.verification-logout-btn:hover {
-    background: #c0392b;
+.verify-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
+
+.verify-step-label {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.verify-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.verify-pill.is-verified {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.verify-step-body {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.verify-code-row {
+  display: flex;
+}
+
+.verify-code-input-wrap {
+  flex: 1;
+}
+
+.verify-code-input-wrap input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1.5px solid #ccd3db;
+  background: #ffffff;
+  font-size: 1rem;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease;
+  box-sizing: border-box;
+}
+
+.verify-code-input-wrap input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.18);
+}
+
+.verify-code-input-wrap input.invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
+.verify-primary-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  background: #3498db;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.02rem;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.18s ease, opacity 0.18s ease;
+}
+
+.verify-primary-btn:hover:not(:disabled) {
+  background: #2f8fd0;
+}
+
+.verify-primary-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.verify-step-body.verified-message {
+  flex-direction: row;
+  align-items: center;
+  color: #047857;
+  font-weight: 600;
+}
+
+.verify-proceed-btn {
+  margin-top: 18px;
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  background: #f1f5f9;
+  color: #64748b;
+  padding: 0.95rem 1rem;
+  font-weight: 800;
+  cursor: not-allowed;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.verify-proceed-btn.is-ready {
+  cursor: pointer;
+  background: #10b981;
+  border-color: rgba(16, 185, 129, 0.6);
+  color: #ffffff;
+}
+
+.verify-proceed-btn.is-ready:hover {
+  background: #0ea371;
+}
+
+.verify-logout-btn {
+  margin-top: 14px;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  background: transparent;
+  color: #64748b;
+  border-radius: 999px;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.verify-logout-btn:hover {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #334155;
+}
+
+@media (max-width: 460px) {
+  .verify-card {
+    padding: 22px 18px;
+  }
+
+  .verify-title {
+    font-size: 1.45rem;
+  }
+}
+

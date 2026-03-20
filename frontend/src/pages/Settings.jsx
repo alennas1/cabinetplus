@@ -41,7 +41,7 @@ const Settings = () => {
       title: "Preferences",
       options: [
         {
-          title: "Configuration",
+          title: "Preferences",
           desc: "Personnaliser l'application selon vos besoins",
           icon: <Gear />,
           path: "/settings/preferences",

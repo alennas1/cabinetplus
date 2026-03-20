@@ -39,6 +39,7 @@ public class HandPaymentService {
                     p.getPaymentDate(),
                     p.getStatus().name(),
                     p.getPaymentMethod().name(),
+                    p.getBillingCycle() != null ? p.getBillingCycle().name() : "MONTHLY",
                     p.getNotes(),
 
                     p.getUser().getId(),
@@ -61,6 +62,7 @@ public List<HandPaymentResponseDTO> getPaymentsByUser(User user) {
                     p.getPaymentDate(),
                     p.getStatus().name(),
                     p.getPaymentMethod().name(),
+                    p.getBillingCycle() != null ? p.getBillingCycle().name() : "MONTHLY",
                     p.getNotes(),
 
                     p.getUser().getId(),
@@ -83,6 +85,7 @@ public List<HandPaymentResponseDTO> getAllPayments() {
                     p.getPaymentDate(),
                     p.getStatus().name(),
                     p.getPaymentMethod().name(),
+                    p.getBillingCycle() != null ? p.getBillingCycle().name() : "MONTHLY",
                     p.getNotes(),
 
                     p.getUser().getId(),

@@ -49,4 +49,7 @@ public class Plan {
     private Double maxStorageGb = 0.0;
 
     private boolean active = true;
+
+    @Column(nullable = false)
+    private boolean recommended = false;
 }

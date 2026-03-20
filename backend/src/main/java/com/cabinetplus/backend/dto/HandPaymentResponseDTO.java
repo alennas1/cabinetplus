@@ -8,6 +8,7 @@ public record HandPaymentResponseDTO(
         LocalDateTime paymentDate,
         String paymentStatus,
         String paymentMethod,
+        String billingCycle,
         String notes,
 
         Long userId,

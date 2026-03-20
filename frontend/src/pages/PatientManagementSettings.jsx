@@ -91,7 +91,7 @@ const PatientManagementSettings = () => {
             </div>
           </div>
 
-          <div className="preference-custom-panel">
+          <div className="preference-custom-panel is-open">
             <div className="preference-input-group">
               <label htmlFor="cancel-threshold">Annulations (RDV annulés)</label>
               <input
@@ -138,4 +138,3 @@ const PatientManagementSettings = () => {
 };
 
 export default PatientManagementSettings;
-

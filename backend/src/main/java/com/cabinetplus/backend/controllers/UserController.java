@@ -232,6 +232,12 @@ public class UserController {
         owner.setCurrencyLabel(request.currencyLabel());
 
         User saved = userService.save(owner);
+        auditService.logSuccess(
+                AuditEventType.SETTINGS_PREFERENCES_UPDATE,
+                "USER",
+                String.valueOf(saved.getId()),
+                "Préférences mises à jour"
+        );
         return mapPreferences(saved);
     }
 
@@ -261,6 +267,12 @@ public class UserController {
         owner.setPatientMoneyOwedThreshold(owedThreshold != null ? Math.max(0.0, owedThreshold) : 0.0);
 
         User saved = userService.save(owner);
+        auditService.logSuccess(
+                AuditEventType.SETTINGS_PATIENT_MANAGEMENT_UPDATE,
+                "USER",
+                String.valueOf(saved.getId()),
+                "Paramètres gestion patients mis à jour"
+        );
         return mapPatientManagement(saved);
     }
 

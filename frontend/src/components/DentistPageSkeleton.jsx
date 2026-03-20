@@ -48,6 +48,18 @@ const DentistPageSkeleton = ({
             </div>
           ))}
         </div>
+      ) : variant === "settings" ? (
+        <div className="dentist-skeleton-settings">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="dentist-skeleton-settings-card">
+              <span className="dentist-skeleton dentist-skeleton-settings-icon" />
+              <div className="dentist-skeleton-settings-text">
+                <span className="dentist-skeleton dentist-skeleton-line dentist-skeleton-line-strong" />
+                <span className="dentist-skeleton dentist-skeleton-line" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : variant === "plan" ? (
         <>
           <div className="dentist-skeleton-plan-card">

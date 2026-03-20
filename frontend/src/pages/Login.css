@@ -418,7 +418,7 @@
   border-color: var(--login-blue);
 }
 
-.login-reset-form button,
+.login-reset-form button:not(.cp-password-toggle):not(.password-toggle-btn),
 .login-reset-success button {
   border: none;
   border-radius: 999px;
@@ -431,12 +431,12 @@
   transition: background-color 0.2s ease;
 }
 
-.login-reset-form button:hover:not(:disabled),
+.login-reset-form button:not(.cp-password-toggle):not(.password-toggle-btn):hover:not(:disabled),
 .login-reset-success button:hover:not(:disabled) {
   background: var(--login-blue-deep);
 }
 
-.login-reset-form button:disabled {
+.login-reset-form button:not(.cp-password-toggle):not(.password-toggle-btn):disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }

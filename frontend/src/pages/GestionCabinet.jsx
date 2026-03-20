@@ -60,7 +60,7 @@ const GestionCabinet = () => {
     <div className="settings-container">
       <PageHeader
         title="Gestion Cabinet"
-        subtitle="Administrez les ressources et le suivi de votre établissement :"
+        subtitle="Administrez les ressources et le suivi de votre établissement"
         align="left"
       />
 

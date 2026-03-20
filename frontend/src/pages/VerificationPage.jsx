@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { LogOut, CheckCircle, XCircle } from "react-feather";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { logout as logoutRedux, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
 import api, { getCurrentUser, logout as logoutApi } from "../services/authService";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
@@ -43,7 +44,7 @@ const VerificationPage = () => {
   const needsPhoneVerification = !isPhoneVerified;
   const isFullyVerified = isPhoneVerified;
 
-  const getStatusText = (verified) => (verified ? "Verifie" : "En attente");
+  const getStatusText = (verified) => (verified ? "Vérifié" : "En attente");
 
   const markAsVerifiedLocally = (updatedUser) => {
     if (!updatedUser) return;
@@ -67,7 +68,7 @@ const VerificationPage = () => {
       } else {
         setPhoneCodeSent(true);
         setPhoneSendCooldown(60);
-        alert("Un code SMS a ete envoye.");
+        toast.success("Un code SMS a été envoyé.");
       }
     } catch (err) {
       if (err?.response?.status === 401) {
@@ -79,7 +80,7 @@ const VerificationPage = () => {
       if (err?.response?.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
         setPhoneSendCooldown(retryAfter);
       }
-      alert(getApiErrorMessage(err, "Erreur lors de l'envoi du code."));
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'envoi du code."));
     } finally {
       setLoading(false);
     }
@@ -109,6 +110,7 @@ const VerificationPage = () => {
         return;
       }
       setFieldErrors({ phoneCode: getApiErrorMessage(err, "Code OTP invalide.") });
+      toast.error(getApiErrorMessage(err, "Code OTP invalide."));
     } finally {
       setLoading(false);
     }
@@ -131,28 +133,37 @@ const VerificationPage = () => {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h2>Action requise : verification</h2>
+    <div className="verify-shell">
+      <div className="verify-card">
+        <div className="verify-brand">
+          <img src="/logo.png" alt="CabinetPlus" className="verify-logo" />
+          <div>
+            <div className="verify-brand-name">CabinetPlus</div>
+            <div className="verify-brand-subtitle">Finalisez votre inscription</div>
+          </div>
+        </div>
 
-        <p style={{ color: "#555", marginBottom: "1rem", fontSize: "0.9rem" }}>
-          Veuillez confirmer votre numero de telephone pour acceder a votre cabinet.
+        <h1 className="verify-title">Vérification du téléphone</h1>
+        <p className="verify-subtitle">
+          Veuillez confirmer votre numéro de téléphone pour accéder à votre cabinet.
         </p>
 
-        <div className="auth-form" style={{ gap: "0.5rem" }}>
-          <div className="verification-step-box">
-            <p className="verification-status-row">
-              <span>Verification telephone:</span>
-              <span>{getStatusText(isPhoneVerified)}</span>
-            </p>
+        <section className={`verify-step ${isPhoneVerified ? "is-verified" : ""}`}>
+          <div className="verify-step-header">
+            <div className="verify-step-label">Téléphone</div>
+            <span className={`verify-pill ${isPhoneVerified ? "is-verified" : ""}`}>
+              {getStatusText(isPhoneVerified)}
+            </span>
+          </div>
 
-            {needsPhoneVerification && (
-              <div className="verification-action-group">
-                {phoneCodeSent && (
-                  <>
+          {needsPhoneVerification ? (
+            <div className="verify-step-body">
+              {phoneCodeSent && (
+                <div className="verify-code-row">
+                  <div className="verify-code-input-wrap">
                     <input
                       type="text"
-                      placeholder="Entrez le code"
+                      placeholder="Code SMS"
                       value={phoneCode}
                       onChange={(e) => {
                         setPhoneCode(e.target.value);
@@ -163,62 +174,55 @@ const VerificationPage = () => {
                       className={fieldErrors.phoneCode ? "invalid" : ""}
                     />
                     <FieldError message={fieldErrors.phoneCode} />
-                  </>
-                )}
-                <button
-                  className="auth-form-button"
-                  disabled={loading || (!phoneCodeSent && phoneSendCooldown > 0)}
-                  onClick={phoneCodeSent ? handleSubmitPhoneCode : handleSendPhoneCode}
-                >
-                  {loading
-                    ? "Chargement..."
-                    : phoneCodeSent
-                    ? "Soumettre le code"
-                    : phoneSendCooldown > 0
-                    ? `Renvoyer dans ${phoneSendCooldown}s`
-                    : "Demarrer la verification"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="verify-primary-btn"
+                disabled={loading || (!phoneCodeSent && phoneSendCooldown > 0)}
+                onClick={phoneCodeSent ? handleSubmitPhoneCode : handleSendPhoneCode}
+              >
+                {loading
+                  ? "Chargement..."
+                  : phoneCodeSent
+                  ? "Vérifier le code"
+                  : phoneSendCooldown > 0
+                  ? `Renvoyer dans ${phoneSendCooldown}s`
+                  : "Envoyer le code SMS"}
+              </button>
+            </div>
+          ) : (
+            <div className="verify-step-body verified-message">
+              <CheckCircle size={18} />
+              <span>Téléphone vérifié.</span>
+            </div>
+          )}
+        </section>
 
         <button
+          type="button"
           onClick={handleProceed}
           disabled={!isFullyVerified}
-          style={{
-            marginTop: "2rem",
-            padding: "0.9rem",
-            background: isFullyVerified ? "#2ecc71" : "#bdc3c7",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            fontWeight: "600",
-            fontSize: "1rem",
-            cursor: isFullyVerified ? "pointer" : "not-allowed",
-            transition: "background 0.2s ease",
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          className={`verify-proceed-btn ${isFullyVerified ? "is-ready" : ""}`}
         >
           {isFullyVerified ? (
             <>
-              <CheckCircle size={18} style={{ marginRight: "8px" }} />
-              Acceder a l'application
+              <CheckCircle size={18} />
+              Accéder à l’application
             </>
           ) : (
             <>
-              <XCircle size={18} style={{ marginRight: "8px" }} />
-              Verification requise
+              <XCircle size={18} />
+              Vérification requise
             </>
           )}
         </button>
 
-        <button type="button" onClick={handleLogout} className="verification-logout-btn">
-          <LogOut size={16} style={{ marginRight: "8px" }} />
-          Se deconnecter
+        <button type="button" onClick={handleLogout} className="verify-logout-btn">
+          <LogOut size={16} />
+          Se déconnecter
         </button>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import PinCodeInput from "./PinCodeInput";
+import DentistPageSkeleton from "./DentistPageSkeleton";
 import {
   clearGestionCabinetUnlocked,
   getCachedGestionCabinetPinEnabled,
@@ -28,6 +29,8 @@ const GestionCabinetPinGuard = () => {
   const [pin, setPin] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [pinInputVersion, setPinInputVersion] = useState(0);
+  const [postUnlockLoading, setPostUnlockLoading] = useState(false);
+  const postUnlockTimeoutRef = React.useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +63,10 @@ const GestionCabinetPinGuard = () => {
   useEffect(() => {
     return () => {
       clearGestionCabinetUnlocked(userKey);
+      if (postUnlockTimeoutRef.current) {
+        window.clearTimeout(postUnlockTimeoutRef.current);
+        postUnlockTimeoutRef.current = null;
+      }
     };
   }, [userKey]);
 
@@ -77,8 +84,14 @@ const GestionCabinetPinGuard = () => {
         return;
       }
       setGestionCabinetUnlocked(userKey, 30);
+      setPostUnlockLoading(true);
       setPin("");
       toast.success("Accès débloqué");
+      if (postUnlockTimeoutRef.current) window.clearTimeout(postUnlockTimeoutRef.current);
+      postUnlockTimeoutRef.current = window.setTimeout(() => {
+        setPostUnlockLoading(false);
+        postUnlockTimeoutRef.current = null;
+      }, 650);
     } finally {
       setSubmitting(false);
     }
@@ -90,10 +103,26 @@ const GestionCabinetPinGuard = () => {
   };
 
   if (checking) {
-    return null;
+    return (
+      <DentistPageSkeleton
+        title="Gestion Cabinet"
+        subtitle="Chargement des paramètres..."
+        variant="settings"
+      />
+    );
   }
 
   if (!showGate) {
+    if (postUnlockLoading) {
+      const skeletonVariant = location.pathname === "/gestion-cabinet" ? "settings" : "table";
+      return (
+        <DentistPageSkeleton
+          title="Gestion Cabinet"
+          subtitle="Ouverture..."
+          variant={skeletonVariant}
+        />
+      );
+    }
     return (
       <>
         <Outlet />

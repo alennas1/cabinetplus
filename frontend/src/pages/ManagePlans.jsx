@@ -18,7 +18,8 @@ import {
   getAllPlansAdmin,
   createPlanAdmin,
   updatePlanAdmin,
-  deactivatePlanAdmin
+  deactivatePlanAdmin,
+  setRecommendedPlanAdmin
 } from '../services/adminPlanService';
 import { getApiErrorMessage } from '../utils/error';
 import { formatMoneyWithLabel } from '../utils/format';
@@ -64,7 +65,7 @@ const PlanFormModal = ({
       </p>
 
       <form noValidate onSubmit={handleSubmit} className="modal-form">
-        <span className="field-label">Code (ex: BASIC, PRO)</span>
+        <span className="field-label">Code</span>
         <input
           type="text"
           name="code"
@@ -232,6 +233,7 @@ const ManagePlans = () => {
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
   const [currentPage, setCurrentPage] = useState(1);
   const plansPerPage = 10;
+  const [updatingRecommendedId, setUpdatingRecommendedId] = useState(null);
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -475,6 +477,27 @@ const ManagePlans = () => {
     }
   };
 
+  const handleRecommendedToggle = async (plan) => {
+    if (!plan?.id) return;
+    if (!plan.active) {
+      toast.error("Impossible de recommander un plan inactif.");
+      return;
+    }
+    if (updatingRecommendedId !== null) return;
+
+    const nextRecommended = !Boolean(plan.recommended);
+    setUpdatingRecommendedId(plan.id);
+    try {
+      await setRecommendedPlanAdmin(plan.id, nextRecommended, token);
+      toast.success(nextRecommended ? "Plan défini comme recommandé." : "Recommandation retirée.");
+      fetchPlans();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur de mise à jour."));
+    } finally {
+      setUpdatingRecommendedId(null);
+    }
+  };
+
   const renderStatus = (active) => (
     <span className={`status-pill ${active ? 'active' : 'inactive'}`}>
       {active ? <CheckCircle size={14} style={{ marginRight: '5px' }} /> : <XCircle size={14} style={{ marginRight: '5px' }} />}
@@ -520,6 +543,7 @@ const ManagePlans = () => {
               <SortableTh label="Patients max" sortKey="maxPatients" sortConfig={sortConfig} onSort={handleSort} />
               <SortableTh label="Stockage max" sortKey="maxStorageGb" sortConfig={sortConfig} onSort={handleSort} />
               <SortableTh label="Statut" sortKey="active" sortConfig={sortConfig} onSort={handleSort} />
+              <th style={{ textAlign: "center" }}>Recommandé</th>
               <th>Actions</th>
               </tr>
             </thead>
@@ -536,6 +560,16 @@ const ManagePlans = () => {
                 <td>{plan.maxPatients ?? 0}</td>
                 <td>{plan.maxStorageGb ?? 0} Go</td>
                 <td>{renderStatus(plan.active)}</td>
+                <td style={{ textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(plan.recommended)}
+                    disabled={!plan.active || updatingRecommendedId === plan.id}
+                    onChange={() => handleRecommendedToggle(plan)}
+                    aria-label={`Définir ${plan.name || plan.code} comme recommandé`}
+                    title={plan.active ? "Définir comme recommandé" : "Plan inactif"}
+                  />
+                </td>
                 <td className="actions-cell">
                   <button className="action-btn edit" onClick={() => openEditModal(plan)}><Edit2 size={16} /></button>
                   {plan.active && (
@@ -544,7 +578,7 @@ const ManagePlans = () => {
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan="11" style={{textAlign: 'center'}}>Aucun plan trouvé.</td></tr>
+              <tr><td colSpan="12" style={{textAlign: 'center'}}>Aucun plan trouvé.</td></tr>
             )}
           </tbody>
         </table>

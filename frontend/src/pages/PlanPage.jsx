@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Shield } from "react-feather";
@@ -10,17 +10,10 @@ import { getCurrentUser } from "../services/authService";
 import { getCurrentPlanUsage } from "../services/userService";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { applyUserPreferences } from "../utils/workingHours";
-import { formatMoney, formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import PlanCard from "../components/PlanCard";
 import "./Plan.css";
-
-const getPlanFeatures = (plan) => [
-  `${plan.maxDentists ?? 1} dentiste(s) maximum`,
-  `${plan.maxEmployees ?? 0} employe(s) maximum`,
-  `${plan.maxPatients ?? 0} patient(s) maximum`,
-  `${plan.maxStorageGb ?? 0} Go de stockage`,
-];
 
 const formatStorageUsage = (bytes, maxGb) => {
   const usedBytes = Number(bytes || 0);
@@ -52,6 +45,27 @@ const PlanPage = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
   const [planUsage, setPlanUsage] = useState(null);
+
+  const sortedPlans = useMemo(() => {
+    const getSortPrice = (plan) => {
+      const monthly = Number(plan?.monthlyPrice || 0);
+      if (monthly === 0) return 0;
+      if (isYearly) {
+        const yearlyMonthly = Number(plan?.yearlyMonthlyPrice || 0);
+        return yearlyMonthly > 0 ? yearlyMonthly : monthly;
+      }
+      return monthly;
+    };
+
+    return [...(plans || [])].sort((a, b) => {
+      const priceA = getSortPrice(a);
+      const priceB = getSortPrice(b);
+      if (priceA !== priceB) return priceA - priceB;
+      const nameA = String(a?.name || a?.code || "");
+      const nameB = String(b?.name || b?.code || "");
+      return nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
+    });
+  }, [plans, isYearly]);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -120,7 +134,30 @@ const PlanPage = () => {
     <div className="plan-container">
       <div className="plan-card">
         <header className="plan-header">
-          <h1>Choisissez votre plan</h1>
+          <div className="plan-header-grid">
+            <button
+              className="plan-logout-top"
+              type="button"
+              aria-label="Se déconnecter"
+              title="Se déconnecter"
+              onClick={async (e) => {
+                e?.preventDefault?.();
+                try {
+                  await logoutApi();
+                } catch (error) {
+                  console.error("Logout API failed:", error);
+                } finally {
+                  dispatch(logout());
+                  navigate("/login", { replace: true });
+                }
+              }}
+            >
+              <LogOut size={18} />
+              <span>Se déconnecter</span>
+            </button>
+            <h1 className="plan-title">Choisissez votre plan</h1>
+            <span aria-hidden="true" />
+          </div>
 
           <div className="toggle-container">
             <span style={{ fontWeight: 600, color: !isYearly ? "#1e293b" : "#94a3b8" }}>Mensuel</span>
@@ -128,7 +165,7 @@ const PlanPage = () => {
               <div className="slider"></div>
             </div>
             <span style={{ fontWeight: 600, color: isYearly ? "#1e293b" : "#94a3b8" }}>
-              Annuel <span className="save-badge">Economies garanties</span>
+              Annuel <span className="save-badge">Économies garanties</span>
             </span>
           </div>
         </header>
@@ -140,7 +177,7 @@ const PlanPage = () => {
               <strong>{planUsage.dentistsUsed} / {planUsage.dentistsMax ?? 0}</strong>
             </div>
             <div className="plan-usage-card">
-              <span>Employes</span>
+              <span>Employés</span>
               <strong>{planUsage.employeesUsed} / {planUsage.employeesMax ?? 0}</strong>
             </div>
             <div className="plan-usage-card">
@@ -160,126 +197,44 @@ const PlanPage = () => {
               {plansError}
             </div>
           )}
-          {plans.map((plan) => {
-            const isFree = plan.monthlyPrice === 0;
-            const hasDiscount = plan.yearlyMonthlyPrice < plan.monthlyPrice;
-            const displayPrice = isFree ? 0 : isYearly ? plan.yearlyMonthlyPrice : plan.monthlyPrice;
-            const totalAnnualPrice = plan.yearlyMonthlyPrice * 12;
-            const totalMonthlyEquivalent = plan.monthlyPrice * 12;
-
-            return (
-              <div key={plan.id} className={`plan-box ${plan.code === "PRO" ? "plan-box-featured" : ""}`}>
-                <h3 className="plan-name">{plan.name}</h3>
-
-                <div className="plan-price-container">
-                  {!isFree && isYearly && hasDiscount && (
-                    <div className="price-strikethrough">{formatMoneyWithLabel(plan.monthlyPrice)}</div>
-                  )}
-
-                  <div>
-                    <span className="plan-price-main">{formatMoney(displayPrice)}</span>
-                    <span className="plan-price-sub"> {getCurrencyLabelPreference()} / mois</span>
-                  </div>
-
-                  {!isFree && isYearly && hasDiscount && (
-                    <>
-                      <div className="annual-total-info">
-                        Total:{" "}
-                        <span style={{ textDecoration: "line-through", opacity: 0.5 }}>
-                          {totalMonthlyEquivalent}
-                        </span>{" "}
-                        {formatMoney(totalAnnualPrice)} {getCurrencyLabelPreference()}/an
-                      </div>
-                      <div className="save-badge">
-                        -
-                        {Math.round(
-                          ((plan.monthlyPrice - plan.yearlyMonthlyPrice) / plan.monthlyPrice) * 100
-                        )}
-                        % de reduction
-                      </div>
-                    </>
-                  )}
-
-                  {isFree && (
-                    <div className="save-badge" style={{ background: "#f1f5f9", color: "#64748b" }}>
-                      7 jours d'essai
-                    </div>
-                  )}
-                </div>
-
-                <ul className="plan-features">
-                  {getPlanFeatures(plan).map((feature) => (
-                    <li key={feature}>
-                      <span className="plan-feature-dot" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  className={`plan-btn ${plan.code === "PRO" ? "plan-btn-primary" : "plan-btn-outline"}`}
-                  onClick={() => {
-                    setSelectedPlan(plan);
-                    setShowPopup(true);
-                  }}
-                >
-                  {isFree ? "Essayer maintenant" : "Choisir ce plan"}
-                </button>
-              </div>
-            );
-          })}
+          {sortedPlans.map((plan) => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              isYearly={isYearly}
+              featured={Boolean(plan.recommended)}
+              headerBadge={plan.recommended ? "Recommandé" : undefined}
+              onSelect={() => {
+                setSelectedPlan(plan);
+                setShowPopup(true);
+              }}
+            />
+          ))}
         </div>
-
-        <button
-          className="plan-logout-btn"
-          type="button"
-          onClick={async (e) => {
-            e?.preventDefault?.();
-            try {
-              await logoutApi();
-            } catch (error) {
-              console.error("Logout API failed:", error);
-            } finally {
-              dispatch(logout());
-              navigate("/login", { replace: true });
-            }
-          }}
-        >
-          <LogOut size={18} /> Se deconnecter
-        </button>
 
         {showPopup && selectedPlan && (
           <div className="payment-popup-overlay">
             <div className="payment-popup">
               <Shield size={50} color="#3b82f6" style={{ marginBottom: "20px" }} />
               <h2>Confirmation</h2>
-              <p style={{ color: "#64748b", marginBottom: "20px" }}>
-                Plan : <strong>{selectedPlan.name}</strong> <br />
-                {selectedPlan.monthlyPrice !== 0
-                  ? `Facturation : ${isYearly ? "Annuelle" : "Mensuelle"}`
-                  : ""}
-              </p>
+              <PlanCard
+                plan={selectedPlan}
+                isYearly={isYearly}
+                featured={Boolean(selectedPlan.recommended)}
+                variant="compact"
+                showButton={false}
+              />
 
-              <div
-                style={{
-                  background: "#f8fafc",
-                  padding: "15px",
-                  borderRadius: "12px",
-                  textAlign: "left",
-                  marginBottom: "20px",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Montant total :</span>
-                  <span style={{ fontWeight: 800 }}>
-                    {selectedPlan.monthlyPrice === 0
-                      ? 0
-                      : isYearly
-                      ? selectedPlan.yearlyMonthlyPrice * 12
-                      : selectedPlan.monthlyPrice}{" "}
-                    {getCurrencyLabelPreference()}
-                  </span>
-                </div>
+              <div className="plan-confirm-total">
+                <span>Montant total</span>
+                <strong>
+                  {selectedPlan.monthlyPrice === 0
+                    ? 0
+                    : isYearly
+                    ? selectedPlan.yearlyMonthlyPrice * 12
+                    : selectedPlan.monthlyPrice}{" "}
+                  {getCurrencyLabelPreference()}
+                </strong>
               </div>
 
               <button className="plan-btn plan-btn-primary" onClick={handleHandPayment}>

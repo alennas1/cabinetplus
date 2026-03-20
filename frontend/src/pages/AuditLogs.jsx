@@ -32,7 +32,15 @@ const EVENT_GROUPS = {
     "USER_DELETE",
     "USER_ADMIN_CREATE",
   ],
-  PATIENT: ["PATIENT_CREATE", "PATIENT_UPDATE", "PATIENT_DELETE", "PATIENT_ARCHIVE", "PATIENT_UNARCHIVE"],
+  PATIENT: [
+    "PATIENT_READ",
+    "PATIENT_PDF_DOWNLOAD",
+    "PATIENT_CREATE",
+    "PATIENT_UPDATE",
+    "PATIENT_DELETE",
+    "PATIENT_ARCHIVE",
+    "PATIENT_UNARCHIVE",
+  ],
   APPOINTMENT: ["APPOINTMENT_CREATE", "APPOINTMENT_UPDATE", "APPOINTMENT_DELETE"],
   TREATMENT: ["TREATMENT_CREATE", "TREATMENT_UPDATE", "TREATMENT_DELETE"],
   PAYMENT: ["PAYMENT_CREATE", "PAYMENT_DELETE"],
@@ -50,6 +58,7 @@ const ACTION_GROUPS = {
   UPDATE: ["UPDATE", "CHANGE", "ASSIGN"],
   DELETE: ["DELETE"],
   ARCHIVE: ["ARCHIVE", "UNARCHIVE"],
+  READ: ["READ", "PDF_DOWNLOAD"],
   SECURITY: [
     "AUTH_LOGIN",
     "AUTH_LOGOUT",
@@ -104,6 +113,8 @@ const getEntityLabel = (eventType) => ENTITY_LABELS[getEntityKey(eventType)] || 
 
 const getActionLabel = (eventType = "") => {
   if (SECURITY_ACTION_LABELS[eventType]) return SECURITY_ACTION_LABELS[eventType];
+  if (eventType === "PATIENT_READ") return "Voir";
+  if (eventType === "PATIENT_PDF_DOWNLOAD") return "Télécharger PDF";
   if (eventType.includes("UNARCHIVE")) return "Restauration";
   if (eventType.includes("ARCHIVE")) return "Archivage";
   if (eventType.includes("CREATE")) return "Ajout";
@@ -422,6 +433,8 @@ const AuditLogs = () => {
                         ? "Suppressions"
                         : actionFilter === "ARCHIVE"
                           ? "Archivage"
+                          : actionFilter === "READ"
+                            ? "Consultations"
                           : "Securite"}
               </span>
               <ChevronDown size={18} className={`chevron ${actionDropdownOpen ? "rotated" : ""}`} />
@@ -433,6 +446,7 @@ const AuditLogs = () => {
                 <li onClick={() => { setActionFilter("UPDATE"); setActionDropdownOpen(false); }}>Modifications</li>
                 <li onClick={() => { setActionFilter("DELETE"); setActionDropdownOpen(false); }}>Suppressions</li>
                 <li onClick={() => { setActionFilter("ARCHIVE"); setActionDropdownOpen(false); }}>Archivage</li>
+                <li onClick={() => { setActionFilter("READ"); setActionDropdownOpen(false); }}>Consultations</li>
                 <li onClick={() => { setActionFilter("SECURITY"); setActionDropdownOpen(false); }}>Securite</li>
               </ul>
             )}

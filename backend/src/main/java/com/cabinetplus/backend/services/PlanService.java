@@ -2,6 +2,7 @@ package com.cabinetplus.backend.services;
 
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.repositories.PlanRepository;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,8 +36,25 @@ public class PlanService {
     public void deactivatePlan(Long planId) {
         planRepository.findById(planId).ifPresent(plan -> {
             plan.setActive(false);
+            plan.setRecommended(false);
             planRepository.save(plan);
         });
+    }
+
+    public Plan setRecommended(Long planId, boolean recommended) {
+        Plan plan = planRepository.findById(planId).orElseThrow(() -> new NotFoundException("Plan introuvable"));
+        if (recommended && !plan.isActive()) {
+            throw new IllegalArgumentException("Impossible de recommander un plan inactif.");
+        }
+
+        if (recommended) {
+            planRepository.clearRecommended();
+            plan.setRecommended(true);
+        } else {
+            plan.setRecommended(false);
+        }
+
+        return planRepository.save(plan);
     }
 
     // --- LOGIQUE CLIENT ---

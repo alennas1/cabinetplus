@@ -93,6 +93,10 @@ public class DatabaseSchemaPatches {
                         "ALTER TABLE plans " +
                                 "ADD COLUMN IF NOT EXISTS max_storage_gb double precision NOT NULL DEFAULT 0"
                 );
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ADD COLUMN IF NOT EXISTS recommended boolean NOT NULL DEFAULT false"
+                );
 
                 jdbcTemplate.execute(
                         "CREATE TABLE IF NOT EXISTS audit_logs (" +
@@ -153,6 +157,10 @@ public class DatabaseSchemaPatches {
                 jdbcTemplate.execute(
                         "ALTER TABLE plans " +
                                 "ADD COLUMN IF NOT EXISTS max_storage_gb double precision NOT NULL DEFAULT 0"
+                );
+                jdbcTemplate.execute(
+                        "ALTER TABLE plans " +
+                                "ADD COLUMN IF NOT EXISTS recommended boolean NOT NULL DEFAULT false"
                 );
                 jdbcTemplate.execute(
                         "ALTER TABLE plans " +

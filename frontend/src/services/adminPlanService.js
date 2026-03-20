@@ -52,3 +52,19 @@ export const deactivatePlanAdmin = async (id, token) => {
     headers: { Authorization: `Bearer ${token}` },
   });
 };
+
+/**
+ * Set/unset a plan as recommended (featured)
+ * Calls PUT /api/admin/plans/{id}/recommended?recommended=true|false
+ */
+export const setRecommendedPlanAdmin = async (id, recommended, token) => {
+  const response = await axios.put(
+    `${ADMIN_API_URL}/${id}/recommended`,
+    null,
+    {
+      params: { recommended },
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data;
+};

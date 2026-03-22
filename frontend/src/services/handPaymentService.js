@@ -37,7 +37,7 @@ export const getHandPaymentsByUserId = async (userId) => {
 
 /**
  * Create a new hand payment
- * @param {Object} paymentData - { planId, amount, notes }
+ * @param {Object} paymentData - { planId, amount, billingCycle, notes, password }
  */
 export const createHandPayment = async (paymentData) => {
   const response = await api.post(`${BASE_URL}/create`, paymentData);

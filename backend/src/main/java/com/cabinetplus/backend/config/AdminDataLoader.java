@@ -4,13 +4,13 @@ import java.time.LocalDateTime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.beans.factory.annotation.Value;
 
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
@@ -57,7 +57,6 @@ public class AdminDataLoader {
             }
 
             // ---------------- Ensure default plans exist ----------------
-            ensureDefaultPlan(planRepo, "FREE_TRIAL", "Essai Gratuit", 0, 0, 7, 1, 2, 50, 2.0);
             ensureDefaultPlan(planRepo, "BASIC", "Basic", 6000, 5000, 30, 2, 8, 500, 10.0);
             ensureDefaultPlan(planRepo, "PRO", "Pro", 9000, 7500, 30, 5, 25, 2000, 50.0);
 

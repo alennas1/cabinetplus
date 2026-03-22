@@ -150,6 +150,7 @@ const Security = () => {
       setLogoutAllDevices(false);
       const data = await getActiveSessions();
       setSessions(Array.isArray(data) ? data : []);
+      closeSessionConfirm();
     } catch (err) {
       console.error(err);
       setPasswordErrors((prev) => ({
@@ -187,6 +188,7 @@ const Security = () => {
         toastId: "login2fa",
         autoClose: 3000,
       });
+      throw err;
     } finally {
       setLogin2faLoading(false);
     }
@@ -213,8 +215,12 @@ const Security = () => {
       setLogin2faConfirmPasswordError("Champ obligatoire.");
       return;
     }
-    await handleToggleLogin2fa(login2faPendingEnabled, pwd);
-    closeLogin2faConfirm();
+    try {
+      await handleToggleLogin2fa(login2faPendingEnabled, pwd);
+      closeLogin2faConfirm();
+    } catch {
+      // keep modal open
+    }
   };
 
   const formatDeviceLabel = (userAgent) => {
@@ -287,6 +293,8 @@ const Security = () => {
 
   const handleRevokeSession = async (sessionId) => {
     if (!sessionId) return;
+    openSessionConfirm({ type: "one", sessionId });
+    return;
     setSessionsBusy(sessionId);
     try {
       const result = await revokeSession(sessionId);
@@ -314,7 +322,6 @@ const Security = () => {
   };
 
   const closeSessionConfirm = () => {
-    if (sessionsBusy) return;
     setSessionConfirmOpen(false);
     setPendingSessionAction(null);
     setSessionConfirmPassword("");
@@ -333,6 +340,7 @@ const Security = () => {
       setSessionsBusy("all");
       try {
         await revokeAllSessions(pwd);
+        closeSessionConfirm();
         toast.info("Vous avez été déconnecté de tous les appareils.");
       } catch (err) {
         console.error(err);
@@ -340,7 +348,6 @@ const Security = () => {
         return;
       } finally {
         setSessionsBusy(null);
-        closeSessionConfirm();
       }
       dispatch(logoutRedux());
       navigate("/login", { replace: true });
@@ -369,7 +376,6 @@ const Security = () => {
       return;
     } finally {
       setSessionsBusy(null);
-      closeSessionConfirm();
     }
   };
 
@@ -794,6 +800,120 @@ const Security = () => {
         )}
         </>)}
       </div>
+
+      {login2faConfirmOpen ? (
+        <div className="modal-overlay" onClick={closeLogin2faConfirm}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Confirmer la modification</h3>
+            <p style={{ marginTop: "-8px", color: "#64748b", fontSize: "13px" }}>
+              Entrez votre mot de passe pour {login2faPendingEnabled ? "activer" : "desactiver"} la verification SMS.
+            </p>
+
+            <div className="security-field">
+              <label>Mot de passe</label>
+              <PasswordInput
+                placeholder="Entrez votre mot de passe"
+                value={login2faConfirmPassword}
+                onChange={(e) => {
+                  setLogin2faConfirmPassword(e.target.value);
+                  if (login2faConfirmPasswordError) setLogin2faConfirmPasswordError("");
+                }}
+                autoComplete="current-password"
+              />
+              <FieldError message={login2faConfirmPasswordError} />
+              <button
+                type="button"
+                onClick={() => {
+                  closeLogin2faConfirm();
+                  openResetModal();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  marginTop: 8,
+                  cursor: "pointer",
+                  color: "#2563eb",
+                  fontSize: 13,
+                }}
+              >
+                Mot de passe oubliÃ© ?
+              </button>
+            </div>
+
+            <div className="modal-actions" style={{ justifyContent: "space-between" }}>
+              <button
+                type="button"
+                className="security-btn security-btn-compact"
+                onClick={confirmLogin2faChange}
+                disabled={login2faLoading}
+              >
+                {login2faLoading ? "Mise Ã  jour..." : "Confirmer"}
+              </button>
+              <button type="button" className="btn-cancel" onClick={closeLogin2faConfirm} disabled={login2faLoading}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {sessionConfirmOpen ? (
+        <div className="modal-overlay" onClick={closeSessionConfirm}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>{pendingSessionAction?.type === "all" ? "Tout dÃ©connecter" : "DÃ©connecter la session"}</h3>
+            <p style={{ marginTop: "-8px", color: "#64748b", fontSize: "13px" }}>
+              Entrez votre mot de passe pour confirmer.
+            </p>
+
+            <div className="security-field">
+              <label>Mot de passe</label>
+              <PasswordInput
+                placeholder="Entrez votre mot de passe"
+                value={sessionConfirmPassword}
+                onChange={(e) => {
+                  setSessionConfirmPassword(e.target.value);
+                  if (sessionConfirmPasswordError) setSessionConfirmPasswordError("");
+                }}
+                autoComplete="current-password"
+              />
+              <FieldError message={sessionConfirmPasswordError} />
+              <button
+                type="button"
+                onClick={() => {
+                  closeSessionConfirm();
+                  openResetModal();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  marginTop: 8,
+                  cursor: "pointer",
+                  color: "#2563eb",
+                  fontSize: 13,
+                }}
+              >
+                Mot de passe oubliÃ© ?
+              </button>
+            </div>
+
+            <div className="modal-actions" style={{ justifyContent: "space-between" }}>
+              <button
+                type="button"
+                className="security-btn security-btn-compact"
+                onClick={confirmSessionActionSubmit}
+                disabled={!!sessionsBusy}
+              >
+                {sessionsBusy ? "..." : "Confirmer"}
+              </button>
+              <button type="button" className="btn-cancel" onClick={closeSessionConfirm} disabled={!!sessionsBusy}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {resetOpen ? (
         <div className="modal-overlay" onClick={closeResetModal}>

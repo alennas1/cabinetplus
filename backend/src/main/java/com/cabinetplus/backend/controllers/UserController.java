@@ -45,14 +45,13 @@ import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.RefreshToken;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
-import com.cabinetplus.backend.security.JwtUtil;
+import com.cabinetplus.backend.security.RefreshTokenHash;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
@@ -64,7 +63,6 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
     private final PlanService planService;
     private final PlanLimitService planLimitService;
-    private final JwtUtil jwtUtil;
     private final AuditService auditService;
     private final PublicIdResolutionService publicIdResolutionService;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -80,7 +78,6 @@ public class UserController {
             PasswordEncoder passwordEncoder,
             PlanService planService,
             PlanLimitService planLimitService,
-            JwtUtil jwtUtil,
             AuditService auditService,
             RefreshTokenRepository refreshTokenRepository,
             PublicIdResolutionService publicIdResolutionService
@@ -89,7 +86,6 @@ public class UserController {
         this.passwordEncoder = passwordEncoder;
         this.planService = planService;
         this.planLimitService = planLimitService;
-        this.jwtUtil = jwtUtil;
         this.auditService = auditService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.publicIdResolutionService = publicIdResolutionService;
@@ -403,6 +399,8 @@ public class UserController {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
+        final String refreshTokenHash = refreshTokenCookie == null ? null : RefreshTokenHash.hash(refreshTokenCookie);
+
         List<RefreshToken> sessions = refreshTokenRepository.findActiveSessions(user, LocalDateTime.now());
         auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "SESSION", String.valueOf(user.getId()), "Sessions consultees");
         return sessions.stream()
@@ -415,7 +413,7 @@ public class UserController {
                         session.getIpAddress(),
                         session.getLocation(),
                         session.getDeviceId(),
-                        refreshTokenCookie != null && refreshTokenCookie.equals(session.getToken())
+                        refreshTokenCookie != null && (refreshTokenCookie.equals(session.getToken()) || (refreshTokenHash != null && refreshTokenHash.equals(session.getToken())))
                 ))
                 .toList();
     }
@@ -447,16 +445,10 @@ public class UserController {
         token.setRevoked(true);
         refreshTokenRepository.save(token);
 
-        boolean revokedCurrent = refreshTokenCookie != null && refreshTokenCookie.equals(token.getToken());
+        String refreshTokenHash = refreshTokenCookie == null ? null : RefreshTokenHash.hash(refreshTokenCookie);
+        boolean revokedCurrent = refreshTokenCookie != null && (refreshTokenCookie.equals(token.getToken()) || (refreshTokenHash != null && refreshTokenHash.equals(token.getToken())));
         if (revokedCurrent) {
-            ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
-                    .httpOnly(true)
-                    .secure(cookieSecure)
-                    .sameSite(cookieSameSite)
-                    .path("/")
-                    .maxAge(0)
-                    .build();
-            response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+            clearRefreshCookie(response);
         }
 
         auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGOUT, "SESSION", String.valueOf(token.getId()), "Deconnexion d'une session");
@@ -479,14 +471,7 @@ public class UserController {
 
         refreshTokenRepository.deleteAllByUser(user);
 
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path("/")
-                .maxAge(0)
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        clearRefreshCookie(response);
 
         auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGOUT_ALL, "USER", String.valueOf(user.getId()), "Deconnexion de tous les appareils");
         return Map.of("revoked", true);
@@ -638,18 +623,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         User saved = userService.createAdmin(currentUser, newAdmin);
         auditService.logSuccessAsUser(currentUser, AuditEventType.USER_ADMIN_CREATE, "USER", String.valueOf(saved.getId()), "Creation d'un compte admin");
 
-        // Generate JWT immediately
-        String accessToken = jwtUtil.generateAccessToken(saved);
-        String refreshToken = jwtUtil.generateRefreshToken(saved.getPhoneNumber());
-
-        Cookie cookie = new Cookie("refresh_token", refreshToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(cookieSecure);
-        cookie.setPath("/");
-        cookie.setMaxAge(7 * 24 * 60 * 60);
-        response.addCookie(cookie);
-
-        // Return user DTO + access token
+        // Return user DTO (no automatic session switch)
         UserDto dto = new UserDto(
                 saved.getId(),
                 saved.getFirstname(),
@@ -659,9 +633,29 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         );
 
         return Map.of(
-                "user", dto,
-                "accessToken", accessToken
+                "user", dto
         );
+    }
+
+    private void clearRefreshCookie(HttpServletResponse response) {
+        // Refresh cookie is scoped to /auth in AuthController; also clear legacy / cookies if present.
+        ResponseCookie authScoped = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
+                .path("/auth")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, authScoped.toString());
+
+        ResponseCookie legacyRootScoped = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, legacyRootScoped.toString());
     }
 
     private String trimToNull(String value) {

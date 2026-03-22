@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { register, login, getCurrentUser } from "../services/authService";
+import { register, getCurrentUser } from "../services/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Eye, EyeOff } from "react-feather";
@@ -127,8 +127,7 @@ const RegisterPage = () => {
 
     try {
       const normalizedPhone = normalizePhoneInput(formData.phoneNumber);
-      await register({ ...formData, phoneNumber: normalizedPhone });
-      const { accessToken } = await login(normalizedPhone, formData.password);
+      const { accessToken } = await register({ ...formData, phoneNumber: normalizedPhone });
       const currentUser = await getCurrentUser();
       dispatch(setAuthLoading(true));
       try {

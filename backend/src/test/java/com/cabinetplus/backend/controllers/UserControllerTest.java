@@ -5,7 +5,6 @@ import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
-import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.PlanService;
@@ -46,7 +45,6 @@ class UserControllerTest {
         planService = mock(PlanService.class);
         planLimitService = mock(PlanLimitService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
-        JwtUtil jwtUtil = mock(JwtUtil.class);
         AuditService auditService = mock(AuditService.class);
         RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
 
@@ -55,7 +53,6 @@ class UserControllerTest {
                 passwordEncoder,
                 planService,
                 planLimitService,
-                jwtUtil,
                 auditService,
                 refreshTokenRepository,
                 publicIdResolutionService

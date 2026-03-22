@@ -34,8 +34,8 @@ export const verifyPhone = async () => {
 };
 
 /** Select a plan for the current user */
-export const selectPlan = async (planId) => {
-  const response = await api.put(`${BASE_URL}/me/plan`, { planId });
+export const selectPlan = async (planId, password) => {
+  const response = await api.put(`${BASE_URL}/me/plan`, { planId, password });
   return response.data;
 };
 

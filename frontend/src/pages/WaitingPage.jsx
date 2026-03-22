@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Clock, LogOut } from "react-feather";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { logout as logoutApi } from "../services/authService";
-import { logout as logoutRedux } from "../store/authSlice";
+import { getCurrentUser, logout as logoutApi } from "../services/authService";
+import { logout as logoutRedux, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
+import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
+import { isPlanActiveForAccess } from "../utils/planAccess";
 // NOTE: You should create a specific CSS file (e.g., WaitingPage.css)
 // if you want to reuse styles from other components. For this example, 
 // I'll define necessary styles locally.
@@ -11,6 +13,69 @@ import { logout as logoutRedux } from "../store/authSlice";
 const WaitingPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { user, token } = useSelector((state) => state.auth);
+
+    const handleRedirect = (userData) => {
+        if (!userData) return;
+
+        if (userData.role === "ADMIN") {
+            navigate("/admin-dashboard", { replace: true });
+            return;
+        }
+
+        if (!userData.phoneVerified) {
+            navigate("/verify", { replace: true });
+            return;
+        }
+
+        const clinicRole = getClinicRole(userData);
+        if (clinicRole !== CLINIC_ROLES.DENTIST) {
+            if (clinicRole === CLINIC_ROLES.PARTNER_DENTIST) navigate("/dashboard", { replace: true });
+            else navigate("/appointments", { replace: true });
+            return;
+        }
+
+        const isActivePlan = isPlanActiveForAccess(userData);
+        if (isActivePlan) {
+            navigate("/dashboard", { replace: true });
+        }
+    };
+
+    useEffect(() => {
+        if (!user) {
+            navigate("/login", { replace: true });
+            return;
+        }
+
+        if (isPlanActiveForAccess(user)) {
+            handleRedirect(user);
+            return;
+        }
+
+        let cancelled = false;
+        const checkStatus = async () => {
+            try {
+                const updatedUser = await getCurrentUser();
+                if (cancelled) return;
+                dispatch(setAuthLoading(true));
+                dispatch(setCredentials({ token, user: updatedUser }));
+                handleRedirect(updatedUser);
+            } catch (err) {
+                if (cancelled) return;
+                if (err?.response?.status === 401) {
+                    dispatch(logoutRedux());
+                    navigate("/login", { replace: true, state: { reason: "session_expired" } });
+                }
+            }
+        };
+
+        checkStatus();
+        const id = window.setInterval(checkStatus, 10000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(id);
+        };
+    }, [user, token, dispatch, navigate]);
 
     // --- Logout Logic ---
      const handleLogout = async (e) => {

@@ -156,6 +156,12 @@ APP_CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app,https://your-domain.
 APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://*.vercel.app
 APP_COOKIE_SECURE=true
 APP_COOKIE_SAME_SITE=None
+
+# (Optionnel) Creer le 1er admin en production (1 seule fois)
+APP_BOOTSTRAP_ADMIN_ENABLED=true
+APP_BOOTSTRAP_ADMIN_PHONE_NUMBER=055...
+APP_BOOTSTRAP_ADMIN_PASSWORD=...
+# APP_BOOTSTRAP_ADMIN_UPDATE_PASSWORD=false
 ```
 
 Notes importantes:
@@ -163,6 +169,11 @@ Notes importantes:
 - le profil `prod` active automatiquement des cookies compatibles production
 - le profil `dev` garde des cookies adaptes au local
 - Render fournit aussi `PORT` automatiquement
+
+Bootstrap admin:
+
+- Laisse `APP_BOOTSTRAP_ADMIN_ENABLED=false` apres creation (par securite).
+- Si l'admin existe deja, `APP_BOOTSTRAP_ADMIN_UPDATE_PASSWORD=true` force la mise a jour du mot de passe.
 
 ## Points critiques
 

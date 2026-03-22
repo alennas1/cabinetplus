@@ -13,6 +13,7 @@ import { applyUserPreferences } from "../utils/workingHours";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PlanCard from "../components/PlanCard";
+import PasswordInput from "../components/PasswordInput";
 import "./Plan.css";
 
 const formatStorageUsage = (bytes, maxGb) => {
@@ -45,6 +46,8 @@ const PlanPage = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
   const [planUsage, setPlanUsage] = useState(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
   const sortedPlans = useMemo(() => {
     const getSortPrice = (plan) => {
@@ -99,6 +102,12 @@ const PlanPage = () => {
 
   const handleHandPayment = async () => {
     try {
+      const pwd = String(confirmPassword || "").trim();
+      if (!pwd) {
+        setConfirmPasswordError("Mot de passe requis.");
+        return;
+      }
+
       const isFree = selectedPlan.monthlyPrice === 0;
       const amountToPay = isFree
         ? 0
@@ -111,6 +120,7 @@ const PlanPage = () => {
         amount: amountToPay,
         billingCycle: isFree ? "MONTHLY" : isYearly ? "YEARLY" : "MONTHLY",
         notes: `Paiement ${isYearly ? "Annuel" : "Mensuel"} - ${selectedPlan.name}`,
+        password: pwd,
       };
 
       await createHandPayment(paymentData);
@@ -124,6 +134,8 @@ const PlanPage = () => {
       }
       dispatch(setCredentials({ user: refreshedUser, token }));
       setShowPopup(false);
+      setConfirmPassword("");
+      setConfirmPasswordError("");
       navigate("/waiting", { replace: true });
     } catch (err) {
       alert("Erreur lors de la validation.");
@@ -206,6 +218,8 @@ const PlanPage = () => {
               headerBadge={plan.recommended ? "Recommandé" : undefined}
               onSelect={() => {
                 setSelectedPlan(plan);
+                setConfirmPassword("");
+                setConfirmPasswordError("");
                 setShowPopup(true);
               }}
             />
@@ -235,6 +249,40 @@ const PlanPage = () => {
                     : selectedPlan.monthlyPrice}{" "}
                   {getCurrencyLabelPreference()}
                 </strong>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Mot de passe</div>
+                <PasswordInput
+                  placeholder="Entrez votre mot de passe"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (confirmPasswordError) setConfirmPasswordError("");
+                  }}
+                  autoComplete="current-password"
+                />
+                {confirmPasswordError ? (
+                  <div style={{ color: "#dc2626", marginTop: 6, fontSize: 13 }}>{confirmPasswordError}</div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPopup(false);
+                    navigate("/settings/security");
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    marginTop: 8,
+                    cursor: "pointer",
+                    color: "#2563eb",
+                    fontSize: 13,
+                  }}
+                >
+                  Mot de passe oublié ?
+                </button>
               </div>
 
               <button className="plan-btn plan-btn-primary" onClick={handleHandPayment}>

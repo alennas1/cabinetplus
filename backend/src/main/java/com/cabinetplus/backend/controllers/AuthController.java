@@ -172,7 +172,10 @@ private void addDeviceCookie(HttpServletResponse response, String deviceId) {
             String principalPhoneNumber = user.getPhoneNumber();
             authManager.authenticate(new UsernamePasswordAuthenticationToken(principalPhoneNumber, password));
 
-            if (user.isLoginTwoFactorEnabled()) {
+            // Only enforce login 2FA once the phone number is verified.
+            // This keeps the registration flow smooth (register -> verify -> plan -> waiting)
+            // and ensures 2FA is required on subsequent logins after verification.
+            if (user.isLoginTwoFactorEnabled() && user.isPhoneVerified()) {
                 return ResponseEntity.ok(startLoginTwoFactorChallenge(user, request));
             }
 
@@ -594,26 +597,8 @@ if (deviceId == null || deviceId.isBlank()) {
         return ResponseEntity.ok().build();
     }
 
-    // ---------------- LOGOUT ALL DEVICES ----------------
-    @PostMapping("/logout-all")
-    public ResponseEntity<Void> logoutAll(@RequestParam Long userId,
-                                          HttpServletResponse response) {
-        userRepo.findById(userId).ifPresentOrElse(user -> {
-            refreshRepo.deleteAllByUser(user);
-            auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGOUT_ALL, "USER", String.valueOf(userId), "Deconnexion de tous les appareils");
-        }, () -> auditService.logFailure(AuditEventType.AUTH_LOGOUT_ALL, "USER", String.valueOf(userId), "Utilisateur introuvable"));
-
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path("/auth")
-                .maxAge(0)
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-
-        return ResponseEntity.ok().build();
-    }
+    // NOTE: logout-all is handled by authenticated endpoints under /api/users/me/sessions/*
+    // to enforce password confirmation and avoid exposing a public userId-based revoke endpoint.
 
     // ---------------- RESET PASSWORD (SMS) ----------------
     @PostMapping("/password/reset/send")

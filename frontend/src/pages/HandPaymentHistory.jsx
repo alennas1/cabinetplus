@@ -7,6 +7,7 @@ import BackButton from "../components/BackButton";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
 import PlanCard from "../components/PlanCard";
+import PasswordInput from "../components/PasswordInput";
 import { getAllPlansClient } from "../services/clientPlanService";
 import { createHandPayment, getMyHandPayments } from "../services/handPaymentService";
 import { getCurrentPlanUsage } from "../services/userService";
@@ -74,6 +75,8 @@ const HandPaymentHistory = () => {
   const [submittingType, setSubmittingType] = useState("");
   const [error, setError] = useState("");
   const [planUsage, setPlanUsage] = useState(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
   const currentPlanCode = (user?.plan?.code || "").toUpperCase();
   const planStartDate = user?.planStartDate || user?.subscriptionStartDate || user?.createdAt;
@@ -207,8 +210,13 @@ const HandPaymentHistory = () => {
     loadData();
   }, []);
 
-  const submitRequest = async ({ type, plan, billingCycle, amount, startMode = "IMMEDIATE" }) => {
+  const submitRequest = async ({ type, plan, billingCycle, amount, startMode = "IMMEDIATE", password }) => {
     if (!plan) return;
+    const pwd = String(password || "").trim();
+    if (!pwd) {
+      setConfirmPasswordError("Mot de passe requis.");
+      return;
+    }
 
     const isRenewal = type === "RENEWAL";
     const startAtEnd = isRenewal || startMode === "AT_END_OF_CURRENT";
@@ -231,10 +239,13 @@ const HandPaymentHistory = () => {
             ? "Regle: demarrer a la fin du plan actuel."
             : "Regle: demarrer immediatement.",
         ].join(" | "),
+        password: pwd,
       });
       setShowRenewModal(false);
       setShowUpgradeModal(false);
       setShowUpgradeConfirmModal(false);
+      setConfirmPassword("");
+      setConfirmPasswordError("");
       await loadData();
     } catch (err) {
       setError(err?.response?.data?.message || "Impossible d'envoyer la demande. Reessayez.");
@@ -328,6 +339,8 @@ const HandPaymentHistory = () => {
             <button className="btn-primary2" onClick={() => {
               setShowUpgradeModal(false);
               setShowUpgradeConfirmModal(false);
+              setConfirmPassword("");
+              setConfirmPasswordError("");
               setShowRenewModal(true);
             }}>
               Renouveler
@@ -342,6 +355,8 @@ const HandPaymentHistory = () => {
                 setUpgradeStartMode("IMMEDIATE");
                 setShowRenewModal(false);
                 setShowUpgradeConfirmModal(false);
+                setConfirmPassword("");
+                setConfirmPasswordError("");
                 setShowUpgradeModal(true);
               }}
             >
@@ -446,6 +461,41 @@ const HandPaymentHistory = () => {
               headerBadge="Renouvellement"
               footerNote={`Ce plan démarrera à la fin de votre plan actuel (${formatDate(planEndDate)}).`}
               className="is-modal"
+              extraContent={
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Mot de passe</div>
+                  <PasswordInput
+                    placeholder="Entrez votre mot de passe"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (confirmPasswordError) setConfirmPasswordError("");
+                    }}
+                    autoComplete="current-password"
+                  />
+                  {confirmPasswordError ? (
+                    <div style={{ color: "#dc2626", marginTop: 6, fontSize: 13 }}>{confirmPasswordError}</div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRenewModal(false);
+                      navigate("/settings/security");
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      marginTop: 8,
+                      cursor: "pointer",
+                      color: "#2563eb",
+                      fontSize: 13,
+                    }}
+                  >
+                    Mot de passe oubliÃ© ?
+                  </button>
+                </div>
+              }
               buttonVariant="primary"
               buttonLabel={submittingType === "RENEWAL" ? "Envoi..." : "Confirmer"}
               onSelect={() => {
@@ -456,6 +506,7 @@ const HandPaymentHistory = () => {
                   billingCycle: "MONTHLY",
                   amount: renewAmount,
                   startMode: "AT_END_OF_CURRENT",
+                  password: confirmPassword,
                 });
               }}
             />
@@ -504,6 +555,8 @@ const HandPaymentHistory = () => {
                     onSelect={() => {
                       setUpgradePlanId(String(plan.id));
                       setShowUpgradeModal(false);
+                      setConfirmPassword("");
+                      setConfirmPasswordError("");
                       setShowUpgradeConfirmModal(true);
                     }}
                   />
@@ -558,6 +611,39 @@ const HandPaymentHistory = () => {
                       </button>
                     </div>
                   </div>
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>Mot de passe</div>
+                    <PasswordInput
+                      placeholder="Entrez votre mot de passe"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (confirmPasswordError) setConfirmPasswordError("");
+                      }}
+                      autoComplete="current-password"
+                    />
+                    {confirmPasswordError ? (
+                      <div style={{ color: "#dc2626", marginTop: 6, fontSize: 13 }}>{confirmPasswordError}</div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUpgradeConfirmModal(false);
+                        navigate("/settings/security");
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        marginTop: 8,
+                        cursor: "pointer",
+                        color: "#2563eb",
+                        fontSize: 13,
+                      }}
+                    >
+                      Mot de passe oubliÃ© ?
+                    </button>
+                  </div>
                 </>
               }
               buttonVariant="primary"
@@ -570,6 +656,7 @@ const HandPaymentHistory = () => {
                   billingCycle: upgradeBillingCycle,
                   amount: upgradeAmount,
                   startMode: upgradeStartMode,
+                  password: confirmPassword,
                 });
               }}
             />

@@ -28,7 +28,7 @@ public class BootstrapAdminLoader {
     private static final Logger logger = LoggerFactory.getLogger(BootstrapAdminLoader.class);
 
     @Value("${app.bootstrap.admin.enabled:false}")
-    private boolean enabled;
+    private Boolean enabled;
 
     @Value("${app.bootstrap.admin.phoneNumber:}")
     private String phoneNumber;
@@ -37,13 +37,13 @@ public class BootstrapAdminLoader {
     private String password;
 
     @Value("${app.bootstrap.admin.update-password:false}")
-    private boolean updatePassword;
+    private Boolean updatePassword;
 
     @Bean
     @Order(0)
     CommandLineRunner bootstrapAdmin(UserRepository userRepo, PasswordEncoder encoder) {
         return args -> {
-            if (!enabled) {
+            if (!Boolean.TRUE.equals(enabled)) {
                 return;
             }
 
@@ -65,7 +65,7 @@ public class BootstrapAdminLoader {
                     return;
                 }
 
-                if (updatePassword) {
+                if (Boolean.TRUE.equals(updatePassword)) {
                     existing.setPasswordHash(encoder.encode(password));
                     userRepo.save(existing);
                     logger.info("Bootstrap admin updated password for '{}'.", canonicalPhone);
@@ -90,4 +90,3 @@ public class BootstrapAdminLoader {
         };
     }
 }
-

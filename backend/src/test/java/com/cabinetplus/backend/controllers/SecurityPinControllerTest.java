@@ -61,8 +61,9 @@ class SecurityPinControllerTest {
     @Test
     void enableWithInvalidPinThrowsBadRequest() {
         when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
         assertThrows(BadRequestException.class,
-                () -> controller.enable(userDetails, new SecurityPinEnableRequest("12")));
+                () -> controller.enable(userDetails, new SecurityPinEnableRequest("12", "pw")));
     }
 
     @Test
@@ -90,10 +91,11 @@ class SecurityPinControllerTest {
     @Test
     void enableSetsHashAndEnabled() {
         when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
         when(passwordEncoder.encode("1234")).thenReturn("hashedPin");
         when(userService.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var out = controller.enable(userDetails, new SecurityPinEnableRequest("1234"));
+        var out = controller.enable(userDetails, new SecurityPinEnableRequest("1234", "pw"));
 
         assertTrue((Boolean) out.get("enabled"));
         assertTrue(user.isGestionCabinetPinEnabled());

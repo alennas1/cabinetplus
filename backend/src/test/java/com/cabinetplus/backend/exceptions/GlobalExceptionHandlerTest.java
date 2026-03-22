@@ -86,7 +86,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/data-integrity"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.fieldErrors.username").value("Ce nom d'utilisateur est deja utilise"));
+                .andExpect(jsonPath("$.fieldErrors.phoneNumber").value("Ce numero de telephone est deja utilise"));
     }
 
     @Test
@@ -149,7 +149,7 @@ class GlobalExceptionHandlerTest {
         String dataIntegrity() {
             throw new DataIntegrityViolationException(
                     "Duplicate",
-                    new RuntimeException("duplicate key username")
+                    new RuntimeException("duplicate key value violates unique constraint \"users_phone_number_key\"")
             );
         }
 

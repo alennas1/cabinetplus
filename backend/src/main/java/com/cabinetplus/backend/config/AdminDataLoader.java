@@ -18,6 +18,7 @@ import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.PlanRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.util.PhoneNumberUtil;
 
 @Configuration
 @Profile("dev")
@@ -34,14 +35,14 @@ public class AdminDataLoader {
     @Value("${app.seed.default-dentist:false}")
     private boolean seedDefaultDentist;
 
-    @Value("${app.seed.default-admin.username:admin}")
-    private String defaultAdminUsername;
+    @Value("${app.seed.default-admin.phoneNumber:}")
+    private String defaultAdminPhoneNumber;
 
     @Value("${app.seed.default-admin.password:}")
     private String defaultAdminPassword;
 
-    @Value("${app.seed.default-dentist.username:dentist12}")
-    private String defaultDentistUsername;
+    @Value("${app.seed.default-dentist.phoneNumber:}")
+    private String defaultDentistPhoneNumber;
 
     @Value("${app.seed.default-dentist.password:}")
     private String defaultDentistPassword;
@@ -65,18 +66,23 @@ public class AdminDataLoader {
                 if (defaultAdminPassword == null || defaultAdminPassword.isBlank()) {
                     throw new IllegalStateException("app.seed.default-admin.password must be set when seeding a default admin.");
                 }
-                userRepo.findByUsername(defaultAdminUsername).orElseGet(() -> {
+                String adminPhone = PhoneNumberUtil.canonicalAlgeriaForStorage(defaultAdminPhoneNumber);
+                if (adminPhone == null || adminPhone.isBlank()) {
+                    throw new IllegalStateException("app.seed.default-admin.phoneNumber must be set when seeding a default admin.");
+                }
+                userRepo.findFirstByPhoneNumberInOrderByIdAsc(PhoneNumberUtil.algeriaStoredCandidates(adminPhone)).orElseGet(() -> {
                     User u = new User();
-                    u.setUsername(defaultAdminUsername);
+                    u.setPhoneNumber(adminPhone);
                     u.setPasswordHash(encoder.encode(defaultAdminPassword));
                     u.setRole(UserRole.ADMIN);
                     u.setFirstname("Super");
                     u.setLastname("Admin");
+                    u.setPhoneVerified(true);
                     u.setPlanStatus(UserPlanStatus.ACTIVE);
                     u.setCreatedAt(LocalDateTime.now());
                     u.setCanDeleteAdmin(true);
                     userRepo.save(u);
-                    logger.info("Seeded default admin user '{}'.", defaultAdminUsername);
+                    logger.info("Seeded default admin user '{}'.", adminPhone);
                     return u;
                 });
             } else {
@@ -92,13 +98,17 @@ public class AdminDataLoader {
                 throw new IllegalStateException("app.seed.default-dentist.password must be set when seeding a default dentist.");
             }
 
-            User dentist = userRepo.findByUsername(defaultDentistUsername).orElse(new User());
-            dentist.setUsername(defaultDentistUsername);
+            String dentistPhone = PhoneNumberUtil.canonicalAlgeriaForStorage(defaultDentistPhoneNumber);
+            if (dentistPhone == null || dentistPhone.isBlank()) {
+                throw new IllegalStateException("app.seed.default-dentist.phoneNumber must be set when seeding a default dentist.");
+            }
+
+            User dentist = userRepo.findFirstByPhoneNumberInOrderByIdAsc(PhoneNumberUtil.algeriaStoredCandidates(dentistPhone)).orElse(new User());
             dentist.setPasswordHash(encoder.encode(defaultDentistPassword));
             dentist.setRole(UserRole.DENTIST);
             dentist.setFirstname("Leila");
             dentist.setLastname("Dentist");
-            dentist.setPhoneNumber("+1234567890");
+            dentist.setPhoneNumber(dentistPhone);
             dentist.setPhoneVerified(true);
             dentist.setPlanStatus(UserPlanStatus.ACTIVE);
             dentist.setCreatedAt(LocalDateTime.now());
@@ -116,7 +126,7 @@ public class AdminDataLoader {
             dentist.setAddress("123 Main Street, City");
 
             userRepo.save(dentist);
-            logger.info("Seeded default dentist user '{}'.", defaultDentistUsername);
+            logger.info("Seeded default dentist user '{}'.", dentistPhone);
         };
     }
 

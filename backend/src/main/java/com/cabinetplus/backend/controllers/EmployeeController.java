@@ -8,8 +8,10 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.EmployeeService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -25,6 +27,7 @@ public class EmployeeController {
     private final EmployeeService employeeService;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
     @PostMapping
     public ResponseEntity<EmployeeResponseDTO> createEmployee(
@@ -34,6 +37,12 @@ public class EmployeeController {
         User dentist = getClinicUser(principal);
 
         EmployeeResponseDTO employeeResponse = employeeService.saveEmployee(dto, dentist);
+        auditService.logSuccess(
+                AuditEventType.EMPLOYEE_CREATE,
+                "EMPLOYEE",
+                employeeResponse != null && employeeResponse.getId() != null ? String.valueOf(employeeResponse.getId()) : null,
+                "Employé créé"
+        );
         return ResponseEntity.ok(employeeResponse);
     }
 
@@ -46,13 +55,15 @@ public class EmployeeController {
         User dentist = getClinicUser(principal);
 
         Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(id, dentist).getId();
-        return ResponseEntity.ok(employeeService.updateEmployee(internalEmployeeId, dto, dentist));
+        EmployeeResponseDTO updated = employeeService.updateEmployee(internalEmployeeId, dto, dentist);
+        auditService.logSuccess(AuditEventType.EMPLOYEE_UPDATE, "EMPLOYEE", String.valueOf(internalEmployeeId), "Employé modifié");
+        return ResponseEntity.ok(updated);
     }
 
     @GetMapping
     public ResponseEntity<List<EmployeeResponseDTO>> getAllEmployees(Principal principal) {
         User dentist = getClinicUser(principal);
-
+        auditService.logSuccess(AuditEventType.EMPLOYEE_READ, "EMPLOYEE", null, "Employés consultés");
         return ResponseEntity.ok(employeeService.getAllEmployeesForDentist(dentist));
     }
 
@@ -65,6 +76,10 @@ public class EmployeeController {
 
         Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(id, dentist).getId();
         return employeeService.getEmployeeByIdForDentist(internalEmployeeId, dentist)
+                .map(employee -> {
+                    auditService.logSuccess(AuditEventType.EMPLOYEE_READ, "EMPLOYEE", String.valueOf(internalEmployeeId), "Employé consulté");
+                    return employee;
+                })
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new NotFoundException("Employe introuvable"));
     }
@@ -78,11 +93,12 @@ public class EmployeeController {
 
         Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(id, dentist).getId();
         employeeService.deleteEmployee(internalEmployeeId, dentist);
+        auditService.logSuccess(AuditEventType.EMPLOYEE_DELETE, "EMPLOYEE", String.valueOf(internalEmployeeId), "Employé supprimé");
         return ResponseEntity.noContent().build();
     }
 
     private User getClinicUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }

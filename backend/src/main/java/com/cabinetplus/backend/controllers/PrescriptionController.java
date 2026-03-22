@@ -17,9 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
 import com.cabinetplus.backend.dto.PrescriptionResponseDTO;
 import com.cabinetplus.backend.dto.PrescriptionSummaryDTO;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Prescription;
 import com.cabinetplus.backend.models.PrescriptionMedication;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PrescriptionService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -48,11 +50,18 @@ public class PrescriptionController {
     private final PrescriptionService prescriptionService;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
     @PostMapping
     public ResponseEntity<PrescriptionResponseDTO> createPrescription(@Valid @RequestBody PrescriptionRequestDTO dto, Principal principal) {
         User practitioner = getPractitioner(principal);
         Prescription prescription = prescriptionService.createPrescription(dto, practitioner);
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_CREATE,
+                "PATIENT",
+                prescription != null && prescription.getPatient() != null ? String.valueOf(prescription.getPatient().getId()) : null,
+                "Ordonnance créée"
+        );
         return ResponseEntity.ok(prescriptionService.mapToResponseDTO(prescription));
     }
 
@@ -61,6 +70,12 @@ public class PrescriptionController {
         User practitioner = getPractitioner(principal);
         User ownerDentist = userService.resolveClinicOwner(practitioner);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_READ,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
+                "Ordonnances consultées"
+        );
         return ResponseEntity.ok(prescriptionService.getPrescriptionsByPatientId(internalPatientId, practitioner));
     }
 
@@ -68,6 +83,12 @@ public class PrescriptionController {
     public ResponseEntity<PrescriptionResponseDTO> getPrescriptionById(@PathVariable String id, Principal principal) {
         User practitioner = getPractitioner(principal);
         Prescription rx = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_READ,
+                "PATIENT",
+                rx != null && rx.getPatient() != null ? String.valueOf(rx.getPatient().getId()) : null,
+                "Ordonnance consultée"
+        );
         return ResponseEntity.ok(prescriptionService.mapToResponseDTO(rx));
     }
 
@@ -76,6 +97,12 @@ public class PrescriptionController {
         User practitioner = getPractitioner(principal);
         Prescription existing = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
         Prescription updated = prescriptionService.updatePrescription(existing.getId(), dto, practitioner);
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_UPDATE,
+                "PATIENT",
+                updated != null && updated.getPatient() != null ? String.valueOf(updated.getPatient().getId()) : null,
+                "Ordonnance modifiée"
+        );
         return ResponseEntity.ok(prescriptionService.mapToResponseDTO(updated));
     }
 
@@ -84,6 +111,12 @@ public class PrescriptionController {
         User practitioner = getPractitioner(principal);
         Prescription existing = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
         prescriptionService.deletePrescription(existing.getId(), practitioner);
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_DELETE,
+                "PATIENT",
+                existing != null && existing.getPatient() != null ? String.valueOf(existing.getPatient().getId()) : null,
+                "Ordonnance supprimée"
+        );
         return ResponseEntity.ok("Prescription deleted successfully");
     }
 
@@ -93,6 +126,13 @@ public void generatePrescriptionPdf(@PathVariable String id, Principal principal
 
     User practitioner = getPractitioner(principal);
     Prescription rx = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
+
+    auditService.logSuccess(
+            AuditEventType.PRESCRIPTION_PDF_DOWNLOAD,
+            "PATIENT",
+            rx != null && rx.getPatient() != null ? String.valueOf(rx.getPatient().getId()) : null,
+            "Ordonnance PDF téléchargée"
+    );
 
     response.setContentType("application/pdf");
     response.setHeader("Content-Disposition", "inline; filename=ordonnance_" + rx.getRxId() + ".pdf");
@@ -220,7 +260,7 @@ public void generatePrescriptionPdf(@PathVariable String id, Principal principal
     document.close();
 }
   private User getPractitioner(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        return userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Praticien introuvable"));
     }
 }

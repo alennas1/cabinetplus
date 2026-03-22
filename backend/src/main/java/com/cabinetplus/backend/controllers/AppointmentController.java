@@ -58,14 +58,28 @@ public class AppointmentController {
     @GetMapping
     public List<Appointment> getAllAppointments(Principal principal) {
         User currentUser = getClinicUser(principal);
-
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_READ,
+                "APPOINTMENT",
+                null,
+                "Rendez-vous consultes"
+        );
         return appointmentService.findByPractitioner(currentUser);
     }
 
     @GetMapping("/{id:\\d+}")
     public Appointment getAppointmentById(@PathVariable Long id, Principal principal) {
         User currentUser = getClinicUser(principal);
-        return appointmentService.requireByIdForPractitioner(id, currentUser);
+        Appointment appointment = appointmentService.requireByIdForPractitioner(id, currentUser);
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_READ,
+                "PATIENT",
+                appointment != null && appointment.getPatient() != null && appointment.getPatient().getId() != null
+                        ? String.valueOf(appointment.getPatient().getId())
+                        : null,
+                "Rendez-vous consulte"
+        );
+        return appointment;
     }
 
     @PostMapping
@@ -228,6 +242,12 @@ public class AppointmentController {
                 .map(item -> new AppointmentService.RescheduleItem(item.appt.getId(), item.newStart, item.newEnd))
                 .collect(Collectors.toList());
         appointmentService.rescheduleAppointments(updates, currentUser);
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_UPDATE,
+                "APPOINTMENT",
+                null,
+                "Rendez-vous decales"
+        );
     }
 
     @DeleteMapping("/{id:\\d+}")
@@ -250,6 +270,12 @@ public class AppointmentController {
     public List<Appointment> getAppointmentsByPatient(@PathVariable String patientId, Principal principal) {
         User ownerDentist = getClinicUser(principal);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_READ,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
+                "Rendez-vous patient consultes"
+        );
         Patient patient = new Patient();
         patient.setId(internalPatientId);
         return appointmentService.findByPatient(patient);
@@ -259,6 +285,12 @@ public class AppointmentController {
     public List<Appointment> getAppointmentsByPractitioner(@PathVariable Long practitionerId, Principal principal) {
         User requester = getClinicUser(principal);
         User practitioner = requireClinicPractitioner(practitionerId, requester);
+        auditService.logSuccess(
+                AuditEventType.APPOINTMENT_READ,
+                "USER",
+                practitioner != null && practitioner.getId() != null ? String.valueOf(practitioner.getId()) : null,
+                "Rendez-vous praticien consultes"
+        );
         return appointmentService.findByPractitioner(practitioner);
     }
 
@@ -266,6 +298,12 @@ public class AppointmentController {
 public Map<String, Object> getComparisonStats(Principal principal) {
 
     User user = getClinicUser(principal);
+    auditService.logSuccess(
+        AuditEventType.APPOINTMENT_READ,
+        "USER",
+        user != null && user.getId() != null ? String.valueOf(user.getId()) : null,
+        "Stats rendez-vous consultees"
+    );
 
     LocalDate today = LocalDate.now();
     LocalDate yesterday = today.minusDays(1);
@@ -291,7 +329,7 @@ public Map<String, Object> getComparisonStats(Principal principal) {
 }
 
     private User getClinicUser(Principal principal) {
-        User currentUser = userService.findByUsername(principal.getName())
+        User currentUser = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         return userService.resolveClinicOwner(currentUser);
     }

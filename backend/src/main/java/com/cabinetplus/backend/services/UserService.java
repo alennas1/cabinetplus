@@ -14,6 +14,7 @@ import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.util.PhoneNumberUtil;
 
 @Service
 public class UserService {
@@ -50,8 +51,12 @@ public class UserService {
         return userRepository.findById(id);
     }
 
-    public Optional<User> findByUsername(String username) {
-        return userRepository.findByUsername(username);
+    public Optional<User> findByPhoneNumber(String phoneNumber) {
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(phoneNumber);
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        return userRepository.findFirstByPhoneNumberInOrderByIdAsc(candidates);
     }
 
     public void delete(Long id) {
@@ -140,32 +145,20 @@ public class UserService {
             throw new BadRequestException(java.util.Map.of("_", "Corps de requete invalide"));
         }
 
-        String username = user.getUsername() != null ? user.getUsername().trim() : null;
-        if (username != null) {
-            user.setUsername(username);
+        String phone = PhoneNumberUtil.trimToNull(user.getPhoneNumber());
+        phone = PhoneNumberUtil.canonicalAlgeriaForStorage(phone);
+        user.setPhoneNumber(phone);
+
+        if (phone == null || phone.isBlank()) {
+            throw new BadRequestException(java.util.Map.of("phoneNumber", "Le numero de telephone est obligatoire"));
         }
 
-        String phone = user.getPhoneNumber() != null ? user.getPhoneNumber().trim() : null;
-        if (phone != null) {
-            user.setPhoneNumber(phone);
-        }
-
-        if (username != null && !username.isBlank()) {
-            boolean exists = user.getId() == null
-                    ? userRepository.existsByUsernameIgnoreCase(username)
-                    : userRepository.existsByUsernameIgnoreCaseAndIdNot(username, user.getId());
-            if (exists) {
-                throw new BadRequestException(java.util.Map.of("username", "Ce nom d'utilisateur est deja utilise"));
-            }
-        }
-
-        if (phone != null && !phone.isBlank()) {
-            boolean exists = user.getId() == null
-                    ? userRepository.existsByPhoneNumber(phone)
-                    : userRepository.existsByPhoneNumberAndIdNot(phone, user.getId());
-            if (exists) {
-                throw new BadRequestException(java.util.Map.of("phoneNumber", "Ce numero de telephone est deja utilise"));
-            }
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(phone);
+        boolean exists = user.getId() == null
+                ? userRepository.existsByPhoneNumberIn(candidates)
+                : userRepository.existsByPhoneNumberInAndIdNot(candidates, user.getId());
+        if (exists) {
+            throw new BadRequestException(java.util.Map.of("phoneNumber", "Ce numero de telephone est deja utilise"));
         }
 
         // Clinic scoping invariant: staff dentist accounts must be attached to an owner dentist.

@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.core.env.Environment;
 
 import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
@@ -18,14 +19,20 @@ import com.cabinetplus.backend.dto.EmployeeWorkingHoursDTO;
 import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.exceptions.BadGatewayException;
+import com.cabinetplus.backend.exceptions.InternalServerErrorException;
+import com.cabinetplus.backend.exceptions.TooManyRequestsException;
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.EmployeeWorkingHours;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.EmployeeWorkingHoursRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.services.PhoneVerificationService;
+import com.cabinetplus.backend.util.PhoneNumberUtil;
 
 import lombok.RequiredArgsConstructor;
+import com.twilio.exception.ApiException;
 
 @Service
 @RequiredArgsConstructor
@@ -35,13 +42,17 @@ public class EmployeeService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final PlanLimitService planLimitService;
+    private final PhoneVerificationService phoneVerificationService;
+    private final Environment environment;
 
     // --- Create ---
     public EmployeeResponseDTO saveEmployee(EmployeeRequestDTO dto, User dentist) {
         String normalizedPhone = normalizePhone(dto.getPhone());
         assertDatesCoherent(dto.getHireDate(), dto.getEndDate());
         planLimitService.assertEmployeeRoleAllowed(dentist, dto.getAccessRole());
-        User linkedUser = createLinkedUser(dentist, dto);
+        assertPhoneUnique(normalizedPhone, null);
+        assertEmployeePhoneVerified(normalizedPhone, dto.getPhoneVerificationCode());
+        User linkedUser = createLinkedUser(dentist, dto, normalizedPhone);
 
         Employee employee = Employee.builder()
                 .firstName(dto.getFirstName())
@@ -99,25 +110,35 @@ public class EmployeeService {
         Long linkedUserId = linkedUser != null ? linkedUser.getId() : null;
         String normalizedPhone = normalizePhone(dto.getPhone());
         assertDatesCoherent(dto.getHireDate(), dto.getEndDate());
+
+        // Phone number changes must go through Twilio verification (see /api/verify/phone-change/*).
+        String storedPhone = linkedUser != null && hasText(linkedUser.getPhoneNumber())
+                ? linkedUser.getPhoneNumber()
+                : existing.getPhone();
+        if (hasText(storedPhone)) {
+            var storedCandidates = PhoneNumberUtil.algeriaStoredCandidates(storedPhone);
+            if (!storedCandidates.isEmpty() && !storedCandidates.contains(normalizedPhone)) {
+                throw new BadRequestException(java.util.Map.of(
+                        "phone",
+                        "Pour modifier le numero de telephone, utilisez la verification SMS."
+                ));
+            }
+        }
+
         assertPhoneUnique(normalizedPhone, linkedUserId);
         ClinicAccessRole nextRole = dto.getAccessRole() != null ? dto.getAccessRole() : previousRole;
         if (roleCategoryChanged(previousRole, nextRole)) {
             planLimitService.assertEmployeeRoleAllowed(dentist, nextRole);
         }
 
-        if (linkedUser == null && (hasText(dto.getUsername()) || hasText(dto.getPassword()) || dto.getAccessRole() != null)) {
-            linkedUser = createLinkedUser(dentist, dto);
+        if (linkedUser == null && (hasText(dto.getPassword()) || dto.getAccessRole() != null)) {
+            assertEmployeePhoneVerified(normalizedPhone, dto.getPhoneVerificationCode());
+            linkedUser = createLinkedUser(dentist, dto, normalizedPhone);
             existing.setUser(linkedUser);
         } else if (linkedUser != null) {
             if (dto.getAccessRole() != null) {
                 validateStaffRole(dto.getAccessRole());
                 linkedUser.setClinicAccessRole(dto.getAccessRole());
-            }
-
-            if (hasText(dto.getUsername()) && !dto.getUsername().equalsIgnoreCase(linkedUser.getUsername())) {
-                String nextUsername = dto.getUsername().trim();
-                assertUsernameUnique(nextUsername, linkedUser.getId());
-                linkedUser.setUsername(nextUsername);
             }
 
             if (hasText(dto.getPassword())) {
@@ -143,7 +164,10 @@ public class EmployeeService {
         if (linkedUser != null) {
             linkedUser.setFirstname(dto.getFirstName());
             linkedUser.setLastname(dto.getLastName());
-            linkedUser.setPhoneNumber(normalizedPhone);
+            if (!normalizedPhone.equals(linkedUser.getPhoneNumber())) {
+                linkedUser.setPhoneNumber(normalizedPhone);
+                linkedUser.setPhoneVerified(false);
+            }
             userRepository.save(linkedUser);
         }
 
@@ -234,16 +258,12 @@ public class EmployeeService {
                 .createdAt(employee.getCreatedAt())
                 .updatedAt(employee.getUpdatedAt())
                 .userId(employee.getUser() != null ? employee.getUser().getId() : null)
-                .username(employee.getUser() != null ? employee.getUser().getUsername() : null)
                 .accessRole(employee.getUser() != null ? employee.getUser().getClinicAccessRole() : null)
                 .workingHours(schedules)
                 .build();
     }
 
-    private User createLinkedUser(User ownerDentist, EmployeeRequestDTO dto) {
-        if (!hasText(dto.getUsername())) {
-            throw new BadRequestException(java.util.Map.of("username", "Nom d'utilisateur obligatoire"));
-        }
+    private User createLinkedUser(User ownerDentist, EmployeeRequestDTO dto, String normalizedPhone) {
         if (!hasText(dto.getPassword())) {
             throw new BadRequestException(java.util.Map.of("password", "Mot de passe obligatoire"));
         }
@@ -253,14 +273,7 @@ public class EmployeeService {
 
         validateStaffRole(dto.getAccessRole());
 
-        String normalizedUsername = dto.getUsername().trim();
-        assertUsernameUnique(normalizedUsername, null);
-
-        String normalizedPhone = normalizePhone(dto.getPhone());
-        assertPhoneUnique(normalizedPhone, null);
-
         User user = new User();
-        user.setUsername(normalizedUsername);
         user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         user.setRole(UserRole.DENTIST);
         user.setClinicAccessRole(dto.getAccessRole());
@@ -277,14 +290,49 @@ public class EmployeeService {
         return userRepository.save(user);
     }
 
+    private void assertEmployeePhoneVerified(String normalizedPhone, String code) {
+        if (!hasText(code)) {
+            throw new BadRequestException(java.util.Map.of("phoneVerificationCode", "Code SMS obligatoire"));
+        }
+
+        boolean dev = environment != null && Arrays.asList(environment.getActiveProfiles()).contains("dev");
+        if (dev) {
+            return;
+        }
+
+        try {
+            boolean approved = phoneVerificationService.checkVerificationCode(normalizedPhone, code);
+            if (!approved) {
+                throw new BadRequestException(java.util.Map.of("phoneVerificationCode", "Code SMS invalide"));
+            }
+        } catch (IllegalStateException e) {
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    java.util.Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+            );
+        } catch (ApiException e) {
+            int status = e.getStatusCode();
+            if (status == 400) {
+                throw new BadRequestException(java.util.Map.of("phoneVerificationCode", "Code SMS invalide"));
+            }
+            if (status == 429) {
+                throw new TooManyRequestsException("Trop de demandes. Reessayez plus tard.");
+            }
+            throw new BadGatewayException("Service SMS indisponible");
+        } catch (Exception e) {
+            throw new InternalServerErrorException("Service SMS indisponible");
+        }
+    }
+
     private void assertPhoneUnique(String normalizedPhone, Long currentUserId) {
         if (!hasText(normalizedPhone)) {
             throw new BadRequestException(java.util.Map.of("phone", "Le numero de telephone est obligatoire"));
         }
 
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(normalizedPhone);
         boolean alreadyUsed = currentUserId == null
-                ? userRepository.existsByPhoneNumber(normalizedPhone)
-                : userRepository.existsByPhoneNumberAndIdNot(normalizedPhone, currentUserId);
+                ? userRepository.existsByPhoneNumberIn(candidates)
+                : userRepository.existsByPhoneNumberInAndIdNot(candidates, currentUserId);
 
         if (alreadyUsed) {
             throw new BadRequestException(java.util.Map.of("phone", "Ce numero de telephone est deja utilise"));
@@ -292,23 +340,7 @@ public class EmployeeService {
     }
 
     private String normalizePhone(String phone) {
-        if (phone == null) return null;
-        // Allow user-friendly input like "0550 12 34 56" or "0550-12-34-56"
-        return phone.replaceAll("[\\s-]", "").trim();
-    }
-
-    private void assertUsernameUnique(String username, Long currentUserId) {
-        if (!hasText(username)) {
-            throw new BadRequestException(java.util.Map.of("username", "Nom d'utilisateur obligatoire"));
-        }
-
-        boolean exists = currentUserId == null
-                ? userRepository.existsByUsernameIgnoreCase(username)
-                : userRepository.existsByUsernameIgnoreCaseAndIdNot(username, currentUserId);
-
-        if (exists) {
-            throw new BadRequestException(java.util.Map.of("username", "Nom d'utilisateur deja utilise"));
-        }
+        return PhoneNumberUtil.canonicalAlgeriaForStorage(phone);
     }
 
     private void validateStaffRole(ClinicAccessRole role) {

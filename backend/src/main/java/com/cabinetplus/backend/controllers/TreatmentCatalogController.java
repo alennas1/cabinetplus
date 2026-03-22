@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.TreatmentCatalogRequest;
 import com.cabinetplus.backend.dto.TreatmentCatalogResponse;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.TreatmentCatalog;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.TreatmentCatalogService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -30,16 +32,20 @@ public class TreatmentCatalogController {
 
     private final TreatmentCatalogService treatmentCatalogService;
     private final UserService userService;
+    private final AuditService auditService;
 
     public TreatmentCatalogController(TreatmentCatalogService treatmentCatalogService,
-                                      UserService userService) {
+                                      UserService userService,
+                                      AuditService auditService) {
         this.treatmentCatalogService = treatmentCatalogService;
         this.userService = userService;
+        this.auditService = auditService;
     }
 
     @GetMapping
     public ResponseEntity<List<TreatmentCatalogResponse>> getAllTreatmentCatalogs(Principal principal) {
         User currentUser = getCurrentUser(principal);
+        auditService.logSuccess(AuditEventType.TREATMENT_CATALOG_READ, "TREATMENT_CATALOG", null, "Catalogue traitements consulte");
 
         List<TreatmentCatalogResponse> response = treatmentCatalogService.findAllByUser(currentUser)
                 .stream()
@@ -56,6 +62,7 @@ public class TreatmentCatalogController {
 
         TreatmentCatalog catalog = treatmentCatalogService.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new NotFoundException("Element du catalogue introuvable"));
+        auditService.logSuccess(AuditEventType.TREATMENT_CATALOG_READ, "TREATMENT_CATALOG", String.valueOf(id), "Element catalogue traitement consulte");
         return ResponseEntity.ok(mapToResponse(catalog));
     }
 
@@ -73,6 +80,7 @@ public class TreatmentCatalogController {
         entity.setCreatedBy(currentUser);
 
         TreatmentCatalog saved = treatmentCatalogService.save(entity);
+        auditService.logSuccess(AuditEventType.TREATMENT_CATALOG_CREATE, "TREATMENT_CATALOG", String.valueOf(saved.getId()), "Catalogue traitement créé");
 
         return ResponseEntity.ok(mapToResponse(saved));
     }
@@ -94,6 +102,7 @@ public class TreatmentCatalogController {
 
         TreatmentCatalog saved = treatmentCatalogService.update(id, toUpdate, currentUser)
                 .orElseThrow(() -> new NotFoundException("Element du catalogue introuvable"));
+        auditService.logSuccess(AuditEventType.TREATMENT_CATALOG_UPDATE, "TREATMENT_CATALOG", String.valueOf(saved.getId()), "Catalogue traitement modifié");
         return ResponseEntity.ok(mapToResponse(saved));
     }
 
@@ -106,12 +115,13 @@ public class TreatmentCatalogController {
         if (!deleted) {
             throw new NotFoundException("Element du catalogue introuvable");
         }
+        auditService.logSuccess(AuditEventType.TREATMENT_CATALOG_DELETE, "TREATMENT_CATALOG", String.valueOf(id), "Catalogue traitement supprimé");
         return ResponseEntity.noContent().build();
     }
 
     // ðŸ”¹ Helpers
     private User getCurrentUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }

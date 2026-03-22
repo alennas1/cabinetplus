@@ -7,6 +7,7 @@ import com.cabinetplus.backend.enums.PaymentStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Null;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
@@ -48,4 +49,7 @@ public class HandPaymentDTO {
 
     @Size(max = 500, message = "Notes trop longues")
     private String notes;
+
+    @NotBlank(message = "Mot de passe requis")
+    private String password;
 }

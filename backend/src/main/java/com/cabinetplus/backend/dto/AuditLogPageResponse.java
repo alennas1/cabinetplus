@@ -1,0 +1,13 @@
+package com.cabinetplus.backend.dto;
+
+import java.util.List;
+
+public record AuditLogPageResponse(
+        List<AuditLogResponse> items,
+        int page,
+        int size,
+        long totalElements,
+        int totalPages
+) {
+}
+

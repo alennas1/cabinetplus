@@ -21,9 +21,8 @@ import { formatMoneyWithLabel } from "../utils/format";
 import SortableTh from "../components/SortableTh";
 import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
-import { formatPhoneNumber as formatPhoneNumberDisplay, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
-import { isStrongPassword, isValidUsername } from "../utils/validation";
-import PhoneInput from "../components/PhoneInput";
+import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
+import { isStrongPassword } from "../utils/validation";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PasswordInput from "../components/PasswordInput";
 import FieldError from "../components/FieldError";
@@ -165,7 +164,6 @@ const EmployeeDetails = () => {
     status: source.status || "ACTIVE",
     salary: source.salary === "" || source.salary == null ? null : Number(source.salary),
     contractType: source.contractType || "",
-    username: source.username || null,
     password: passwordValue,
     accessRole: source.accessRole || "RECEPTION",
   });
@@ -326,10 +324,6 @@ const EmployeeDetails = () => {
       setTempValue("");
       return;
     }
-    if (field === "phone") {
-      setTempValue(formatPhoneNumberDisplay(employee?.phone) || "");
-      return;
-    }
     setTempValue(employee?.[field] == null ? "" : String(employee[field]));
   };
 
@@ -343,21 +337,10 @@ const EmployeeDetails = () => {
     if (!employee) return;
 
     const nextErrors = {};
-    if (field === "username" && !isValidUsername(tempValue)) {
-      nextErrors.username = "Nom d'utilisateur invalide (3-20 caracteres, lettres/chiffres/._-).";
-    }
-
     if (field === "password") {
       if (!String(tempValue || "").trim()) nextErrors.password = "Entrez un nouveau mot de passe.";
       else if (!isStrongPassword(tempValue)) {
         nextErrors.password = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.";
-      }
-    }
-
-    if (field === "phone") {
-      if (!String(tempValue || "").trim()) nextErrors.phone = "Le numero de telephone est obligatoire.";
-      else if (!isValidDzMobilePhoneNumber(tempValue)) {
-        nextErrors.phone = "Telephone invalide (ex: 05 51 51 51 51).";
       }
     }
 
@@ -369,9 +352,6 @@ const EmployeeDetails = () => {
     let nextValue = tempValue;
     if (field === "salary") {
       nextValue = tempValue === "" ? null : Number(tempValue);
-    }
-    if (field === "phone") {
-      nextValue = normalizePhoneInput(tempValue);
     }
     if (["dateOfBirth", "hireDate", "endDate"].includes(field)) {
       nextValue = tempValue || null;
@@ -454,16 +434,6 @@ const EmployeeDetails = () => {
                 autoComplete="new-password"
                 inputClassName={fieldErrors[field] ? "invalid" : ""}
               />
-            ) : field === "phone" ? (
-              <PhoneInput
-                value={tempValue}
-                onChangeValue={(v) => {
-                  setTempValue(v);
-                  if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: "" }));
-                }}
-                placeholder="Ex: 05 51 51 51 51"
-                className={fieldErrors[field] ? "invalid" : ""}
-              />
             ) : (
               <input
                 type={type}
@@ -492,6 +462,13 @@ const EmployeeDetails = () => {
           <Edit2 size={18} className="icon action edit" onClick={() => startEdit(field)} />
         </>
       )}
+    </div>
+  );
+
+  const renderReadOnlyField = (field, label, displayValue) => (
+    <div className="profile-field" key={field}>
+      <div className="field-label">{label}:</div>
+      <div className="field-value">{displayValue}</div>
     </div>
   );
 
@@ -569,7 +546,7 @@ const EmployeeDetails = () => {
         <div className="profile-content">
           {renderEditableField("firstName", "Prenom")}
           {renderEditableField("lastName", "Nom")}
-          {renderEditableField("phone", "Telephone", "text", null, formatPhoneNumber(employee.phone) || "—")}
+          {renderReadOnlyField("phone", "Telephone", formatPhoneNumber(employee.phone) || "—")}
           {renderEditableField("email", "Email", "email")}
           {renderEditableField("contractType", "Type de contrat")}
           {renderEditableField("salary", "Salaire", "number", null, employee.salary ? formatMoneyWithLabel(employee.salary) : "—")}
@@ -618,7 +595,6 @@ const EmployeeDetails = () => {
 
       {activeTab === "account" && (
         <div className="profile-content">
-          {renderEditableField("username", "Nom d'utilisateur")}
           {renderEditableField("password", "Mot de passe", "password", null, "********")}
         </div>
       )}

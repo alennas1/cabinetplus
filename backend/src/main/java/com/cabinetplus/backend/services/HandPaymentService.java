@@ -43,7 +43,6 @@ public class HandPaymentService {
                     p.getNotes(),
 
                     p.getUser().getId(),
-                    p.getUser().getUsername(),
                     p.getUser().getFirstname() + " " + p.getUser().getLastname(),
                     p.getUser().getPhoneNumber(),
 
@@ -66,7 +65,6 @@ public List<HandPaymentResponseDTO> getPaymentsByUser(User user) {
                     p.getNotes(),
 
                     p.getUser().getId(),
-                    p.getUser().getUsername(),
                     p.getUser().getFirstname() + " " + p.getUser().getLastname(),
                     p.getUser().getPhoneNumber(),
 
@@ -89,7 +87,6 @@ public List<HandPaymentResponseDTO> getAllPayments() {
                     p.getNotes(),
 
                     p.getUser().getId(),
-                    p.getUser().getUsername(),
                     p.getUser().getFirstname() + " " + p.getUser().getLastname(),
                     p.getUser().getPhoneNumber(),
 

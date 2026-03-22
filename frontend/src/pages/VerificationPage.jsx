@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import { logout as logoutRedux, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
 import api, { getCurrentUser, logout as logoutApi } from "../services/authService";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
+import { isPlanActiveForAccess } from "../utils/planAccess";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { applyUserPreferences } from "../utils/workingHours";
 import { getApiErrorMessage } from "../utils/error";
@@ -31,12 +32,41 @@ const VerificationPage = () => {
     return () => window.clearInterval(id);
   }, [phoneSendCooldown]);
 
-  useEffect(() => {
-    if (!user) return;
-    const clinicRole = getClinicRole(user);
+  const redirectAfterVerify = (userData) => {
+    if (!userData) return;
+
+    if (userData.role === "ADMIN") {
+      navigate("/admin-dashboard", { replace: true });
+      return;
+    }
+
+    if (!userData.phoneVerified) return;
+
+    const clinicRole = getClinicRole(userData);
     if (clinicRole !== CLINIC_ROLES.DENTIST) {
       if (clinicRole === CLINIC_ROLES.PARTNER_DENTIST) navigate("/dashboard", { replace: true });
       else navigate("/appointments", { replace: true });
+      return;
+    }
+
+    const isActivePlan = isPlanActiveForAccess(userData);
+
+    if (!isActivePlan && userData.planStatus === "WAITING") {
+      navigate("/waiting", { replace: true });
+      return;
+    }
+
+    navigate(isActivePlan ? "/dashboard" : "/plan", { replace: true });
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === "ADMIN") {
+      navigate("/admin-dashboard", { replace: true });
+      return;
+    }
+    if (user.phoneVerified) {
+      redirectAfterVerify(user);
     }
   }, [user, navigate]);
 
@@ -129,7 +159,8 @@ const VerificationPage = () => {
   };
 
   const handleProceed = () => {
-    if (isFullyVerified) navigate("/dashboard");
+    if (!isFullyVerified) return;
+    redirectAfterVerify(user);
   };
 
   return (

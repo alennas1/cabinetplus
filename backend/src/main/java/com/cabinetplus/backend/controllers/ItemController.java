@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cabinetplus.backend.dto.CreateItemDTO;
 import com.cabinetplus.backend.dto.ItemDTO;
 import com.cabinetplus.backend.dto.UpdateItemDTO;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Item;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.ItemService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -32,6 +34,7 @@ public class ItemController {
 
     private final ItemService itemService;
     private final UserService userService; // to fetch User from JWT Principal
+    private final AuditService auditService;
 
     @GetMapping
     public ResponseEntity<List<ItemDTO>> getAll(Principal principal) {
@@ -40,6 +43,7 @@ public class ItemController {
                 .stream()
                 .map(itemService::toDTO)
                 .toList();
+        auditService.logSuccess(AuditEventType.ITEM_READ, "ITEM", null, "Articles consultés");
         return ResponseEntity.ok(dtos);
     }
 
@@ -48,26 +52,29 @@ public class ItemController {
         User dentist = getClinicUser(principal);
         Item item = itemService.getItemByIdForDentist(id, dentist)
                 .orElseThrow(() -> new NotFoundException("Article introuvable"));
+        auditService.logSuccess(AuditEventType.ITEM_READ, "ITEM", String.valueOf(item.getId()), "Article consulté");
         return ResponseEntity.ok(itemService.toDTO(item));
     }
 
     @PostMapping
-public ResponseEntity<ItemDTO> create(@Valid @RequestBody CreateItemDTO dto, Principal principal) {
-    User dentist = getClinicUser(principal);
-    
-    Item saved = itemService.createItemFromDTO(dto, dentist);
-    return ResponseEntity.ok(itemService.toDTO(saved));
-}
+ public ResponseEntity<ItemDTO> create(@Valid @RequestBody CreateItemDTO dto, Principal principal) {
+     User dentist = getClinicUser(principal);
+     
+     Item saved = itemService.createItemFromDTO(dto, dentist);
+     auditService.logSuccess(AuditEventType.ITEM_CREATE, "ITEM", String.valueOf(saved.getId()), "Article créé");
+     return ResponseEntity.ok(itemService.toDTO(saved));
+ }
 
    @PutMapping("/{id}")
 public ResponseEntity<ItemDTO> update(@PathVariable Long id,
                                       @Valid @RequestBody UpdateItemDTO dto,
                                       Principal principal) {
-    User dentist = getClinicUser(principal);
-    Item saved = itemService.updateItemFromDTO(id, dto, dentist);
+     User dentist = getClinicUser(principal);
+     Item saved = itemService.updateItemFromDTO(id, dto, dentist);
 
-    return ResponseEntity.ok(itemService.toDTO(saved));
-}
+     auditService.logSuccess(AuditEventType.ITEM_UPDATE, "ITEM", String.valueOf(saved.getId()), "Article modifié");
+     return ResponseEntity.ok(itemService.toDTO(saved));
+ }
 
     @DeleteMapping("/{id}")
 public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
@@ -77,12 +84,13 @@ public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
     itemService.getItemByIdForDentist(id, dentist)
             .orElseThrow(() -> new NotFoundException("Article introuvable"));
 
-    itemService.deleteItem(id, dentist);
-    return ResponseEntity.noContent().build();
-}
+     itemService.deleteItem(id, dentist);
+     auditService.logSuccess(AuditEventType.ITEM_DELETE, "ITEM", String.valueOf(id), "Article supprimé");
+     return ResponseEntity.noContent().build();
+ }
 
 private User getClinicUser(Principal principal) {
-    User user = userService.findByUsername(principal.getName())
+    User user = userService.findByPhoneNumber(principal.getName())
             .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     return userService.resolveClinicOwner(user);
 }

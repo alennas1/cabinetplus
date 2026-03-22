@@ -17,7 +17,6 @@ import { FIELD_LIMITS, STRONG_PASSWORD_REGEX, validateText } from "../utils/vali
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
-    username: "",
     password: "",
     role: "DENTIST",
     firstname: "",
@@ -43,15 +42,15 @@ const RegisterPage = () => {
       return;
     }
 
+    if (!userData.phoneVerified) {
+      navigate("/verify", { replace: true });
+      return;
+    }
+
     const clinicRole = getClinicRole(userData);
     if (clinicRole !== CLINIC_ROLES.DENTIST) {
       if (clinicRole === CLINIC_ROLES.PARTNER_DENTIST) navigate("/dashboard", { replace: true });
       else navigate("/appointments", { replace: true });
-      return;
-    }
-
-    if (!userData.phoneVerified) {
-      navigate("/verify", { replace: true });
       return;
     }
 
@@ -79,13 +78,8 @@ const RegisterPage = () => {
   const validateForm = () => {
     const nextErrors = {};
 
-    const usernameError = validateText(formData.username, {
-      label: "Nom d'utilisateur",
-      required: true,
-      minLength: FIELD_LIMITS.USERNAME_MIN,
-      maxLength: FIELD_LIMITS.USERNAME_MAX,
-    });
-    if (usernameError) nextErrors.username = usernameError;
+
+
 
     const firstnameError = validateText(formData.firstname, {
       label: "Prénom",
@@ -132,8 +126,9 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
-      await register({ ...formData, phoneNumber: normalizePhoneInput(formData.phoneNumber) });
-      const { accessToken } = await login(formData.username, formData.password);
+      const normalizedPhone = normalizePhoneInput(formData.phoneNumber);
+      await register({ ...formData, phoneNumber: normalizedPhone });
+      const { accessToken } = await login(normalizedPhone, formData.password);
       const currentUser = await getCurrentUser();
       dispatch(setAuthLoading(true));
       try {
@@ -149,7 +144,6 @@ const RegisterPage = () => {
       if (errorData && typeof errorData === "object") {
         if (errorData.fieldErrors && typeof errorData.fieldErrors === "object") {
           const mappedErrors = {
-            username: errorData.fieldErrors.username || "",
             password: errorData.fieldErrors.password || "",
             firstname: errorData.fieldErrors.firstname || "",
             lastname: errorData.fieldErrors.lastname || "",
@@ -163,15 +157,6 @@ const RegisterPage = () => {
           const messageText = errorData.error;
           const lower = messageText.toLowerCase();
           const inferredErrors = {};
-          if (
-            lower.includes("username") ||
-            lower.includes("utilisateur") ||
-            lower.includes("already") ||
-            lower.includes("existe") ||
-            lower.includes("exist")
-          ) {
-            inferredErrors.username = messageText;
-          }
           if (lower.includes("password") || lower.includes("mot de passe")) {
             inferredErrors.password = messageText;
           }
@@ -241,23 +226,6 @@ const RegisterPage = () => {
                 <FieldError message={fieldErrors.lastname} />
               </div>
             </div>
-          </div>
-
-          <div className="register-field-group">
-            <label htmlFor="username">Nom d'utilisateur</label>
-            <input
-              id="username"
-              type="text"
-              name="username"
-              placeholder="Nom d'utilisateur"
-              value={formData.username}
-              onChange={handleChange}
-              className={fieldErrors.username ? "invalid" : ""}
-              required
-              disabled={loading}
-              maxLength={FIELD_LIMITS.USERNAME_MAX}
-            />
-            <FieldError message={fieldErrors.username} />
           </div>
 
           <div className="register-field-group">

@@ -10,6 +10,34 @@
   gap: 16px;
 }
 
+.tab-buttons {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 16px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 12px;
+  background-color: #e5e7eb;
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background-color: #d1d5db;
+}
+
+.tab-btn.active {
+  background-color: #3498db;
+  color: #fff;
+}
+
 .preference-save-btn.preference-save-btn-top {
   margin-top: 4px;
   height: 40px;

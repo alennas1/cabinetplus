@@ -13,7 +13,7 @@ import ModernDropdown from "../components/ModernDropdown";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
-import { FIELD_LIMITS, isStrongPassword, isValidUsername, validateText } from "../utils/validation";
+import { FIELD_LIMITS, isStrongPassword, validateText } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
@@ -78,7 +78,6 @@ const Employees = () => {
     status: "ACTIVE", // default enum
     salary: "",
     contractType: "",
-    username: "",
     password: "",
     accessRole: "RECEPTION",
   });
@@ -203,12 +202,6 @@ const Employees = () => {
       nextErrors.phone = "Telephone invalide (ex: 05 51 51 51 51).";
     }
 
-    if (!String(formData.username || "").trim()) {
-      nextErrors.username = "Le nom d'utilisateur est obligatoire.";
-    } else if (!isValidUsername(formData.username)) {
-      nextErrors.username = "Nom d'utilisateur invalide (3-20 caracteres, lettres/chiffres/._-).";
-    }
-
     if (!isEditing && !String(formData.password || "").trim()) {
       nextErrors.password = "Le mot de passe est obligatoire.";
     } else if (String(formData.password || "").trim() && !isStrongPassword(formData.password)) {
@@ -234,7 +227,6 @@ const Employees = () => {
       status: formData.status || "ACTIVE", // must match enum
       salary: formData.salary ? Number(formData.salary) : null,
       contractType: formData.contractType,
-      username: formData.username || null,
       password: formData.password || null,
       accessRole: formData.accessRole || "RECEPTION",
     };
@@ -311,7 +303,6 @@ const Employees = () => {
       status: "ACTIVE",
       salary: "",
       contractType: "",
-      username: "",
       password: "",
       accessRole: "RECEPTION",
     });
@@ -562,6 +553,7 @@ const Employees = () => {
                     }}
                     placeholder="Ex: 05 51 51 51 51"
                     className={fieldErrors.phone ? "invalid" : ""}
+                    disabled={isEditing}
                   />
                   <FieldError message={fieldErrors.phone} />
                   <span className="field-label">Email</span>
@@ -716,16 +708,6 @@ const Employees = () => {
 
               {formStep === 4 && (
                 <>
-                  <span className="field-label">Nom d'utilisateur</span>
-                  <input
-                    type="text"
-                    name="username"
-                    value={formData.username || ""}
-                    onChange={handleChange}
-                    placeholder="Ex: abenali"
-                    className={fieldErrors.username ? "invalid" : ""}
-                  />
-                  <FieldError message={fieldErrors.username} />
                   <span className="field-label">Mot de passe</span>
                   <PasswordInput
                     name="password"

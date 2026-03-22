@@ -32,7 +32,7 @@ public class PaymentController {
 
     @PostMapping("/payments")
     public ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request, Principal principal) {
-        User actor = userService.findByUsername(principal.getName())
+        User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         PaymentResponse created = paymentService.create(request, actor);
         auditService.logSuccess(
@@ -48,16 +48,22 @@ public class PaymentController {
 
     @GetMapping("/patients/{patientId}/payments")
     public ResponseEntity<List<Payment>> listByPatient(@PathVariable String patientId, Principal principal) {
-        User actor = userService.findByUsername(principal.getName())
+        User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         User ownerDentist = userService.resolveClinicOwner(actor);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        auditService.logSuccess(
+                AuditEventType.PAYMENT_READ,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
+                "Paiements patient consultes"
+        );
         return ResponseEntity.ok(paymentService.listByPatient(internalPatientId, actor));
     }
 
     @DeleteMapping("/payments/{paymentId}")
     public ResponseEntity<Void> delete(@PathVariable Long paymentId, Principal principal) {
-        User actor = userService.findByUsername(principal.getName())
+        User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         Payment existing = paymentRepository.findById(paymentId).orElse(null);
         paymentService.delete(paymentId, actor);
@@ -75,7 +81,7 @@ public class PaymentController {
     }
 
     private User getClinicUser(Principal principal) {
-        User currentUser = userService.findByUsername(principal.getName())
+        User currentUser = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(currentUser);
     }

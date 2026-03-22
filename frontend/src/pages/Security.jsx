@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { logout as logoutRedux, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
+import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { confirmPasswordReset, sendPasswordResetCode } from "../services/authService";
+import { Monitor, Smartphone, Tablet } from "react-feather";
+import { confirmPasswordReset, sendPasswordResetCode, getCurrentUser } from "../services/authService";
 import {
   getActiveSessions,
+  getLoginTwoFactorSettings,
   revokeSession,
+  revokeAllSessions,
+  updateLoginTwoFactorSettings,
   updatePassword,
 } from "../services/securityService";
 import { getApiErrorMessage } from "../utils/error";
@@ -19,8 +25,10 @@ import "./Settings.css";
 import "./Security.css";
 
 const Security = () => {
-  const { user } = useSelector((state) => state.auth);
-  const userKey = user?.id ?? user?.username;
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { user, token } = useSelector((state) => state.auth);
+  const userKey = user?.id ?? user?.phoneNumber;
   const isClinicEmployeeAccount =
     user?.role === "DENTIST" &&
     user?.clinicAccessRole &&
@@ -34,6 +42,21 @@ const Security = () => {
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsBusy, setSessionsBusy] = useState(null);
+
+  const [activeTab, setActiveTab] = useState("account");
+
+  const [login2faEnabled, setLogin2faEnabled] = useState(user?.loginTwoFactorEnabled ?? true);
+  const [login2faLoading, setLogin2faLoading] = useState(false);
+  const [login2faError, setLogin2faError] = useState("");
+  const [login2faConfirmOpen, setLogin2faConfirmOpen] = useState(false);
+  const [login2faPendingEnabled, setLogin2faPendingEnabled] = useState(null);
+  const [login2faConfirmPassword, setLogin2faConfirmPassword] = useState("");
+  const [login2faConfirmPasswordError, setLogin2faConfirmPasswordError] = useState("");
+
+  const [sessionConfirmOpen, setSessionConfirmOpen] = useState(false);
+  const [pendingSessionAction, setPendingSessionAction] = useState(null); // { type: "one" | "all", sessionId?: number }
+  const [sessionConfirmPassword, setSessionConfirmPassword] = useState("");
+  const [sessionConfirmPasswordError, setSessionConfirmPasswordError] = useState("");
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetStep, setResetStep] = useState("send");
@@ -74,6 +97,31 @@ const Security = () => {
     };
   }, [userKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadLogin2fa = async () => {
+      if (!userKey) return;
+      setLogin2faLoading(true);
+      setLogin2faError("");
+      try {
+        const data = await getLoginTwoFactorSettings();
+        if (!cancelled) setLogin2faEnabled(!!data?.enabled);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setLogin2faEnabled(!!user?.loginTwoFactorEnabled);
+          setLogin2faError("");
+        }
+      } finally {
+        if (!cancelled) setLogin2faLoading(false);
+      }
+    };
+    loadLogin2fa();
+    return () => {
+      cancelled = true;
+    };
+  }, [userKey, user?.loginTwoFactorEnabled]);
+
   const handlePasswordChange = async () => {
     const nextErrors = {};
     if (!String(oldPassword || "").trim()) nextErrors.oldPassword = "Champ obligatoire.";
@@ -111,6 +159,64 @@ const Security = () => {
     }
   };
 
+  const handleToggleLogin2fa = async (nextEnabled, password) => {
+    if (login2faLoading) return;
+    setLogin2faError("");
+    setLogin2faLoading(true);
+    try {
+      const data = await updateLoginTwoFactorSettings(!!nextEnabled, String(password || ""));
+      setLogin2faEnabled(!!data?.enabled);
+      toast.dismiss("login2fa");
+      toast.success(!!data?.enabled ? "Vérification en 2 étapes activée" : "Vérification en 2 étapes désactivée", {
+        toastId: "login2fa",
+        autoClose: 3000,
+      });
+
+      try {
+        const updatedUser = await getCurrentUser();
+        dispatch(setAuthLoading(true));
+        dispatch(setCredentials({ token, user: updatedUser }));
+      } catch {
+        // ignore
+      }
+    } catch (err) {
+      console.error(err);
+      setLogin2faError(getApiErrorMessage(err, "Impossible de mettre à jour la vérification en 2 étapes"));
+      toast.dismiss("login2fa");
+      toast.error(getApiErrorMessage(err, "Impossible de mettre à jour la vérification en 2 étapes"), {
+        toastId: "login2fa",
+        autoClose: 3000,
+      });
+    } finally {
+      setLogin2faLoading(false);
+    }
+  };
+
+  const openLogin2faConfirm = (nextEnabled) => {
+    setLogin2faPendingEnabled(!!nextEnabled);
+    setLogin2faConfirmPassword("");
+    setLogin2faConfirmPasswordError("");
+    setLogin2faConfirmOpen(true);
+  };
+
+  const closeLogin2faConfirm = () => {
+    if (login2faLoading) return;
+    setLogin2faConfirmOpen(false);
+    setLogin2faPendingEnabled(null);
+    setLogin2faConfirmPassword("");
+    setLogin2faConfirmPasswordError("");
+  };
+
+  const confirmLogin2faChange = async () => {
+    const pwd = String(login2faConfirmPassword || "").trim();
+    if (!pwd) {
+      setLogin2faConfirmPasswordError("Champ obligatoire.");
+      return;
+    }
+    await handleToggleLogin2fa(login2faPendingEnabled, pwd);
+    closeLogin2faConfirm();
+  };
+
   const formatDeviceLabel = (userAgent) => {
     const ua = (userAgent || "").toLowerCase();
     const os = ua.includes("windows")
@@ -136,6 +242,33 @@ const Security = () => {
       : "Navigateur";
 
     return `${os} • ${browser}`;
+  };
+
+  const getSessionOsName = (userAgent) => {
+    const ua = (userAgent || "").toLowerCase();
+    if (ua.includes("windows")) return "Windows";
+    if (ua.includes("mac os")) return "Mac";
+    if (ua.includes("iphone")) return "iOS";
+    if (ua.includes("ipad")) return "iPadOS";
+    if (ua.includes("android")) return "Android";
+    if (ua.includes("linux")) return "Linux";
+    return "Appareil";
+  };
+
+  const getSessionBrowserName = (userAgent) => {
+    const ua = (userAgent || "").toLowerCase();
+    if (ua.includes("edg")) return "Edge";
+    if (ua.includes("firefox")) return "Firefox";
+    if (ua.includes("safari") && !ua.includes("chrome")) return "Safari";
+    if (ua.includes("chrome") && !ua.includes("chromium")) return "Chrome";
+    return "Navigateur";
+  };
+
+  const getSessionIcon = (userAgent) => {
+    const ua = (userAgent || "").toLowerCase();
+    if (ua.includes("ipad") || ua.includes("tablet")) return <Tablet size={18} />;
+    if (ua.includes("iphone") || ua.includes("android")) return <Smartphone size={18} />;
+    return <Monitor size={18} />;
   };
 
   const formatDeviceId = (deviceId) => {
@@ -170,6 +303,73 @@ const Security = () => {
       toast.error(getApiErrorMessage(err, "Impossible de déconnecter la session"));
     } finally {
       setSessionsBusy(null);
+    }
+  };
+
+  const openSessionConfirm = ({ type, sessionId }) => {
+    setPendingSessionAction({ type, sessionId });
+    setSessionConfirmPassword("");
+    setSessionConfirmPasswordError("");
+    setSessionConfirmOpen(true);
+  };
+
+  const closeSessionConfirm = () => {
+    if (sessionsBusy) return;
+    setSessionConfirmOpen(false);
+    setPendingSessionAction(null);
+    setSessionConfirmPassword("");
+    setSessionConfirmPasswordError("");
+  };
+
+  const confirmSessionActionSubmit = async () => {
+    if (!pendingSessionAction) return;
+    const pwd = String(sessionConfirmPassword || "").trim();
+    if (!pwd) {
+      setSessionConfirmPasswordError("Champ obligatoire.");
+      return;
+    }
+
+    if (pendingSessionAction.type === "all") {
+      setSessionsBusy("all");
+      try {
+        await revokeAllSessions(pwd);
+        toast.info("Vous avez été déconnecté de tous les appareils.");
+      } catch (err) {
+        console.error(err);
+        toast.error(getApiErrorMessage(err, "Impossible de déconnecter toutes les sessions"));
+        return;
+      } finally {
+        setSessionsBusy(null);
+        closeSessionConfirm();
+      }
+      dispatch(logoutRedux());
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    const sessionId = pendingSessionAction.sessionId;
+    if (!sessionId) return;
+
+    setSessionsBusy(sessionId);
+    try {
+      const result = await revokeSession(sessionId, pwd);
+      const data = await getActiveSessions();
+      setSessions(Array.isArray(data) ? data : []);
+
+      if (result?.revokedCurrent) {
+        toast.info("Cette session a été déconnectée.");
+        dispatch(logoutRedux());
+        navigate("/login", { replace: true });
+      } else {
+        toast.success("Session déconnectée.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Impossible de déconnecter la session"));
+      return;
+    } finally {
+      setSessionsBusy(null);
+      closeSessionConfirm();
     }
   };
 
@@ -333,100 +533,156 @@ const Security = () => {
       <PageHeader title="Sécurité" subtitle="Mot de passe et sessions." />
 
       <div className="security-content">
-        <div className="security-layout">
-          <div className="security-left">
+        <div className="tab-buttons">
+          <button
+            type="button"
+            className={activeTab === "account" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("account")}
+          >
+            Compte
+          </button>
+          <button
+            type="button"
+            className={activeTab === "sessions" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("sessions")}
+          >
+            Sessions
+          </button>
+        </div>
+
+        {activeTab === "account" ? (
+          <div className="security-account-grid">
             <div className="security-card">
               <div className="security-card-header">
-                <div>
-                  <h3>Changer le mot de passe</h3>
-                  <p>Utilisez un mot de passe fort et unique.</p>
+                <div className="security-card-header-split">
+                  <div>
+                    <h3>Gestion du mot de passe</h3>
+                    <p>Modifiez votre mot de passe avec un mot de passe fort et unique.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="security-btn security-btn-compact security-btn-outline"
+                    onClick={openResetModal}
+                  >
+                    Mot de passe oublié ?
+                  </button>
                 </div>
               </div>
 
               {isClinicEmployeeAccount ? (
-                <div className="session-empty">
-                  Votre mot de passe est géré par le propriétaire du cabinet.
-                </div>
+                <div className="session-empty">Votre mot de passe est géré par le propriétaire du cabinet.</div>
               ) : (
                 <>
-            <div className="security-field">
-              <label>Ancien mot de passe</label>
-              <PasswordInput
-                placeholder="Entrez votre ancien mot de passe"
-                value={oldPassword}
-                onChange={(e) => {
-                  setOldPassword(e.target.value);
-                  if (passwordErrors.oldPassword) setPasswordErrors((prev) => ({ ...prev, oldPassword: "" }));
-                  if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
-                }}
-                autoComplete="current-password"
-                inputClassName={passwordErrors.oldPassword ? "invalid" : ""}
-              />
-              <FieldError message={passwordErrors.oldPassword} />
-            </div>
+                  <div className="security-field">
+                    <label>Mot de passe actuel</label>
+                    <PasswordInput
+                      placeholder="Entrez votre mot de passe actuel"
+                      value={oldPassword}
+                      onChange={(e) => {
+                        setOldPassword(e.target.value);
+                        if (passwordErrors.oldPassword) setPasswordErrors((prev) => ({ ...prev, oldPassword: "" }));
+                        if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
+                      }}
+                      autoComplete="current-password"
+                      inputClassName={passwordErrors.oldPassword ? "invalid" : ""}
+                    />
+                    <FieldError message={passwordErrors.oldPassword} />
+                  </div>
 
-            <div className="security-field">
-              <label>Nouveau mot de passe</label>
-              <PasswordInput
-                placeholder="Entrez le nouveau mot de passe"
-                value={newPassword}
-                onChange={(e) => {
-                  setNewPassword(e.target.value);
-                  if (passwordErrors.newPassword) setPasswordErrors((prev) => ({ ...prev, newPassword: "" }));
-                  if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
-                }}
-                autoComplete="new-password"
-                inputClassName={passwordErrors.newPassword ? "invalid" : ""}
-              />
-              <FieldError message={passwordErrors.newPassword} />
-            </div>
+                  <div className="security-field">
+                    <label>Nouveau mot de passe</label>
+                    <PasswordInput
+                      placeholder="Entrez le nouveau mot de passe"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        if (passwordErrors.newPassword) setPasswordErrors((prev) => ({ ...prev, newPassword: "" }));
+                        if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
+                      }}
+                      autoComplete="new-password"
+                      inputClassName={passwordErrors.newPassword ? "invalid" : ""}
+                    />
+                    <FieldError message={passwordErrors.newPassword} />
+                  </div>
 
-            <div className="security-field">
-              <label>Confirmer le mot de passe</label>
-              <PasswordInput
-                placeholder="Confirmez le nouveau mot de passe"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (passwordErrors.confirmPassword) setPasswordErrors((prev) => ({ ...prev, confirmPassword: "" }));
-                  if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
-                }}
-                autoComplete="new-password"
-                inputClassName={passwordErrors.confirmPassword ? "invalid" : ""}
-              />
-              <FieldError message={passwordErrors.confirmPassword} />
-            </div>
+                  <div className="security-field">
+                    <label>Confirmer le mot de passe</label>
+                    <PasswordInput
+                      placeholder="Confirmez le nouveau mot de passe"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (passwordErrors.confirmPassword) setPasswordErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                        if (passwordErrors.form) setPasswordErrors((prev) => ({ ...prev, form: "" }));
+                      }}
+                      autoComplete="new-password"
+                      inputClassName={passwordErrors.confirmPassword ? "invalid" : ""}
+                    />
+                    <FieldError message={passwordErrors.confirmPassword} />
+                  </div>
 
-            <label className="security-toggle">
-              <input
-                type="checkbox"
-                checked={logoutAllDevices}
-                onChange={(e) => setLogoutAllDevices(e.target.checked)}
-              />
-              <span>Déconnecter tous les appareils</span>
-            </label>
-
-            <button className="security-btn" onClick={handlePasswordChange}>
-              Mettre à jour le mot de passe
-            </button>
-            <FieldError message={passwordErrors.form} />
-            <button type="button" className="security-btn security-btn-forgot" onClick={openResetModal}>
-              Mot de passe oublié ? Réinitialiser par SMS
-            </button>
+                  <button className="security-btn" onClick={handlePasswordChange}>
+                    Mettre à jour le mot de passe
+                  </button>
+                  <FieldError message={passwordErrors.form} />
                 </>
               )}
             </div>
 
+            <div className="security-card">
+              <div className="security-card-header">
+                <div>
+                  <h3>Vérification en 2 étapes</h3>
+                  <p>Confirmer la connexion avec un code SMS.</p>
+                </div>
+              </div>
 
+              <div className={`security-switch-row ${login2faLoading ? "disabled" : ""}`}>
+                <div className="security-switch-text">
+                  <div className="security-switch-title">
+                    {login2faLoading ? "Mise à jour..." : "Activer la vérification SMS à la connexion"}
+                  </div>
+                  <div className="security-switch-subtitle">Un code sera envoyé par SMS à chaque connexion.</div>
+                </div>
+
+                <label className="security-switch" aria-label="Activer la vérification SMS à la connexion">
+                  <input
+                    type="checkbox"
+                    checked={login2faEnabled}
+                    onChange={(e) => openLogin2faConfirm(e.target.checked)}
+                    disabled={login2faLoading}
+                  />
+                  <span className="security-switch-slider" />
+                </label>
+              </div>
+
+              <div className="security-backup">
+                <div className="security-backup-title">Méthodes de secours</div>
+                <div className="security-backup-item">
+                  SMS : {formatPhoneNumber(user?.phoneNumber) || "Votre numéro"}
+                </div>
+              </div>
+
+              <FieldError message={login2faError} />
+            </div>
           </div>
+        ) : null}
 
-          <div className="security-right">
+        {activeTab === "sessions" ? (
             <div className="security-card security-sessions">
               <div className="security-card-header">
                 <div>
-                  <h3>Sessions en ligne</h3>
-                  <p>Appareils connectés à votre compte.</p>
+                  <h3>Sessions actives</h3>
+                  <p>Appareils actuellement connectés à votre compte.</p>
                 </div>
+                <button
+                  type="button"
+                  className="session-btn"
+                  onClick={() => openSessionConfirm({ type: "all" })}
+                  disabled={sessionsLoading || sessionsBusy === "all"}
+                >
+                  {sessionsBusy === "all" ? "Déconnexion..." : "Tout déconnecter"}
+                </button>
               </div>
 
               {sessionsLoading ? (
@@ -436,33 +692,24 @@ const Security = () => {
               ) : (
                 <div className="session-list">
                   {sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className={`session-card ${session.current ? "current" : ""}`}
-                    >
-                      <div className="session-info">
-                        <div className="session-device">
-                          {formatDeviceLabel(session.userAgent)}
-                          {session.current && (
-                            <span className="session-badge">Cet appareil</span>
-                          )}
-                        </div>
-
-                        <div className="session-meta">
-                          {(session.location || "Localisation inconnue")} •{" "}
-                          {(session.ipAddress || "IP inconnue")}
-                        </div>
-
-                        <div className="session-meta">
-                          Dernière activité :{" "}
-                          {formatSessionTime(session.lastUsedAt || session.createdAt)}
-                        </div>
-
-                        {session.deviceId && (
-                          <div className="session-meta">
-                            ID appareil : {formatDeviceId(session.deviceId)}
+                    <div key={session.id} className={`session-list-item ${session.current ? "current" : ""}`}>
+                      <div className="session-item-main">
+                        <div className="session-item-icon">{getSessionIcon(session.userAgent)}</div>
+                        <div className="session-item-info">
+                          <div className="session-item-top">
+                            <div className="session-item-title">
+                              <span className="session-item-os">{getSessionOsName(session.userAgent)}</span>
+                              <span className="session-item-sep">•</span>
+                              <span className="session-item-browser">{getSessionBrowserName(session.userAgent)}</span>
+                            </div>
+                            {session.current ? <span className="session-badge">Cet appareil</span> : null}
                           </div>
-                        )}
+
+                          <div className="session-item-meta">
+                            <span className="session-item-meta-label">Adresse IP :</span>{" "}
+                            {session.ipAddress || "Inconnue"}
+                          </div>
+                        </div>
                       </div>
 
                       <button
@@ -471,17 +718,14 @@ const Security = () => {
                         onClick={() => handleRevokeSession(session.id)}
                         disabled={sessionsBusy === session.id}
                       >
-                        {sessionsBusy === session.id
-                          ? "Déconnexion..."
-                          : "Déconnecter"}
+                        {sessionsBusy === session.id ? "Déconnexion..." : "Révoquer"}
                       </button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          </div>
-        </div>
+        ) : null}
 
         {false && (<>
         <div style={{ marginTop: "10px" }}>
@@ -651,16 +895,6 @@ const Security = () => {
         </div>
       ) : null}
 
-      <ToastContainer
-        position="bottom-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-      />
     </div>
   );
 };

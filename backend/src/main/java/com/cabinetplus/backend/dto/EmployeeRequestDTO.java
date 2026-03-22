@@ -35,8 +35,14 @@ public class EmployeeRequestDTO {
     private String nationalId;
 
     @NotBlank(message = "Le numero de telephone est obligatoire")
-    @Pattern(regexp = "^0\\d{9}$", message = "Numero de telephone invalide")
+    @Pattern(
+            regexp = "^(?:0[5-7]\\d{8}|(?:\\+?213)[5-7]\\d{8})$",
+            message = "Numero de telephone algerien invalide (ex: 0550123456 ou +213550123456)"
+    )
     private String phone;
+
+    @Size(min = 4, max = 10, message = "Code SMS invalide")
+    private String phoneVerificationCode;
 
     @Email(message = "Email invalide")
     @Size(max = 255, message = "Email trop long")
@@ -57,9 +63,6 @@ public class EmployeeRequestDTO {
 
     @Size(max = 50, message = "Type de contrat trop long")
     private String contractType;
-
-    @Size(max = 100, message = "Nom d'utilisateur trop long")
-    private String username;
 
     @Size(min = 8, max = 72, message = "Le mot de passe doit contenir entre 8 et 72 caracteres")
     private String password;

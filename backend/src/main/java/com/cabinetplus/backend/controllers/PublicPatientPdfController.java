@@ -75,7 +75,8 @@ public class PublicPatientPdfController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Lien invalide"));
 
         Patient patient = publicIdResolutionService.requirePatientOwnedBy(patientPublicId, clinicOwner);
-        auditService.logSuccess(
+        auditService.logSuccessAsUser(
+                clinicOwner,
                 AuditEventType.PATIENT_PDF_DOWNLOAD,
                 "PATIENT",
                 String.valueOf(patient.getId()),
@@ -87,4 +88,3 @@ public class PublicPatientPdfController {
         patientFichePdfService.writePatientFichePdf(clinicOwner, patient, fileName, response);
     }
 }
-

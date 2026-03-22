@@ -40,7 +40,6 @@ public class EmployeeResponseDTO {
     private LocalDateTime updatedAt;
 
     private Long userId;
-    private String username;
     private ClinicAccessRole accessRole;
 
     // Add working hours

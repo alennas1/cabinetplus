@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.cabinetplus.backend.dto.AuthRequest;
+import com.cabinetplus.backend.dto.LoginTwoFactorResendRequest;
+import com.cabinetplus.backend.dto.LoginTwoFactorVerifyRequest;
 import com.cabinetplus.backend.dto.PasswordResetConfirmRequest;
 import com.cabinetplus.backend.dto.PasswordResetSendRequest;
 import com.cabinetplus.backend.dto.RegisterRequest;
@@ -47,8 +49,11 @@ import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.security.RefreshTokenHash;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
+import com.cabinetplus.backend.util.PhoneNumberUtil;
 import com.twilio.exception.ApiException;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -85,6 +90,12 @@ public class AuthController {
 
     @Value("${app.phone-verification.bypass-local:false}")
     private boolean bypassPhoneVerificationLocal;
+
+    @Value("${app.login-2fa.challenge-ttl-seconds:300}")
+    private long loginTwoFactorChallengeTtlSeconds;
+
+    @Value("${app.login-2fa.bypass-local:false}")
+    private boolean bypassLoginTwoFactorLocal;
 
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
                           UserRepository userRepo, RefreshTokenRepository refreshRepo,
@@ -139,53 +150,34 @@ private void addDeviceCookie(HttpServletResponse response, String deviceId) {
     // ---------------- LOGIN ----------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody AuthRequest body, HttpServletResponse response, HttpServletRequest request) {
-        String identifier = body.username();
+        String identifier = body.phoneNumber();
         String password = body.password();
 
-        User user = userRepo.findByUsername(identifier)
-                .or(() -> userRepo.findFirstByPhoneNumberOrderByIdAsc(identifier))
-                .orElse(null);
+        var phoneCandidates = PhoneNumberUtil.algeriaStoredCandidates(identifier);
+        User user = userRepo.findFirstByPhoneNumberInOrderByIdAsc(phoneCandidates).orElse(null);
         if (user == null) {
             auditService.logFailure(
                     AuditEventType.AUTH_LOGIN,
                     "SESSION",
                     identifier,
-                    "Nom d'utilisateur ou numero de telephone introuvable"
+                    "Numero de telephone introuvable"
             );
             throw new UnauthorizedException(
-                    "Nom d'utilisateur ou numero de telephone introuvable",
-                    Map.of("username", "Nom d'utilisateur ou numero de telephone introuvable")
+                    "Numero de telephone introuvable",
+                    Map.of("phoneNumber", "Numero de telephone introuvable")
             );
         }
 
         try {
-            String resolvedUsername = user.getUsername();
-            authManager.authenticate(new UsernamePasswordAuthenticationToken(resolvedUsername, password));
+            String principalPhoneNumber = user.getPhoneNumber();
+            authManager.authenticate(new UsernamePasswordAuthenticationToken(principalPhoneNumber, password));
 
-            String accessToken = jwtUtil.generateAccessToken(user);
+            if (user.isLoginTwoFactorEnabled()) {
+                return ResponseEntity.ok(startLoginTwoFactorChallenge(user, request));
+            }
 
-            String deviceId = resolveDeviceId(request);
-
-if (deviceId == null || deviceId.isBlank()) {
-    deviceId = java.util.UUID.randomUUID().toString();
-    addDeviceCookie(response, deviceId);
-}
-            revokeActiveSessionsForDevice(user, deviceId);
-            RefreshToken refreshToken = new RefreshToken();
-            refreshToken.setUser(user);
-            String rawRefreshToken = jwtUtil.generateRefreshToken(resolvedUsername, refreshTokenMs);
-            refreshToken.setToken(RefreshTokenHash.hash(rawRefreshToken));
-            refreshToken.setDeviceId(deviceId);
-            refreshToken.setCreatedAt(LocalDateTime.now());
-            refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
-            refreshToken.setLastUsedAt(LocalDateTime.now());
-            fillSessionMeta(refreshToken, request);
-            refreshRepo.save(refreshToken);
-
-            addRefreshCookie(response, rawRefreshToken, refreshTokenMs / 1000);
             auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGIN, "SESSION", null, "Connexion reussie");
-
-            return ResponseEntity.ok(Map.of("accessToken", accessToken));
+            return ResponseEntity.ok(establishSession(user, request, response));
 
         } catch (AuthenticationException e) {
             auditService.logFailureAsUser(
@@ -202,15 +194,260 @@ if (deviceId == null || deviceId.isBlank()) {
         }
     }
 
+    // ---------------- LOGIN 2FA: VERIFY CODE ----------------
+    @PostMapping("/login/verify")
+    public ResponseEntity<?> verifyLoginTwoFactor(@Valid @RequestBody LoginTwoFactorVerifyRequest body,
+                                                  HttpServletResponse response,
+                                                  HttpServletRequest request) {
+        final String phoneNumber;
+        try {
+            phoneNumber = jwtUtil.extractPhoneNumberFromLoginTwoFactorChallenge(body.challengeToken());
+        } catch (ExpiredJwtException e) {
+            throw new UnauthorizedException(
+                    "Session expiree. Veuillez vous reconnecter.",
+                    Map.of("_", "Session expiree. Veuillez vous reconnecter.", "reason", "challenge_expired")
+            );
+        } catch (JwtException e) {
+            throw new UnauthorizedException(
+                    "Session invalide. Veuillez vous reconnecter.",
+                    Map.of("_", "Session invalide. Veuillez vous reconnecter.", "reason", "challenge_invalid")
+            );
+        }
+
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(phoneNumber);
+        User user = userRepo.findFirstByPhoneNumberInOrderByIdAsc(candidates).orElse(null);
+        if (user == null) {
+            throw new UnauthorizedException(
+                    "Session invalide. Veuillez vous reconnecter.",
+                    Map.of("_", "Session invalide. Veuillez vous reconnecter.", "reason", "user_not_found")
+            );
+        }
+
+        if (user.isLoginTwoFactorEnabled()) {
+            String formattedNumber = formatPhoneNumber(user.getPhoneNumber());
+            if (formattedNumber == null || formattedNumber.isEmpty()) {
+                throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide ou manquant."));
+            }
+
+            boolean approved;
+            try {
+                if (bypassLoginTwoFactorLocal && devProfile && isLocalRequest(request)) {
+                    approved = true;
+                } else {
+                    approved = phoneVerificationService.checkVerificationCode(formattedNumber, body.code());
+                }
+            } catch (IllegalStateException e) {
+                logger.error("Twilio Verify not configured for login 2FA verify (to={})", maskPhone(formattedNumber), e);
+                throw new InternalServerErrorException(
+                        "Service SMS indisponible",
+                        Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+                );
+            } catch (ApiException e) {
+                int status = e.getStatusCode();
+                logger.warn("Twilio Verify check failed for login 2FA (to={}, status={})", maskPhone(formattedNumber), status, e);
+                if (status == 400) {
+                    throw new BadRequestException(Map.of("code", "Code SMS invalide"));
+                }
+                if (status == 429) {
+                    throw new TooManyRequestsException("Trop de demandes. Reessayez plus tard.");
+                }
+                if (status == 401 || status == 403) {
+                    throw new InternalServerErrorException("Configuration SMS invalide");
+                }
+                if (status == 404) {
+                    throw new InternalServerErrorException("Configuration SMS invalide");
+                }
+                throw new BadGatewayException("Service SMS indisponible");
+            } catch (Exception e) {
+                logger.error("Unexpected error during login 2FA verify (to={})", maskPhone(formattedNumber), e);
+                throw new InternalServerErrorException(
+                        "Service SMS indisponible",
+                        Map.of("_", "Service SMS indisponible", "reason", "unexpected")
+                );
+            }
+
+            if (!approved) {
+                auditService.logFailureAsUser(
+                        user,
+                        AuditEventType.AUTH_LOGIN_2FA_VERIFY,
+                        "SESSION",
+                        null,
+                        "Code SMS invalide"
+                );
+                throw new BadRequestException(Map.of("code", "Code SMS invalide"));
+            }
+        }
+
+        auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGIN_2FA_VERIFY, "SESSION", null, "OTP connexion verifie");
+        auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGIN, "SESSION", null, "Connexion reussie");
+        return ResponseEntity.ok(establishSession(user, request, response));
+    }
+
+    // ---------------- LOGIN 2FA: RESEND CODE ----------------
+    @PostMapping("/login/2fa/resend")
+    public ResponseEntity<?> resendLoginTwoFactor(@Valid @RequestBody LoginTwoFactorResendRequest body,
+                                                  HttpServletRequest request) {
+        final String phoneNumber;
+        try {
+            phoneNumber = jwtUtil.extractPhoneNumberFromLoginTwoFactorChallenge(body.challengeToken());
+        } catch (ExpiredJwtException e) {
+            throw new UnauthorizedException(
+                    "Session expiree. Veuillez vous reconnecter.",
+                    Map.of("_", "Session expiree. Veuillez vous reconnecter.", "reason", "challenge_expired")
+            );
+        } catch (JwtException e) {
+            throw new UnauthorizedException(
+                    "Session invalide. Veuillez vous reconnecter.",
+                    Map.of("_", "Session invalide. Veuillez vous reconnecter.", "reason", "challenge_invalid")
+            );
+        }
+
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(phoneNumber);
+        User user = userRepo.findFirstByPhoneNumberInOrderByIdAsc(candidates).orElse(null);
+        if (user == null) {
+            throw new UnauthorizedException(
+                    "Session invalide. Veuillez vous reconnecter.",
+                    Map.of("_", "Session invalide. Veuillez vous reconnecter.", "reason", "user_not_found")
+            );
+        }
+        if (!user.isLoginTwoFactorEnabled()) {
+            throw new BadRequestException(Map.of("_", "La verification en 2 etapes est desactivee."));
+        }
+
+        Map<String, Object> payload = sendLoginTwoFactorCode(user, request);
+        return ResponseEntity.ok(Map.of(
+                "challengeToken", payload.get("challengeToken"),
+                "maskedPhone", payload.get("maskedPhone"),
+                "message", payload.get("message")
+        ));
+    }
+
+    private Map<String, Object> establishSession(User user, HttpServletRequest request, HttpServletResponse response) {
+        String accessToken = jwtUtil.generateAccessToken(user);
+
+        String deviceId = resolveDeviceId(request);
+        if (deviceId == null || deviceId.isBlank()) {
+            deviceId = java.util.UUID.randomUUID().toString();
+            addDeviceCookie(response, deviceId);
+        }
+
+        revokeActiveSessionsForDevice(user, deviceId);
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setUser(user);
+        String rawRefreshToken = jwtUtil.generateRefreshToken(user.getPhoneNumber(), refreshTokenMs);
+        refreshToken.setToken(RefreshTokenHash.hash(rawRefreshToken));
+        refreshToken.setDeviceId(deviceId);
+        refreshToken.setCreatedAt(LocalDateTime.now());
+        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
+        refreshToken.setLastUsedAt(LocalDateTime.now());
+        fillSessionMeta(refreshToken, request);
+        refreshRepo.save(refreshToken);
+
+        addRefreshCookie(response, rawRefreshToken, refreshTokenMs / 1000);
+        return Map.of("accessToken", accessToken);
+    }
+
+    private Map<String, Object> startLoginTwoFactorChallenge(User user, HttpServletRequest request) {
+        Map<String, Object> payload = sendLoginTwoFactorCode(user, request);
+        return Map.of(
+                "twoFactorRequired", true,
+                "challengeToken", payload.get("challengeToken"),
+                "maskedPhone", payload.get("maskedPhone"),
+                "message", payload.get("message")
+        );
+    }
+
+    private Map<String, Object> sendLoginTwoFactorCode(User user, HttpServletRequest request) {
+        String formattedNumber = formatPhoneNumber(user.getPhoneNumber());
+        if (formattedNumber == null || formattedNumber.isEmpty()) {
+            throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide ou manquant."));
+        }
+
+        Long retryAfterSeconds = checkCooldown(user.getLoginOtpLastSentAt());
+        if (retryAfterSeconds != null) {
+            throw new TooManyRequestsException(
+                    "Veuillez patienter avant de renvoyer un code.",
+                    Map.of(
+                            "_", "Veuillez patienter avant de renvoyer un code.",
+                            "reason", "cooldown",
+                            "retryAfterSeconds", String.valueOf(retryAfterSeconds)
+                    )
+            );
+        }
+
+        boolean devBypass = bypassLoginTwoFactorLocal && devProfile && isLocalRequest(request);
+        try {
+            if (!devBypass) {
+                phoneVerificationService.sendVerificationCode(formattedNumber);
+            }
+            user.setLoginOtpLastSentAt(LocalDateTime.now());
+            userRepo.save(user);
+
+            long ttlMs = Math.max(1, loginTwoFactorChallengeTtlSeconds) * 1000L;
+            String challengeToken = jwtUtil.generateLoginTwoFactorChallengeToken(user.getPhoneNumber(), ttlMs);
+
+            auditService.logSuccessAsUser(
+                    user,
+                    AuditEventType.AUTH_LOGIN_2FA_SEND,
+                    "SESSION",
+                    null,
+                    devBypass ? "OTP connexion envoye (dev)" : "OTP connexion envoye"
+            );
+
+            return Map.of(
+                    "challengeToken", challengeToken,
+                    "maskedPhone", maskPhone(formattedNumber),
+                    "message", devBypass ? "Code SMS envoye (mode dev)" : "Code SMS envoye"
+            );
+        } catch (IllegalStateException e) {
+            logger.error("Twilio Verify not configured for login 2FA send (to={})", maskPhone(formattedNumber), e);
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+            );
+        } catch (ApiException e) {
+            int status = e.getStatusCode();
+            Integer twilioCode = e.getCode();
+            logger.warn("Twilio Verify send failed for login 2FA (to={}, status={})", maskPhone(formattedNumber), status, e);
+
+            if (twilioCode != null && twilioCode == 60410) {
+                throw new TooManyRequestsException(
+                        "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                        Map.of(
+                                "_", "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                                "reason", "fraud_guard_blocked",
+                                "retryAfterSeconds", String.valueOf(60 * 60 * 12)
+                        )
+                );
+            }
+
+            if (status == 400) {
+                throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide"));
+            }
+            if (status == 429) {
+                throw new TooManyRequestsException("Trop de demandes. Reessayez plus tard.");
+            }
+            if (status == 401 || status == 403) {
+                throw new InternalServerErrorException("Configuration SMS invalide");
+            }
+            if (status == 404) {
+                throw new InternalServerErrorException("Configuration SMS invalide");
+            }
+            throw new BadGatewayException("Service SMS indisponible");
+        } catch (Exception e) {
+            logger.error("Unexpected error during login 2FA send (to={})", maskPhone(formattedNumber), e);
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "unexpected")
+            );
+        }
+    }
+
     // ---------------- REGISTER ----------------
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse response, HttpServletRequest httpRequest) {
-        if (userRepo.findByUsername(request.username()).isPresent()) {
-            auditService.logFailure(AuditEventType.AUTH_REGISTER, "USER", request.username(), "Nom d'utilisateur deja utilise");
-            throw new BadRequestException(Map.of("username", "Ce nom d'utilisateur est deja utilise"));
-        }
-        if (request.phoneNumber() != null && !request.phoneNumber().isBlank()
-                && userRepo.existsByPhoneNumber(request.phoneNumber())) {
+        var phoneCandidates = PhoneNumberUtil.algeriaStoredCandidates(request.phoneNumber());
+        if (!phoneCandidates.isEmpty() && userRepo.existsByPhoneNumberIn(phoneCandidates)) {
             auditService.logFailure(
                     AuditEventType.AUTH_REGISTER,
                     "USER",
@@ -221,11 +458,10 @@ if (deviceId == null || deviceId.isBlank()) {
         }
 
         User user = new User();
-        user.setUsername(request.username());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setFirstname(request.firstname());
         user.setLastname(request.lastname());
-        user.setPhoneNumber(request.phoneNumber());
+        user.setPhoneNumber(PhoneNumberUtil.canonicalAlgeriaForStorage(request.phoneNumber()));
         String clinicName = request.clinicName() == null ? null : request.clinicName().trim();
         String address = request.address() == null ? null : request.address().trim();
         user.setClinicName(clinicName == null || clinicName.isBlank() ? null : clinicName);
@@ -253,7 +489,7 @@ if (deviceId == null || deviceId.isBlank()) {
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(saved);
-        String rawRefreshToken = jwtUtil.generateRefreshToken(saved.getUsername(), refreshTokenMs);
+        String rawRefreshToken = jwtUtil.generateRefreshToken(saved.getPhoneNumber(), refreshTokenMs);
         refreshToken.setToken(RefreshTokenHash.hash(rawRefreshToken));
         refreshToken.setDeviceId(deviceId);
 
@@ -268,7 +504,6 @@ if (deviceId == null || deviceId.isBlank()) {
 
         UserDto dto = new UserDto(
                 saved.getId(),
-                saved.getUsername(),
                 saved.getFirstname(),
                 saved.getLastname(),
                 saved.getPhoneNumber(),
@@ -413,11 +648,13 @@ if (deviceId == null || deviceId.isBlank()) {
             if (devProfile && isLocalRequest(httpRequest)) {
                 user.setPasswordResetOtpLastSentAt(LocalDateTime.now());
                 userRepo.save(user);
+                auditService.logSuccessAsUser(user, AuditEventType.AUTH_PASSWORD_RESET_SEND, "USER", String.valueOf(user.getId()), "OTP reinitialisation mot de passe envoye (dev)");
                 return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
             }
             phoneVerificationService.sendVerificationCode(formattedNumber);
             user.setPasswordResetOtpLastSentAt(LocalDateTime.now());
             userRepo.save(user);
+            auditService.logSuccessAsUser(user, AuditEventType.AUTH_PASSWORD_RESET_SEND, "USER", String.valueOf(user.getId()), "OTP reinitialisation mot de passe envoye");
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye"));
         } catch (IllegalStateException e) {
             logger.error("Twilio Verify not configured for password reset send (to={})", maskPhone(formattedNumber), e);

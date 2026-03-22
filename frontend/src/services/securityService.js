@@ -31,11 +31,15 @@ export const getActiveSessions = async () => {
  * Revoke a specific session
  * @param {number} sessionId
  */
-export const revokeSession = async (sessionId) => {
-  const response = await api.delete(`/api/users/me/sessions/${sessionId}`);
+export const revokeSession = async (sessionId, password) => {
+  const response = await api.delete(`/api/users/me/sessions/${sessionId}`, { data: { password } });
   return response.data;
 };
 
+export const revokeAllSessions = async (password) => {
+  const response = await api.post("/api/users/me/sessions/revoke-all", { password });
+  return response.data;
+};
 /**
  * Send OTP to verify a new phone number before saving it on the account.
  * @param {string} phoneNumber
@@ -51,5 +55,15 @@ export const sendPhoneChangeOtp = async (phoneNumber) => {
  */
 export const confirmPhoneChangeOtp = async (data) => {
   const response = await api.post("/api/verify/phone-change/confirm", data);
+  return response.data;
+};
+
+export const getLoginTwoFactorSettings = async () => {
+  const response = await api.get("/api/security/login-2fa");
+  return response.data;
+};
+
+export const updateLoginTwoFactorSettings = async (enabled, password) => {
+  const response = await api.put("/api/security/login-2fa", { enabled, password });
   return response.data;
 };

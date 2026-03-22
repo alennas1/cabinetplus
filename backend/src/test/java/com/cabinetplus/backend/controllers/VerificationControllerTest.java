@@ -4,6 +4,8 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 
+import com.cabinetplus.backend.repositories.EmployeeRepository;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,17 +31,28 @@ class VerificationControllerTest {
 
     private MockMvc mockMvc;
     private UserRepository userRepository;
+    private EmployeeRepository employeeRepository;
     private PhoneVerificationService phoneVerificationService;
+    private AuditService auditService;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
+        employeeRepository = mock(EmployeeRepository.class);
         phoneVerificationService = mock(PhoneVerificationService.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        auditService = mock(AuditService.class);
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[0]);
 
-        VerificationController controller = new VerificationController(userRepository, phoneVerificationService, passwordEncoder, environment);
+        VerificationController controller = new VerificationController(
+                userRepository,
+                employeeRepository,
+                phoneVerificationService,
+                passwordEncoder,
+                auditService,
+                environment
+        );
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
@@ -59,11 +72,10 @@ class VerificationControllerTest {
     @Test
     void sendPhoneOtpWithInvalidPhoneReturns400AndErrorKey() throws Exception {
         User user = new User();
-        user.setUsername("dentist");
         user.setPhoneNumber("12");
-        when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
 
-        mockMvc.perform(post("/api/verify/phone/send").with(userPrincipal("dentist")))
+        mockMvc.perform(post("/api/verify/phone/send").with(userPrincipal("0551111111")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.fieldErrors.phoneNumber").exists());
@@ -72,12 +84,11 @@ class VerificationControllerTest {
     @Test
     void sendPhoneOtpServiceFailureReturns500AndErrorKey() throws Exception {
         User user = new User();
-        user.setUsername("dentist");
         user.setPhoneNumber("0550000000");
-        when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
         doThrow(new RuntimeException("provider down")).when(phoneVerificationService).sendVerificationCode(any());
 
-        mockMvc.perform(post("/api/verify/phone/send").with(userPrincipal("dentist")))
+        mockMvc.perform(post("/api/verify/phone/send").with(userPrincipal("0551111111")))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.fieldErrors._").value("Service SMS indisponible"));
@@ -86,13 +97,12 @@ class VerificationControllerTest {
     @Test
     void checkPhoneOtpInvalidCodeReturns400AndErrorKey() throws Exception {
         User user = new User();
-        user.setUsername("dentist");
         user.setPhoneNumber("0550000000");
-        when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
         when(phoneVerificationService.checkVerificationCode(any(), any())).thenReturn(false);
 
         mockMvc.perform(post("/api/verify/phone/check")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"000000\"}"))
                 .andExpect(status().isBadRequest())

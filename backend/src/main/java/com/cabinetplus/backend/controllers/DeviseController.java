@@ -3,10 +3,12 @@ package com.cabinetplus.backend.controllers;
 import com.cabinetplus.backend.dto.DeviseItemResponse;
 import com.cabinetplus.backend.dto.DeviseRequest;
 import com.cabinetplus.backend.dto.DeviseResponse;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Devise;
 import com.cabinetplus.backend.models.DeviseItem;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.exceptions.NotFoundException;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.DeviseService;
 import com.cabinetplus.backend.services.UserService;
 import com.lowagie.text.FontFactory;
@@ -39,6 +41,7 @@ public class DeviseController {
 
     private final DeviseService deviseService;
     private final UserService userService;
+    private final AuditService auditService;
 
     @GetMapping
     public ResponseEntity<List<DeviseResponse>> getAll(Principal principal) {
@@ -47,24 +50,30 @@ public class DeviseController {
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+        auditService.logSuccess(AuditEventType.DEVISE_READ, "DEVISE", null, "Devis consultés");
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
-public ResponseEntity<DeviseResponse> getById(@PathVariable Long id, Principal principal) {
-    User currentUser = getCurrentUser(principal);
-    
-    return deviseService.findById(id)
-            .filter(d -> d.getPractitioner().equals(currentUser))
-            .map(this::mapToResponse)
-            .map(ResponseEntity::ok)
-            .orElseThrow(() -> new NotFoundException("Devis introuvable"));
-}
+ public ResponseEntity<DeviseResponse> getById(@PathVariable Long id, Principal principal) {
+     User currentUser = getCurrentUser(principal);
+     
+     return deviseService.findById(id)
+             .filter(d -> d.getPractitioner().equals(currentUser))
+             .map(d -> {
+                 auditService.logSuccess(AuditEventType.DEVISE_READ, "DEVISE", String.valueOf(d.getId()), "Devis consulté");
+                 return d;
+             })
+             .map(this::mapToResponse)
+             .map(ResponseEntity::ok)
+             .orElseThrow(() -> new NotFoundException("Devis introuvable"));
+ }
 
     @PostMapping
     public ResponseEntity<DeviseResponse> create(@Valid @RequestBody DeviseRequest dto, Principal principal) {
         User currentUser = getCurrentUser(principal);
         Devise saved = deviseService.save(dto, currentUser);
+        auditService.logSuccess(AuditEventType.DEVISE_CREATE, "DEVISE", String.valueOf(saved.getId()), "Devis créé");
         return ResponseEntity.ok(mapToResponse(saved));
     }
 
@@ -75,12 +84,13 @@ public ResponseEntity<DeviseResponse> getById(@PathVariable Long id, Principal p
         if (!deleted) {
             throw new NotFoundException("Devis introuvable");
         }
+        auditService.logSuccess(AuditEventType.DEVISE_DELETE, "DEVISE", String.valueOf(id), "Devis supprimé");
         return ResponseEntity.noContent().build();
     }
 
     // Helpers (Consistent with your MaterialController)
     private User getCurrentUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }
@@ -124,6 +134,8 @@ public void generateDevisePdf(
             .filter(d -> d.getPractitioner().equals(practitioner))
             .orElseThrow(() -> new NotFoundException("Devis introuvable"));
 
+    auditService.logSuccess(AuditEventType.DEVISE_PDF_DOWNLOAD, "DEVISE", String.valueOf(devise.getId()), "Devis PDF téléchargé");
+ 
     response.setContentType("application/pdf");
     String fileNameTitle = (devise.getTitle() != null) 
             ? devise.getTitle().toLowerCase().replace(" ", "_") 

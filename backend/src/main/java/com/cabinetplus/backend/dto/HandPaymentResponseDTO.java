@@ -12,7 +12,6 @@ public record HandPaymentResponseDTO(
         String notes,
 
         Long userId,
-        String username,
         String fullName,
         String phoneNumber,
 

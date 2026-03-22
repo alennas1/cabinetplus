@@ -1,35 +1,28 @@
 package com.cabinetplus.backend.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
-
 public record AdminUserCreateRequest(
-        @NotBlank(message = "Le nom d'utilisateur est obligatoire")
-        @Size(min = 3, max = 20, message = "Le nom d'utilisateur doit contenir entre 3 et 20 caracteres")
-        String username,
-
-        @NotBlank(message = "Le mot de passe est obligatoire")
-        @Pattern(
-                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,100}$",
-                message = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole"
-        )
-        String password,
-
-        @Size(max = 255, message = "Le prenom ne doit pas depasser 255 caracteres")
-        String firstname,
-
-        @Size(max = 255, message = "Le nom ne doit pas depasser 255 caracteres")
-        String lastname,
-
-        @Pattern(
+        @jakarta.validation.constraints.NotBlank(message = "Le numero de telephone est obligatoire")
+        @jakarta.validation.constraints.Pattern(
                 regexp = "^(?:0[5-7]\\d{8}|(?:\\+?213)[5-7]\\d{8})$",
                 message = "Numero de telephone algerien invalide (ex: 0550123456 ou +213550123456)"
         )
         String phoneNumber,
 
-        @NotBlank(message = "Le role est obligatoire")
-        @Pattern(regexp = "^(ADMIN|DENTIST)$", message = "Role invalide")
+        @jakarta.validation.constraints.NotBlank(message = "Le mot de passe est obligatoire")
+        @jakarta.validation.constraints.Pattern(
+                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,100}$",
+                message = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole"
+        )
+        String password,
+
+        @jakarta.validation.constraints.Size(max = 255, message = "Le prenom ne doit pas depasser 255 caracteres")
+        String firstname,
+
+        @jakarta.validation.constraints.Size(max = 255, message = "Le nom ne doit pas depasser 255 caracteres")
+        String lastname,
+
+        @jakarta.validation.constraints.NotBlank(message = "Le role est obligatoire")
+        @jakarta.validation.constraints.Pattern(regexp = "^(ADMIN|DENTIST)$", message = "Role invalide")
         String role
 ) {
 }

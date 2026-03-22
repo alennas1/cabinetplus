@@ -8,11 +8,13 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.JustificationDTO;
 import com.cabinetplus.backend.dto.JustificationRequest;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Justification;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.PatientRepository;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.JustificationService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -32,20 +34,23 @@ public class JustificationController {
     private final UserService userService;
     private final PatientRepository patientRepository;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
     public JustificationController(
             JustificationService justificationService,
             UserService userService,
             PatientRepository patientRepository,
-            PublicIdResolutionService publicIdResolutionService) {
+            PublicIdResolutionService publicIdResolutionService,
+            AuditService auditService) {
         this.justificationService = justificationService;
         this.userService = userService;
         this.patientRepository = patientRepository;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.auditService = auditService;
     }
 
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        return userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
     }
 
@@ -71,6 +76,12 @@ public class JustificationController {
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
         Long internalTemplateId = publicIdResolutionService.requireJustificationTemplateForPractitioner(templateId, ownerDentist).getId();
         String generated = justificationService.generateFromContent(internalPatientId, internalTemplateId, ownerDentist);
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_GENERATE,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
+                "Justificatif généré"
+        );
         return ResponseEntity.ok(generated);
     }
     
@@ -83,6 +94,12 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
     User ownerDentist = userService.resolveClinicOwner(currentUser);
 
     Patient patient = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist);
+    auditService.logSuccess(
+            AuditEventType.JUSTIFICATION_READ,
+            "PATIENT",
+            patient != null && patient.getId() != null ? String.valueOf(patient.getId()) : null,
+            "Justificatifs consultes"
+    );
 
     List<Justification> list =
             justificationService.findByPatientAndPractitioner(patient, currentUser);
@@ -111,6 +128,12 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
         justification.setPractitioner(currentUser);
 
         Justification saved = justificationService.save(justification);
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_CREATE,
+                "PATIENT",
+                patient.getId() != null ? String.valueOf(patient.getId()) : null,
+                "Justificatif créé"
+        );
         return ResponseEntity.ok(mapToDTO(saved));
     }
 
@@ -127,6 +150,12 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
                     existing.setTitle(request.getTitle());
                     existing.setFinalContent(request.getContent());
                     Justification saved = justificationService.save(existing);
+                    auditService.logSuccess(
+                            AuditEventType.JUSTIFICATION_UPDATE,
+                            "PATIENT",
+                            saved != null && saved.getPatient() != null ? String.valueOf(saved.getPatient().getId()) : null,
+                            "Justificatif modifié"
+                    );
                     return ResponseEntity.ok(mapToDTO(saved));
                 })
                 .orElseThrow(() -> new NotFoundException("Justificatif introuvable"));
@@ -142,6 +171,12 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
         return justificationService.findByIdAndPractitioner(id, currentUser)
                 .map(justification -> {
                     justificationService.deleteByPractitioner(justification.getId(), currentUser);
+                    auditService.logSuccess(
+                            AuditEventType.JUSTIFICATION_DELETE,
+                            "PATIENT",
+                            justification.getPatient() != null ? String.valueOf(justification.getPatient().getId()) : null,
+                            "Justificatif supprimé"
+                    );
                     return ResponseEntity.noContent().<Void>build(); 
                 })
                 .orElseThrow(() -> new NotFoundException("Justificatif introuvable"));
@@ -155,6 +190,13 @@ public void generateJustificationPdf(
     User practitioner = getCurrentUser(principal);
     Justification justification = justificationService.findByIdAndPractitioner(id, practitioner)
             .orElseThrow(() -> new NotFoundException("Justificatif introuvable"));
+
+    auditService.logSuccess(
+            AuditEventType.JUSTIFICATION_PDF_DOWNLOAD,
+            "PATIENT",
+            justification.getPatient() != null ? String.valueOf(justification.getPatient().getId()) : null,
+            "Justificatif PDF téléchargé"
+    );
 
     // Set response headers
     response.setContentType("application/pdf");

@@ -73,7 +73,6 @@ class ErrorEnvelopeIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.fieldErrors._").exists());
+                .andExpect(jsonPath("$.fieldErrors.unknownField").value("Champ non supporte"));
     }
 }
-

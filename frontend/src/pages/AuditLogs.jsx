@@ -24,10 +24,15 @@ const EVENT_GROUPS = {
     "AUTH_LOGOUT",
     "AUTH_LOGOUT_ALL",
     "AUTH_REGISTER",
+    "SECURITY_PIN_STATUS",
     "SECURITY_PIN_ENABLE",
     "SECURITY_PIN_CHANGE",
     "SECURITY_PIN_DISABLE",
     "SECURITY_PIN_VERIFY",
+    "VERIFY_PHONE_OTP_SEND",
+    "VERIFY_PHONE_OTP_CHECK",
+    "PHONE_CHANGE_SEND",
+    "PHONE_CHANGE_CONFIRM",
     "USER_PASSWORD_CHANGE",
     "USER_DELETE",
     "USER_ADMIN_CREATE",
@@ -35,22 +40,88 @@ const EVENT_GROUPS = {
   PATIENT: [
     "PATIENT_READ",
     "PATIENT_PDF_DOWNLOAD",
+    "PATIENT_PDF_LINK_CREATE",
     "PATIENT_CREATE",
     "PATIENT_UPDATE",
     "PATIENT_DELETE",
     "PATIENT_ARCHIVE",
     "PATIENT_UNARCHIVE",
   ],
-  APPOINTMENT: ["APPOINTMENT_CREATE", "APPOINTMENT_UPDATE", "APPOINTMENT_DELETE"],
-  TREATMENT: ["TREATMENT_CREATE", "TREATMENT_UPDATE", "TREATMENT_DELETE"],
-  PAYMENT: ["PAYMENT_CREATE", "PAYMENT_DELETE"],
+  APPOINTMENT: ["APPOINTMENT_READ", "APPOINTMENT_CREATE", "APPOINTMENT_UPDATE", "APPOINTMENT_DELETE"],
+  TREATMENT: ["TREATMENT_READ", "TREATMENT_CREATE", "TREATMENT_UPDATE", "TREATMENT_DELETE"],
+  PAYMENT: [
+    "PAYMENT_READ",
+    "PAYMENT_CREATE",
+    "PAYMENT_DELETE",
+    "HAND_PAYMENT_CREATE",
+    "HAND_PAYMENT_READ",
+    "HAND_PAYMENT_CONFIRM",
+    "HAND_PAYMENT_REJECT",
+  ],
+  DOCUMENT: ["DOCUMENT_CREATE", "DOCUMENT_READ", "DOCUMENT_DELETE"],
   PROTHESIS: [
+    "PROTHESIS_READ",
     "PROTHESIS_CREATE",
     "PROTHESIS_UPDATE",
     "PROTHESIS_ASSIGN_LAB",
     "PROTHESIS_STATUS_CHANGE",
     "PROTHESIS_DELETE",
   ],
+  JUSTIFICATION: [
+    "JUSTIFICATION_READ",
+    "JUSTIFICATION_GENERATE",
+    "JUSTIFICATION_CREATE",
+    "JUSTIFICATION_UPDATE",
+    "JUSTIFICATION_DELETE",
+    "JUSTIFICATION_PDF_DOWNLOAD",
+    "JUSTIFICATION_TEMPLATE_READ",
+    "JUSTIFICATION_TEMPLATE_CREATE",
+    "JUSTIFICATION_TEMPLATE_UPDATE",
+    "JUSTIFICATION_TEMPLATE_DELETE",
+  ],
+  LABORATORY: [
+    "LABORATORY_READ",
+    "LABORATORY_CREATE",
+    "LABORATORY_UPDATE",
+    "LABORATORY_DELETE",
+    "LAB_PAYMENT_CREATE",
+    "LAB_PAYMENT_DELETE",
+  ],
+  EMPLOYEE: [
+    "EMPLOYEE_READ",
+    "EMPLOYEE_CREATE",
+    "EMPLOYEE_UPDATE",
+    "EMPLOYEE_DELETE",
+    "EMPLOYEE_WORKING_HOURS_READ",
+    "EMPLOYEE_WORKING_HOURS_CREATE",
+    "EMPLOYEE_WORKING_HOURS_UPDATE",
+    "EMPLOYEE_WORKING_HOURS_DELETE",
+  ],
+  EXPENSE: ["EXPENSE_READ", "EXPENSE_CREATE", "EXPENSE_UPDATE", "EXPENSE_DELETE"],
+  ITEM: [
+    "ITEM_READ",
+    "ITEM_CREATE",
+    "ITEM_UPDATE",
+    "ITEM_DELETE",
+    "ITEM_DEFAULT_READ",
+    "ITEM_DEFAULT_CREATE",
+    "ITEM_DEFAULT_UPDATE",
+    "ITEM_DEFAULT_DELETE",
+  ],
+  MATERIAL: ["MATERIAL_READ", "MATERIAL_CREATE", "MATERIAL_DELETE"],
+  MEDICATION: ["MEDICATION_READ", "MEDICATION_CREATE", "MEDICATION_UPDATE", "MEDICATION_DELETE"],
+  PLAN: [
+    "PLAN_CREATE",
+    "PLAN_READ",
+    "PLAN_UPDATE",
+    "PLAN_DEACTIVATE",
+    "PLAN_RECOMMENDED_SET",
+    "USER_PLAN_SELECT",
+    "USER_PLAN_ADMIN_ACTIVATE",
+    "USER_PLAN_ADMIN_DEACTIVATE",
+  ],
+  FINANCE: ["FINANCE_READ"],
+  SETTINGS: ["SETTINGS_PREFERENCES_UPDATE", "SETTINGS_PATIENT_MANAGEMENT_UPDATE"],
 };
 
 const ACTION_GROUPS = {
@@ -79,7 +150,18 @@ const ENTITY_LABELS = {
   APPOINTMENT: "Rendez-vous",
   TREATMENT: "Traitement",
   PAYMENT: "Paiement",
+  DOCUMENT: "Documents",
   PROTHESIS: "Prothese",
+  LABORATORY: "Laboratoires",
+  JUSTIFICATION: "Justificatifs",
+  EMPLOYEE: "Employes",
+  EXPENSE: "Depenses",
+  ITEM: "Articles",
+  MATERIAL: "Materiaux",
+  MEDICATION: "Medicaments",
+  PLAN: "Plans",
+  FINANCE: "Finance",
+  SETTINGS: "Paramètres",
   SECURITY: "Securite et compte",
 };
 
@@ -88,13 +170,20 @@ const SECURITY_ACTION_LABELS = {
   AUTH_LOGOUT: "Deconnexion",
   AUTH_LOGOUT_ALL: "Deconnexion globale",
   AUTH_REGISTER: "Inscription",
+  SECURITY_PIN_STATUS: "Statut PIN",
   SECURITY_PIN_ENABLE: "Activation PIN",
   SECURITY_PIN_CHANGE: "Modification PIN",
   SECURITY_PIN_DISABLE: "Desactivation PIN",
   SECURITY_PIN_VERIFY: "Verification PIN",
+  VERIFY_PHONE_OTP_SEND: "Envoi OTP",
+  VERIFY_PHONE_OTP_CHECK: "Verification OTP",
+  PHONE_CHANGE_SEND: "Changement tel (OTP)",
+  PHONE_CHANGE_CONFIRM: "Changement tel",
   USER_PASSWORD_CHANGE: "Changement mot de passe",
   USER_DELETE: "Suppression utilisateur",
   USER_ADMIN_CREATE: "Creation admin",
+  HAND_PAYMENT_CONFIRM: "Paiement confirme",
+  HAND_PAYMENT_REJECT: "Paiement rejete",
 };
 
 const formatDateTime = (isoDate) => {
@@ -115,6 +204,10 @@ const getActionLabel = (eventType = "") => {
   if (SECURITY_ACTION_LABELS[eventType]) return SECURITY_ACTION_LABELS[eventType];
   if (eventType === "PATIENT_READ") return "Voir";
   if (eventType === "PATIENT_PDF_DOWNLOAD") return "Télécharger PDF";
+  if (eventType === "LABORATORY_READ") return "Voir";
+  if (eventType === "DOCUMENT_READ") return "Voir";
+  if (eventType === "DOCUMENT_CREATE") return "Ajout";
+  if (eventType === "DOCUMENT_DELETE") return "Suppression";
   if (eventType.includes("UNARCHIVE")) return "Restauration";
   if (eventType.includes("ARCHIVE")) return "Archivage";
   if (eventType.includes("CREATE")) return "Ajout";
@@ -398,9 +491,15 @@ const AuditLogs = () => {
                         ? "Traitements"
                         : entityFilter === "PAYMENT"
                           ? "Paiements"
+                          : entityFilter === "DOCUMENT"
+                            ? "Documents"
                           : entityFilter === "PROTHESIS"
                             ? "Protheses"
-                            : "Securite et compte"}
+                            : entityFilter === "LABORATORY"
+                              ? "Laboratoires"
+                              : entityFilter === "SETTINGS"
+                                ? "Paramètres"
+                                : "Securite et compte"}
               </span>
               <ChevronDown size={18} className={`chevron ${entityDropdownOpen ? "rotated" : ""}`} />
             </button>
@@ -411,7 +510,10 @@ const AuditLogs = () => {
                 <li onClick={() => { setEntityFilter("APPOINTMENT"); setEntityDropdownOpen(false); }}>Rendez-vous</li>
                 <li onClick={() => { setEntityFilter("TREATMENT"); setEntityDropdownOpen(false); }}>Traitements</li>
                 <li onClick={() => { setEntityFilter("PAYMENT"); setEntityDropdownOpen(false); }}>Paiements</li>
+                <li onClick={() => { setEntityFilter("DOCUMENT"); setEntityDropdownOpen(false); }}>Documents</li>
                 <li onClick={() => { setEntityFilter("PROTHESIS"); setEntityDropdownOpen(false); }}>Protheses</li>
+                <li onClick={() => { setEntityFilter("LABORATORY"); setEntityDropdownOpen(false); }}>Laboratoires</li>
+                <li onClick={() => { setEntityFilter("SETTINGS"); setEntityDropdownOpen(false); }}>Paramètres</li>
                 <li onClick={() => { setEntityFilter("SECURITY"); setEntityDropdownOpen(false); }}>Securite et compte</li>
               </ul>
             )}

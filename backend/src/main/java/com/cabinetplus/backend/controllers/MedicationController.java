@@ -17,8 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.dto.MedicationRequest;
 import com.cabinetplus.backend.dto.MedicationResponse;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Medication;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.MedicationService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -30,10 +32,12 @@ public class MedicationController {
 
     private final MedicationService medicationService;
     private final UserService userService;
+    private final AuditService auditService;
 
-    public MedicationController(MedicationService medicationService, UserService userService) {
+    public MedicationController(MedicationService medicationService, UserService userService, AuditService auditService) {
         this.medicationService = medicationService;
         this.userService = userService;
+        this.auditService = auditService;
     }
 
     @GetMapping
@@ -52,6 +56,7 @@ public class MedicationController {
                 ))
                 .collect(Collectors.toList());
 
+        auditService.logSuccess(AuditEventType.MEDICATION_READ, "MEDICATION", null, "Médicaments consultés");
         return ResponseEntity.ok(response);
     }
 
@@ -61,6 +66,7 @@ public class MedicationController {
 
         Medication m = medicationService.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new NotFoundException("Medicament introuvable"));
+        auditService.logSuccess(AuditEventType.MEDICATION_READ, "MEDICATION", String.valueOf(m.getId()), "Médicament consulté");
 
         return ResponseEntity.ok(new MedicationResponse(
                 m.getId(),
@@ -88,6 +94,7 @@ public class MedicationController {
         entity.setCreatedBy(currentUser);
 
         Medication saved = medicationService.save(entity);
+        auditService.logSuccess(AuditEventType.MEDICATION_CREATE, "MEDICATION", String.valueOf(saved.getId()), "Médicament créé");
 
         MedicationResponse response = new MedicationResponse(
                 saved.getId(),
@@ -118,6 +125,7 @@ public class MedicationController {
                 dto.getDescription(),
                 currentUser
         ), currentUser).orElseThrow(() -> new NotFoundException("Medicament introuvable"));
+        auditService.logSuccess(AuditEventType.MEDICATION_UPDATE, "MEDICATION", String.valueOf(saved.getId()), "Médicament modifié");
 
         return ResponseEntity.ok(new MedicationResponse(
                 saved.getId(),
@@ -137,11 +145,12 @@ public class MedicationController {
         if (!deleted) {
             throw new NotFoundException("Medicament introuvable");
         }
+        auditService.logSuccess(AuditEventType.MEDICATION_DELETE, "MEDICATION", String.valueOf(id), "Médicament supprimé");
         return ResponseEntity.noContent().build();
     }
 
     private User getCurrentUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }

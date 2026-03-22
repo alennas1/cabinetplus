@@ -111,7 +111,7 @@ const DentistDetails = () => {
     const ownerDentist = dentist.ownerDentist;
     const ownerName = ownerDentist
       ? `${ownerDentist.firstname || ""} ${ownerDentist.lastname || ""}`.trim() ||
-        ownerDentist.username ||
+        ownerDentist.phoneNumber ||
         `#${ownerDentist.id}`
       : "—";
 
@@ -233,7 +233,7 @@ const DentistDetails = () => {
         <div className="patient-info-left">
           <div className="patient-name">{computed.fullName}</div>
           <div className="patient-details">
-            <div>Utilisateur: {dentist.username || "—"}</div>
+            <div>Identifiant: {formatPhoneNumber(dentist.phoneNumber) || "—"}</div>
             <div>Téléphone: {formatPhoneNumber(dentist.phoneNumber)}</div>
             <div>Cabinet: {dentist.clinicName || "—"}</div>
             <div>Adresse: {dentist.address || "—"}</div>
@@ -282,9 +282,9 @@ const DentistDetails = () => {
 
           <div className="profile-field">
             <div className="field-label">
-              <User size={16} /> Nom d'utilisateur
+              <User size={16} /> Identifiant
             </div>
-            <div className="field-value">{dentist.username || "—"}</div>
+            <div className="field-value">{formatPhoneNumber(dentist.phoneNumber) || "—"}</div>
           </div>
 
           <div className="profile-field">

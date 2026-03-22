@@ -36,7 +36,7 @@ class UserServiceTest {
     @Test
     void savePopulatesDefaultsWhenMissing() {
         User user = new User();
-        user.setUsername("u1");
+        user.setPhoneNumber("0550000000");
         user.setRole(UserRole.DENTIST);
         user.setCreatedAt(null);
         user.setPlanStatus(null);
@@ -78,7 +78,7 @@ class UserServiceTest {
         current.setCanDeleteAdmin(true);
 
         User newAdmin = new User();
-        newAdmin.setUsername("admin2");
+        newAdmin.setPhoneNumber("0550000001");
         newAdmin.setCanDeleteAdmin(false);
 
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));

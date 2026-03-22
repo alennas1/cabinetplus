@@ -12,8 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.PlanRequest;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Plan;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PlanService;
 
 import jakarta.validation.Valid;
@@ -23,15 +25,18 @@ import jakarta.validation.Valid;
 public class PlanController {
 
     private final PlanService planService;
+    private final AuditService auditService;
 
-    public PlanController(PlanService planService) {
+    public PlanController(PlanService planService, AuditService auditService) {
         this.planService = planService;
+        this.auditService = auditService;
     }
 
     // GET : Tous les plans pour le dashboard (Admin)
     
     @GetMapping
     public ResponseEntity<Iterable<Plan>> getAllPlans() {
+        auditService.logSuccess(AuditEventType.PLAN_READ, "PLAN", null, "Plans consultés (admin)");
         return ResponseEntity.ok(planService.getAllPlansForAdmin());
     }   
     
@@ -39,6 +44,10 @@ public class PlanController {
     @GetMapping("/{id}")
     public ResponseEntity<Plan> getPlanById(@PathVariable Long id) {
         return planService.findById(id)
+                .map(plan -> {
+                    auditService.logSuccess(AuditEventType.PLAN_READ, "PLAN", String.valueOf(plan.getId()), "Plan consulté");
+                    return plan;
+                })
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new NotFoundException("Plan introuvable"));
     }
@@ -56,7 +65,9 @@ public class PlanController {
         plan.setMaxPatients(request.maxPatients());
         plan.setMaxStorageGb(request.maxStorageGb());
         plan.setActive(true);
-        return planService.save(plan);
+        Plan saved = planService.save(plan);
+        auditService.logSuccess(AuditEventType.PLAN_CREATE, "PLAN", String.valueOf(saved.getId()), "Plan créé");
+        return saved;
     }
 
     @PutMapping("/{id}")
@@ -72,18 +83,28 @@ public class PlanController {
             plan.setMaxPatients(updatedPlan.maxPatients());
             plan.setMaxStorageGb(updatedPlan.maxStorageGb());
             plan.setActive(updatedPlan.activeOrTrue());
-            return ResponseEntity.ok(planService.save(plan));
+            Plan saved = planService.save(plan);
+            auditService.logSuccess(AuditEventType.PLAN_UPDATE, "PLAN", String.valueOf(saved.getId()), "Plan modifié");
+            return ResponseEntity.ok(saved);
         }).orElseThrow(() -> new NotFoundException("Plan introuvable"));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deactivatePlan(@PathVariable Long id) {
         planService.deactivatePlan(id);
+        auditService.logSuccess(AuditEventType.PLAN_DEACTIVATE, "PLAN", String.valueOf(id), "Plan désactivé");
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/recommended")
     public ResponseEntity<Plan> setRecommendedPlan(@PathVariable Long id, @RequestParam boolean recommended) {
-        return ResponseEntity.ok(planService.setRecommended(id, recommended));
+        Plan saved = planService.setRecommended(id, recommended);
+        auditService.logSuccess(
+                AuditEventType.PLAN_RECOMMENDED_SET,
+                "PLAN",
+                String.valueOf(id),
+                recommended ? "Plan recommandé activé" : "Plan recommandé désactivé"
+        );
+        return ResponseEntity.ok(saved);
     }
 }

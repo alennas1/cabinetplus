@@ -36,7 +36,7 @@ public class TreatmentController {
     }
 
     private User getCurrentUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }
@@ -46,6 +46,12 @@ public class TreatmentController {
     public ResponseEntity<List<Treatment>> getAllTreatments(Principal principal) {
         User currentUser = getCurrentUser(principal);
         List<Treatment> treatments = treatmentService.findByPractitioner(currentUser);
+        auditService.logSuccess(
+                AuditEventType.TREATMENT_READ,
+                "TREATMENT",
+                null,
+                "Traitements consultes"
+        );
         return ResponseEntity.ok(treatments);
     }
 
@@ -55,6 +61,14 @@ public class TreatmentController {
         User currentUser = getCurrentUser(principal);
         Treatment treatment = treatmentService.findByIdAndPractitioner(id, currentUser)
                 .orElseThrow(() -> new NotFoundException("Traitement introuvable"));
+        auditService.logSuccess(
+                AuditEventType.TREATMENT_READ,
+                "PATIENT",
+                treatment != null && treatment.getPatient() != null && treatment.getPatient().getId() != null
+                        ? String.valueOf(treatment.getPatient().getId())
+                        : null,
+                "Traitement consulte"
+        );
         return ResponseEntity.ok(treatment);
     }
 
@@ -115,6 +129,12 @@ public class TreatmentController {
                                                                   Principal principal) {
         User currentUser = getCurrentUser(principal);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, currentUser).getId();
+        auditService.logSuccess(
+                AuditEventType.TREATMENT_READ,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
+                "Traitements patient consultes"
+        );
         Patient patient = new Patient();
         patient.setId(internalPatientId);
         List<Treatment> treatments = treatmentService.findByPatientAndPractitioner(patient, currentUser);

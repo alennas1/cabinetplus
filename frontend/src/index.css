@@ -5,6 +5,20 @@
 @tailwind utilities;
 
 /* =========================
+   Button press (app-wide)
+   No "move" on hover; just a subtle press on click.
+========================= */
+button:active:not(:disabled),
+input[type="button"]:active:not(:disabled),
+input[type="submit"]:active:not(:disabled),
+input[type="reset"]:active:not(:disabled),
+a[role="button"]:active:not([aria-disabled="true"]),
+a.create-account-btn:active,
+a.register-login-btn:active {
+  scale: 0.98;
+}
+
+/* =========================
    App modal style (shared)
    Matches the Ordonnance "Ajouter au catalogue" modal look
 ========================= */

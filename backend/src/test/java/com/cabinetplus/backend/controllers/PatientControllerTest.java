@@ -142,18 +142,18 @@ class PatientControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.fieldErrors._").exists());
+                .andExpect(jsonPath("$.fieldErrors.unknownField").value("Champ non supporte"));
     }
 
     @Test
     void getPatientByIdWhenNotFoundReturns404WithErrorEnvelope() throws Exception {
         var user = mock(com.cabinetplus.backend.models.User.class);
-        when(userService.findByUsername("dentist")).thenReturn(java.util.Optional.of(user));
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(java.util.Optional.of(user));
         when(userService.resolveClinicOwner(user)).thenReturn(user);
         when(publicIdResolutionService.requirePatientOwnedBy("missing", user))
                 .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient introuvable"));
 
-        mockMvc.perform(get("/api/patients/missing").with(userPrincipal("dentist")))
+        mockMvc.perform(get("/api/patients/missing").with(userPrincipal("0551111111")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.fieldErrors._").value("Patient introuvable"));

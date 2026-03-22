@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Edit2, Check, X, User, Phone, Home, Shield } from "react-feather"; // Removed Mail icon
+import { Check, Edit2, X, User, Phone, Home } from "react-feather"; // Removed Mail icon
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { getUserProfile, updateUserProfile } from "../services/userService";
 import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
-import { getApiErrorMessage } from "../utils/error";
+import { getApiErrorMessage, getApiFieldErrors } from "../utils/error";
 import { confirmPhoneChangeOtp, sendPhoneChangeOtp } from "../services/securityService";
 import PhoneInput from "../components/PhoneInput";
 import PasswordInput from "../components/PasswordInput";
@@ -42,9 +42,17 @@ const Profile = () => {
     user?.clinicAccessRole &&
     user.clinicAccessRole !== "DENTIST";
 
+  const passwordProtectedFields = new Set(["firstname", "lastname", "clinicName", "address"]);
+
   const [profile, setProfile] = useState({ profession: "Dentiste" });
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
+
+  const [showProfilePasswordModal, setShowProfilePasswordModal] = useState(false);
+  const [profileUpdatePassword, setProfileUpdatePassword] = useState("");
+  const [profileUpdatePasswordError, setProfileUpdatePasswordError] = useState("");
+  const [profileUpdateBusy, setProfileUpdateBusy] = useState(false);
+  const [pendingProfileUpdate, setPendingProfileUpdate] = useState(null); // { field, value }
 
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneChangeNumber, setPhoneChangeNumber] = useState("");
@@ -99,6 +107,44 @@ const Profile = () => {
     setTempValue("");
   };
 
+  const closeProfilePasswordModal = () => {
+    if (profileUpdateBusy) return;
+    setShowProfilePasswordModal(false);
+    setProfileUpdatePassword("");
+    setProfileUpdatePasswordError("");
+    setPendingProfileUpdate(null);
+  };
+
+  const confirmProfileUpdate = async () => {
+    if (!pendingProfileUpdate) return;
+    if (profileUpdateBusy) return;
+
+    const password = String(profileUpdatePassword || "").trim();
+    if (!password) {
+      setProfileUpdatePasswordError("Champ obligatoire.");
+      return;
+    }
+
+    try {
+      setProfileUpdateBusy(true);
+      setProfileUpdatePasswordError("");
+
+      const { field, value } = pendingProfileUpdate;
+      await updateUserProfile({ [field]: value, password });
+
+      setProfile((prev) => ({ ...prev, [field]: value }));
+      setEditingField(null);
+      setTempValue("");
+      closeProfilePasswordModal();
+      toast.success(`${fieldLabels[field]} mis à jour avec succès`);
+    } catch (err) {
+      const fieldErrors = getApiFieldErrors(err);
+      setProfileUpdatePasswordError(fieldErrors?.password || getApiErrorMessage(err, "Mot de passe incorrect"));
+    } finally {
+      setProfileUpdateBusy(false);
+    }
+  };
+
   const handleSave = async (field) => {
     try {
       let valueToSave = tempValue;
@@ -106,6 +152,14 @@ const Profile = () => {
 
       if (valueToSave === profile[field]) {
         setEditingField(null);
+        return;
+      }
+
+      if (passwordProtectedFields.has(field)) {
+        setPendingProfileUpdate({ field, value: valueToSave });
+        setShowProfilePasswordModal(true);
+        setProfileUpdatePassword("");
+        setProfileUpdatePasswordError("");
         return;
       }
 
@@ -214,8 +268,7 @@ const Profile = () => {
       ) : field === "phoneNumber" ? (
         <>
           <span className="field-value">{formatPhoneNumber(profile.phoneNumber) || "—"}</span>
-          <button type="button" className="profile-action-btn" onClick={openPhoneModal}>
-            <Shield size={16} />
+          <button type="button" className="btn-primary2 profile-phone-btn" onClick={openPhoneModal}>
             Mettre à jour
           </button>
         </>
@@ -226,15 +279,41 @@ const Profile = () => {
             value={tempValue}
             onChange={(e) => handleInputChange(field, e.target.value)}
           />
-          <Check size={18} className="icon action confirm" onClick={() => handleSave(field)} />
-          <X size={18} className="icon action cancel" onClick={handleCancel} />
+          <div className="profile-field-actions">
+            <button
+              type="button"
+              className="action-btn complete"
+              onClick={() => handleSave(field)}
+              title="Enregistrer"
+              aria-label="Enregistrer"
+            >
+              <Check size={16} />
+            </button>
+            <button
+              type="button"
+              className="action-btn cancel"
+              onClick={handleCancel}
+              title="Annuler"
+              aria-label="Annuler"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </>
       ) : (
         <>
           <span className="field-value">
             {field === "phoneNumber" ? formatPhoneNumber(profile[field]) : profile[field] || "—"}
           </span>
-          <Edit2 size={18} className="icon action edit" onClick={() => handleEdit(field)} />
+          <button
+            type="button"
+            className="action-btn edit"
+            onClick={() => handleEdit(field)}
+            title="Mettre à jour"
+            aria-label="Mettre à jour"
+          >
+            <Edit2 size={16} />
+          </button>
         </>
       )}
     </div>
@@ -338,6 +417,40 @@ const Profile = () => {
                 </div>
               </>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {showProfilePasswordModal ? (
+        <div className="modal-overlay" onClick={closeProfilePasswordModal}>
+          <div className="modal-content profile-phone-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Confirmer avec votre mot de passe</h3>
+            <p className="profile-modal-subtitle">Pour modifier ces informations, veuillez saisir votre mot de passe.</p>
+
+            <div className="profile-modal-field">
+              <label>Mot de passe</label>
+              <PasswordInput
+                placeholder="Entrez votre mot de passe"
+                value={profileUpdatePassword}
+                onChange={(e) => {
+                  setProfileUpdatePassword(e.target.value);
+                  if (profileUpdatePasswordError) setProfileUpdatePasswordError("");
+                }}
+                autoComplete="current-password"
+                disabled={profileUpdateBusy}
+                inputClassName={profileUpdatePasswordError ? "invalid" : ""}
+              />
+              <FieldError message={profileUpdatePasswordError} />
+            </div>
+
+            <div className="modal-actions">
+              <button type="button" className="btn-primary2" onClick={confirmProfileUpdate} disabled={profileUpdateBusy}>
+                {profileUpdateBusy ? "Vérification..." : "Confirmer"}
+              </button>
+              <button type="button" className="btn-cancel" onClick={closeProfilePasswordModal} disabled={profileUpdateBusy}>
+                Annuler
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

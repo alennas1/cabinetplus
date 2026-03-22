@@ -62,19 +62,21 @@ public class SecurityPinController {
 
     @GetMapping
     public Map<String, Object> status(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         boolean enabled = user.isGestionCabinetPinEnabled() && user.getGestionCabinetPinHash() != null;
+        auditService.logSuccessAsUser(user, AuditEventType.SECURITY_PIN_STATUS, "USER", String.valueOf(user.getId()), "Statut PIN consulte");
         return Map.of("enabled", enabled);
     }
 
     @PostMapping
     public Map<String, Object> enable(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                       @Valid @RequestBody SecurityPinEnableRequest payload) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
+        requirePassword(user, payload.password());
         String pin = normalizePin(payload.pin());
 
         user.setGestionCabinetPinEnabled(true);
@@ -89,7 +91,7 @@ public class SecurityPinController {
     @PutMapping
     public Map<String, Object> change(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                       @Valid @RequestBody SecurityPinChangeRequest payload) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         requirePassword(user, payload.password());
@@ -107,7 +109,7 @@ public class SecurityPinController {
     @PostMapping("/disable")
     public Map<String, Object> disable(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                        @Valid @RequestBody SecurityPinDisableRequest payload) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         requirePassword(user, payload.password());
@@ -124,7 +126,7 @@ public class SecurityPinController {
     @PostMapping("/verify")
     public Map<String, Object> verify(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                       @Valid @RequestBody SecurityPinVerifyRequest payload) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (!user.isGestionCabinetPinEnabled() || user.getGestionCabinetPinHash() == null) {

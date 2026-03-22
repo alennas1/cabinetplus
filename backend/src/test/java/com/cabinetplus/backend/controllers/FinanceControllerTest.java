@@ -4,6 +4,7 @@ import com.cabinetplus.backend.dto.FinanceCardsResponseDTO;
 import com.cabinetplus.backend.dto.FinanceGraphResponseDTO;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.FinanceService;
 import com.cabinetplus.backend.services.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,13 +29,15 @@ class FinanceControllerTest {
     private MockMvc mockMvc;
     private FinanceService financeService;
     private UserService userService;
+    private AuditService auditService;
 
     @BeforeEach
     void setUp() {
         financeService = mock(FinanceService.class);
         userService = mock(UserService.class);
+        auditService = mock(AuditService.class);
 
-        FinanceController controller = new FinanceController(financeService, userService);
+        FinanceController controller = new FinanceController(financeService, userService, auditService);
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
@@ -45,10 +48,10 @@ class FinanceControllerTest {
 
     @Test
     void graphWhenUserMissingReturns404Contract() throws Exception {
-        when(userService.findByUsername("missing")).thenReturn(Optional.empty());
+        when(userService.findByPhoneNumber("0550000000")).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/finance/graph")
-                        .with(userPrincipal("missing"))
+                        .with(userPrincipal("0550000000"))
                         .param("timeframe", "daily"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
@@ -58,14 +61,14 @@ class FinanceControllerTest {
     @Test
     void graphInvalidTimeframeReturns400Contract() throws Exception {
         User dentist = new User();
-        dentist.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(dentist));
+        dentist.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(dentist));
         when(userService.resolveClinicOwner(dentist)).thenReturn(dentist);
         when(financeService.getFinanceGraph(dentist, "invalid"))
                 .thenThrow(new IllegalArgumentException("Periode invalide: invalid"));
 
         mockMvc.perform(get("/api/finance/graph")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .param("timeframe", "invalid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
@@ -75,8 +78,8 @@ class FinanceControllerTest {
     @Test
     void cardsSuccessReturnsPayload() throws Exception {
         User dentist = new User();
-        dentist.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(dentist));
+        dentist.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(dentist));
         when(userService.resolveClinicOwner(dentist)).thenReturn(dentist);
 
         FinanceCardsResponseDTO dto = new FinanceCardsResponseDTO();
@@ -95,7 +98,7 @@ class FinanceControllerTest {
         when(financeService.getFinanceCards(eq(dentist), eq("today"), any(), any())).thenReturn(dto);
 
         mockMvc.perform(get("/api/finance/cards")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .param("timeframe", "today"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.revenue.revenuedu.current").value(10.0))

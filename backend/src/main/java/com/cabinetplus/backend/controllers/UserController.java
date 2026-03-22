@@ -101,38 +101,43 @@ public class UserController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public List<User> getAllUsers() {
+        auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Liste utilisateurs consultee");
         return userService.findAll();
     }
 
     @GetMapping("/dentists")
     @PreAuthorize("hasRole('ADMIN')")
     public List<User> getAllDentists() {
+        auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Liste dentistes consultee");
         return userService.getAllDentists();
     }
 
     @GetMapping("/admins")
     public List<User> getAllAdmins(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
-        User currentUser = userService.findByUsername(current.getUsername())
+        User currentUser = userService.findByPhoneNumber(current.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
+        auditService.logSuccessAsUser(currentUser, AuditEventType.USER_READ, "USER", null, "Liste admins consultee");
         return userService.getAllAdmins(currentUser);
     }
 
     @GetMapping("/expiring-in/{days}")
     public List<User> getUsersExpiringIn(@PathVariable int days) {
+        auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Utilisateurs expirant bientot consultes");
         return userService.getUsersExpiringInDays(days);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public User getUserById(@PathVariable String id) {
-        return publicIdResolutionService.requireUserByIdOrPublicId(id);
+        User user = publicIdResolutionService.requireUserByIdOrPublicId(id);
+        auditService.logSuccess(AuditEventType.USER_READ, "USER", user != null && user.getId() != null ? String.valueOf(user.getId()) : null, "Utilisateur consulte");
+        return user;
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public User createUser(@Valid @RequestBody AdminUserCreateRequest request) {
         User user = new User();
-        user.setUsername(request.username() != null ? request.username().trim() : null);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setFirstname(trimToNull(request.firstname()));
         user.setLastname(trimToNull(request.lastname()));
@@ -149,7 +154,12 @@ public class UserController {
         user.setPlanStatus(UserPlanStatus.PENDING);
         user.setCanDeleteAdmin(false);
 
-        return userService.save(user);
+        User saved = userService.save(user);
+        auditService.logSuccess(AuditEventType.USER_CREATE, "USER", saved != null && saved.getId() != null ? String.valueOf(saved.getId()) : null, "Utilisateur cree");
+        if (saved != null && saved.getRole() == UserRole.ADMIN) {
+            auditService.logSuccess(AuditEventType.USER_ADMIN_CREATE, "USER", String.valueOf(saved.getId()), "Creation admin");
+        }
+        return saved;
     }
 
     @PutMapping("/{id}")
@@ -157,7 +167,6 @@ public class UserController {
     public User updateUser(@PathVariable String id, @Valid @RequestBody AdminUserUpdateRequest request) {
         User existing = publicIdResolutionService.requireUserByIdOrPublicId(id);
 
-        if (request.username() != null) existing.setUsername(request.username().trim());
         if (request.password() != null && !request.password().isBlank()) {
             existing.setPasswordHash(passwordEncoder.encode(request.password()));
         }
@@ -165,7 +174,9 @@ public class UserController {
         if (request.lastname() != null) existing.setLastname(trimToNull(request.lastname()));
         if (request.phoneNumber() != null) existing.setPhoneNumber(trimToNull(request.phoneNumber()));
 
-        return userService.save(existing);
+        User saved = userService.save(existing);
+        auditService.logSuccess(AuditEventType.USER_UPDATE, "USER", saved != null && saved.getId() != null ? String.valueOf(saved.getId()) : null, "Utilisateur modifie");
+        return saved;
     }
 
     // ===============================
@@ -175,7 +186,7 @@ public class UserController {
     public void deleteUser(@PathVariable String id,
                            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
 
-        User currentUser = userService.findByUsername(current.getUsername())
+        User currentUser = userService.findByPhoneNumber(current.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
 
         User targetUser = publicIdResolutionService.requireUserByIdOrPublicId(id);
@@ -200,17 +211,20 @@ public class UserController {
     // ===============================
     @GetMapping("/me")
     public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
-        return userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(user.getId()), "Profil consulte");
+        return user;
     }
 
     @GetMapping("/me/preferences")
     public UserPreferencesResponse getCurrentUserPreferences(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
     ) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         User owner = userService.resolveClinicOwner(user);
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(owner.getId()), "Preferences consultees");
         return mapPreferences(owner);
     }
 
@@ -219,7 +233,7 @@ public class UserController {
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
             @Valid @RequestBody UserPreferencesRequest request
     ) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         User owner = userService.resolveClinicOwner(user);
 
@@ -245,9 +259,10 @@ public class UserController {
     public PatientManagementSettingsResponse getCurrentPatientManagementSettings(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
     ) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         User owner = userService.resolveClinicOwner(user);
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(owner.getId()), "Parametres gestion patients consultes");
         return mapPatientManagement(owner);
     }
 
@@ -256,7 +271,7 @@ public class UserController {
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
             @Valid @RequestBody PatientManagementSettingsRequest request
     ) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         User owner = userService.resolveClinicOwner(user);
 
@@ -280,16 +295,17 @@ public class UserController {
     public PlanUsageDto getCurrentPlanUsage(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
     ) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         User owner = userService.resolveClinicOwner(user);
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(owner.getId()), "Usage plan consulte");
         return planLimitService.getPlanUsage(owner);
     }
 
     @PutMapping("/me")
     public User updateCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                   @Valid @RequestBody CurrentUserUpdateRequest updates) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (updates.phoneNumber() != null && !updates.phoneNumber().isBlank()) {
@@ -299,12 +315,36 @@ public class UserController {
             );
         }
 
+        boolean updatingSensitiveProfile =
+                updates.firstname() != null
+                        || updates.lastname() != null
+                        || updates.clinicName() != null
+                        || updates.address() != null;
+
+        if (updatingSensitiveProfile) {
+            String password = updates.password();
+            if (password == null || password.isBlank()) {
+                throw new BadRequestException(Map.of("password", "Mot de passe requis"));
+            }
+            if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+                throw new BadRequestException(Map.of("password", "Mot de passe incorrect"));
+            }
+        }
+
         if (updates.firstname() != null) user.setFirstname(trimToNull(updates.firstname()));
         if (updates.lastname() != null) user.setLastname(trimToNull(updates.lastname()));
         if (updates.clinicName() != null) user.setClinicName(trimToNull(updates.clinicName()));
         if (updates.address() != null) user.setAddress(trimToNull(updates.address()));
 
-        return userService.save(user);
+        User saved = userService.save(user);
+        auditService.logSuccessAsUser(
+                saved,
+                AuditEventType.USER_PROFILE_UPDATE,
+                "USER",
+                String.valueOf(saved.getId()),
+                "Profil mis à jour"
+        );
+        return saved;
     }
 
     // ===============================
@@ -313,7 +353,7 @@ public class UserController {
     @PutMapping("/me/password")
     public User updatePassword(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                                @Valid @RequestBody PasswordChangeRequest request) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
@@ -341,12 +381,13 @@ public class UserController {
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
             @Valid @RequestBody PasswordVerifyRequest payload) {
 
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (!passwordEncoder.matches(payload.password(), user.getPasswordHash())) {
             throw new BadRequestException(Map.of("password", "Mot de passe incorrect"));
         }
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(user.getId()), "Mot de passe verifie");
 
         return Map.of("valid", true);
     }
@@ -359,10 +400,11 @@ public class UserController {
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
             @CookieValue(name = "refresh_token", required = false) String refreshTokenCookie
     ) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         List<RefreshToken> sessions = refreshTokenRepository.findActiveSessions(user, LocalDateTime.now());
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "SESSION", String.valueOf(user.getId()), "Sessions consultees");
         return sessions.stream()
                 .map(session -> new UserSessionResponse(
                         session.getId(),
@@ -385,10 +427,15 @@ public class UserController {
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
             @PathVariable Long sessionId,
             @CookieValue(name = "refresh_token", required = false) String refreshTokenCookie,
+            @Valid @RequestBody PasswordVerifyRequest payload,
             HttpServletResponse response
     ) {
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        if (!passwordEncoder.matches(payload.password(), user.getPasswordHash())) {
+            throw new BadRequestException(Map.of("password", "Mot de passe incorrect"));
+        }
 
         RefreshToken token = refreshTokenRepository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session introuvable"));
@@ -417,6 +464,34 @@ public class UserController {
         return Map.of("revokedCurrent", revokedCurrent);
     }
 
+    @PostMapping("/me/sessions/revoke-all")
+    public Map<String, Object> revokeAllSessions(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+            @Valid @RequestBody PasswordVerifyRequest payload,
+            HttpServletResponse response
+    ) {
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        if (!passwordEncoder.matches(payload.password(), user.getPasswordHash())) {
+            throw new BadRequestException(Map.of("password", "Mot de passe incorrect"));
+        }
+
+        refreshTokenRepository.deleteAllByUser(user);
+
+        ResponseCookie cookie = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
+        auditService.logSuccessAsUser(user, AuditEventType.AUTH_LOGOUT_ALL, "USER", String.valueOf(user.getId()), "Deconnexion de tous les appareils");
+        return Map.of("revoked", true);
+    }
+
     // ===============================
     // EMAIL + PHONE VERIFICATION
     // ===============================
@@ -424,7 +499,7 @@ public class UserController {
 
     @PutMapping("/me/verify-phone")
 public User verifyPhone(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
-    User user = userService.findByUsername(userDetails.getUsername())
+    User user = userService.findByPhoneNumber(userDetails.getUsername())
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
     if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
@@ -432,7 +507,15 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     }
 
     user.setPhoneVerified(true); // <--- Sets the phone verification status
-    return userService.save(user);
+    User saved = userService.save(user);
+    auditService.logSuccessAsUser(
+            saved,
+            AuditEventType.USER_PROFILE_UPDATE,
+            "USER",
+            String.valueOf(saved.getId()),
+            "Téléphone vérifié"
+    );
+    return saved;
 }
 
     // ===============================
@@ -442,11 +525,15 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     public User selectPlan(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
                            @Valid @RequestBody PlanSelectRequest planData) {
 
-        User user = userService.findByUsername(userDetails.getUsername())
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
             throw new AccessDeniedException("Les comptes employes heritent le plan du proprietaire");
+        }
+
+        if (!passwordEncoder.matches(planData.password(), user.getPasswordHash())) {
+            throw new BadRequestException(Map.of("password", "Mot de passe incorrect"));
         }
 
         Plan plan = planService.findById(planData.planId())
@@ -456,7 +543,15 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         user.setPlanStatus(UserPlanStatus.WAITING);
         user.setExpirationDate(null);
 
-        return userService.save(user);
+        User saved = userService.save(user);
+        auditService.logSuccessAsUser(
+                saved,
+                AuditEventType.USER_PLAN_SELECT,
+                "PLAN",
+                plan.getId() != null ? String.valueOf(plan.getId()) : null,
+                "Plan sélectionné"
+        );
+        return saved;
     }
 
     // ===============================
@@ -464,6 +559,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     // ===============================
     @GetMapping("/admin/waiting-plans")
     public List<User> getWaitingPlans() {
+        auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Plans en attente consultes");
         return userService.findByPlanStatus(UserPlanStatus.WAITING);
     }
 
@@ -480,7 +576,14 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         int durationDays = user.getPlan().getDurationDays() != null ? user.getPlan().getDurationDays() : 30;
         user.setExpirationDate(LocalDateTime.now().plusDays(durationDays));
 
-        return userService.save(user);
+        User saved = userService.save(user);
+        auditService.logSuccess(
+                AuditEventType.USER_PLAN_ADMIN_ACTIVATE,
+                "USER",
+                String.valueOf(saved.getId()),
+                "Plan activé"
+        );
+        return saved;
     }
 
     @PutMapping("/admin/deactivate-plan/{userId}")
@@ -490,7 +593,14 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
 
         user.setPlanStatus(UserPlanStatus.INACTIVE);
         user.setExpirationDate(null);
-        return userService.save(user);
+        User saved = userService.save(user);
+        auditService.logSuccess(
+                AuditEventType.USER_PLAN_ADMIN_DEACTIVATE,
+                "USER",
+                String.valueOf(saved.getId()),
+                "Plan désactivé"
+        );
+        return saved;
     }
 
     // ===============================
@@ -502,7 +612,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
             @Valid @RequestBody AdminCreateAdminRequest request,
             HttpServletResponse response) {
 
-        User currentUser = userService.findByUsername(currentDetails.getUsername())
+        User currentUser = userService.findByPhoneNumber(currentDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
 
         boolean requestedSuperAdmin = request.canDeleteAdmin();
@@ -513,7 +623,6 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         }
 
         User newAdmin = new User();
-        newAdmin.setUsername(request.username() != null ? request.username().trim() : null);
         newAdmin.setPasswordHash(passwordEncoder.encode(request.password()));
         newAdmin.setFirstname(trimToNull(request.firstname()));
         newAdmin.setLastname(trimToNull(request.lastname()));
@@ -531,7 +640,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
 
         // Generate JWT immediately
         String accessToken = jwtUtil.generateAccessToken(saved);
-        String refreshToken = jwtUtil.generateRefreshToken(saved.getUsername());
+        String refreshToken = jwtUtil.generateRefreshToken(saved.getPhoneNumber());
 
         Cookie cookie = new Cookie("refresh_token", refreshToken);
         cookie.setHttpOnly(true);
@@ -543,7 +652,6 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         // Return user DTO + access token
         UserDto dto = new UserDto(
                 saved.getId(),
-                saved.getUsername(),
                 saved.getFirstname(),
                 saved.getLastname(),
                 saved.getPhoneNumber(),

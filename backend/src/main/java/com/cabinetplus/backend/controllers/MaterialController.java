@@ -9,9 +9,11 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.MaterialRequest;
 import com.cabinetplus.backend.dto.MaterialResponse;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Material;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.MaterialService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -23,15 +25,18 @@ public class MaterialController {
 
     private final MaterialService materialService;
     private final UserService userService;
+    private final AuditService auditService;
 
-    public MaterialController(MaterialService materialService, UserService userService) {
+    public MaterialController(MaterialService materialService, UserService userService, AuditService auditService) {
         this.materialService = materialService;
         this.userService = userService;
+        this.auditService = auditService;
     }
 
     @GetMapping
     public ResponseEntity<List<MaterialResponse>> getAllMaterials(Principal principal) {
         User currentUser = getCurrentUser(principal);
+        auditService.logSuccess(AuditEventType.MATERIAL_READ, "MATERIAL", null, "Materiaux consultes");
 
         List<MaterialResponse> response = materialService.findAllByUser(currentUser)
                 .stream()
@@ -51,6 +56,7 @@ public class MaterialController {
         entity.setCreatedBy(currentUser);
 
         Material saved = materialService.save(entity);
+        auditService.logSuccess(AuditEventType.MATERIAL_CREATE, "MATERIAL", String.valueOf(saved.getId()), "Matériau créé");
 
         return ResponseEntity.ok(mapToResponse(saved));
     }
@@ -63,12 +69,13 @@ public class MaterialController {
         if (!deleted) {
             throw new NotFoundException("Materiau introuvable");
         }
+        auditService.logSuccess(AuditEventType.MATERIAL_DELETE, "MATERIAL", String.valueOf(id), "Matériau supprimé");
         return ResponseEntity.noContent().build();
     }
 
     // ðŸ”¹ Helpers
     private User getCurrentUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }

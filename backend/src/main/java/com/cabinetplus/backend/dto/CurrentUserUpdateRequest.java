@@ -16,6 +16,9 @@ public record CurrentUserUpdateRequest(
         String address,
 
         // Accepted but forbidden to change here (must go through SMS verification flow).
-        String phoneNumber
+        String phoneNumber,
+
+        // Required when updating sensitive profile fields (firstname/lastname/clinicName/address).
+        String password
 ) {
 }

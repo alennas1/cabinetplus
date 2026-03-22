@@ -191,13 +191,28 @@ export const initializeSession = async () => {
   }
 };
 
-export const login = async (username, password) => {
+export const login = async (phoneNumber, password) => {
   // Ensure stale refresh timers/tokens from a previous session don't trigger
   // a session-expired popup while the user is simply retrying credentials.
   clearAccessToken();
   clearManualLogout();
-  const { data } = await api.post("/auth/login", { username, password });
-  setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
+  const { data } = await api.post("/auth/login", { phoneNumber, password });
+  if (data?.accessToken) {
+    setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
+  }
+  return data;
+};
+
+export const verifyLoginTwoFactor = async ({ challengeToken, code }) => {
+  const { data } = await api.post("/auth/login/verify", { challengeToken, code });
+  if (data?.accessToken) {
+    setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
+  }
+  return data;
+};
+
+export const resendLoginTwoFactor = async (challengeToken) => {
+  const { data } = await api.post("/auth/login/2fa/resend", { challengeToken });
   return data;
 };
 

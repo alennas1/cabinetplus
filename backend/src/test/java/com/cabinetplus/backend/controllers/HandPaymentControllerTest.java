@@ -53,10 +53,10 @@ class HandPaymentControllerTest {
 
     @Test
     void createWhenUserMissingReturns404Contract() throws Exception {
-        when(userRepository.findByUsername("missing")).thenReturn(Optional.empty());
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.empty());
 
         mockMvc.perform(post("/api/hand-payments/create")
-                        .with(userPrincipal("missing"))
+                        .with(userPrincipal("0550000000"))
                         .contentType("application/json")
                         .content("""
                                 {"planId":1,"amount":3000,"billingCycle":"MONTHLY","notes":"n"}
@@ -69,12 +69,12 @@ class HandPaymentControllerTest {
     @Test
     void createWhenPlanMissingReturns404Contract() throws Exception {
         User user = new User();
-        user.setUsername("dentist");
-        when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
+        user.setPhoneNumber("0551111111");
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
         when(planRepository.findById(99L)).thenReturn(Optional.empty());
 
         mockMvc.perform(post("/api/hand-payments/create")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType("application/json")
                         .content("""
                                 {"planId":99,"amount":3000,"billingCycle":"MONTHLY","notes":"n"}
@@ -88,15 +88,15 @@ class HandPaymentControllerTest {
     void createWithInvalidBillingCycleReturns400WithFieldErrors() throws Exception {
         User user = new User();
         user.setId(1L);
-        user.setUsername("dentist");
+        user.setPhoneNumber("0551111111");
         Plan plan = new Plan();
         plan.setId(2L);
 
-        when(userRepository.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
         when(planRepository.findById(2L)).thenReturn(Optional.of(plan));
 
         mockMvc.perform(post("/api/hand-payments/create")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType("application/json")
                         .content("""
                                 {"planId":2,"amount":3000,"billingCycle":"whatever","notes":"n"}

@@ -39,9 +39,6 @@ public class User {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
-    @Column(unique = true, nullable = false)
-    private String username;
-
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -71,7 +68,7 @@ public class User {
     @Enumerated(EnumType.STRING)
     private UserPlanStatus planStatus = UserPlanStatus.PENDING;
 
-    @Column(length = 20)
+    @Column(length = 20, nullable = false, unique = true)
     private String phoneNumber;
 
     private LocalDateTime createdAt;
@@ -127,6 +124,10 @@ public class User {
     private LocalDateTime phoneVerificationOtpLastSentAt;
     private LocalDateTime passwordResetOtpLastSentAt;
     private LocalDateTime phoneChangeOtpLastSentAt;
+    private LocalDateTime loginOtpLastSentAt;
+
+    // --- Optional login 2-step verification (SMS) ---
+    private boolean loginTwoFactorEnabled = true;
 
     @PrePersist
     private void ensurePublicId() {

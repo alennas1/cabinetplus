@@ -38,18 +38,20 @@ class AuthControllerTest {
 
     private MockMvc mockMvc;
     private AuthenticationManager authenticationManager;
+    private JwtUtil jwtUtil;
     private UserRepository userRepository;
     private RefreshTokenRepository refreshTokenRepository;
+    private PhoneVerificationService phoneVerificationService;
 
     @BeforeEach
     void setUp() {
         authenticationManager = mock(AuthenticationManager.class);
-        JwtUtil jwtUtil = mock(JwtUtil.class);
+        jwtUtil = mock(JwtUtil.class);
         userRepository = mock(UserRepository.class);
         refreshTokenRepository = mock(RefreshTokenRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         AuditService auditService = mock(AuditService.class);
-        PhoneVerificationService phoneVerificationService = mock(PhoneVerificationService.class);
+        phoneVerificationService = mock(PhoneVerificationService.class);
         MockEnvironment environment = new MockEnvironment();
 
         AuthController controller = new AuthController(
@@ -65,6 +67,7 @@ class AuthControllerTest {
 
         ReflectionTestUtils.setField(controller, "accessTokenMs", 60000L);
         ReflectionTestUtils.setField(controller, "refreshTokenMs", 86400000L);
+        ReflectionTestUtils.setField(controller, "cookieSameSite", "Lax");
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -80,32 +83,71 @@ class AuthControllerTest {
     @Test
     void loginWithInvalidCredentialsReturns401AndErrorKey() throws Exception {
         User user = new User();
-        user.setUsername("bad");
+        user.setPhoneNumber("0550000000");
         user.setRole(UserRole.DENTIST);
-        when(userRepository.findByUsername("bad")).thenReturn(Optional.of(user));
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
         when(authenticationManager.authenticate(any()))
                 .thenThrow(new BadCredentialsException("bad credentials"));
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"bad\",\"password\":\"bad\"}"))
+                        .content("{\"phoneNumber\":\"0550000000\",\"password\":\"bad\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.fieldErrors.password").value("Mot de passe invalide"));
     }
 
     @Test
-    void registerWithDuplicateUsernameReturns400AndErrorKey() throws Exception {
-        User existing = new User();
-        existing.setUsername("already");
-        existing.setRole(UserRole.DENTIST);
-        when(userRepository.findByUsername("already")).thenReturn(Optional.of(existing));
+    void loginWithTwoFactorEnabledReturnsChallengeToken() throws Exception {
+        User user = new User();
+        user.setPhoneNumber("0550000000");
+        user.setRole(UserRole.DENTIST);
+        user.setLoginTwoFactorEnabled(true);
+
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any())).thenReturn(null);
+        when(jwtUtil.generateLoginTwoFactorChallengeToken(anyString(), anyLong())).thenReturn("challenge");
+        when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0, User.class));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phoneNumber\":\"0550000000\",\"password\":\"GoodPass1!\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.twoFactorRequired").value(true))
+                .andExpect(jsonPath("$.challengeToken").value("challenge"));
+
+        verify(phoneVerificationService).sendVerificationCode(anyString());
+    }
+
+    @Test
+    void verifyTwoFactorCompletesLoginAndReturnsAccessToken() throws Exception {
+        User user = new User();
+        user.setId(1L);
+        user.setPhoneNumber("0550000000");
+        user.setRole(UserRole.DENTIST);
+        user.setLoginTwoFactorEnabled(true);
+
+        when(jwtUtil.extractPhoneNumberFromLoginTwoFactorChallenge(anyString())).thenReturn("0550000000");
+        when(userRepository.findFirstByPhoneNumberInOrderByIdAsc(any())).thenReturn(Optional.of(user));
+        when(phoneVerificationService.checkVerificationCode(anyString(), anyString())).thenReturn(true);
+        when(jwtUtil.generateAccessToken(any())).thenReturn("access");
+        when(jwtUtil.generateRefreshToken(anyString(), anyLong())).thenReturn("refresh");
+
+        mockMvc.perform(post("/auth/login/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"challengeToken\":\"challenge\",\"code\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("access"));
+    }
+
+    @Test
+    void registerWithDuplicatePhoneReturns400AndErrorKey() throws Exception {
+        when(userRepository.existsByPhoneNumberIn(any())).thenReturn(true);
 
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                                 {
-                                  "username":"already",
                                   "password":"StrongPass1!",
                                   "firstname":"A",
                                   "lastname":"B",
@@ -115,7 +157,7 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.fieldErrors.username").value("Ce nom d'utilisateur est deja utilise"));
+                .andExpect(jsonPath("$.fieldErrors.phoneNumber").value("Ce numero de telephone est deja utilise"));
     }
 
     @Test
@@ -160,8 +202,7 @@ class AuthControllerTest {
         ReflectionTestUtils.setField(controller, "refreshTokenMs", 86400000L);
         ReflectionTestUtils.setField(controller, "bypassPhoneVerificationLocal", true);
 
-        when(userRepository.findByUsername(anyString())).thenReturn(Optional.empty());
-        when(userRepository.existsByPhoneNumber(anyString())).thenReturn(false);
+        when(userRepository.existsByPhoneNumberIn(any())).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("hashed");
         when(jwtUtil.generateAccessToken(any())).thenReturn("access");
         when(jwtUtil.generateRefreshToken(anyString(), anyLong())).thenReturn("refresh");
@@ -186,7 +227,6 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "username":"newuser",
                                   "password":"StrongPass1!",
                                   "firstname":"A",
                                   "lastname":"B",

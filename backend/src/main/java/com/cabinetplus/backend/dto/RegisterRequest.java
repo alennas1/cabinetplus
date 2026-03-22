@@ -5,10 +5,6 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
-        @NotBlank(message = "Le nom d'utilisateur est obligatoire")
-        @Size(min = 3, max = 20, message = "Le nom d'utilisateur doit contenir entre 3 et 20 caracteres")
-        String username,
-
         @NotBlank(message = "Le mot de passe est obligatoire")
         @Pattern(
                 regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,100}$",

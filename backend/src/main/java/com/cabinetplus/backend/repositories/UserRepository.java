@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.repositories;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,12 +14,12 @@ import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.User;
 
 public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByUsername(String username);
     Optional<User> findFirstByPhoneNumberOrderByIdAsc(String phoneNumber);
-    boolean existsByUsernameIgnoreCase(String username);
-    boolean existsByUsernameIgnoreCaseAndIdNot(String username, Long id);
+    Optional<User> findFirstByPhoneNumberInOrderByIdAsc(Collection<String> phoneNumbers);
     boolean existsByPhoneNumber(String phoneNumber);
     boolean existsByPhoneNumberAndIdNot(String phoneNumber, Long id);
+    boolean existsByPhoneNumberIn(Collection<String> phoneNumbers);
+    boolean existsByPhoneNumberInAndIdNot(Collection<String> phoneNumbers, Long id);
     List<User> findByPlanStatus(UserPlanStatus planStatus);
     List<User> findByRole(UserRole role);
     List<User> findByOwnerDentist(User ownerDentist);

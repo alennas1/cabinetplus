@@ -1,6 +1,8 @@
 package com.cabinetplus.backend.controllers;
 
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Plan;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +18,11 @@ import java.util.List;
 public class PlanClientController {
 
     private final PlanService planService;
+    private final AuditService auditService;
 
-    public PlanClientController(PlanService planService) {
+    public PlanClientController(PlanService planService, AuditService auditService) {
         this.planService = planService;
+        this.auditService = auditService;
     }
 
     /**
@@ -27,12 +31,17 @@ public class PlanClientController {
      */
     @GetMapping
     public ResponseEntity<List<Plan>> getAllActivePlans() {
+        auditService.logSuccess(AuditEventType.PLAN_READ, "PLAN", null, "Plans consultés");
         return ResponseEntity.ok(planService.getAllActivePlans());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Plan> getPlanById(@PathVariable Long id) {
         return planService.findById(id)
+                .map(plan -> {
+                    auditService.logSuccess(AuditEventType.PLAN_READ, "PLAN", String.valueOf(plan.getId()), "Plan consulté");
+                    return plan;
+                })
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new NotFoundException("Plan introuvable"));
     }

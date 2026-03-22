@@ -16,7 +16,7 @@ import {
 
 const GestionCabinetPinGuard = () => {
   const { user } = useSelector((state) => state.auth);
-  const userKey = user?.id ?? user?.username;
+  const userKey = user?.id ?? user?.phoneNumber;
   const location = useLocation();
   const navigate = useNavigate();
   const cachedEnabled = getCachedGestionCabinetPinEnabled(userKey);

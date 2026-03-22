@@ -9,7 +9,9 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.FinanceGraphResponseDTO;
 import com.cabinetplus.backend.dto.FinanceCardsResponseDTO;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.FinanceService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -22,6 +24,7 @@ public class FinanceController {
 
     private final FinanceService financeService;
     private final UserService userService;
+    private final AuditService auditService;
 
     /**
      * Graph data endpoint
@@ -40,6 +43,12 @@ public class FinanceController {
             @RequestParam String timeframe // daily | monthly | yearly
     ) {
         User dentist = getClinicUser(principal);
+        auditService.logSuccess(
+                AuditEventType.FINANCE_READ,
+                "USER",
+                dentist != null && dentist.getId() != null ? String.valueOf(dentist.getId()) : null,
+                "Finance graph consulte"
+        );
 
         FinanceGraphResponseDTO graphData = financeService.getFinanceGraph(dentist, timeframe);
         return ResponseEntity.ok(graphData);
@@ -62,13 +71,19 @@ public class FinanceController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
         User dentist = getClinicUser(principal);
+        auditService.logSuccess(
+                AuditEventType.FINANCE_READ,
+                "USER",
+                dentist != null && dentist.getId() != null ? String.valueOf(dentist.getId()) : null,
+                "Finance cards consulte"
+        );
 
         FinanceCardsResponseDTO cardsData = financeService.getFinanceCards(dentist, timeframe, startDate, endDate);
         return ResponseEntity.ok(cardsData);
     }
 
     private User getClinicUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }

@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 
 import com.cabinetplus.backend.dto.PrescriptionMedicationRequest;
 import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.Medication;
 import com.cabinetplus.backend.models.Prescription;
@@ -24,6 +25,7 @@ import com.cabinetplus.backend.models.PrescriptionMedication;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.MedicationRepository;
 import com.cabinetplus.backend.repositories.PrescriptionRepository;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PrescriptionMedicationService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -40,19 +42,22 @@ public class PrescriptionMedicationController {
     private final MedicationRepository medicationRepository;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
     public PrescriptionMedicationController(
             PrescriptionMedicationService prescriptionMedicationService,
             PrescriptionRepository prescriptionRepository,
             MedicationRepository medicationRepository,
             UserService userService,
-            PublicIdResolutionService publicIdResolutionService
+            PublicIdResolutionService publicIdResolutionService,
+            AuditService auditService
     ) {
         this.prescriptionMedicationService = prescriptionMedicationService;
         this.prescriptionRepository = prescriptionRepository;
         this.medicationRepository = medicationRepository;
         this.userService = userService;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.auditService = auditService;
     }
 
     // ===================== GET =====================
@@ -63,6 +68,12 @@ public class PrescriptionMedicationController {
         if (currentUser.getRole() != UserRole.ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
         }
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_READ,
+                "PRESCRIPTION_MEDICATION",
+                null,
+                "Lignes ordonnance consultees (admin)"
+        );
         return prescriptionMedicationService.findAll();
     }
 
@@ -71,13 +82,27 @@ public class PrescriptionMedicationController {
     public PrescriptionMedication getPrescriptionMedicationById(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
         if (currentUser.getRole() == UserRole.ADMIN) {
-            return prescriptionMedicationService.findById(id)
+            PrescriptionMedication pm = prescriptionMedicationService.findById(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ligne introuvable"));
+            auditService.logSuccess(
+                    AuditEventType.PRESCRIPTION_READ,
+                    "PATIENT",
+                    pm.getPrescription() != null && pm.getPrescription().getPatient() != null ? String.valueOf(pm.getPrescription().getPatient().getId()) : null,
+                    "Ligne ordonnance consultee"
+            );
+            return pm;
         }
 
         User clinicOwner = userService.resolveClinicOwner(currentUser);
-        return prescriptionMedicationService.findByIdForClinic(id, clinicOwner)
+        PrescriptionMedication pm = prescriptionMedicationService.findByIdForClinic(id, clinicOwner)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ligne introuvable"));
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_READ,
+                "PATIENT",
+                pm.getPrescription() != null && pm.getPrescription().getPatient() != null ? String.valueOf(pm.getPrescription().getPatient().getId()) : null,
+                "Ligne ordonnance consultee"
+        );
+        return pm;
     }
 
     @GetMapping("/prescription/{prescriptionId}")
@@ -85,6 +110,12 @@ public class PrescriptionMedicationController {
     public List<PrescriptionMedication> getByPrescription(@PathVariable String prescriptionId, Principal principal) {
         User currentUser = getCurrentUser(principal);
         Prescription prescription = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(prescriptionId, currentUser);
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_READ,
+                "PATIENT",
+                prescription != null && prescription.getPatient() != null ? String.valueOf(prescription.getPatient().getId()) : null,
+                "Lignes ordonnance consultees"
+        );
         return prescriptionMedicationService.findByPrescription(prescription);
     }
 
@@ -113,7 +144,14 @@ public class PrescriptionMedicationController {
         med.setDuration(trimToNull(request.duration()));
         med.setInstructions(trimToNull(request.instructions()));
 
-        return prescriptionMedicationService.save(med);
+        PrescriptionMedication saved = prescriptionMedicationService.save(med);
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_UPDATE,
+                "PATIENT",
+                prescription.getPatient() != null ? String.valueOf(prescription.getPatient().getId()) : null,
+                "Médicament ajouté à une ordonnance"
+        );
+        return saved;
     }
 
     // ===================== PUT =====================
@@ -152,7 +190,14 @@ public class PrescriptionMedicationController {
         existing.setDuration(trimToNull(request.duration()));
         existing.setInstructions(trimToNull(request.instructions()));
 
-        return prescriptionMedicationService.save(existing);
+        PrescriptionMedication saved = prescriptionMedicationService.save(existing);
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_UPDATE,
+                "PATIENT",
+                saved.getPrescription() != null && saved.getPrescription().getPatient() != null ? String.valueOf(saved.getPrescription().getPatient().getId()) : null,
+                "Médicament modifié dans une ordonnance"
+        );
+        return saved;
     }
 
     // ===================== DELETE =====================
@@ -161,15 +206,31 @@ public class PrescriptionMedicationController {
     public void deletePrescriptionMedication(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
         if (currentUser.getRole() == UserRole.ADMIN) {
+            PrescriptionMedication existing = prescriptionMedicationService.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ligne introuvable"));
             prescriptionMedicationService.delete(id);
+            auditService.logSuccess(
+                    AuditEventType.PRESCRIPTION_UPDATE,
+                    "PATIENT",
+                    existing.getPrescription() != null && existing.getPrescription().getPatient() != null ? String.valueOf(existing.getPrescription().getPatient().getId()) : null,
+                    "Médicament supprimé d'une ordonnance"
+            );
             return;
         }
 
         User clinicOwner = userService.resolveClinicOwner(currentUser);
+        PrescriptionMedication existing = prescriptionMedicationService.findByIdForClinic(id, clinicOwner)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ligne introuvable"));
         boolean deleted = prescriptionMedicationService.deleteForClinic(id, clinicOwner);
         if (!deleted) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ligne introuvable");
         }
+        auditService.logSuccess(
+                AuditEventType.PRESCRIPTION_UPDATE,
+                "PATIENT",
+                existing.getPrescription() != null && existing.getPrescription().getPatient() != null ? String.valueOf(existing.getPrescription().getPatient().getId()) : null,
+                "Médicament supprimé d'une ordonnance"
+        );
     }
 
     private String trimToNull(String value) {
@@ -179,7 +240,7 @@ public class PrescriptionMedicationController {
     }
 
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        return userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
     }
 

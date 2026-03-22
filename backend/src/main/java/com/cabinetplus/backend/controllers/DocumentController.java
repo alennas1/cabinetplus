@@ -44,6 +44,12 @@ public class DocumentController {
     public List<DocumentResponseDTO> getDocumentsByPatient(@PathVariable String patientId, Principal principal) {
         User ownerDentist = getClinicUser(principal);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+        auditService.logSuccess(
+                AuditEventType.DOCUMENT_READ,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
+                "Documents consultés"
+        );
         return documentService.findByPatientId(internalPatientId, ownerDentist);
     }
 
@@ -60,8 +66,8 @@ public class DocumentController {
         DocumentResponseDTO saved = documentService.store(internalPatientId, title, file, ownerDentist, currentUser);
         auditService.logSuccess(
                 AuditEventType.DOCUMENT_CREATE,
-                "DOCUMENT",
-                saved != null && saved.id() != null ? String.valueOf(saved.id()) : null,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
                 "Document ajouté"
         );
         return saved;
@@ -74,14 +80,15 @@ public class DocumentController {
             Principal principal
     ) {
         User ownerDentist = getClinicUser(principal);
+        Long internalPatientId = documentService.getDocumentPatientId(id, ownerDentist);
         DocumentResponseDTO metadata = documentService.getDocumentMetadata(id, ownerDentist);
         Resource resource = documentService.getDocumentResource(id, ownerDentist);
         MediaType mediaType = documentService.resolveMediaType(id, ownerDentist);
 
         auditService.logSuccess(
                 AuditEventType.DOCUMENT_READ,
-                "DOCUMENT",
-                String.valueOf(id),
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
                 download ? "Document telecharge" : "Document consulte"
         );
 
@@ -99,17 +106,19 @@ public class DocumentController {
 
     @DeleteMapping("/{id}")
     public void deleteDocument(@PathVariable Long id, Principal principal) {
-        documentService.delete(id, getClinicUser(principal));
+        User ownerDentist = getClinicUser(principal);
+        Long internalPatientId = documentService.getDocumentPatientId(id, ownerDentist);
+        documentService.delete(id, ownerDentist);
         auditService.logSuccess(
                 AuditEventType.DOCUMENT_DELETE,
-                "DOCUMENT",
-                String.valueOf(id),
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
                 "Document supprimé"
         );
     }
 
     private User getCurrentUser(Principal principal) {
-        return userService.findByUsername(principal.getName())
+        return userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 

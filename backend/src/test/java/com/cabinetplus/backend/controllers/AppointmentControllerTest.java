@@ -65,9 +65,9 @@ class AppointmentControllerTest {
 
     @Test
     void getAllAppointmentsWhenUserMissingReturns404Contract() throws Exception {
-        when(userService.findByUsername("missing")).thenReturn(Optional.empty());
+        when(userService.findByPhoneNumber("0550000000")).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/appointments").with(userPrincipal("missing")))
+        mockMvc.perform(get("/api/appointments").with(userPrincipal("0550000000")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
@@ -77,15 +77,15 @@ class AppointmentControllerTest {
     void createAppointmentWhenOverlappingReturns409Contract() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         when(appointmentService.createAppointment(any(), eq(current)))
                 .thenThrow(new ConflictException("Ce rendez-vous chevauche un autre rendez-vous"));
 
         mockMvc.perform(post("/api/appointments")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -105,14 +105,14 @@ class AppointmentControllerTest {
     void createAppointmentWhenPatientMissingReturns404Contract() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
         when(appointmentService.createAppointment(any(), eq(current)))
                 .thenThrow(new NotFoundException("Patient introuvable"));
 
         mockMvc.perform(post("/api/appointments")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -134,8 +134,8 @@ class AppointmentControllerTest {
         current.setId(7L);
         current.setFirstname("John");
         current.setLastname("Doe");
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         PatientDto patientDto = new PatientDto(5L, "Ali", "Ben", 32, "Homme", "0550000000", LocalDateTime.now(), 0L, 0.0, false, false, false);
@@ -150,7 +150,7 @@ class AppointmentControllerTest {
         when(appointmentService.createAppointment(any(), eq(current))).thenReturn(saved);
 
         mockMvc.perform(post("/api/appointments")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -169,9 +169,9 @@ class AppointmentControllerTest {
 
     @Test
     void statsWhenUserMissingReturns404Contract() throws Exception {
-        when(userService.findByUsername("missing")).thenReturn(Optional.empty());
+        when(userService.findByPhoneNumber("0550000000")).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/appointments/stats/completed-today").with(userPrincipal("missing")))
+        mockMvc.perform(get("/api/appointments/stats/completed-today").with(userPrincipal("0550000000")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.fieldErrors._").value("Utilisateur introuvable"));
@@ -181,12 +181,12 @@ class AppointmentControllerTest {
     void createAppointmentWhenMissingFieldsReturns400WithFieldErrors() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         mockMvc.perform(post("/api/appointments")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())

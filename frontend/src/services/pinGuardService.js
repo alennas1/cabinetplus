@@ -18,8 +18,8 @@ export const getGestionCabinetPinStatus = async () => {
   return data; // { enabled }
 };
 
-export const enableGestionCabinetPin = async (pin) => {
-  const { data } = await api.post("/api/security/gestion-cabinet-pin", { pin });
+export const enableGestionCabinetPin = async (pin, password) => {
+  const { data } = await api.post("/api/security/gestion-cabinet-pin", { pin, password });
   notifyPinStatusChanged();
   return data;
 };

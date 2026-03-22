@@ -2,9 +2,11 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.JustificationContentRequestDTO;
 import com.cabinetplus.backend.dto.JustificationContentResponseDTO;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.exceptions.NotFoundException;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.JustificationContentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -23,17 +25,20 @@ public class JustificationContentController {
     private final JustificationContentService service;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
     public JustificationContentController(JustificationContentService service,
                                           UserService userService,
-                                          PublicIdResolutionService publicIdResolutionService) {
+                                          PublicIdResolutionService publicIdResolutionService,
+                                          AuditService auditService) {
         this.service = service;
         this.userService = userService;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.auditService = auditService;
     }
 
     private User getPractitioner(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new NotFoundException("Praticien introuvable"));
         return userService.resolveClinicOwner(user);
     }
@@ -53,6 +58,12 @@ public class JustificationContentController {
         entity.setContent(dto.getContent());
 
         JustificationContent saved = service.save(entity, practitioner);
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_TEMPLATE_CREATE,
+                "JUSTIFICATION_TEMPLATE",
+                saved != null && saved.getId() != null ? String.valueOf(saved.getId()) : null,
+                "Modèle justificatif créé"
+        );
 
         return ResponseEntity.ok(mapToResponse(saved));
     }
@@ -64,6 +75,12 @@ public class JustificationContentController {
     public ResponseEntity<List<JustificationContentResponseDTO>> getAll(Principal principal) {
 
         User practitioner = getPractitioner(principal);
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_TEMPLATE_READ,
+                "JUSTIFICATION_TEMPLATE",
+                null,
+                "Modeles justificatif consultes"
+        );
 
         List<JustificationContentResponseDTO> response =
                 service.findByPractitioner(practitioner)
@@ -85,6 +102,12 @@ public class JustificationContentController {
         User practitioner = getPractitioner(principal);
 
         JustificationContent entity = publicIdResolutionService.requireJustificationTemplateForPractitioner(id, practitioner);
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_TEMPLATE_READ,
+                "JUSTIFICATION_TEMPLATE",
+                entity != null && entity.getId() != null ? String.valueOf(entity.getId()) : null,
+                "Modele justificatif consulte"
+        );
         return ResponseEntity.ok(mapToResponse(entity));
     }
 
@@ -106,6 +129,12 @@ public class JustificationContentController {
 
         JustificationContent updated =
                 service.update(internalId, updatedEntity, practitioner);
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_TEMPLATE_UPDATE,
+                "JUSTIFICATION_TEMPLATE",
+                internalId != null ? String.valueOf(internalId) : null,
+                "Modèle justificatif modifié"
+        );
 
         return ResponseEntity.ok(mapToResponse(updated));
     }
@@ -125,6 +154,12 @@ public class JustificationContentController {
         if (!deleted) {
             throw new NotFoundException("Modele introuvable");
         }
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_TEMPLATE_DELETE,
+                "JUSTIFICATION_TEMPLATE",
+                internalId != null ? String.valueOf(internalId) : null,
+                "Modèle justificatif supprimé"
+        );
         return ResponseEntity.noContent().build();
     }
 

@@ -33,6 +33,7 @@ import "./Preference.css";
 const Preference = ({ showWorkingHours = true }) => {
   const location = useLocation();
   const showBackButton = location.pathname.startsWith("/settings/");
+  const [activeTab, setActiveTab] = useState(showWorkingHours ? "planning" : "heures");
   const initialPreference = useMemo(() => getWorkingHoursPreference(), []);
   const [mode, setMode] = useState(initialPreference.mode);
   const [startTime, setStartTime] = useState(initialPreference.startTime);
@@ -179,9 +180,49 @@ const Preference = ({ showWorkingHours = true }) => {
         </button>
       </div>
 
+      <div className="tab-buttons">
+        {showWorkingHours ? (
+          <button
+            type="button"
+            className={activeTab === "planning" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("planning")}
+          >
+            Planning
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className={activeTab === "heures" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("heures")}
+        >
+          Heures
+        </button>
+        <button
+          type="button"
+          className={activeTab === "dates" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("dates")}
+        >
+          Dates
+        </button>
+        <button
+          type="button"
+          className={activeTab === "nombres" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("nombres")}
+        >
+          Nombres
+        </button>
+        <button
+          type="button"
+          className={activeTab === "devise" ? "tab-btn active" : "tab-btn"}
+          onClick={() => setActiveTab("devise")}
+        >
+          Devise
+        </button>
+      </div>
+
       <div className="preference-section">
         <div className="preference-card preference-card-main">
-          {showWorkingHours ? (
+          {showWorkingHours && activeTab === "planning" ? (
             <div className="preference-block">
               <div className="preference-card-header">
                 <div>
@@ -245,6 +286,7 @@ const Preference = ({ showWorkingHours = true }) => {
             </div>
           ) : null}
 
+          {activeTab === "heures" ? (
           <div className="preference-block">
               <div className="preference-card-header">
                 <div>
@@ -285,7 +327,9 @@ const Preference = ({ showWorkingHours = true }) => {
                 </button>
               </div>
             </div>
+          ) : null}
 
+            {activeTab === "dates" ? (
             <div className="preference-block">
             <div className="preference-card-header">
               <div>
@@ -341,7 +385,9 @@ const Preference = ({ showWorkingHours = true }) => {
                 </button>
               </div>
             </div>
+            ) : null}
 
+            {activeTab === "nombres" ? (
             <div className="preference-block">
             <div className="preference-card-header">
               <div>
@@ -397,11 +443,13 @@ const Preference = ({ showWorkingHours = true }) => {
                 </button>
               </div>
             </div>
+            ) : null}
 
+            {activeTab === "devise" ? (
             <div className="preference-block">
             <div className="preference-card-header">
               <div>
-                <h2>Affichage de la monnaie</h2>
+                <h2>Affichage de la devise</h2>
                 <p>Choisissez le libellé de la devise affichée.</p>
                 </div>
               </div>
@@ -438,6 +486,7 @@ const Preference = ({ showWorkingHours = true }) => {
                 </button>
               </div>
             </div>
+            ) : null}
 
         </div>
       </div>

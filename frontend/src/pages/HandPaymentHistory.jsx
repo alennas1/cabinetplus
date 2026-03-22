@@ -558,18 +558,6 @@ const HandPaymentHistory = () => {
                       </button>
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    className="hp-plan-secondary"
-                    disabled={submittingType !== ""}
-                    onClick={() => {
-                      setShowUpgradeConfirmModal(false);
-                      setShowUpgradeModal(true);
-                    }}
-                  >
-                    Choisir un autre plan
-                  </button>
                 </>
               }
               buttonVariant="primary"

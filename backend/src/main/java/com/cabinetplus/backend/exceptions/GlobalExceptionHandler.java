@@ -161,9 +161,6 @@ public class GlobalExceptionHandler {
             return badRequestFieldErrors(Map.of("_", "Reference invalide"));
         }
 
-        if (normalized.contains("username")) {
-            return badRequestFieldErrors(Map.of("username", "Ce nom d'utilisateur est deja utilise"));
-        }
         if (normalized.contains("email")) {
             return badRequestFieldErrors(Map.of("email", "Cet email est deja utilise"));
         }
@@ -419,6 +416,8 @@ public class GlobalExceptionHandler {
         if (c.contains("patients_created_at")) return Map.of("_", "Patient incomplet: date de creation manquante");
         if (c.contains("patients_created_by")) return Map.of("_", "Utilisateur invalide");
 
+        if (c.contains("users_phone_number")) return Map.of("phoneNumber", "Ce numero de telephone est deja utilise");
+
         if (c.contains("appointments_end_after_start")) {
             return Map.of("dateTimeEnd", "La date de fin doit etre apres la date de debut");
         }
@@ -543,7 +542,6 @@ public class GlobalExceptionHandler {
             return "Ce rendez-vous chevauche un autre rendez-vous";
         }
         if (n.contains("payment is already processed")) return "Ce paiement est deja traite";
-        if (n.contains("username already exists")) return "Ce nom d'utilisateur est deja utilise";
         if (n.contains("email already exists")) return "Cet email est deja utilise";
         if (n.contains("limite de patients atteinte")) return "Limite de patients atteinte pour votre plan";
         if (n.contains("limite de dentistes atteinte")) return "Limite de dentistes atteinte pour votre plan";

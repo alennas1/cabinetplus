@@ -73,6 +73,12 @@ public class PatientController {
     @GetMapping
     public List<PatientDto> getAllPatients(Principal principal) {
         User currentUser = getClinicUser(principal);
+        auditService.logSuccess(
+                AuditEventType.PATIENT_READ,
+                "PATIENT",
+                null,
+                "Patients consultes"
+        );
 
         List<Patient> patients = patientRepository.findByCreatedByAndArchivedAtIsNull(currentUser);
         List<Long> patientIds = patients.stream().map(Patient::getId).toList();
@@ -89,6 +95,12 @@ public class PatientController {
     @GetMapping("/archived")
     public List<PatientDto> getArchivedPatients(Principal principal) {
         User currentUser = getClinicUser(principal);
+        auditService.logSuccess(
+                AuditEventType.PATIENT_READ,
+                "PATIENT",
+                null,
+                "Patients archives consultes"
+        );
 
         List<Patient> patients = patientRepository.findByCreatedByAndArchivedAtIsNotNull(currentUser);
         List<Long> patientIds = patients.stream().map(Patient::getId).toList();
@@ -244,6 +256,12 @@ public class PatientController {
         if (patient.getPublicId() == null) {
             throw new IllegalStateException("Patient publicId is missing");
         }
+        auditService.logSuccess(
+                AuditEventType.PATIENT_PDF_LINK_CREATE,
+                "PATIENT",
+                patient.getId() != null ? String.valueOf(patient.getId()) : null,
+                "Lien public fiche patient genere"
+        );
 
         String token = jwtUtil.generatePublicPatientFichePdfToken(patient.getPublicId(), clinicUser.getId(), publicPdfLinkTtlSeconds);
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(publicPdfLinkTtlSeconds);
@@ -257,7 +275,7 @@ public class PatientController {
     }
 
     private User getClinicUser(Principal principal) {
-        User currentUser = userService.findByUsername(principal.getName())
+        User currentUser = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(currentUser);
     }
@@ -295,4 +313,3 @@ public class PatientController {
         );
     }
 }
-

@@ -16,6 +16,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findAllByDentist(User dentist);
     Optional<Employee> findByIdAndDentist(Long id, User dentist);
     Optional<Employee> findByPublicIdAndDentist(UUID publicId, User dentist);
+    Optional<Employee> findByUser(User user);
 
     @Query("""
             select count(e) from Employee e

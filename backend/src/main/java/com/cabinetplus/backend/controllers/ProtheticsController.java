@@ -33,6 +33,12 @@ public class ProtheticsController {
             Principal principal) {
         
         User user = getCurrentUser(principal);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_READ,
+                "PROTHESIS",
+                null,
+                status != null && !status.isEmpty() ? "Protheses consultees (filtre statut)" : "Protheses consultees"
+        );
         List<Prothesis> results;
 
         if (status != null && !status.isEmpty()) {
@@ -124,7 +130,7 @@ public class ProtheticsController {
     }
 
     private User getCurrentUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }
@@ -159,6 +165,12 @@ public ResponseEntity<List<ProthesisResponse>> getByPatient(
     
     User user = getCurrentUser(principal);
     Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, user).getId();
+    auditService.logSuccess(
+            AuditEventType.PROTHESIS_READ,
+            "PATIENT",
+            internalPatientId != null ? String.valueOf(internalPatientId) : null,
+            "Protheses patient consultees"
+    );
     List<Prothesis> results = service.findByPatientAndPractitioner(internalPatientId, user);
 
     return ResponseEntity.ok(results.stream()

@@ -193,8 +193,8 @@ const AppContent = () => {
   const getRedirectPath = (user) => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
+    if (!user.phoneVerified) return "/verify";
     if (getClinicRole(user) === CLINIC_ROLES.DENTIST) {
-      if (!user.phoneVerified) return "/verify";
       const isPlanActive = isPlanActiveForAccess(user);
       if (!isPlanActive && user.planStatus === "WAITING") return "/waiting";
       if (!isPlanActive) return "/plan";

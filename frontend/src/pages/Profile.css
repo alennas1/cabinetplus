@@ -64,6 +64,69 @@
   box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
+.profile-field-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-container .action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.profile-container .action-btn:disabled {
+  cursor: not-allowed;
+}
+
+.profile-container .action-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.profile-container .action-btn.edit {
+  border-color: #facc15;
+  background: #fef9c3;
+  color: #ca8a04;
+}
+.profile-container .action-btn.edit:hover {
+  background: #fef08a;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.profile-container .action-btn.complete {
+  border-color: #34d399;
+  background: #ecfdf5;
+  color: #059669;
+}
+.profile-container .action-btn.complete:hover {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.profile-container .action-btn.cancel {
+  border-color: #f87171;
+  background: #fef2f2;
+  color: #dc2626;
+}
+.profile-container .action-btn.cancel:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
 .icon.action {
   margin-left: 8px;
   cursor: pointer;
@@ -89,30 +152,8 @@
   color: #ef4444;
 }
 
-.profile-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #dbeafe;
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+.profile-phone-btn {
   white-space: nowrap;
-}
-
-.profile-action-btn:hover {
-  background: #dbeafe;
-  border-color: #bfdbfe;
-  transform: translateY(-1px);
-}
-
-.profile-action-btn:active {
-  transform: translateY(0);
 }
 
 .profile-phone-modal {

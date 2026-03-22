@@ -18,29 +18,32 @@ import com.cabinetplus.backend.dto.AuditLogResponse;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
 class AuditControllerTest {
 
     private UserService userService;
     private AuditService auditService;
+    private PublicIdResolutionService publicIdResolutionService;
     private AuditController controller;
 
     @BeforeEach
     void setUp() {
         userService = mock(UserService.class);
         auditService = mock(AuditService.class);
-        controller = new AuditController(auditService, userService);
+        publicIdResolutionService = mock(PublicIdResolutionService.class);
+        controller = new AuditController(auditService, userService, publicIdResolutionService);
     }
 
     @Test
     void myLogsReturnsConnectedUserLogs() {
         User user = new User();
         user.setId(9L);
-        user.setUsername("dentist");
+        user.setPhoneNumber("0551111111");
         user.setRole(UserRole.DENTIST);
         UserDetails principal = org.springframework.security.core.userdetails.User
-                .withUsername("dentist")
+                .withUsername("0551111111")
                 .password("x")
                 .authorities("ROLE_DENTIST")
                 .build();
@@ -59,7 +62,7 @@ class AuditControllerTest {
                 "Alger, DZ"
         );
 
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
         when(auditService.getMyLogs(user)).thenReturn(List.of(entry));
 
         List<AuditLogResponse> result = controller.myLogs(principal);
@@ -71,15 +74,15 @@ class AuditControllerTest {
     void securityLogsForDentistReturnsForbidden() {
         User user = new User();
         user.setId(10L);
-        user.setUsername("dentist");
+        user.setPhoneNumber("0551111111");
         user.setRole(UserRole.DENTIST);
         UserDetails principal = org.springframework.security.core.userdetails.User
-                .withUsername("dentist")
+                .withUsername("0551111111")
                 .password("x")
                 .authorities("ROLE_DENTIST")
                 .build();
 
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.securityLogs(principal));
         assertEquals(403, ex.getStatusCode().value());
@@ -89,15 +92,15 @@ class AuditControllerTest {
     void securityLogsForAdminReturnsSecurityEntries() {
         User user = new User();
         user.setId(1L);
-        user.setUsername("admin");
+        user.setPhoneNumber("0552222222");
         user.setRole(UserRole.ADMIN);
         UserDetails principal = org.springframework.security.core.userdetails.User
-                .withUsername("admin")
+                .withUsername("0552222222")
                 .password("x")
                 .authorities("ROLE_ADMIN")
                 .build();
 
-        when(userService.findByUsername("admin")).thenReturn(Optional.of(user));
+        when(userService.findByPhoneNumber("0552222222")).thenReturn(Optional.of(user));
         when(auditService.getSecurityLogsForAdmin()).thenReturn(List.of(
                 new AuditLogResponse(
                         LocalDateTime.now(),

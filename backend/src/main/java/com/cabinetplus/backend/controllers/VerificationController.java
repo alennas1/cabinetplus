@@ -19,8 +19,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.OtpCodeRequest;
+import com.cabinetplus.backend.dto.EmployeePhoneVerificationSendRequest;
 import com.cabinetplus.backend.dto.PhoneChangeConfirmRequest;
 import com.cabinetplus.backend.dto.PhoneChangeSendRequest;
+import com.cabinetplus.backend.enums.AuditEventType;
+import com.cabinetplus.backend.enums.ClinicAccessRole;
+import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.BadGatewayException;
 import com.cabinetplus.backend.exceptions.ForbiddenException;
@@ -28,8 +32,11 @@ import com.cabinetplus.backend.exceptions.InternalServerErrorException;
 import com.cabinetplus.backend.exceptions.TooManyRequestsException;
 import com.cabinetplus.backend.exceptions.UnauthorizedException;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
+import com.cabinetplus.backend.util.PhoneNumberUtil;
 import com.twilio.exception.ApiException;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,20 +49,26 @@ public class VerificationController {
     private static final Logger logger = LoggerFactory.getLogger(VerificationController.class);
 
     private final UserRepository userRepo;
+    private final EmployeeRepository employeeRepository;
     private final PhoneVerificationService phoneVerificationService;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
     private final boolean devProfile;
 
     @Value("${app.otp.cooldown-seconds:60}")
     private long otpCooldownSeconds;
 
     public VerificationController(UserRepository userRepo,
+                                  EmployeeRepository employeeRepository,
                                   PhoneVerificationService phoneVerificationService,
                                   PasswordEncoder passwordEncoder,
+                                  AuditService auditService,
                                   Environment environment) {
         this.userRepo = userRepo;
+        this.employeeRepository = employeeRepository;
         this.phoneVerificationService = phoneVerificationService;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
         this.devProfile = Arrays.asList(environment.getActiveProfiles()).contains("dev");
     }
 
@@ -86,12 +99,14 @@ public class VerificationController {
             if (devProfile && isLocalRequest(httpRequest)) {
                 user.setPhoneVerificationOtpLastSentAt(LocalDateTime.now());
                 userRepo.save(user);
+                auditService.logSuccessAsUser(user, AuditEventType.VERIFY_PHONE_OTP_SEND, "USER", String.valueOf(user.getId()), "OTP telephone envoye (dev)");
                 return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
             }
             logger.info("Attempting to send SMS OTP to: {}", maskPhone(formattedNumber));
             phoneVerificationService.sendVerificationCode(formattedNumber);
             user.setPhoneVerificationOtpLastSentAt(LocalDateTime.now());
             userRepo.save(user);
+            auditService.logSuccessAsUser(user, AuditEventType.VERIFY_PHONE_OTP_SEND, "USER", String.valueOf(user.getId()), "OTP telephone envoye");
 
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye au " + formattedNumber));
         } catch (IllegalStateException e) {
@@ -131,6 +146,78 @@ public class VerificationController {
             throw new BadGatewayException("Service SMS indisponible");
         } catch (Exception e) {
             logger.error("Error sending SMS OTP: ", e);
+            throw new InternalServerErrorException("Service SMS indisponible");
+        }
+    }
+
+    // ------------------- SEND EMPLOYEE PHONE OTP (OWNER ONLY) -------------------
+    @PostMapping("/employee/phone/send")
+    public ResponseEntity<?> sendEmployeePhoneOtp(
+            Principal principal,
+            @Valid @RequestBody EmployeePhoneVerificationSendRequest body,
+            HttpServletRequest httpRequest
+    ) {
+        User actor = requireUser(principal);
+
+        if (actor.getRole() != UserRole.ADMIN && !isClinicOwner(actor)) {
+            throw new ForbiddenException("Acces refuse");
+        }
+
+        String formattedNumber = formatPhoneNumber(body.phoneNumber());
+        if (formattedNumber == null || formattedNumber.isEmpty()) {
+            throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide ou manquant."));
+        }
+
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(body.phoneNumber());
+        if (!candidates.isEmpty() && userRepo.existsByPhoneNumberIn(candidates)) {
+            throw new BadRequestException(Map.of("phoneNumber", "Ce numero de telephone est deja utilise."));
+        }
+
+        try {
+            if (devProfile && isLocalRequest(httpRequest)) {
+                auditService.logSuccessAsUser(actor, AuditEventType.VERIFY_PHONE_OTP_SEND, "EMPLOYEE", null, "OTP employe envoye (dev)");
+                return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
+            }
+            phoneVerificationService.sendVerificationCode(formattedNumber);
+            auditService.logSuccessAsUser(actor, AuditEventType.VERIFY_PHONE_OTP_SEND, "EMPLOYEE", null, "OTP employe envoye");
+            return ResponseEntity.ok(Map.of("message", "Code SMS envoye"));
+        } catch (IllegalStateException e) {
+            logger.error("Twilio Verify not configured for employee phone verification send (to={})", maskPhone(formattedNumber), e);
+            throw new InternalServerErrorException(
+                    "Service SMS indisponible",
+                    Map.of("_", "Service SMS indisponible", "reason", "not_configured")
+            );
+        } catch (ApiException e) {
+            int status = e.getStatusCode();
+            Integer twilioCode = e.getCode();
+            logger.warn("Twilio Verify send failed for employee phone verification (to={}, status={})", maskPhone(formattedNumber), status, e);
+
+            if (twilioCode != null && twilioCode == 60410) {
+                throw new TooManyRequestsException(
+                        "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                        Map.of(
+                                "_", "Envoi SMS temporairement bloque. Reessayez plus tard.",
+                                "reason", "fraud_guard_blocked",
+                                "retryAfterSeconds", String.valueOf(60 * 60 * 12)
+                        )
+                );
+            }
+
+            if (status == 400) {
+                throw new BadRequestException(Map.of("phoneNumber", "Numero de telephone invalide"));
+            }
+            if (status == 429) {
+                throw new TooManyRequestsException("Trop de demandes. Reessayez plus tard.");
+            }
+            if (status == 401 || status == 403) {
+                throw new InternalServerErrorException("Configuration SMS invalide");
+            }
+            if (status == 404) {
+                throw new InternalServerErrorException("Configuration SMS invalide");
+            }
+            throw new BadGatewayException("Service SMS indisponible");
+        } catch (Exception e) {
+            logger.error("Error sending employee SMS OTP: ", e);
             throw new InternalServerErrorException("Service SMS indisponible");
         }
     }
@@ -185,6 +272,8 @@ public class VerificationController {
 
             user.setPhoneVerified(true);
             userRepo.save(user);
+            syncEmployeePhoneIfLinked(user);
+            auditService.logSuccessAsUser(user, AuditEventType.VERIFY_PHONE_OTP_CHECK, "USER", String.valueOf(user.getId()), "OTP telephone verifie");
             return ResponseEntity.ok(Map.of("verified", true));
         }
 
@@ -197,13 +286,6 @@ public class VerificationController {
                                                 @Valid @RequestBody PhoneChangeSendRequest body,
                                                 HttpServletRequest httpRequest) {
         User user = requireUser(principal);
-
-        // Only the owner dentist can change their phone number.
-        if (user.getRole() == com.cabinetplus.backend.enums.UserRole.DENTIST
-                && user.getClinicAccessRole() != null
-                && user.getClinicAccessRole() != com.cabinetplus.backend.enums.ClinicAccessRole.DENTIST) {
-            throw new ForbiddenException("Les comptes employes ne peuvent pas modifier le numero de telephone. Contactez le proprietaire du cabinet.");
-        }
 
         Long retryAfterSeconds = checkCooldown(user.getPhoneChangeOtpLastSentAt());
         if (retryAfterSeconds != null) {
@@ -233,11 +315,13 @@ public class VerificationController {
             if (devProfile && isLocalRequest(httpRequest)) {
                 user.setPhoneChangeOtpLastSentAt(LocalDateTime.now());
                 userRepo.save(user);
+                auditService.logSuccessAsUser(user, AuditEventType.PHONE_CHANGE_SEND, "USER", String.valueOf(user.getId()), "OTP changement telephone envoye (dev)");
                 return ResponseEntity.ok(Map.of("message", "Code SMS envoye (mode dev)"));
             }
             phoneVerificationService.sendVerificationCode(formattedNumber);
             user.setPhoneChangeOtpLastSentAt(LocalDateTime.now());
             userRepo.save(user);
+            auditService.logSuccessAsUser(user, AuditEventType.PHONE_CHANGE_SEND, "USER", String.valueOf(user.getId()), "OTP changement telephone envoye");
             return ResponseEntity.ok(Map.of("message", "Code SMS envoye"));
         } catch (IllegalStateException e) {
             logger.error("Twilio Verify not configured for phone change send (to={})", maskPhone(formattedNumber), e);
@@ -275,12 +359,6 @@ public class VerificationController {
                                                    @Valid @RequestBody PhoneChangeConfirmRequest body,
                                                    HttpServletRequest httpRequest) {
         User user = requireUser(principal);
-
-        if (user.getRole() == com.cabinetplus.backend.enums.UserRole.DENTIST
-                && user.getClinicAccessRole() != null
-                && user.getClinicAccessRole() != com.cabinetplus.backend.enums.ClinicAccessRole.DENTIST) {
-            throw new ForbiddenException("Les comptes employes ne peuvent pas modifier le numero de telephone. Contactez le proprietaire du cabinet.");
-        }
 
         String requestedNumber = body.phoneNumber();
         String code = body.code();
@@ -337,8 +415,19 @@ public class VerificationController {
         user.setPhoneNumber(normalizeStoredPhoneNumber(requestedNumber));
         user.setPhoneVerified(true);
         userRepo.save(user);
+        syncEmployeePhoneIfLinked(user);
+        auditService.logSuccessAsUser(user, AuditEventType.PHONE_CHANGE_CONFIRM, "USER", String.valueOf(user.getId()), "Telephone mis a jour");
 
         return ResponseEntity.ok(Map.of("updated", true));
+    }
+
+    private void syncEmployeePhoneIfLinked(User user) {
+        if (user == null) return;
+        employeeRepository.findByUser(user).ifPresent(employee -> {
+            employee.setPhone(user.getPhoneNumber());
+            employee.setUpdatedAt(LocalDateTime.now());
+            employeeRepository.save(employee);
+        });
     }
 
     // ------------------- HELPER METHODS -------------------
@@ -347,6 +436,14 @@ public class VerificationController {
         String digits = value.replaceAll("[^0-9]", "");
         if (digits.length() <= 4) return "****";
         return "****" + digits.substring(digits.length() - 4);
+    }
+
+    private boolean isClinicOwner(User user) {
+        if (user == null) return false;
+        if (user.getRole() != UserRole.DENTIST) return false;
+        if (user.getOwnerDentist() != null) return false;
+        ClinicAccessRole role = user.getClinicAccessRole();
+        return role == null || role == ClinicAccessRole.DENTIST;
     }
 
     private String formatPhoneNumber(String number) {
@@ -365,7 +462,11 @@ public class VerificationController {
             logger.warn("Principal is null - user not authenticated");
             throw new UnauthorizedException("Session expiree. Veuillez vous reconnecter.");
         }
-        return userRepo.findByUsername(principal.getName())
+        var candidates = com.cabinetplus.backend.util.PhoneNumberUtil.algeriaStoredCandidates(principal.getName());
+        if (candidates.isEmpty()) {
+            throw new UnauthorizedException("Session expiree. Veuillez vous reconnecter.");
+        }
+        return userRepo.findFirstByPhoneNumberInOrderByIdAsc(candidates)
                 .orElseThrow(() -> new UnauthorizedException("Session expiree. Veuillez vous reconnecter."));
     }
 

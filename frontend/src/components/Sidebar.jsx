@@ -40,7 +40,7 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
-  const userKey = user?.id ?? user?.username;
+  const userKey = user?.id ?? user?.phoneNumber;
   const clinicRole = getClinicRole(user);
   const canAccessAdminCore = [CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST].includes(clinicRole);
   const canAccessDashboard = canAccessAdminCore;
@@ -121,10 +121,14 @@ const Sidebar = () => {
 
   const handleEnablePin = async () => {
     if (pinSubmitting) return;
+    if (!password.trim()) {
+      toast.error("Entrez votre mot de passe");
+      return;
+    }
     if (!validatePin()) return;
     try {
       setPinSubmitting(true);
-      await enableGestionCabinetPin(newPin);
+      await enableGestionCabinetPin(newPin, password);
       setGestionCabinetUnlocked(userKey, 30);
       toast.success("Gestion cabinet verrouillée");
       setShowPinModal(false);
@@ -335,9 +339,32 @@ const Sidebar = () => {
             {pinMode === "enable" && (
               <>
                 <h2 className="text-lg font-semibold text-gray-800 mb-2">Verrouiller Gestion cabinet</h2>
-                <p className="text-gray-600 mb-5">Choisissez un PIN à 4 chiffres.</p>
+                <p className="text-gray-600 mb-5">Mot de passe + PIN à 4 chiffres.</p>
 
                 <div className="flex flex-col gap-4">
+                  <div>
+                    <div className="text-sm text-gray-700 mb-2">Mot de passe</div>
+                    <PasswordInput
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      inputClassName="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      placeholder="Mot de passe"
+                      disabled={pinSubmitting}
+                      autoFocus
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPinModal(false);
+                        navigate("/settings/security");
+                      }}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Mot de passe oublié ?
+                    </button>
+                  </div>
+
                   <div>
                     <div className="text-sm text-gray-700 mb-2">Nouveau PIN</div>
                     <div className="flex justify-center">
@@ -390,6 +417,16 @@ const Sidebar = () => {
                       autoFocus
                       autoComplete="current-password"
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPinModal(false);
+                        navigate("/settings/security");
+                      }}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Mot de passe oublié ?
+                    </button>
                   </div>
 
                   <div className="flex justify-between gap-3">
@@ -440,6 +477,16 @@ const Sidebar = () => {
                       autoFocus
                       autoComplete="current-password"
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPinModal(false);
+                        navigate("/settings/security");
+                      }}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Mot de passe oublié ?
+                    </button>
                   </div>
 
                   <div>

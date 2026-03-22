@@ -32,6 +32,7 @@ public class LaboratoryController {
     @GetMapping
     public ResponseEntity<List<LaboratoryResponse>> getAll(Principal principal) {
         User user = getCurrentUser(principal);
+        auditService.logSuccess(AuditEventType.LABORATORY_READ, "LABORATORY", null, "Laboratoires consultés");
         return ResponseEntity.ok(service.findAllByUser(user).stream().map(this::mapToResponse).collect(Collectors.toList()));
     }
 
@@ -153,7 +154,7 @@ public class LaboratoryController {
     }
 
     private User getCurrentUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }

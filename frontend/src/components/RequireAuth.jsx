@@ -39,6 +39,13 @@ const RequireAuth = ({ allowedRoles }) => {
     return <Navigate to={redirectByRole()} replace />;
   }
 
+  // Phone verification gate (all non-admin users)
+  if (user?.role !== "ADMIN" && user?.phoneVerified !== true) {
+    if (currentPath !== "/verify") {
+      return <Navigate to="/verify" replace />;
+    }
+  }
+
   // 4️⃣ Dentist setup workflow
   if (user?.role === "DENTIST" && getClinicRole(user) === CLINIC_ROLES.DENTIST) {
     const isVerified = user.phoneVerified === true;

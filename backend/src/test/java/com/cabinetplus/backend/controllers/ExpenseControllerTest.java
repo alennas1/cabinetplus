@@ -27,6 +27,7 @@ import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.ExpenseService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -37,14 +38,16 @@ class ExpenseControllerTest {
     private ExpenseService expenseService;
     private UserService userService;
     private PublicIdResolutionService publicIdResolutionService;
+    private AuditService auditService;
 
     @BeforeEach
     void setUp() {
         expenseService = mock(ExpenseService.class);
         userService = mock(UserService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
+        auditService = mock(AuditService.class);
 
-        ExpenseController controller = new ExpenseController(expenseService, userService, publicIdResolutionService);
+        ExpenseController controller = new ExpenseController(expenseService, userService, publicIdResolutionService, auditService);
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -61,12 +64,12 @@ class ExpenseControllerTest {
     void createExpenseWhenAmountNegativeReturns400WithFieldErrors() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         mockMvc.perform(post("/api/expenses")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -84,15 +87,15 @@ class ExpenseControllerTest {
     void createExpenseWhenSalaryMissingEmployeeReturns400WithFieldErrors() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         when(expenseService.createExpense(any(ExpenseRequestDTO.class), eq(current)))
                 .thenThrow(new BadRequestException(java.util.Map.of("employeeId", "Selectionnez un employe pour une depense SALARY")));
 
         mockMvc.perform(post("/api/expenses")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -110,12 +113,12 @@ class ExpenseControllerTest {
     void createExpenseWhenCategoryInvalidReturns400WithFieldErrors() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         mockMvc.perform(post("/api/expenses")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -126,20 +129,20 @@ class ExpenseControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.fieldErrors._").exists());
+                .andExpect(jsonPath("$.fieldErrors.category").exists());
     }
 
     @Test
     void getByIdWhenMissingReturns404Contract() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         when(expenseService.getExpenseByIdForUser(99L, current)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/expenses/99").with(userPrincipal("dentist")))
+        mockMvc.perform(get("/api/expenses/99").with(userPrincipal("0551111111")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.fieldErrors._").value("Depense introuvable"));
@@ -149,8 +152,8 @@ class ExpenseControllerTest {
     void createExpenseSuccessReturnsResponsePayload() throws Exception {
         User current = new User();
         current.setId(1L);
-        current.setUsername("dentist");
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(current));
+        current.setPhoneNumber("0551111111");
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
         Expense saved = new Expense();
@@ -170,7 +173,7 @@ class ExpenseControllerTest {
         ));
 
         mockMvc.perform(post("/api/expenses")
-                        .with(userPrincipal("dentist"))
+                        .with(userPrincipal("0551111111"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

@@ -2,10 +2,12 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.EmployeeWorkingHoursCreateRequest;
 import com.cabinetplus.backend.dto.EmployeeWorkingHoursUpdateRequest;
+import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.EmployeeWorkingHours;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.EmployeeWorkingHoursService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -29,11 +31,13 @@ public class EmployeeWorkingHoursController {
     private final EmployeeWorkingHoursService workingHoursService;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final AuditService auditService;
 
     // --- Get All for dentist ---
     @GetMapping
     public ResponseEntity<List<EmployeeWorkingHours>> getAll(Principal principal) {
         User dentist = getClinicUser(principal);
+        auditService.logSuccess(AuditEventType.EMPLOYEE_WORKING_HOURS_READ, "EMPLOYEE_WORKING_HOURS", null, "Horaires employes consultes");
 
         return ResponseEntity.ok(workingHoursService.getAllForDentist(dentist));
     }
@@ -46,6 +50,7 @@ public class EmployeeWorkingHoursController {
     ) {
         User dentist = getClinicUser(principal);
         Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
+        auditService.logSuccess(AuditEventType.EMPLOYEE_WORKING_HOURS_READ, "EMPLOYEE", String.valueOf(internalEmployeeId), "Horaires employe consultes");
 
         return ResponseEntity.ok(workingHoursService.getByEmployee(internalEmployeeId, dentist));
     }
@@ -59,6 +64,7 @@ public class EmployeeWorkingHoursController {
     ) {
         User dentist = getClinicUser(principal);
         Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
+        auditService.logSuccess(AuditEventType.EMPLOYEE_WORKING_HOURS_READ, "EMPLOYEE", String.valueOf(internalEmployeeId), "Horaires employe (jour) consultes");
 
         return ResponseEntity.ok(workingHoursService.getByEmployeeAndDay(internalEmployeeId, day, dentist));
     }
@@ -82,7 +88,14 @@ public class EmployeeWorkingHoursController {
         hours.setStartTime(request.startTime());
         hours.setEndTime(request.endTime());
 
-        return ResponseEntity.ok(workingHoursService.save(hours, dentist));
+        EmployeeWorkingHours saved = workingHoursService.save(hours, dentist);
+        auditService.logSuccess(
+                AuditEventType.EMPLOYEE_WORKING_HOURS_CREATE,
+                "EMPLOYEE_WORKING_HOURS",
+                saved != null && saved.getId() != null ? String.valueOf(saved.getId()) : null,
+                "Horaire employé créé"
+        );
+        return ResponseEntity.ok(saved);
     }
 
     // --- Update ---
@@ -100,7 +113,14 @@ public class EmployeeWorkingHoursController {
         hours.setStartTime(request.startTime());
         hours.setEndTime(request.endTime());
 
-        return ResponseEntity.ok(workingHoursService.update(id, hours, dentist));
+        EmployeeWorkingHours updated = workingHoursService.update(id, hours, dentist);
+        auditService.logSuccess(
+                AuditEventType.EMPLOYEE_WORKING_HOURS_UPDATE,
+                "EMPLOYEE_WORKING_HOURS",
+                String.valueOf(id),
+                "Horaire employé modifié"
+        );
+        return ResponseEntity.ok(updated);
     }
 
     // --- Delete ---
@@ -112,11 +132,17 @@ public class EmployeeWorkingHoursController {
         User dentist = getClinicUser(principal);
 
         workingHoursService.delete(id, dentist);
+        auditService.logSuccess(
+                AuditEventType.EMPLOYEE_WORKING_HOURS_DELETE,
+                "EMPLOYEE_WORKING_HOURS",
+                String.valueOf(id),
+                "Horaire employé supprimé"
+        );
         return ResponseEntity.noContent().build();
     }
 
     private User getClinicUser(Principal principal) {
-        User user = userService.findByUsername(principal.getName())
+        User user = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         return userService.resolveClinicOwner(user);
     }

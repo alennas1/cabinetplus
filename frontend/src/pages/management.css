@@ -111,12 +111,16 @@
   border: none;
   cursor: pointer;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
-  transition: background 0.2s, transform 0.2s;
+  transition: background 0.2s, box-shadow 0.2s, scale 0.08s;
 }
 
 .floating-btn:hover {
   background: #2b6cb0;
-  transform: scale(1.05);
+}
+
+.floating-btn:active {
+  scale: 0.97;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 /* Modal */

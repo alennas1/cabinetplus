@@ -196,3 +196,30 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 023-drop-username
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 023-drop-username.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 024-login-two-factor
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 024-login-two-factor.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 025-login-two-factor-default
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 025-login-two-factor-default.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

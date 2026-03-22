@@ -1,7 +1,14 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
-import { login, getCurrentUser, sendPasswordResetCode, confirmPasswordReset } from "../services/authService";
+import {
+  login,
+  verifyLoginTwoFactor,
+  resendLoginTwoFactor,
+  getCurrentUser,
+  sendPasswordResetCode,
+  confirmPasswordReset,
+} from "../services/authService";
 import { getUserPreferences } from "../services/userPreferenceService";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "react-feather";
@@ -21,10 +28,10 @@ import transpiamge from "../assets/transpiamge.png";
 import "./Login.css";
 
 const LoginPage = () => {
-  const [identifier, setIdentifier] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [invalidFields, setInvalidFields] = useState({ identifier: false, password: false });
+  const [invalidFields, setInvalidFields] = useState({ phoneNumber: false, password: false });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeIllustration, setActiveIllustration] = useState(0);
@@ -39,6 +46,13 @@ const LoginPage = () => {
   const [resetFieldErrors, setResetFieldErrors] = useState({});
   const [resetSendCooldown, setResetSendCooldown] = useState(0);
 
+  const [loginTwoFactorRequired, setLoginTwoFactorRequired] = useState(false);
+  const [loginChallengeToken, setLoginChallengeToken] = useState("");
+  const [loginMaskedPhone, setLoginMaskedPhone] = useState("");
+  const [loginOtpCode, setLoginOtpCode] = useState("");
+  const [loginOtpInvalid, setLoginOtpInvalid] = useState(false);
+  const [loginOtpCooldown, setLoginOtpCooldown] = useState(0);
+
   useEffect(() => {
     if (resetSendCooldown <= 0) return;
     const id = window.setInterval(() => {
@@ -47,9 +61,26 @@ const LoginPage = () => {
     return () => window.clearInterval(id);
   }, [resetSendCooldown]);
 
+  useEffect(() => {
+    if (loginOtpCooldown <= 0) return;
+    const id = window.setInterval(() => {
+      setLoginOtpCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [loginOtpCooldown]);
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
+
+  const resetLoginTwoFactorState = () => {
+    setLoginTwoFactorRequired(false);
+    setLoginChallengeToken("");
+    setLoginMaskedPhone("");
+    setLoginOtpCode("");
+    setLoginOtpInvalid(false);
+    setLoginOtpCooldown(0);
+  };
 
   const handleRedirect = (userData) => {
     if (!userData) return navigate("/login", { replace: true });
@@ -59,15 +90,15 @@ const LoginPage = () => {
       return;
     }
 
+    if (!userData.phoneVerified) {
+      navigate("/verify", { replace: true });
+      return;
+    }
+
     const clinicRole = getClinicRole(userData);
     if (clinicRole !== CLINIC_ROLES.DENTIST) {
       if (clinicRole === CLINIC_ROLES.PARTNER_DENTIST) navigate("/dashboard", { replace: true });
       else navigate("/appointments", { replace: true });
-      return;
-    }
-
-    if (!userData.phoneVerified) {
-      navigate("/verify", { replace: true });
       return;
     }
 
@@ -103,11 +134,46 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setInvalidFields({ identifier: false, password: false });
+    setInvalidFields({ phoneNumber: false, password: false });
+    setLoginOtpInvalid(false);
+    resetLoginTwoFactorState();
+
+    const trimmedPhone = String(phoneNumber || "").trim();
+    const trimmedPassword = String(password || "").trim();
+
+    if (!trimmedPhone) {
+      setInvalidFields((prev) => ({ ...prev, phoneNumber: true }));
+      setError("Entrez votre numero de telephone.");
+      return;
+    }
+    if (!isValidDzMobilePhoneNumber(trimmedPhone)) {
+      setInvalidFields((prev) => ({ ...prev, phoneNumber: true }));
+      setError("Numero de telephone invalide (ex: 05 51 51 51 51).");
+      return;
+    }
+    if (!trimmedPassword) {
+      setInvalidFields((prev) => ({ ...prev, password: true }));
+      setError("Entrez votre mot de passe.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { accessToken } = await login(identifier.trim(), password.trim());
+      const data = await login(normalizePhoneInput(trimmedPhone), trimmedPassword);
+
+      if (data?.twoFactorRequired) {
+        setLoginTwoFactorRequired(true);
+        setLoginChallengeToken(String(data.challengeToken || ""));
+        setLoginMaskedPhone(String(data.maskedPhone || ""));
+        setLoginOtpCode("");
+        setLoginOtpInvalid(false);
+        setLoginOtpCooldown(60);
+        setPassword("");
+        return;
+      }
+
+      const accessToken = data?.accessToken;
       const currentUser = await getCurrentUser();
       dispatch(setAuthLoading(true));
       try {
@@ -128,14 +194,81 @@ const LoginPage = () => {
       const field = data?.field;
       const message = data?.error;
 
-      if (field === "username" || field === "phoneNumber" || field === "password") {
-        const mappedField = field === "password" ? "password" : "identifier";
+      if (field === "phoneNumber" || field === "password") {
+        const mappedField = field === "password" ? "password" : "phoneNumber";
         setInvalidFields((prev) => ({ ...prev, [mappedField]: true }));
         setError(message || "Identifiants invalides");
       } else {
-        setInvalidFields({ identifier: true, password: true });
+        setInvalidFields({ phoneNumber: true, password: true });
         setError(getApiErrorMessage(err, "Identifiants invalides"));
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (e) => {
+    e?.preventDefault?.();
+    setError("");
+    setLoginOtpInvalid(false);
+
+    const code = String(loginOtpCode || "").trim();
+    if (!code) {
+      setLoginOtpInvalid(true);
+      setError("Entrez le code SMS.");
+      return;
+    }
+    if (!/^[0-9]{4,8}$/.test(code)) {
+      setLoginOtpInvalid(true);
+      setError("Code SMS invalide.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await verifyLoginTwoFactor({ challengeToken: loginChallengeToken, code });
+      const accessToken = data?.accessToken;
+      const currentUser = await getCurrentUser();
+      dispatch(setAuthLoading(true));
+      try {
+        const prefs = await getUserPreferences();
+        applyUserPreferences(prefs);
+      } catch {
+        applyUserPreferences(null);
+      }
+      dispatch(setCredentials({ token: accessToken, user: currentUser }));
+      resetLoginTwoFactorState();
+      handleRedirect(currentUser);
+    } catch (err) {
+      const reason = err?.response?.data?.reason;
+      if (reason === "challenge_expired" || reason === "challenge_invalid" || reason === "user_not_found") {
+        resetLoginTwoFactorState();
+      }
+      setLoginOtpInvalid(true);
+      setError(getApiErrorMessage(err, "Code SMS invalide."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendLoginOtp = async () => {
+    if (loginOtpCooldown > 0 || loading) return;
+
+    setError("");
+    setLoginOtpInvalid(false);
+    setLoading(true);
+
+    try {
+      const data = await resendLoginTwoFactor(loginChallengeToken);
+      if (data?.challengeToken) setLoginChallengeToken(String(data.challengeToken));
+      if (data?.maskedPhone) setLoginMaskedPhone(String(data.maskedPhone));
+      setLoginOtpCooldown(60);
+    } catch (err) {
+      const retryAfter = Number(err?.response?.data?.retryAfterSeconds);
+      if (err?.response?.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+        setLoginOtpCooldown(retryAfter);
+      }
+      setError(getApiErrorMessage(err, "Erreur lors de l'envoi du code."));
     } finally {
       setLoading(false);
     }
@@ -261,70 +394,132 @@ const LoginPage = () => {
         </section>
 
         <section className="login-panel">
-          <form noValidate onSubmit={handleSubmit} className="login-form-card">
-            <h2>Connexion</h2>
+          <form
+            noValidate
+            onSubmit={loginTwoFactorRequired ? handleVerifyLoginOtp : handleSubmit}
+            className="login-form-card"
+          >
+            <h2>{loginTwoFactorRequired ? "Verification SMS" : "Connexion"}</h2>
 
             <div className="auth-form">
-              <input
-                type="text"
-                placeholder="Nom d'utilisateur ou numero de telephone"
-                value={identifier}
-                onChange={(e) => {
-                  setIdentifier(e.target.value);
-                  if (invalidFields.identifier) {
-                    setInvalidFields((prev) => ({ ...prev, identifier: false }));
-                  }
-                  if (error) setError("");
-                }}
-                className={invalidFields.identifier ? "invalid" : ""}
-                required
-                disabled={loading}
-              />
+              {loginTwoFactorRequired ? (
+                <>
+                  <p style={{ marginTop: "-6px", color: "#64748b", fontSize: "13px" }}>
+                    Un code SMS a ete envoye au {loginMaskedPhone || "votre numero"}.
+                  </p>
 
-              <div className="password-input-wrap">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Mot de passe"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (invalidFields.password) {
-                      setInvalidFields((prev) => ({ ...prev, password: false }));
-                    }
-                    if (error) setError("");
-                  }}
-                  className={invalidFields.password ? "invalid" : ""}
-                  required
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  className="password-toggle-btn"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                  disabled={loading}
-                >
-                  {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
-                </button>
-              </div>
+                  <input
+                    type="text"
+                    placeholder="Code SMS"
+                    value={loginOtpCode}
+                    onChange={(e) => {
+                      setLoginOtpCode(e.target.value);
+                      if (loginOtpInvalid) setLoginOtpInvalid(false);
+                      if (error) setError("");
+                    }}
+                    inputMode="numeric"
+                    maxLength={8}
+                    className={loginOtpInvalid ? "invalid" : ""}
+                    required
+                    disabled={loading}
+                  />
+                </>
+              ) : (
+                <>
+                  <PhoneInput
+                    placeholder="Numero de telephone (ex: 05 51 51 51 51)"
+                    value={phoneNumber}
+                    onChangeValue={(v) => {
+                      setPhoneNumber(v);
+                      if (invalidFields.phoneNumber) {
+                        setInvalidFields((prev) => ({ ...prev, phoneNumber: false }));
+                      }
+                      if (error) setError("");
+                    }}
+                    className={invalidFields.phoneNumber ? "invalid" : ""}
+                    required
+                    disabled={loading}
+                  />
+
+                  <div className="password-input-wrap">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Mot de passe"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (invalidFields.password) {
+                          setInvalidFields((prev) => ({ ...prev, password: false }));
+                        }
+                        if (error) setError("");
+                      }}
+                      className={invalidFields.password ? "invalid" : ""}
+                      required
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                      disabled={loading}
+                    >
+                      {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                    </button>
+                  </div>
+                </>
+              )}
 
               <p className={`error-message ${error ? "visible" : "placeholder"}`} aria-live="polite">
                 <span className="error-icon" aria-hidden="true">!</span>
-                <span>{error || "Nom d'utilisateur ou numero de telephone, ou mot de passe invalide"}</span>
+                <span>{error || "Numero de telephone ou mot de passe invalide"}</span>
               </p>
 
               <button type="submit" disabled={loading}>
-                {loading ? "Connexion..." : "Se connecter"}
+                {loginTwoFactorRequired
+                  ? loading
+                    ? "Verification..."
+                    : "Verifier le code"
+                  : loading
+                  ? "Connexion..."
+                  : "Se connecter"}
               </button>
             </div>
 
-            <button type="button" className="forgot-password-link" onClick={openResetModal}>
-              Mot de passe oublie ?
-            </button>
+            {loginTwoFactorRequired ? (
+              <>
+                <button
+                  type="button"
+                  className="forgot-password-link"
+                  onClick={handleResendLoginOtp}
+                  disabled={loading || loginOtpCooldown > 0}
+                >
+                  {loginOtpCooldown > 0 ? `Renvoyer dans ${loginOtpCooldown}s` : "Renvoyer le code"}
+                </button>
 
-            <Link to="/register" className="create-account-btn">
-              Creer un compte
-            </Link>
+                <button
+                  type="button"
+                  className="forgot-password-link"
+                  onClick={() => {
+                    resetLoginTwoFactorState();
+                    setError("");
+                  }}
+                  disabled={loading}
+                >
+                  Retour
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="forgot-password-link" onClick={openResetModal}>
+                  Mot de passe oublie ?
+                </button>
+
+                <Link to="/register" className="create-account-btn">
+                  Creer un compte
+                </Link>
+              </>
+            )}
           </form>
         </section>
       </div>

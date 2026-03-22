@@ -24,6 +24,9 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtUtil {
 
+    private static final String PURPOSE_CLAIM = "purpose";
+    private static final String PURPOSE_LOGIN_2FA = "LOGIN_2FA";
+
     @Value("${jwt.secret:}")
     private String secretKey;
 
@@ -64,7 +67,7 @@ public class JwtUtil {
     // ============================
     public String generateAccessToken(User user) {
         return Jwts.builder()
-                .setSubject(user.getUsername())
+                .setSubject(user.getPhoneNumber())
                 .claim("role", user.getRole().name())
                 .claim("isPhoneVerified", user.isPhoneVerified())
                 .claim("planStatus",
@@ -84,9 +87,9 @@ public class JwtUtil {
     // ============================
     // REFRESH TOKEN GENERATION
     // ============================
-    public String generateRefreshToken(String username, long customExpirationMs) {
+    public String generateRefreshToken(String phoneNumber, long customExpirationMs) {
         return Jwts.builder()
-                .setSubject(username)
+                .setSubject(phoneNumber)
                 .setId(UUID.randomUUID().toString()) // jti for DB mapping
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + customExpirationMs))
@@ -94,14 +97,43 @@ public class JwtUtil {
                 .compact();
     }
 
-    public String generateRefreshToken(String username) {
-        return generateRefreshToken(username, refreshExpirationMs);
+    public String generateRefreshToken(String phoneNumber) {
+        return generateRefreshToken(phoneNumber, refreshExpirationMs);
+    }
+
+    // ============================
+    // LOGIN 2FA CHALLENGE TOKEN
+    // ============================
+    public String generateLoginTwoFactorChallengeToken(String phoneNumber, long ttlMs) {
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            throw new IllegalArgumentException("phoneNumber is required");
+        }
+        if (ttlMs <= 0) {
+            throw new IllegalArgumentException("ttlMs must be > 0");
+        }
+        return Jwts.builder()
+                .setSubject(phoneNumber)
+                .claim(PURPOSE_CLAIM, PURPOSE_LOGIN_2FA)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + ttlMs))
+                .setId(UUID.randomUUID().toString())
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public String extractPhoneNumberFromLoginTwoFactorChallenge(String token) {
+        Jws<Claims> jws = parseClaims(token);
+        Object purpose = jws.getBody().get(PURPOSE_CLAIM);
+        if (!PURPOSE_LOGIN_2FA.equals(purpose)) {
+            throw new JwtException("Invalid token purpose");
+        }
+        return jws.getBody().getSubject();
     }
 
     // ============================
     // TOKEN VALIDATION / EXTRACTION
     // ============================
-    public String extractUsername(String token) {
+    public String extractPhoneNumber(String token) {
         return parseClaims(token).getBody().getSubject();
     }
 

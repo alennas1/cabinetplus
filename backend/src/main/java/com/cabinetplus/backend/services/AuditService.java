@@ -1,12 +1,15 @@
 package com.cabinetplus.backend.services;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import org.slf4j.MDC;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -15,6 +18,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.cabinetplus.backend.dto.AuditLogResponse;
+import com.cabinetplus.backend.dto.AuditLogPageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.AuditStatus;
 import com.cabinetplus.backend.models.AuditLog;
@@ -23,6 +27,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.AuditLogRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.util.PhoneNumberUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -38,15 +43,29 @@ public class AuditService {
             AuditEventType.AUTH_LOGIN.name(),
             AuditEventType.AUTH_LOGOUT.name(),
             AuditEventType.AUTH_LOGOUT_ALL.name(),
+            AuditEventType.AUTH_PASSWORD_RESET_SEND.name(),
             AuditEventType.SECURITY_PIN_ENABLE.name(),
+            AuditEventType.SECURITY_PIN_STATUS.name(),
             AuditEventType.SECURITY_PIN_CHANGE.name(),
             AuditEventType.SECURITY_PIN_DISABLE.name(),
             AuditEventType.SECURITY_PIN_VERIFY.name(),
+            AuditEventType.VERIFY_PHONE_OTP_SEND.name(),
+            AuditEventType.VERIFY_PHONE_OTP_CHECK.name(),
+            AuditEventType.PHONE_CHANGE_SEND.name(),
+            AuditEventType.PHONE_CHANGE_CONFIRM.name(),
             AuditEventType.USER_ADMIN_CREATE.name(),
+            AuditEventType.USER_CREATE.name(),
+            AuditEventType.USER_UPDATE.name(),
+            AuditEventType.USER_READ.name(),
             AuditEventType.USER_DELETE.name(),
             AuditEventType.USER_PASSWORD_CHANGE.name(),
+            AuditEventType.HAND_PAYMENT_CREATE.name(),
             AuditEventType.HAND_PAYMENT_CONFIRM.name(),
-            AuditEventType.HAND_PAYMENT_REJECT.name()
+            AuditEventType.HAND_PAYMENT_REJECT.name(),
+            AuditEventType.PLAN_CREATE.name(),
+            AuditEventType.PLAN_UPDATE.name(),
+            AuditEventType.PLAN_DEACTIVATE.name(),
+            AuditEventType.PLAN_RECOMMENDED_SET.name()
     );
 
     public AuditService(AuditLogRepository auditLogRepository, UserRepository userRepository, PatientRepository patientRepository) {
@@ -95,6 +114,67 @@ public class AuditService {
                 .toList();
     }
 
+    public AuditLogPageResponse getPatientLogs(
+            User currentUser,
+            Long patientId,
+            int page,
+            int size,
+            String q,
+            String status,
+            String entity,
+            String action,
+            LocalDate from,
+            LocalDate to
+    ) {
+        if (currentUser == null || patientId == null) {
+            return new AuditLogPageResponse(List.of(), 0, 0, 0L, 0);
+        }
+
+        User clinicOwner = currentUser.getOwnerDentist() != null ? currentUser.getOwnerDentist() : currentUser;
+        patientRepository.findByIdAndCreatedBy(patientId, clinicOwner)
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
+        List<Long> actorUserIds = resolveVisibleActorIds(clinicOwner);
+        var pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt"));
+
+        // Avoid passing NULL optional filters to PostgreSQL (can fail to infer parameter types in generated SQL).
+        String safeQ = q != null ? q : "";
+        String safeStatus = status != null ? status : "";
+        String safeEntity = entity != null ? entity : "";
+        String safeAction = action != null ? action : "";
+
+        LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime toExclusive = to != null ? to.plusDays(1).atStartOfDay() : LocalDateTime.of(10000, 1, 1, 0, 0);
+
+        var logsPage = auditLogRepository.searchPatientLogs(
+                actorUserIds,
+                String.valueOf(patientId),
+                safeQ,
+                safeStatus,
+                safeEntity,
+                safeAction,
+                fromDateTime,
+                toExclusive,
+                pageable
+        );
+
+        var patientNames = resolvePatientNames(logsPage.getContent(), clinicOwner);
+        var items = logsPage.getContent().stream()
+                .map(log -> toResponse(log, patientNames))
+                .toList();
+
+        return new AuditLogPageResponse(
+                items,
+                logsPage.getNumber(),
+                logsPage.getSize(),
+                logsPage.getTotalElements(),
+                logsPage.getTotalPages()
+        );
+    }
+
     private void createLog(
             AuditEventType eventType,
             AuditStatus status,
@@ -124,7 +204,7 @@ public class AuditService {
         User actor = explicitActor != null ? explicitActor : resolveCurrentUser();
         if (actor != null) {
             log.setActorUserId(actor.getId());
-            log.setActorUsername(trim(actor.getUsername(), 100));
+            log.setActorUsername(trim(actor.getPhoneNumber(), 100));
             log.setActorRole(actor.getRole() != null ? actor.getRole().name() : "UNKNOWN");
         } else {
             log.setActorRole("SYSTEM");
@@ -138,7 +218,11 @@ public class AuditService {
         if (auth == null || auth.getName() == null) {
             return null;
         }
-        return userRepository.findByUsername(auth.getName()).orElse(null);
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(auth.getName());
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return userRepository.findFirstByPhoneNumberInOrderByIdAsc(candidates).orElse(null);
     }
 
     private HttpServletRequest currentRequest() {
@@ -244,7 +328,7 @@ public class AuditService {
                     String first = user.getFirstname() != null ? user.getFirstname().trim() : "";
                     String last = user.getLastname() != null ? user.getLastname().trim() : "";
                     String fullName = (first + " " + last).trim();
-                    return fullName.isEmpty() ? user.getUsername() : fullName;
+                    return fullName.isEmpty() ? user.getPhoneNumber() : fullName;
                 })
                 .orElse(fallbackUsername);
     }

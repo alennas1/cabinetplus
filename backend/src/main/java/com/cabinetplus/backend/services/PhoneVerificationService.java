@@ -28,6 +28,10 @@ public class PhoneVerificationService {
         }
     }
 
+    public boolean isConfigured() {
+        return !"AC_DEFAULT".equals(twilioSid) && verifyServiceSid != null && !verifyServiceSid.isBlank();
+    }
+
     public void sendVerificationCode(String toPhoneNumber) {
         ensureConfigured();
         Verification.creator(verifyServiceSid, toPhoneNumber, "sms").create();
@@ -43,7 +47,7 @@ public class PhoneVerificationService {
     }
 
     private void ensureConfigured() {
-        if ("AC_DEFAULT".equals(twilioSid) || verifyServiceSid == null || verifyServiceSid.isBlank()) {
+        if (!isConfigured()) {
             throw new IllegalStateException("Twilio Verify non configure");
         }
     }

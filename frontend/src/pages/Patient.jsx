@@ -69,6 +69,7 @@ import "./Patient.css";
 import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud, Search, ArrowRight, ChevronDown } from "react-feather";
 import { FaMale, FaFemale, FaTooth } from "react-icons/fa";
 import PatientDangerIcon from "../components/PatientDangerIcon";
+import PatientActivityLogTab from "../components/PatientActivityLogTab";
 
 const QUARTER_MINUTES = ["00", "15", "30", "45"];
 
@@ -3091,6 +3092,13 @@ const handleDeleteAppointment = (a) => {
 >
   <Paperclip size={16} /> Pièces jointes
 </button>
+
+<button
+  className={activeTab === "activity" ? "tab-btn active activity-tab" : "tab-btn activity-tab"}
+  onClick={() => setActiveTab("activity")}
+>
+  <Activity size={16} /> Activité
+</button>
 </div>
 
 
@@ -3770,6 +3778,12 @@ const handleDeleteAppointment = (a) => {
       </tbody>
     </table>
     {renderPagination("documents", documentsPage, documentsTotalPages)}
+  </>
+)}
+
+{activeTab === "activity" && (
+  <>
+    <PatientActivityLogTab patientId={id} />
   </>
 )}
 
@@ -5537,9 +5551,6 @@ const handleDeleteAppointment = (a) => {
 };
 
 export default Patient;
-
-
-
 
 
 

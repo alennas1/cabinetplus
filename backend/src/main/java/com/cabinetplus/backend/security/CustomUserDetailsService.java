@@ -2,6 +2,7 @@ package com.cabinetplus.backend.security;
 
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.util.PhoneNumberUtil;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -17,12 +18,13 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepo.findByUsername(username)
+    public UserDetails loadUserByUsername(String phoneNumber) throws UsernameNotFoundException {
+        var candidates = PhoneNumberUtil.algeriaStoredCandidates(phoneNumber);
+        User user = userRepo.findFirstByPhoneNumberInOrderByIdAsc(candidates)
                 .orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable"));
 
         return org.springframework.security.core.userdetails.User
-                .withUsername(user.getUsername())
+                .withUsername(user.getPhoneNumber())
                 .password(user.getPasswordHash())  // stored as BCrypt hash
                 .roles(user.getRole().name())
                 .build();

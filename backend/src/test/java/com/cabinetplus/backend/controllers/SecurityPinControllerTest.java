@@ -46,28 +46,28 @@ class SecurityPinControllerTest {
     void setUp() {
         controller = new SecurityPinController(userService, passwordEncoder, auditService);
         userDetails = org.springframework.security.core.userdetails.User
-                .withUsername("dentist")
+                .withUsername("0551111111")
                 .password("x")
                 .authorities("ROLE_DENTIST")
                 .build();
 
         user = new User();
         user.setId(1L);
-        user.setUsername("dentist");
+        user.setPhoneNumber("0551111111");
         user.setPasswordHash("hash");
         user.setGestionCabinetPinEnabled(false);
     }
 
     @Test
     void enableWithInvalidPinThrowsBadRequest() {
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
         assertThrows(BadRequestException.class,
                 () -> controller.enable(userDetails, new SecurityPinEnableRequest("12")));
     }
 
     @Test
     void changeWithWrongPasswordThrowsForbidden() {
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("bad", "hash")).thenReturn(false);
 
         assertThrows(BadRequestException.class,
@@ -76,20 +76,20 @@ class SecurityPinControllerTest {
 
     @Test
     void statusWhenUserMissingThrowsNotFound() {
-        when(userService.findByUsername("dentist")).thenReturn(Optional.empty());
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.empty());
         assertThrows(ResponseStatusException.class, () -> controller.status(userDetails));
     }
 
     @Test
     void verifyReturnsFalseWhenDisabled() {
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
         var out = controller.verify(userDetails, new SecurityPinVerifyRequest("1234"));
         assertFalse((Boolean) out.get("valid"));
     }
 
     @Test
     void enableSetsHashAndEnabled() {
-        when(userService.findByUsername("dentist")).thenReturn(Optional.of(user));
+        when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(user));
         when(passwordEncoder.encode("1234")).thenReturn("hashedPin");
         when(userService.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 

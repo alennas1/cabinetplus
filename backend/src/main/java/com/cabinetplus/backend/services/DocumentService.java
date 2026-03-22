@@ -141,6 +141,11 @@ public class DocumentService {
         return toDto(getOwnedDocument(documentId, ownerDentist));
     }
 
+    public Long getDocumentPatientId(Long documentId, User ownerDentist) {
+        Document document = getOwnedDocument(documentId, ownerDentist);
+        return document.getPatient() != null ? document.getPatient().getId() : null;
+    }
+
     public MediaType resolveMediaType(Long documentId, User ownerDentist) {
         Document document = getOwnedDocument(documentId, ownerDentist);
         Path path = resolveExistingPath(document);

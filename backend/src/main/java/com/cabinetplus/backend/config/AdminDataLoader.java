@@ -35,6 +35,9 @@ public class AdminDataLoader {
     @Value("${app.seed.default-dentist:false}")
     private boolean seedDefaultDentist;
 
+    @Value("${app.seed.default-plans:false}")
+    private boolean seedDefaultPlans;
+
     @Value("${app.seed.default-admin.phoneNumber:}")
     private String defaultAdminPhoneNumber;
 
@@ -57,8 +60,12 @@ public class AdminDataLoader {
             }
 
             // ---------------- Ensure default plans exist ----------------
-            ensureDefaultPlan(planRepo, "BASIC", "Basic", 6000, 5000, 30, 2, 8, 500, 10.0);
-            ensureDefaultPlan(planRepo, "PRO", "Pro", 9000, 7500, 30, 5, 25, 2000, 50.0);
+            if (seedDefaultPlans) {
+                ensureDefaultPlan(planRepo, "BASIC", "Basic", 6000, 5000, 30, 2, 8, 500, 10.0);
+                ensureDefaultPlan(planRepo, "PRO", "Pro", 9000, 7500, 30, 5, 25, 2000, 50.0);
+            } else {
+                logger.info("Default plans seed skipped (app.seed.default-plans=false).");
+            }
 
             // ---------------- Create admin ----------------
             if (seedDefaultAdmin) {
@@ -118,6 +125,8 @@ public class AdminDataLoader {
 
             if (basicPlan != null && basicPlan.getDurationDays() != null) {
                 dentist.setExpirationDate(LocalDateTime.now().plusDays(basicPlan.getDurationDays()));
+            } else if (basicPlan == null) {
+                logger.warn("Default dentist seeded without a plan because BASIC plan was not found. Enable app.seed.default-plans=true or create a plan manually.");
             }
 
             // Clinic info

@@ -30,7 +30,7 @@ public class BootstrapAdminLoader {
     @Value("${app.bootstrap.admin.enabled:false}")
     private Boolean enabled;
 
-    @Value("${app.bootstrap.admin.phoneNumber:}")
+    @Value("${app.bootstrap.admin.phone-number:${app.bootstrap.admin.phoneNumber:}}")
     private String phoneNumber;
 
     @Value("${app.bootstrap.admin.password:}")
@@ -53,7 +53,7 @@ public class BootstrapAdminLoader {
 
             String canonicalPhone = PhoneNumberUtil.canonicalAlgeriaForStorage(phoneNumber);
             if (canonicalPhone == null || canonicalPhone.isBlank()) {
-                throw new IllegalStateException("app.bootstrap.admin.phoneNumber must be set when bootstrapping an admin.");
+                throw new IllegalStateException("app.bootstrap.admin.phone-number (env: APP_BOOTSTRAP_ADMIN_PHONE_NUMBER) must be set to a valid phone number when bootstrapping an admin.");
             }
 
             var candidates = PhoneNumberUtil.algeriaStoredCandidates(canonicalPhone);

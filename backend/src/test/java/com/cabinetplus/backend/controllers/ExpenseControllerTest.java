@@ -169,6 +169,9 @@ class ExpenseControllerTest {
                 saved.getCategory(),
                 saved.getDate(),
                 saved.getDescription(),
+                null,
+                null,
+                null,
                 null
         ));
 

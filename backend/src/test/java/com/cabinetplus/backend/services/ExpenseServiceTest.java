@@ -22,18 +22,21 @@ import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.ExpenseRepository;
+import com.cabinetplus.backend.repositories.FournisseurRepository;
 
 class ExpenseServiceTest {
 
     private ExpenseRepository expenseRepository;
     private EmployeeRepository employeeRepository;
+    private FournisseurRepository fournisseurRepository;
     private ExpenseService expenseService;
 
     @BeforeEach
     void setUp() {
         expenseRepository = mock(ExpenseRepository.class);
         employeeRepository = mock(EmployeeRepository.class);
-        expenseService = new ExpenseService(expenseRepository, employeeRepository);
+        fournisseurRepository = mock(FournisseurRepository.class);
+        expenseService = new ExpenseService(expenseRepository, employeeRepository, fournisseurRepository);
     }
 
     @Test
@@ -41,7 +44,7 @@ class ExpenseServiceTest {
         User dentist = new User();
         dentist.setId(1L);
 
-        ExpenseRequestDTO dto = new ExpenseRequestDTO("Title", 0.0, ExpenseCategory.SUPPLIES, null, null, null);
+        ExpenseRequestDTO dto = new ExpenseRequestDTO("Title", 0.0, ExpenseCategory.SUPPLIES, null, null, null, null, null);
 
         BadRequestException ex = assertThrows(BadRequestException.class, () -> expenseService.createExpense(dto, dentist));
         assertEquals("Le montant doit etre superieur a 0", ex.getFieldErrors().get("amount"));
@@ -52,7 +55,7 @@ class ExpenseServiceTest {
         User dentist = new User();
         dentist.setId(1L);
 
-        ExpenseRequestDTO dto = new ExpenseRequestDTO("Salaire", 10.0, ExpenseCategory.SALARY, null, null, null);
+        ExpenseRequestDTO dto = new ExpenseRequestDTO("Salaire", 10.0, ExpenseCategory.SALARY, null, null, null, null, null);
 
         BadRequestException ex = assertThrows(BadRequestException.class, () -> expenseService.createExpense(dto, dentist));
         assertEquals("Selectionnez un employe pour une depense SALARY", ex.getFieldErrors().get("employeeId"));
@@ -63,7 +66,7 @@ class ExpenseServiceTest {
         User dentist = new User();
         dentist.setId(1L);
 
-        ExpenseRequestDTO dto = new ExpenseRequestDTO("Ok", 10.0, ExpenseCategory.SUPPLIES, null, null, 5L);
+        ExpenseRequestDTO dto = new ExpenseRequestDTO("Ok", 10.0, ExpenseCategory.SUPPLIES, null, null, null, null, 5L);
 
         BadRequestException ex = assertThrows(BadRequestException.class, () -> expenseService.createExpense(dto, dentist));
         assertEquals("Le champ employe est reserve aux depenses SALARY", ex.getFieldErrors().get("employeeId"));
@@ -74,7 +77,7 @@ class ExpenseServiceTest {
         User dentist = new User();
         dentist.setId(1L);
 
-        ExpenseRequestDTO dto = new ExpenseRequestDTO("Salaire", 10.0, ExpenseCategory.SALARY, null, null, 99L);
+        ExpenseRequestDTO dto = new ExpenseRequestDTO("Salaire", 10.0, ExpenseCategory.SALARY, null, null, null, null, 99L);
 
         when(employeeRepository.findById(99L)).thenReturn(Optional.empty());
 
@@ -93,7 +96,7 @@ class ExpenseServiceTest {
         employee.setId(5L);
         employee.setDentist(other);
 
-        ExpenseRequestDTO dto = new ExpenseRequestDTO("Salaire", 10.0, ExpenseCategory.SALARY, null, null, 5L);
+        ExpenseRequestDTO dto = new ExpenseRequestDTO("Salaire", 10.0, ExpenseCategory.SALARY, null, null, null, null, 5L);
 
         when(employeeRepository.findById(5L)).thenReturn(Optional.of(employee));
 
@@ -105,7 +108,7 @@ class ExpenseServiceTest {
         User dentist = new User();
         dentist.setId(1L);
 
-        ExpenseRequestDTO dto = new ExpenseRequestDTO("Ok", 10.0, ExpenseCategory.SUPPLIES, null, "desc", null);
+        ExpenseRequestDTO dto = new ExpenseRequestDTO("Ok", 10.0, ExpenseCategory.SUPPLIES, null, "desc", null, null, null);
 
         when(expenseRepository.save(any(Expense.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -117,4 +120,3 @@ class ExpenseServiceTest {
         assertEquals(dentist, saved.getCreatedBy());
     }
 }
-

@@ -167,8 +167,8 @@
 }
 
 .date-selector button {
-  padding: 6px 14px;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border-radius: var(--cp-input-radius);
   border: 1px solid #ccc;
   background: #f3f4f6;
   cursor: pointer;

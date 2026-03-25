@@ -9,9 +9,11 @@ import com.cabinetplus.backend.dto.CreateItemDTO;
 import com.cabinetplus.backend.dto.UpdateItemDTO;
 import com.cabinetplus.backend.dto.ItemDTO;
 import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.models.Fournisseur;
 import com.cabinetplus.backend.models.Item;
 import com.cabinetplus.backend.models.ItemDefault;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.FournisseurRepository;
 import com.cabinetplus.backend.repositories.ItemDefaultRepository;
 import com.cabinetplus.backend.repositories.ItemRepository;
 
@@ -24,6 +26,7 @@ public class ItemService {
 
     private final ItemRepository itemRepository;
     private final ItemDefaultRepository itemDefaultRepository; // ADD THIS
+    private final FournisseurRepository fournisseurRepository;
 
     // Get all items for a specific dentist
     public List<Item> getItemsForDentist(User dentist) {
@@ -33,6 +36,16 @@ public class ItemService {
     // Get item by id for a specific dentist
     public Optional<Item> getItemByIdForDentist(Long id, User dentist) {
         return itemRepository.findByIdAndCreatedBy(id, dentist);
+    }
+
+    public List<Item> getItemsByFournisseur(Long fournisseurId, User dentist) {
+        if (fournisseurId == null) return List.of();
+        return itemRepository.findByFournisseur_IdAndCreatedByOrderByCreatedAtDesc(fournisseurId, dentist);
+    }
+
+    public double getTotalPriceByFournisseur(Long fournisseurId, User dentist) {
+        if (fournisseurId == null) return 0.0;
+        return itemRepository.sumPriceByFournisseur(dentist, fournisseurId).orElse(0.0);
     }
 
     // Create item and set createdBy
@@ -45,6 +58,12 @@ public class ItemService {
         ItemDefault def = itemDefaultRepository.findByIdAndCreatedBy(dto.getItemDefaultId(), dentist)
                 .orElseThrow(() -> new BadRequestException(java.util.Map.of("itemDefaultId", "Article par defaut introuvable")));
 
+        Fournisseur fournisseur = null;
+        if (dto.getFournisseurId() != null) {
+            fournisseur = fournisseurRepository.findByIdAndCreatedBy(dto.getFournisseurId(), dentist)
+                    .orElseThrow(() -> new BadRequestException(java.util.Map.of("fournisseurId", "Fournisseur introuvable")));
+        }
+
         Item item = new Item();
         item.setItemDefault(def);
         item.setQuantity(dto.getQuantity());
@@ -53,16 +72,23 @@ public class ItemService {
         item.setExpiryDate(dto.getExpiryDate());
         item.setCreatedAt(LocalDateTime.now());
         item.setCreatedBy(dentist);
+        item.setFournisseur(fournisseur);
         return itemRepository.save(item);
     }
 
     public Item updateItemFromDTO(Long id, UpdateItemDTO dto, User dentist) {
         return itemRepository.findByIdAndCreatedBy(id, dentist)
                 .map(item -> {
+                    Fournisseur fournisseur = null;
+                    if (dto.getFournisseurId() != null) {
+                        fournisseur = fournisseurRepository.findByIdAndCreatedBy(dto.getFournisseurId(), dentist)
+                                .orElseThrow(() -> new BadRequestException(java.util.Map.of("fournisseurId", "Fournisseur introuvable")));
+                    }
                     item.setQuantity(dto.getQuantity());
                     item.setUnitPrice(dto.getUnitPrice());
                     item.calculatePrice();
                     item.setExpiryDate(dto.getExpiryDate());
+                    item.setFournisseur(fournisseur);
                     return itemRepository.save(item);
                 }).orElseThrow(() -> new RuntimeException("Article introuvable"));
     }
@@ -97,7 +123,9 @@ public class ItemService {
     item.getPrice(),
     item.getUnitPrice(),
     item.getExpiryDate(),
-    item.getCreatedAt()  // add this
+    item.getCreatedAt(),
+    item.getFournisseur() != null ? item.getFournisseur().getId() : null,
+    item.getFournisseur() != null ? item.getFournisseur().getName() : null
 );
 
 }

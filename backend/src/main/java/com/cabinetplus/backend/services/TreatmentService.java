@@ -2,6 +2,7 @@ package com.cabinetplus.backend.services;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.time.LocalDateTime;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.TreatmentCatalog;
@@ -56,7 +57,8 @@ public class TreatmentService {
         treatment.setPractitioner(practitioner);
         treatment.setPatient(patient);
         treatment.setTreatmentCatalog(catalog);
-        treatment.setDate(request.getDate());
+        // Force server-side timestamp for traceability (ignore any client-provided date).
+        treatment.setDate(LocalDateTime.now());
         treatment.setPrice(request.getPrice());
         treatment.setNotes(trimToNull(request.getNotes()));
         treatment.setStatus(defaultStatus(request.getStatus()));
@@ -81,10 +83,6 @@ public class TreatmentService {
             TreatmentCatalog catalog = treatmentCatalogRepository.findByIdAndCreatedBy(request.getTreatmentCatalogId(), practitioner)
                     .orElseThrow(() -> new BadRequestException(java.util.Map.of("treatmentCatalogId", "Element du catalogue introuvable")));
             existing.setTreatmentCatalog(catalog);
-        }
-
-        if (request.getDate() != null) {
-            existing.setDate(request.getDate());
         }
 
         if (request.getPrice() != null) {

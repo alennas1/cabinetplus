@@ -223,3 +223,66 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 026-add-fournisseurs
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 026-add-fournisseurs.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 027-expenses-fournisseurs-and-other-category
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 027-expenses-fournisseurs-and-other-category.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 028-add-fournisseur-payments
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 028-add-fournisseur-payments.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 029-support-and-feedback
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 029-support-and-feedback.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 030-support-read-receipts
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 030-support-read-receipts.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 031-support-multiple-threads
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 031-support-multiple-threads.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 032-support-message-attachments
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 032-support-message-attachments.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

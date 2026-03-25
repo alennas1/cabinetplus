@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Search, Edit2, Trash2, Filter, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -14,12 +15,16 @@ import {
   deleteInventoryItem,
   getInventoryItems,
 } from "../services/itemService";
+import { createFournisseur, getAllFournisseurs } from "../services/fournisseurService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import ModernDropdown from "../components/ModernDropdown";
 import { parseMoneyInput } from "../utils/moneyInput";
 import FieldError from "../components/FieldError";
+import DateInput from "../components/DateInput";
+import PhoneInput from "../components/PhoneInput";
+import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
@@ -36,9 +41,21 @@ const ITEM_CATEGORIES = {
 };
 
 const Inventory = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const focusItemId = useMemo(() => {
+    const sp = new URLSearchParams(location.search || "");
+    const raw = sp.get("focus") || sp.get("itemId") || sp.get("id");
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }, [location.search]);
+  const focusAppliedRef = useRef(null);
+  const [highlightedItemId, setHighlightedItemId] = useState(null);
 
   const [itemDefaults, setItemDefaults] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [fournisseurs, setFournisseurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -57,6 +74,16 @@ const Inventory = () => {
     description: "",
   });
 
+  const [showCreateFournisseurModal, setShowCreateFournisseurModal] = useState(false);
+  const [isCreatingFournisseur, setIsCreatingFournisseur] = useState(false);
+  const [newFournisseurForm, setNewFournisseurForm] = useState({
+    name: "",
+    contactPerson: "",
+    phoneNumber: "",
+    address: "",
+  });
+  const [fournisseurErrors, setFournisseurErrors] = useState({});
+
   // Delete confirmation modal
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -64,6 +91,7 @@ const Inventory = () => {
 
   const [formData, setFormData] = useState({
     itemDefaultId: "",
+    fournisseurId: "",
     quantity: 1,
     unitPrice: "",
     price: "",
@@ -86,6 +114,7 @@ const Inventory = () => {
   useEffect(() => {
     fetchItemDefaults();
     fetchInventoryItems();
+    fetchFournisseurs();
   }, []);
 
   const fetchItemDefaults = async () => {
@@ -122,6 +151,16 @@ const Inventory = () => {
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des articles en stock"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFournisseurs = async () => {
+    try {
+      const data = await getAllFournisseurs();
+      setFournisseurs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des fournisseurs"));
     }
   };
 
@@ -271,8 +310,10 @@ const Inventory = () => {
     setFieldErrors({});
     try {
       setIsSubmitting(true);
+      const fournisseurIdValue = String(formData.fournisseurId || "").trim();
       const payload = {
         itemDefaultId: Number(formData.itemDefaultId),
+        fournisseurId: fournisseurIdValue ? Number(fournisseurIdValue) : null,
         quantity,
         unitPrice,
         expiryDate: formData.expiryDate || null,
@@ -298,6 +339,7 @@ const Inventory = () => {
       setEditingItem(null);
       setFormData({
         itemDefaultId: "",
+        fournisseurId: "",
         quantity: 1,
         unitPrice: "",
         price: "",
@@ -318,6 +360,7 @@ const Inventory = () => {
     setFilteredItemDefaultOptions([]);
     setFormData({
       itemDefaultId: item.itemDefaultId,
+      fournisseurId: item.fournisseurId != null ? String(item.fournisseurId) : "",
       quantity: item.quantity,
       unitPrice: item.unitPrice != null ? formatMoney(item.unitPrice) : "",
       price: item.price != null ? formatMoney(item.price) : "",
@@ -367,6 +410,7 @@ const Inventory = () => {
     return inventoryItems.filter((i) => {
       let value = "";
       if (filterBy === "itemDefaultName") value = i.itemDefaultName || "";
+      else if (filterBy === "fournisseurName") value = i.fournisseurName || "";
       else if (filterBy === "quantity") value = i.quantity?.toString?.() || "";
       else if (filterBy === "price") value = i.price?.toString?.() || "";
       return value.toLowerCase().includes(search.toLowerCase());
@@ -378,6 +422,8 @@ const Inventory = () => {
       switch (sortConfig.key) {
         case "itemDefaultName":
           return i.itemDefaultName;
+        case "fournisseurName":
+          return i.fournisseurName;
         case "quantity":
           return i.quantity;
         case "price":
@@ -395,6 +441,36 @@ const Inventory = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = sortedItems.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
+
+  useEffect(() => {
+    focusAppliedRef.current = null;
+  }, [focusItemId]);
+
+  useEffect(() => {
+    if (!Number.isFinite(focusItemId)) return;
+    if (!sortedItems.length) return;
+
+    const idx = sortedItems.findIndex((row) => Number(row?.id) === Number(focusItemId));
+    if (idx < 0) return;
+
+    const targetPage = Math.floor(idx / itemsPerPage) + 1;
+    if (currentPage !== targetPage) setCurrentPage(targetPage);
+  }, [currentPage, focusItemId, sortedItems, itemsPerPage]);
+
+  useEffect(() => {
+    if (!Number.isFinite(focusItemId)) return;
+    if (focusAppliedRef.current === focusItemId) return;
+
+    const el = document.getElementById(`inventory-row-${focusItemId}`);
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    focusAppliedRef.current = focusItemId;
+    setHighlightedItemId(focusItemId);
+
+    const t = setTimeout(() => setHighlightedItemId(null), 4500);
+    return () => clearTimeout(t);
+  }, [currentPage, focusItemId]);
 
   if (loading) {
     return (
@@ -431,6 +507,7 @@ const Inventory = () => {
             >
               <span>
                 {filterBy === "itemDefaultName" ? "Par Article" :
+                 filterBy === "fournisseurName" ? "Par Fournisseur" :
                  filterBy === "quantity" ? "Par Quantité" : "Par Prix"}
               </span>
               <Filter size={18} color="#444" />
@@ -438,6 +515,7 @@ const Inventory = () => {
             {dropdownOpen && (
               <ul className="dropdown-menu">
                 <li onClick={() => { setFilterBy("itemDefaultName"); setDropdownOpen(false); }}>Par Article</li>
+                <li onClick={() => { setFilterBy("fournisseurName"); setDropdownOpen(false); }}>Par Fournisseur</li>
                 <li onClick={() => { setFilterBy("quantity"); setDropdownOpen(false); }}>Par Quantité</li>
                 <li onClick={() => { setFilterBy("price"); setDropdownOpen(false); }}>Par Prix</li>
               </ul>
@@ -449,7 +527,7 @@ const Inventory = () => {
           <button
             className="btn-primary"
             onClick={() => {
-              setFormData({ itemDefaultId: "", quantity: 1, unitPrice: "", price: "", expiryDate: "" });
+              setFormData({ itemDefaultId: "", fournisseurId: "", quantity: 1, unitPrice: "", price: "", expiryDate: "" });
               setEditingItem(null);
               setItemDefaultQuery("");
               setShowItemDefaultSuggestions(false);
@@ -468,6 +546,7 @@ const Inventory = () => {
         <thead>
           <tr>
             <SortableTh label="Article" sortKey="itemDefaultName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Fournisseur" sortKey="fournisseurName" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Quantité" sortKey="quantity" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Prix total" sortKey="price" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Date d'expiration" sortKey="expiryDate" sortConfig={sortConfig} onSort={handleSort} />
@@ -476,8 +555,26 @@ const Inventory = () => {
         </thead>
         <tbody>
           {currentItems.map(i => (
-            <tr key={i.id}>
+            <tr
+              key={i.id}
+              id={`inventory-row-${i.id}`}
+              className={Number(highlightedItemId) === Number(i.id) ? "table-focus-row" : ""}
+            >
               <td>{i.itemDefaultName}</td>
+              <td>
+                {i.fournisseurName && i.fournisseurId ? (
+                  <button
+                    type="button"
+                    className="table-link"
+                    onClick={() => navigate(`/gestion-cabinet/fournisseurs/${i.fournisseurId}`)}
+                    title="Voir le fournisseur"
+                  >
+                    {i.fournisseurName}
+                  </button>
+                ) : (
+                  "—"
+                )}
+              </td>
               <td>{i.quantity}</td>
               <td>{formatMoneyWithLabel(i.price)}</td>
               <td>{i.expiryDate || "—"}</td>
@@ -489,7 +586,7 @@ const Inventory = () => {
           ))}
           {sortedItems.length === 0 && (
             <tr>
-              <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun article trouvé</td>
+              <td colSpan="6" style={{ textAlign: "center", color: "#888" }}>Aucun article trouvé</td>
             </tr>
           )}
         </tbody>
@@ -594,6 +691,46 @@ const Inventory = () => {
                 Le bouton + ajoute un article au <span className="font-medium">catalogue</span>.
               </div>
 
+              <div className="flex items-end justify-between gap-3 mb-3">
+                <div style={{ flex: 1 }}>
+                  <span className="field-label">Fournisseur (optionnel)</span>
+                  <ModernDropdown
+                    value={String(formData.fournisseurId || "")}
+                    onChange={(v) => setFormData((s) => ({ ...s, fournisseurId: String(v || "") }))}
+                    options={[
+                      { value: "", label: "Aucun fournisseur" },
+                      ...(fournisseurs || []).map((f) => ({ value: String(f.id), label: f.name })),
+                    ]}
+                    ariaLabel="Fournisseur"
+                    fullWidth
+                  />
+                  <select
+                    value={String(formData.fournisseurId || "")}
+                    onChange={(e) => setFormData((s) => ({ ...s, fournisseurId: e.target.value }))}
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    style={{ display: "none" }}
+                  >
+                    <option value="">Aucun fournisseur</option>
+                    {(fournisseurs || []).map((f) => (
+                      <option key={f.id} value={String(f.id)}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-secondary-app"
+                  onClick={() => {
+                    setNewFournisseurForm({ name: "", contactPerson: "", phoneNumber: "", address: "" });
+                    setFournisseurErrors({});
+                    setShowCreateFournisseurModal(true);
+                  }}
+                >
+                  <Plus size={16} /> Créer
+                </button>
+              </div>
+
               <span className="field-label">Quantité</span>
               <input
                 type="number"
@@ -623,7 +760,11 @@ const Inventory = () => {
               <input type="text" name="price" value={formData.price} readOnly />
 
               <span className="field-label">Date d'expiration</span>
-              <input type="date" name="expiryDate" value={formData.expiryDate} onChange={handleChange} />
+              <DateInput
+                name="expiryDate"
+                value={formData.expiryDate}
+                onChange={handleChange}
+              />
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : editingItem ? "Mettre à jour" : "Ajouter"}</button>
@@ -727,6 +868,150 @@ const Inventory = () => {
                   className="btn-cancel"
                   onClick={() => setShowCreateItemDefaultModal(false)}
                   disabled={isCreatingItemDefault}
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showCreateFournisseurModal && (
+        <div
+          className="modal-overlay"
+          style={{ zIndex: 10000 }}
+          onClick={() => setShowCreateFournisseurModal(false)}
+        >
+          <div className="modal-content" style={{ maxWidth: "520px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-2">
+              <h2>Créer un fournisseur</h2>
+              <X className="cursor-pointer" onClick={() => setShowCreateFournisseurModal(false)} />
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Créez un fournisseur, puis sélectionnez-le pour cet achat. Vous pouvez aussi laisser "Aucun fournisseur".
+            </p>
+
+            <form
+              noValidate
+              className="modal-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (isCreatingFournisseur) return;
+
+                const nextErrors = {};
+                nextErrors.name = validateText(newFournisseurForm.name, {
+                  label: "Nom du fournisseur",
+                  required: true,
+                  minLength: FIELD_LIMITS.TITLE_MIN,
+                  maxLength: FIELD_LIMITS.TITLE_MAX,
+                });
+                nextErrors.contactPerson = validateText(newFournisseurForm.contactPerson, {
+                  label: "Personne de contact",
+                  required: false,
+                  minLength: FIELD_LIMITS.PERSON_NAME_MIN,
+                  maxLength: FIELD_LIMITS.PERSON_NAME_MAX,
+                });
+                if ((newFournisseurForm.phoneNumber || "").trim() && !isValidPhoneNumber(newFournisseurForm.phoneNumber)) {
+                  nextErrors.phoneNumber = "Téléphone invalide (ex: 05 51 51 51 51).";
+                }
+                nextErrors.address = validateText(newFournisseurForm.address, {
+                  label: "Adresse",
+                  required: false,
+                  maxLength: 120,
+                });
+
+                if (Object.values(nextErrors).some(Boolean)) {
+                  setFournisseurErrors(nextErrors);
+                  return;
+                }
+
+                setFournisseurErrors({});
+                try {
+                  setIsCreatingFournisseur(true);
+                  const payload = {
+                    name: String(newFournisseurForm.name || "").trim(),
+                    contactPerson: String(newFournisseurForm.contactPerson || "").trim() || null,
+                    phoneNumber: normalizePhoneInput(newFournisseurForm.phoneNumber) || null,
+                    address: String(newFournisseurForm.address || "").trim() || null,
+                  };
+                  const created = await createFournisseur(payload);
+                  await fetchFournisseurs();
+                  setFormData((s) => ({ ...s, fournisseurId: String(created?.id || "") }));
+                  toast.success("Fournisseur créé");
+                  setShowCreateFournisseurModal(false);
+                } catch (err) {
+                  toast.error(getApiErrorMessage(err, "Erreur lors de la création du fournisseur"));
+                } finally {
+                  setIsCreatingFournisseur(false);
+                }
+              }}
+            >
+              <label>Nom</label>
+              <input
+                type="text"
+                value={newFournisseurForm.name}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewFournisseurForm((s) => ({ ...s, name: v }));
+                  if (fournisseurErrors.name) setFournisseurErrors((prev) => ({ ...prev, name: "" }));
+                }}
+                placeholder="Ex: Dental Supply"
+                required
+                maxLength={FIELD_LIMITS.TITLE_MAX}
+                className={fournisseurErrors.name ? "invalid" : ""}
+              />
+              <FieldError message={fournisseurErrors.name} />
+
+              <label>Contact (optionnel)</label>
+              <input
+                type="text"
+                value={newFournisseurForm.contactPerson}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewFournisseurForm((s) => ({ ...s, contactPerson: v }));
+                  if (fournisseurErrors.contactPerson) setFournisseurErrors((prev) => ({ ...prev, contactPerson: "" }));
+                }}
+                placeholder="Nom du contact"
+                className={fournisseurErrors.contactPerson ? "invalid" : ""}
+              />
+              <FieldError message={fournisseurErrors.contactPerson} />
+
+              <label>Téléphone (optionnel)</label>
+              <PhoneInput
+                value={newFournisseurForm.phoneNumber}
+                onChangeValue={(v) => {
+                  setNewFournisseurForm((s) => ({ ...s, phoneNumber: v }));
+                  if (fournisseurErrors.phoneNumber) setFournisseurErrors((prev) => ({ ...prev, phoneNumber: "" }));
+                }}
+                placeholder="05 51 51 51 51"
+                className={fournisseurErrors.phoneNumber ? "invalid" : ""}
+              />
+              <FieldError message={fournisseurErrors.phoneNumber} />
+
+              <label>Adresse (optionnel)</label>
+              <input
+                type="text"
+                value={newFournisseurForm.address}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewFournisseurForm((s) => ({ ...s, address: v }));
+                  if (fournisseurErrors.address) setFournisseurErrors((prev) => ({ ...prev, address: "" }));
+                }}
+                placeholder="Adresse"
+                className={fournisseurErrors.address ? "invalid" : ""}
+              />
+              <FieldError message={fournisseurErrors.address} />
+
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2" disabled={isCreatingFournisseur}>
+                  {isCreatingFournisseur ? "Création..." : "Créer"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowCreateFournisseurModal(false)}
+                  disabled={isCreatingFournisseur}
                 >
                   Annuler
                 </button>

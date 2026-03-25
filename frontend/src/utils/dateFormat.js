@@ -38,8 +38,7 @@ export const formatDateByPreference = (value, dateFormat = getDateFormatPreferen
   if (dateFormat === DATE_FORMATS.DD_MM_YYYY_DASH) return `${day}-${month}-${year}`;
   if (dateFormat === DATE_FORMATS.DD_MM_YYYY_SLASH) return `${day}/${month}/${year}`;
 
-  // DATE_FORMATS.DD_MONTH_YYYY
-  return date.toLocaleDateString(locale, { day: "2-digit", month: "long", year: "numeric" });
+  return `${day}/${month}/${year}`;
 };
 
 export const formatDayMonthByPreference = (value, dateFormat = getDateFormatPreference(), locale = "fr-FR") => {
@@ -52,8 +51,7 @@ export const formatDayMonthByPreference = (value, dateFormat = getDateFormatPref
   if (dateFormat === DATE_FORMATS.DD_MM_YYYY_DASH) return `${day}-${month}`;
   if (dateFormat === DATE_FORMATS.DD_MM_YYYY_SLASH) return `${day}/${month}`;
 
-  // DATE_FORMATS.DD_MONTH_YYYY
-  return date.toLocaleDateString(locale, { day: "2-digit", month: "long" });
+  return `${day}/${month}`;
 };
 
 export const formatDateTimeByPreference = (value, dateFormat = getDateFormatPreference(), locale = "fr-FR") => {
@@ -75,8 +73,7 @@ export const formatMonthYearByPreference = (value, dateFormat = getDateFormatPre
   if (dateFormat === DATE_FORMATS.DD_MM_YYYY_DASH) return `${month}-${year}`;
   if (dateFormat === DATE_FORMATS.DD_MM_YYYY_SLASH) return `${month}/${year}`;
 
-  // DATE_FORMATS.DD_MONTH_YYYY
-  return date.toLocaleDateString(locale, { month: "long", year: "numeric" });
+  return `${month}/${year}`;
 };
 
 

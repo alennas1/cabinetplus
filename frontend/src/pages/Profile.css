@@ -52,7 +52,7 @@
   flex: 1;
   padding: 6px 10px;
   border: 1px solid #d1d5db;
-  border-radius: 8px;
+  border-radius: var(--cp-input-radius);
   font-size: 14px;
   color: #111827;
   transition: border-color 0.2s, box-shadow 0.2s;

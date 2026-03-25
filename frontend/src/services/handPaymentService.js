@@ -45,6 +45,15 @@ export const createHandPayment = async (paymentData) => {
 };
 
 /**
+ * Create a new hand payment WITHOUT password (onboarding flow)
+ * @param {Object} paymentData - { planId, amount, billingCycle, notes }
+ */
+export const createHandPaymentNoPassword = async (paymentData) => {
+  const response = await api.post(`${BASE_URL}/create-no-password`, paymentData);
+  return response.data;
+};
+
+/**
  * Confirm a hand payment (ADMIN only)
  */
 export const confirmHandPayment = async (paymentId) => {

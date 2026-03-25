@@ -20,7 +20,6 @@ export const DEFAULT_TIME_FORMAT = TIME_FORMATS.TWENTY_FOUR_HOURS;
 export const DATE_FORMATS = {
   DD_MM_YYYY_DASH: "dd-mm-yyyy",
   DD_MM_YYYY_SLASH: "dd/mm/yyyy",
-  DD_MONTH_YYYY: "dd month yyyy",
 };
 
 export const DEFAULT_DATE_FORMAT = DATE_FORMATS.DD_MM_YYYY_SLASH;

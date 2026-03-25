@@ -24,7 +24,8 @@ export const getTreatmentById = async (id) => {
  * treatment = { treatmentCatalog: { id }, patient: { id }, practitioner: { id }, date, price, notes }
  */
 export const createTreatment = async (treatment) => {
-  const response = await api.post(BASE_URL, treatment);
+  const { date, ...payload } = treatment || {};
+  const response = await api.post(BASE_URL, payload);
   return response.data;
 };
 
@@ -32,7 +33,8 @@ export const createTreatment = async (treatment) => {
  * Update treatment by ID
  */
 export const updateTreatment = async (id, treatment) => {
-  const response = await api.put(`${BASE_URL}/${id}`, treatment);
+  const { date, ...payload } = treatment || {};
+  const response = await api.put(`${BASE_URL}/${id}`, payload);
   return response.data;
 };
 

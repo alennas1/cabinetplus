@@ -27,4 +27,11 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
                                        @Param("end") LocalDateTime end);
 
     List<Item> findByCreatedByAndCreatedAtBetween(User dentist, LocalDateTime start, LocalDateTime end);
+
+    boolean existsByFournisseur_IdAndCreatedBy(Long fournisseurId, User user);
+
+    List<Item> findByFournisseur_IdAndCreatedByOrderByCreatedAtDesc(Long fournisseurId, User user);
+
+    @Query("SELECT SUM(i.price) FROM Item i WHERE i.createdBy = :dentist AND i.fournisseur.id = :fournisseurId")
+    Optional<Double> sumPriceByFournisseur(@Param("dentist") User dentist, @Param("fournisseurId") Long fournisseurId);
 }

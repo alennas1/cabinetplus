@@ -20,4 +20,6 @@ public class ItemDTO {
     private Double unitPrice;  // add this
     private LocalDate expiryDate;
     private LocalDateTime createdAt; // use LocalDateTime here
+    private Long fournisseurId;
+    private String fournisseurName;
 }

@@ -11,6 +11,7 @@ import { formatDateByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import { getApiErrorMessage } from "../utils/error";
+import DateInput from "../components/DateInput";
 
 const AdminFinance = () => {
   const token = useSelector((state) => state.auth.token);
@@ -156,10 +157,13 @@ const AdminFinance = () => {
           <span className="custom-range-label">Choisir un jour :</span>
 
           <div className="custom-range">
-          <input 
-            type="date" 
-            value={customDate} 
-            onChange={(e) => { setSelectedFilter("custom"); setCustomDate(e.target.value); }} 
+          <DateInput
+            value={customDate}
+            onChange={(e) => {
+              setSelectedFilter("custom");
+              setCustomDate(e.target.value);
+            }}
+            className="cp-date-compact cp-date-field--filter"
           />
           </div>
         </div>

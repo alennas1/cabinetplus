@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.HandPaymentDTO;
+import com.cabinetplus.backend.dto.HandPaymentNoPasswordDTO;
 import com.cabinetplus.backend.dto.HandPaymentResponseDTO;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.BillingCycle;
@@ -129,6 +130,44 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getMyPayments(Principal prin
     );
     return ResponseEntity.ok(savedPayment);
 }
+
+    /**
+     * Create a new hand payment WITHOUT password.
+     * Used by onboarding flow to avoid asking for the password again.
+     */
+    @PostMapping("/create-no-password")
+    public ResponseEntity<HandPayment> createPaymentNoPassword(@Valid @RequestBody HandPaymentNoPasswordDTO dto, Principal principal) {
+        User user = requireUser(principal);
+
+        Plan plan = planRepository.findById(dto.getPlanId())
+                .orElseThrow(() -> new RuntimeException("Plan introuvable"));
+
+        HandPayment payment = new HandPayment();
+        payment.setUser(user);
+        payment.setPlan(plan);
+        payment.setAmount(dto.getAmount());
+        payment.setNotes(dto.getNotes());
+
+        if (dto.getBillingCycle() != null) {
+            try {
+                payment.setBillingCycle(BillingCycle.valueOf(dto.getBillingCycle().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                payment.setBillingCycle(BillingCycle.MONTHLY);
+            }
+        } else {
+            payment.setBillingCycle(BillingCycle.MONTHLY);
+        }
+
+        HandPayment savedPayment = handPaymentService.createHandPayment(payment);
+        auditService.logSuccessAsUser(
+                user,
+                AuditEventType.HAND_PAYMENT_CREATE,
+                "USER",
+                user.getId() != null ? String.valueOf(user.getId()) : null,
+                "Paiement manuel cree (sans mot de passe)"
+        );
+        return ResponseEntity.ok(savedPayment);
+    }
 
     /**
      * Confirm a pending hand payment

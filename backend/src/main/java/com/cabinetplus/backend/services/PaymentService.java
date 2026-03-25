@@ -35,7 +35,8 @@ public class PaymentService {
 
         User receivedBy = resolveReceivedBy(request.receivedByUserId(), clinicOwner, actor);
 
-        LocalDateTime when = request.date() != null ? request.date() : LocalDateTime.now();
+        // Force server-side timestamp for traceability (ignore any client-provided date).
+        LocalDateTime when = LocalDateTime.now();
 
         Payment saved = paymentRepository.save(
                 Payment.builder()

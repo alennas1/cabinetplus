@@ -65,6 +65,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import MoneyInput from "../components/MoneyInput";
 import PhoneInput from "../components/PhoneInput";
 import BackButton from "../components/BackButton";
+import DateInput from "../components/DateInput";
 import "./Patient.css";
 import { Edit2,Eye, Trash2, Plus, Calendar,Activity, CreditCard ,Check,FileText, Download, Printer, Paperclip, UploadCloud, Search, ArrowRight, ChevronDown } from "react-feather";
 import { FaMale, FaFemale, FaTooth } from "react-icons/fa";
@@ -2083,35 +2084,35 @@ const sortedPayments = useMemo(
              </div>
            </div>
 
-           <div className="custom-range-container">
-             <span className="custom-range-label">Plage personnalisée :</span>
-             <div className="custom-range">
-               <input
-                 type="date"
-                 value={filters.customRange?.start || ""}
-                 onChange={(e) =>
-                   updateTabFilter(tabKey, (current) => ({
-                     selectedFilter: "custom",
-                     selectedMonth: "",
-                     customRange: { ...current.customRange, start: e.target.value },
-                   }))
-                 }
-               />
-               <input
-                 type="date"
-                 value={filters.customRange?.end || ""}
-                 onChange={(e) =>
-                   updateTabFilter(tabKey, (current) => ({
-                     selectedFilter: "custom",
-                     selectedMonth: "",
-                     customRange: { ...current.customRange, end: e.target.value },
-                   }))
-                 }
-               />
-             </div>
+            <div className="custom-range-container">
+              <span className="custom-range-label">Plage personnalisée :</span>
+              <div className="custom-range">
+                <DateInput
+                  value={filters.customRange?.start || ""}
+                  onChange={(e) =>
+                    updateTabFilter(tabKey, (current) => ({
+                      selectedFilter: "custom",
+                      selectedMonth: "",
+                      customRange: { ...current.customRange, start: e.target.value },
+                    }))
+                  }
+                  className="cp-date-compact cp-date-field--filter"
+                />
+                <DateInput
+                  value={filters.customRange?.end || ""}
+                  onChange={(e) =>
+                    updateTabFilter(tabKey, (current) => ({
+                      selectedFilter: "custom",
+                      selectedMonth: "",
+                      customRange: { ...current.customRange, end: e.target.value },
+                    }))
+                  }
+                  className="cp-date-compact cp-date-field--filter"
+                />
+              </div>
+            </div>
            </div>
-          </div>
-        )}
+         )}
         </div>
       </>
     );
@@ -2920,6 +2921,8 @@ const handleDeleteAppointment = (a) => {
        <span className="patient-name-text">
          {patient.firstname} {patient.lastname}
        </span>
+
+       <span className="context-badge">Patient</span>
 
        <PatientDangerIcon
          show={!!patient.danger}
@@ -5184,16 +5187,15 @@ const handleDeleteAppointment = (a) => {
       </p>
       <form noValidate className="modal-form" onSubmit={handleCreateOrUpdateAppointment}>
 
-        <label>Date</label>
-        <input 
-          type="date" 
-          name="date" 
-          value={appointmentForm.date} 
-          onChange={handleAppointmentChange} 
-          required 
-          className={appointmentFieldErrors.date ? "invalid" : ""}
-        />
-        <FieldError message={appointmentFieldErrors.date} />
+         <label>Date</label>
+         <DateInput
+           name="date"
+           value={appointmentForm.date}
+           onChange={handleAppointmentChange}
+           required
+           className={appointmentFieldErrors.date ? "invalid" : ""}
+         />
+         <FieldError message={appointmentFieldErrors.date} />
 
 	        {/* Créneau / Heure */}
 	        <label>Heure</label>
@@ -5551,8 +5553,3 @@ const handleDeleteAppointment = (a) => {
 };
 
 export default Patient;
-
-
-
-
-

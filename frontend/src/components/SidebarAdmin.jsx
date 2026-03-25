@@ -12,6 +12,7 @@ import {
   PieChart,
   Shield,
   Sliders,
+  Headphones,
 } from "react-feather";
 
 import { logout as logoutRedux } from "../store/authSlice";
@@ -97,6 +98,14 @@ const SidebarAdmin = () => {
           <Link to="/admin/audit-logs">
             <Shield size={20} />
             <span className="link-text">Journal admin</span>
+          </Link>
+        </li>
+
+        <li className="sidebar-group-title">Support</li>
+        <li>
+          <Link to="/admin/support">
+            <Headphones size={20} />
+            <span className="link-text">Support & Feedback</span>
           </Link>
         </li>
       </ul>

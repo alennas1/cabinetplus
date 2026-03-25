@@ -368,21 +368,6 @@ const Preference = ({ showWorkingHours = true }) => {
                   </div>
                   <span className="preference-pill">12-03-2026</span>
                 </button>
-
-                <button
-                  type="button"
-                  className={`preference-option-row ${dateFormat === DATE_FORMATS.DD_MONTH_YYYY ? "active" : ""}`}
-                  onClick={() => setDateFormat(DATE_FORMATS.DD_MONTH_YYYY)}
-                  aria-pressed={dateFormat === DATE_FORMATS.DD_MONTH_YYYY}
-                >
-                  <div className="preference-option-body">
-                    <div className="preference-option-title-row">
-                      <span className="preference-option-title">DD Mois YYYY</span>
-                    </div>
-                    <div className="preference-option-description">Ex: 05 janvier 2026</div>
-                  </div>
-                  <span className="preference-pill">12 mars 2026</span>
-                </button>
               </div>
             </div>
             ) : null}

@@ -9,12 +9,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.models.Employee;
+import com.cabinetplus.backend.models.Fournisseur;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.Laboratory;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Prescription;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
+import com.cabinetplus.backend.repositories.FournisseurRepository;
 import com.cabinetplus.backend.repositories.JustificationContentRepository;
 import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
@@ -30,6 +32,7 @@ public class PublicIdResolutionService {
     private final PatientRepository patientRepository;
     private final EmployeeRepository employeeRepository;
     private final LaboratoryRepository laboratoryRepository;
+    private final FournisseurRepository fournisseurRepository;
     private final UserRepository userRepository;
     private final JustificationContentRepository justificationContentRepository;
     private final PrescriptionRepository prescriptionRepository;
@@ -74,6 +77,20 @@ public class PublicIdResolutionService {
     public Laboratory requireLaboratoryOwnedBy(String idOrPublicId, User ownerDentist) {
         return findLaboratoryOwnedBy(idOrPublicId, ownerDentist)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
+    }
+
+    public Optional<Fournisseur> findFournisseurOwnedBy(String idOrPublicId, User ownerDentist) {
+        if (isNumeric(idOrPublicId)) {
+            Long id = parseLong(idOrPublicId);
+            return fournisseurRepository.findByIdAndCreatedBy(id, ownerDentist);
+        }
+        UUID publicId = parseUuid(idOrPublicId);
+        return fournisseurRepository.findByPublicIdAndCreatedBy(publicId, ownerDentist);
+    }
+
+    public Fournisseur requireFournisseurOwnedBy(String idOrPublicId, User ownerDentist) {
+        return findFournisseurOwnedBy(idOrPublicId, ownerDentist)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Fournisseur introuvable"));
     }
 
     public Optional<User> findUserByIdOrPublicId(String idOrPublicId) {

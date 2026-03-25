@@ -52,6 +52,14 @@ public class Expense {
     @Convert(converter = EncryptionConverter.class)
     private String description;
 
+    @Column(name = "other_category_label", columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
+    private String otherCategoryLabel;
+
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "fournisseur_id")
+    private Fournisseur fournisseur;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;

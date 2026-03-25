@@ -15,6 +15,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { FIELD_LIMITS, isStrongPassword, validateText } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
+import DateInput from "../components/DateInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 
 import {
@@ -613,12 +614,7 @@ const Employees = () => {
               {formStep === 2 && (
                 <>
                   <span className="field-label">Date de naissance</span>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    value={formData.dateOfBirth || ""}
-                    onChange={handleChange}
-                  />
+                  <DateInput name="dateOfBirth" value={formData.dateOfBirth || ""} onChange={handleChange} />
                   <span className="field-label">CIN</span>
                   <input
                     type="text"
@@ -650,19 +646,9 @@ const Employees = () => {
                     </span>
                   </div>
                   <span className="field-label">Date embauche</span>
-                  <input
-                    type="date"
-                    name="hireDate"
-                    value={formData.hireDate || ""}
-                    onChange={handleChange}
-                  />
+                  <DateInput name="hireDate" value={formData.hireDate || ""} onChange={handleChange} />
                   <span className="field-label">Date fin</span>
-                  <input
-                    type="date"
-                    name="endDate"
-                    value={formData.endDate || ""}
-                    onChange={handleChange}
-                  />
+                  <DateInput name="endDate" value={formData.endDate || ""} onChange={handleChange} />
                   <span className="field-label">Contrat</span>
                   <input
                     type="text"

@@ -7,6 +7,7 @@ import {
   User,
   CreditCard,
   FileText,
+  Eye,
   Edit2,
   Check,
   Phone,
@@ -25,7 +26,7 @@ import {
   updateLaboratory,
 } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
-import { formatDateTimeByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+import { formatDateByPreference, formatDateTimeByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
@@ -33,6 +34,7 @@ import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { FIELD_LIMITS, validateNumber, validateText } from "../utils/validation";
+import DateInput from "../components/DateInput";
 import "./Patient.css";
 import "./Profile.css";
 import "./Finance.css";
@@ -74,7 +76,6 @@ const LaboratoryDetails = () => {
   const [paymentIdToDelete, setPaymentIdToDelete] = useState(null);
   const [paymentData, setPaymentData] = useState({
     amount: "",
-    paymentDate: new Date().toISOString().slice(0, 16),
     notes: "",
   });
   const [paymentErrors, setPaymentErrors] = useState({});
@@ -196,6 +197,13 @@ const LaboratoryDetails = () => {
   const [paymentPage, setPaymentPage] = useState(1);
   const paymentsPerPage = 10;
 
+  const [billingPage, setBillingPage] = useState(1);
+  const billingPerPage = 10;
+  const [billingSortConfig, setBillingSortConfig] = useState({
+    key: "billingDate",
+    direction: SORT_DIRECTIONS.DESC,
+  });
+
   const handlePaymentSort = (key, explicitDirection) => {
     if (!key) return;
     setPaymentSortConfig((prev) => {
@@ -226,6 +234,38 @@ const LaboratoryDetails = () => {
     return sortRowsBy(filteredPayments, getValue, paymentSortConfig.direction);
   }, [filteredPayments, paymentSortConfig.direction, paymentSortConfig.key]);
 
+  const handleBillingSort = (key, explicitDirection) => {
+    if (!key) return;
+    setBillingSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+  };
+
+  const sortedBillingEntries = useMemo(() => {
+    const getValue = (entry) => {
+      switch (billingSortConfig.key) {
+        case "patientName":
+          return entry.patientName;
+        case "prothesisName":
+          return entry.prothesisName;
+        case "amount":
+          return entry.amount;
+        case "billingDate":
+          return entry.billingDate;
+        default:
+          return "";
+      }
+    };
+    return sortRowsBy(filteredBillingEntries, getValue, billingSortConfig.direction);
+  }, [billingSortConfig.direction, billingSortConfig.key, filteredBillingEntries]);
+
   useEffect(() => {
     setPaymentPage(1);
   }, [
@@ -238,10 +278,27 @@ const LaboratoryDetails = () => {
     paymentSortConfig.direction,
   ]);
 
+  useEffect(() => {
+    setBillingPage(1);
+  }, [
+    activeTab,
+    billingFilters.selectedFilter,
+    billingFilters.selectedMonth,
+    billingFilters.customRange.start,
+    billingFilters.customRange.end,
+    billingSortConfig.key,
+    billingSortConfig.direction,
+  ]);
+
   const indexOfLastPayment = paymentPage * paymentsPerPage;
   const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
   const currentPayments = sortedPayments.slice(indexOfFirstPayment, indexOfLastPayment);
   const paymentTotalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
+
+  const indexOfLastBilling = billingPage * billingPerPage;
+  const indexOfFirstBilling = indexOfLastBilling - billingPerPage;
+  const currentBillingEntries = sortedBillingEntries.slice(indexOfFirstBilling, indexOfLastBilling);
+  const billingTotalPages = Math.ceil(sortedBillingEntries.length / billingPerPage);
 
   const handleEditField = (field) => {
     setEditingField(field);
@@ -396,8 +453,7 @@ const LaboratoryDetails = () => {
       <div className="custom-range-container">
         <span className="custom-range-label">Plage personnalisée :</span>
         <div className="custom-range">
-          <input
-            type="date"
+          <DateInput
             value={filters.customRange.start}
             onChange={(e) =>
               updateFilterState(setFilters, {
@@ -406,9 +462,9 @@ const LaboratoryDetails = () => {
                 selectedMonth: "",
               })
             }
+            className="cp-date-compact cp-date-field--filter"
           />
-          <input
-            type="date"
+          <DateInput
             value={filters.customRange.end}
             onChange={(e) =>
               updateFilterState(setFilters, {
@@ -417,6 +473,7 @@ const LaboratoryDetails = () => {
                 selectedMonth: "",
               })
             }
+            className="cp-date-compact cp-date-field--filter"
           />
         </div>
       </div>
@@ -426,7 +483,6 @@ const LaboratoryDetails = () => {
   const resetPaymentForm = () => {
     setPaymentData({
       amount: "",
-      paymentDate: new Date().toISOString().slice(0, 16),
       notes: "",
     });
     setPaymentErrors({});
@@ -441,10 +497,6 @@ const LaboratoryDetails = () => {
       label: "Montant payé",
       required: true,
       min: 0.01,
-    });
-    nextErrors.paymentDate = validateText(paymentData.paymentDate, {
-      label: "Date du paiement",
-      required: true,
     });
     nextErrors.notes = validateText(paymentData.notes, {
       label: "Note",
@@ -461,7 +513,6 @@ const LaboratoryDetails = () => {
       const amountValue = parseFloat(paymentData.amount);
       const updatedLab = await addLaboratoryPayment(id, {
         amount: amountValue,
-        paymentDate: paymentData.paymentDate,
         notes: paymentData.notes?.trim() || "",
       });
       setLaboratory(updatedLab);
@@ -528,7 +579,12 @@ const LaboratoryDetails = () => {
 
       <div className="patient-top">
         <div className="patient-info-left">
-          <div className="patient-name">{laboratory.name}</div>
+          <div className="patient-name">
+            <div className="patient-name-row">
+              <span className="patient-name-text">{laboratory.name}</span>
+              <span className="context-badge">Laboratoire</span>
+            </div>
+          </div>
           <div className="patient-details">
             <div>{laboratory.contactPerson || "Aucun contact"}</div>
             <div>{formatPhoneNumber(laboratory.phoneNumber) || "Aucun téléphone"}</div>
@@ -650,20 +706,80 @@ const LaboratoryDetails = () => {
           <div className="patient-stats" style={{ marginBottom: "16px" }}>
             <div className="stat-box stat-facture">Total filtré: {formatCurrency(filteredBillingTotal)}</div>
           </div>
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: "16px",
-              padding: "24px",
-              boxShadow: "0 3px 8px rgba(0, 0, 0, 0.06)",
-              color: "#6b7280",
-              fontSize: "14px",
-            }}
-          >
-            {filteredBillingEntries.length
-              ? `Montant total facturé pour le filtre sélectionné : ${formatCurrency(filteredBillingTotal)}`
-              : "Aucune facturation trouvée pour le filtre sélectionné."}
-          </div>
+
+          <table className="treatment-table">
+            <thead>
+              <tr>
+                <SortableTh label="Patient" sortKey="patientName" sortConfig={billingSortConfig} onSort={handleBillingSort} />
+                <SortableTh label="Prothèse" sortKey="prothesisName" sortConfig={billingSortConfig} onSort={handleBillingSort} />
+                <SortableTh label="Montant" sortKey="amount" sortConfig={billingSortConfig} onSort={handleBillingSort} />
+                <SortableTh label="Date" sortKey="billingDate" sortConfig={billingSortConfig} onSort={handleBillingSort} />
+                <th>Voir</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentBillingEntries.length ? (
+                currentBillingEntries.map((entry) => (
+                  <tr
+                    key={entry.prothesisId}
+                    onClick={() => navigate(`/gestion-cabinet/prosthetics-tracking?focus=${entry.prothesisId}`)}
+                    style={{ cursor: "pointer" }}
+                    title="Voir dans le suivi prothèses"
+                  >
+                    <td>{entry.patientName || "—"}</td>
+                    <td style={{ fontWeight: 700 }}>{entry.prothesisName || "—"}</td>
+                    <td>{formatCurrency(entry.amount)}</td>
+                    <td>{formatDateByPreference(entry.billingDate)}</td>
+                    <td className="actions-cell">
+                      <button
+                        type="button"
+                        className="action-btn view"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/gestion-cabinet/prosthetics-tracking?focus=${entry.prothesisId}`);
+                        }}
+                        title="Voir"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
+                    Aucune prothèse trouvée
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {billingTotalPages > 1 && (
+            <div className="pagination">
+              <button disabled={billingPage === 1} onClick={() => setBillingPage((prev) => prev - 1)}>
+                ← Précédent
+              </button>
+
+              {[...Array(billingTotalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  className={billingPage === i + 1 ? "active" : ""}
+                  onClick={() => setBillingPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                disabled={billingPage === billingTotalPages}
+                onClick={() => setBillingPage((prev) => prev + 1)}
+              >
+                Suivant →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -694,18 +810,6 @@ const LaboratoryDetails = () => {
                 className={paymentErrors.amount ? "invalid" : ""}
               />
               <FieldError message={paymentErrors.amount} />
-
-              <label className="field-label">Date du paiement</label>
-              <input
-                type="datetime-local"
-                value={paymentData.paymentDate}
-                onChange={(e) => {
-                  setPaymentData({ ...paymentData, paymentDate: e.target.value });
-                  if (paymentErrors.paymentDate) setPaymentErrors((prev) => ({ ...prev, paymentDate: "" }));
-                }}
-                className={paymentErrors.paymentDate ? "invalid" : ""}
-              />
-              <FieldError message={paymentErrors.paymentDate} />
 
               <label className="field-label">Note</label>
               <textarea

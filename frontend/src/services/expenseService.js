@@ -15,7 +15,8 @@ export const getExpenses = async () => {
  * Create a new expense
  */
 export const createExpense = async (expenseData) => {
-  const response = await api.post(BASE_URL, expenseData);
+  const { date, ...payload } = expenseData || {};
+  const response = await api.post(BASE_URL, payload);
   return response.data;
 };
 
@@ -23,7 +24,8 @@ export const createExpense = async (expenseData) => {
  * Update an expense by ID
  */
 export const updateExpense = async (id, expenseData) => {
-  const response = await api.put(`${BASE_URL}/${id}`, expenseData);
+  const { date, ...payload } = expenseData || {};
+  const response = await api.put(`${BASE_URL}/${id}`, payload);
   return response.data;
 };
 

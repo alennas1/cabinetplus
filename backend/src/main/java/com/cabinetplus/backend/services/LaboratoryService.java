@@ -120,7 +120,8 @@ public class LaboratoryService {
         payment.setLaboratory(laboratory);
         payment.setCreatedBy(user);
         payment.setAmount(request.amount());
-        payment.setPaymentDate(request.paymentDate() != null ? request.paymentDate() : LocalDateTime.now());
+        // Force server-side timestamp for traceability (ignore any client-provided paymentDate).
+        payment.setPaymentDate(LocalDateTime.now());
         payment.setNotes(request.notes());
 
         return laboratoryPaymentRepository.save(payment);

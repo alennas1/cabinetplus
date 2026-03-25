@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Shield } from "react-feather";
+import { LogOut, X } from "react-feather";
 import { logout, setCredentials, setLoading as setAuthLoading } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
 import { getAllPlansClient } from "../services/clientPlanService";
-import { createHandPayment } from "../services/handPaymentService";
+import { createHandPaymentNoPassword } from "../services/handPaymentService";
 import { getCurrentUser } from "../services/authService";
 import { getCurrentPlanUsage } from "../services/userService";
 import { getUserPreferences } from "../services/userPreferenceService";
@@ -13,8 +13,8 @@ import { applyUserPreferences } from "../utils/workingHours";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PlanCard from "../components/PlanCard";
-import PasswordInput from "../components/PasswordInput";
 import "./Plan.css";
+import "./PaymentHistory.css";
 
 const formatStorageUsage = (bytes, maxGb) => {
   const usedBytes = Number(bytes || 0);
@@ -46,8 +46,7 @@ const PlanPage = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
   const [planUsage, setPlanUsage] = useState(null);
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
   const sortedPlans = useMemo(() => {
     const getSortPrice = (plan) => {
@@ -101,12 +100,9 @@ const PlanPage = () => {
   }
 
   const handleHandPayment = async () => {
+    if (confirmSubmitting) return;
     try {
-      const pwd = String(confirmPassword || "").trim();
-      if (!pwd) {
-        setConfirmPasswordError("Mot de passe requis.");
-        return;
-      }
+      setConfirmSubmitting(true);
 
       const isFree = selectedPlan.monthlyPrice === 0;
       const amountToPay = isFree
@@ -120,10 +116,9 @@ const PlanPage = () => {
         amount: amountToPay,
         billingCycle: isFree ? "MONTHLY" : isYearly ? "YEARLY" : "MONTHLY",
         notes: `Paiement ${isYearly ? "Annuel" : "Mensuel"} - ${selectedPlan.name}`,
-        password: pwd,
       };
 
-      await createHandPayment(paymentData);
+      await createHandPaymentNoPassword(paymentData);
       const refreshedUser = await getCurrentUser();
       dispatch(setAuthLoading(true));
       try {
@@ -134,11 +129,11 @@ const PlanPage = () => {
       }
       dispatch(setCredentials({ user: refreshedUser, token }));
       setShowPopup(false);
-      setConfirmPassword("");
-      setConfirmPasswordError("");
       navigate("/waiting", { replace: true });
     } catch (err) {
       alert("Erreur lors de la validation.");
+    } finally {
+      setConfirmSubmitting(false);
     }
   };
 
@@ -210,96 +205,47 @@ const PlanPage = () => {
             </div>
           )}
           {sortedPlans.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              isYearly={isYearly}
-              featured={Boolean(plan.recommended)}
-              headerBadge={plan.recommended ? "Recommandé" : undefined}
-              onSelect={() => {
-                setSelectedPlan(plan);
-                setConfirmPassword("");
-                setConfirmPasswordError("");
-                setShowPopup(true);
-              }}
-            />
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                isYearly={isYearly}
+                featured={Boolean(plan.recommended)}
+                headerBadge={plan.recommended ? "Recommandé" : undefined}
+                onSelect={() => {
+                  setSelectedPlan(plan);
+                  setShowPopup(true);
+                }}
+              />
           ))}
         </div>
 
         {showPopup && selectedPlan && (
-          <div className="payment-popup-overlay">
-            <div className="payment-popup">
-              <Shield size={50} color="#3b82f6" style={{ marginBottom: "20px" }} />
-              <h2>Confirmation</h2>
+          <div className="modal-overlay" onClick={() => setShowPopup(false)}>
+            <button
+              type="button"
+              className="hp-modal-float-close"
+              aria-label="Fermer"
+              onClick={() => setShowPopup(false)}
+            >
+              <X size={18} />
+            </button>
+            <div onClick={(e) => e.stopPropagation()}>
               <PlanCard
                 plan={selectedPlan}
                 isYearly={isYearly}
                 featured={Boolean(selectedPlan.recommended)}
-                variant="compact"
-                showButton={false}
+                variant="full"
+                className="is-modal"
+                buttonVariant="primary"
+                buttonLabel={
+                  confirmSubmitting
+                    ? "Envoi..."
+                    : selectedPlan.monthlyPrice === 0
+                    ? "Activer l'essai"
+                    : "Valider le paiement"
+                }
+                onSelect={handleHandPayment}
               />
-
-              <div className="plan-confirm-total">
-                <span>Montant total</span>
-                <strong>
-                  {selectedPlan.monthlyPrice === 0
-                    ? 0
-                    : isYearly
-                    ? selectedPlan.yearlyMonthlyPrice * 12
-                    : selectedPlan.monthlyPrice}{" "}
-                  {getCurrencyLabelPreference()}
-                </strong>
-              </div>
-
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Mot de passe</div>
-                <PasswordInput
-                  placeholder="Entrez votre mot de passe"
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    if (confirmPasswordError) setConfirmPasswordError("");
-                  }}
-                  autoComplete="current-password"
-                />
-                {confirmPasswordError ? (
-                  <div style={{ color: "#dc2626", marginTop: 6, fontSize: 13 }}>{confirmPasswordError}</div>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPopup(false);
-                    navigate("/settings/security");
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    marginTop: 8,
-                    cursor: "pointer",
-                    color: "#2563eb",
-                    fontSize: 13,
-                  }}
-                >
-                  Mot de passe oublié ?
-                </button>
-              </div>
-
-              <button className="plan-btn plan-btn-primary" onClick={handleHandPayment}>
-                {selectedPlan.monthlyPrice === 0 ? "Activer l'essai" : "Valider le paiement"}
-              </button>
-              <button
-                style={{
-                  background: "none",
-                  border: "none",
-                  marginTop: "15px",
-                  cursor: "pointer",
-                  color: "#94a3b8",
-                }}
-                onClick={() => setShowPopup(false)}
-              >
-                Annuler
-              </button>
             </div>
           </div>
         )}

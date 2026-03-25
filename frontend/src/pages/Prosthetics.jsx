@@ -12,6 +12,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
 import ModernDropdown from "../components/ModernDropdown";
 import FieldError from "../components/FieldError";
+import DateInput from "../components/DateInput";
 import {
   getAllProthetics,
   updateProtheticsStatus,
@@ -709,23 +710,23 @@ const Prosthetics = () => {
         <div className="custom-range-container">
           <span className="custom-range-label">Plage personnalisee :</span>
           <div className="custom-range">
-            <input
-              type="date"
+            <DateInput
               value={customRange.start}
               onChange={(e) => {
                 setCustomRange({ ...customRange, start: e.target.value });
                 setSelectedFilter("custom");
                 setSelectedMonth("");
               }}
+              className="cp-date-compact cp-date-field--filter"
             />
-            <input
-              type="date"
+            <DateInput
               value={customRange.end}
               onChange={(e) => {
                 setCustomRange({ ...customRange, end: e.target.value });
                 setSelectedFilter("custom");
                 setSelectedMonth("");
               }}
+              className="cp-date-compact cp-date-field--filter"
             />
           </div>
         </div>

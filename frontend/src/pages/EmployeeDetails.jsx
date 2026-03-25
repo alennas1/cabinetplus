@@ -501,7 +501,12 @@ const EmployeeDetails = () => {
       <div className="patient-top">
         <div className="patient-info-left">
           <div className="patient-name">
-            {employee.firstName} {employee.lastName}
+            <div className="patient-name-row">
+              <span className="patient-name-text">
+                {employee.firstName} {employee.lastName}
+              </span>
+              <span className="context-badge">Employé</span>
+            </div>
           </div>
           <div className="patient-details">
             <div>
@@ -618,8 +623,8 @@ const EmployeeDetails = () => {
               {pagedWorkingHours.map((h) => (
                   <tr key={h.id}>
                     <td>{translateDay(h.dayOfWeek)}</td>
-                    <td>{h.startTime === null && h.endTime === null ? "Repos" : h.startTime?.slice(0, 5) || "â€”"}</td>
-                    <td>{h.startTime === null && h.endTime === null ? "Repos" : h.endTime?.slice(0, 5) || "â€”"}</td>
+                    <td>{h.startTime === null && h.endTime === null ? "Repos" : h.startTime?.slice(0, 5) || "—"}</td>
+                    <td>{h.startTime === null && h.endTime === null ? "Repos" : h.endTime?.slice(0, 5) || "—"}</td>
                   </tr>
                 ))}
             </tbody>

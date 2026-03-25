@@ -151,11 +151,11 @@
 
 .auth-form input {
   width: 100%;
-  min-height: 58px;
-  padding: 0.9rem 1.1rem;
+  padding: 12px 16px;
+  min-height: 48px;
   background: transparent;
   border: 2px solid #ccd3db;
-  border-radius: 16px;
+  border-radius: var(--cp-input-radius);
   font-size: 16px;
   line-height: 1.2;
   color: #111111;
@@ -406,9 +406,8 @@
 }
 
 .login-reset-form input {
-  min-height: 54px;
-  padding: 0.8rem 1rem;
-  border-radius: 14px;
+  padding: 8px 14px;
+  border-radius: var(--cp-input-radius);
   border: 1.5px solid #ccd3db;
   font-size: 0.98rem;
 }

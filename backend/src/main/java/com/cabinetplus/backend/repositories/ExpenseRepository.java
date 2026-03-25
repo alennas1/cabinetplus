@@ -27,4 +27,9 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
     List<Expense> findByEmployeeAndCreatedBy(Employee employee, User dentist);
 
+    List<Expense> findByFournisseur_IdAndCreatedByOrderByDateDesc(Long fournisseurId, User dentist);
+
+    @Query("SELECT SUM(e.amount) FROM Expense e WHERE e.createdBy = :dentist AND e.fournisseur.id = :fournisseurId")
+    Optional<Double> sumAmountByFournisseur(@Param("dentist") User dentist, @Param("fournisseurId") Long fournisseurId);
+
 }

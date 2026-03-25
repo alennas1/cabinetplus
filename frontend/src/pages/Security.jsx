@@ -837,7 +837,7 @@ const Security = () => {
                   fontSize: 13,
                 }}
               >
-                Mot de passe oubliÃ© ?
+                Mot de passe oublié ?
               </button>
             </div>
 
@@ -848,7 +848,7 @@ const Security = () => {
                 onClick={confirmLogin2faChange}
                 disabled={login2faLoading}
               >
-                {login2faLoading ? "Mise Ã  jour..." : "Confirmer"}
+                {login2faLoading ? "Mise à jour..." : "Confirmer"}
               </button>
               <button type="button" className="btn-cancel" onClick={closeLogin2faConfirm} disabled={login2faLoading}>
                 Annuler
@@ -861,7 +861,7 @@ const Security = () => {
       {sessionConfirmOpen ? (
         <div className="modal-overlay" onClick={closeSessionConfirm}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{pendingSessionAction?.type === "all" ? "Tout dÃ©connecter" : "DÃ©connecter la session"}</h3>
+            <h3>{pendingSessionAction?.type === "all" ? "Tout déconnecter" : "Déconnecter la session"}</h3>
             <p style={{ marginTop: "-8px", color: "#64748b", fontSize: "13px" }}>
               Entrez votre mot de passe pour confirmer.
             </p>
@@ -894,7 +894,7 @@ const Security = () => {
                   fontSize: 13,
                 }}
               >
-                Mot de passe oubliÃ© ?
+                Mot de passe oublié ?
               </button>
             </div>
 

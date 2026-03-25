@@ -74,7 +74,7 @@ const MaterialsSettings = () => {
             setMaterials([...materials, savedMaterial]);
             setNewMaterialName(""); 
             setFieldErrors({});
-            toast.success("MatÃ©riau ajoutÃ© avec succÃ¨s");
+            toast.success("Matériau ajouté avec succès");
         } catch (err) {
             toast.error(getApiErrorMessage(err, "Impossible d'ajouter le matériau."));
         } finally {
@@ -94,7 +94,7 @@ const MaterialsSettings = () => {
             setIsDeletingMaterial(true);
             await deleteMaterial(materialIdToDelete);
             setMaterials(materials.filter((m) => m.id !== materialIdToDelete));
-            toast.success("MatÃ©riau supprimÃ©");
+            toast.success("Matériau supprimé");
         } catch (err) {
             toast.error(getApiErrorMessage(err, "Erreur lors de la suppression."));
         } finally {
@@ -145,8 +145,8 @@ const MaterialsSettings = () => {
     if (loading) {
         return (
             <DentistPageSkeleton
-                title="MatÃ©riaux et composants"
-                subtitle="Chargement du catalogue des matÃ©riaux"
+                title="Matériaux et composants"
+                subtitle="Chargement du catalogue des matériaux"
                 variant="table"
             />
         );
@@ -156,8 +156,8 @@ const MaterialsSettings = () => {
         <div className="patients-container">
             <BackButton fallbackTo="/catalogue" />
             <PageHeader 
-                title="MatÃ©riaux & Composants" 
-                subtitle="GÃ©rez les matÃ©riaux utilisÃ©s pour la fabrication" 
+                title="Matériaux & Composants" 
+                subtitle="Gérez les matériaux utilisés pour la fabrication" 
                 align="left" 
             />
 
@@ -168,7 +168,7 @@ const MaterialsSettings = () => {
                         <Search className="search-icon" size={16} />
                         <input
                             type="text"
-                            placeholder="Rechercher un matÃ©riau..."
+                            placeholder="Rechercher un matériau..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -233,7 +233,7 @@ const MaterialsSettings = () => {
                     {sortedMaterials.length === 0 && (
                         <tr>
                             <td colSpan={3} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
-                                Aucun matÃ©riau trouvÃ©
+                                Aucun matériau trouvé
                             </td>
                         </tr>
                     )}
@@ -247,7 +247,7 @@ const MaterialsSettings = () => {
                         disabled={currentPage === 1} 
                         onClick={() => setCurrentPage(prev => prev - 1)}
                     >
-                        â† PrÃ©cÃ©dent
+                        ← Précédent
                     </button>
                     {[...Array(totalPages)].map((_, i) => (
                         <button 
@@ -262,7 +262,7 @@ const MaterialsSettings = () => {
                         disabled={currentPage === totalPages} 
                         onClick={() => setCurrentPage(prev => prev + 1)}
                     >
-                        Suivant â†’
+                        Suivant →
                     </button>
                 </div>
             )}
@@ -272,10 +272,10 @@ const MaterialsSettings = () => {
                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
                     <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
                         <div className="flex justify-between items-start mb-2">
-                            <h2 className="text-lg font-semibold text-gray-800">Supprimer le matÃ©riau ?</h2>
+                            <h2 className="text-lg font-semibold text-gray-800">Supprimer le matériau ?</h2>
                             <X className="cursor-pointer text-gray-400 hover:text-gray-600" size={20} onClick={() => setShowConfirm(false)} />
                         </div>
-                        <p className="text-gray-600 mb-6">Voulez-vous vraiment supprimer ce matÃ©riau ? Cette action est irrÃ©versible.</p>
+                        <p className="text-gray-600 mb-6">Voulez-vous vraiment supprimer ce matériau ? Cette action est irréversible.</p>
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setShowConfirm(false)}

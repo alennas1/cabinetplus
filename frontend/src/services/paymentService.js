@@ -3,7 +3,8 @@ import api from "./authService"; // use the axios instance with interceptors
 
 // 🔹 Create payment
 export const createPayment = async (data) => {
-  const response = await api.post("/api/payments", data);
+  const { date, ...payload } = data || {};
+  const response = await api.post("/api/payments", payload);
   return response.data;
 };
 

@@ -1,0 +1,242 @@
+.cp-date-field {
+  position: relative;
+  width: 100%;
+}
+
+.cp-date-shell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 2px solid var(--cp-input-border);
+  border-radius: var(--cp-input-radius);
+  background: #ffffff;
+  color: #111111;
+  padding: 6px 14px;
+  box-sizing: border-box;
+  transition: border-color 0.22s ease, background-color 0.22s ease;
+}
+
+.cp-date-field:hover .cp-date-shell {
+  border-color: var(--cp-input-border-hover);
+}
+
+.cp-date-field:focus-within .cp-date-shell {
+  border-color: var(--cp-input-border-focus);
+}
+
+.cp-date-field.invalid .cp-date-shell,
+.cp-date-field .cp-date-shell.invalid {
+  border-color: #ef4444;
+}
+
+.cp-date-shell input {
+  width: 100%;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  background: transparent !important;
+  color: inherit;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+.cp-date-shell input::placeholder {
+  color: var(--cp-input-placeholder);
+}
+
+.cp-date-open,
+.cp-date-clear {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0 !important;
+  line-height: 0 !important;
+  border: 0 !important;
+  border-radius: 999px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #9ca3af;
+  cursor: pointer;
+  appearance: none;
+}
+
+.cp-date-clear {
+  width: 22px;
+  height: 22px;
+}
+
+.cp-date-open svg,
+.cp-date-clear svg {
+  display: block;
+}
+
+.cp-date-open:focus,
+.cp-date-clear:focus {
+  outline: none;
+}
+
+.cp-date-open:focus-visible,
+.cp-date-clear:focus-visible {
+  outline: 3px solid rgba(52, 152, 219, 0.35);
+  outline-offset: 2px;
+}
+
+.cp-date-open:hover,
+.cp-date-clear:hover {
+  color: #6b7280;
+}
+
+.cp-date-compact {
+  width: 190px;
+  display: inline-block;
+}
+
+.cp-date-field--filter .cp-date-shell {
+  border-width: 1px;
+  border-radius: var(--cp-input-radius);
+  background: #ffffff;
+  padding: 6px 14px;
+}
+
+.cp-date-field--filter .cp-date-shell input {
+  font-size: 14px;
+}
+
+.cp-date-field--filter .cp-date-open,
+.cp-date-field--filter .cp-date-clear {
+  width: 24px;
+  height: 24px;
+}
+
+.cp-date-field--filter .cp-date-clear {
+  width: 22px;
+  height: 22px;
+}
+
+.cp-date-popover {
+  position: fixed;
+  z-index: 10050;
+  width: min(360px, calc(100vw - 16px));
+  background: #ffffff;
+  border: 1px solid var(--cp-input-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 34px rgba(17, 24, 39, 0.18);
+  overflow: hidden;
+}
+
+.cp-date-popover-inner {
+  padding: 10px;
+}
+
+.cp-date-popover .rdrCalendarWrapper {
+  background: transparent;
+  font-family: "Montserrat", sans-serif;
+  width: 100%;
+}
+
+.cp-date-popover .rdrDateDisplayWrapper {
+  display: none;
+}
+
+.cp-date-popover .rdrMonthAndYearWrapper {
+  padding-top: 0;
+  height: auto;
+}
+
+.cp-date-popover .rdrNextPrevButton {
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid var(--cp-input-border);
+}
+
+.cp-date-popover .rdrNextPrevButton:hover {
+  background: #f9fafb;
+  border-color: var(--cp-input-border-hover);
+}
+
+.cp-date-popover .rdrPprevButton i {
+  border-color: transparent #374151 transparent transparent;
+}
+
+.cp-date-popover .rdrNextButton i {
+  border-color: transparent transparent transparent #374151;
+}
+
+.cp-date-popover .rdrMonthAndYearPickers select {
+  border: 1px solid var(--cp-input-border);
+  border-radius: 12px;
+  padding: 6px 10px;
+  background: #fff;
+  color: #111827;
+  font-weight: 600;
+}
+
+.cp-date-popover .rdrMonthAndYearPickers select:hover {
+  border-color: var(--cp-input-border-hover);
+}
+
+.cp-date-popover .rdrMonthAndYearPickers select:focus {
+  outline: none;
+  border-color: var(--cp-input-border-focus);
+}
+
+.cp-date-popover .rdrWeekDay {
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.cp-date-popover .rdrDay {
+  line-height: 2.75em;
+  height: 2.75em;
+}
+
+.cp-date-popover .rdrDayNumber {
+  font-weight: 500;
+}
+
+.cp-date-popover .rdrDayToday .rdrDayNumber span:after {
+  background: var(--cp-input-border-focus);
+}
+
+.cp-date-time-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px 10px 10px;
+  border-top: 1px solid rgba(204, 211, 219, 0.6);
+  background: #fafafa;
+}
+
+.cp-date-time-row label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.cp-date-time-row select {
+  width: 100%;
+  border: 2px solid var(--cp-input-border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 0.55rem 0.75rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.cp-date-time-row select:hover {
+  border-color: var(--cp-input-border-hover);
+}
+
+.cp-date-time-row select:focus {
+  outline: none;
+  border-color: var(--cp-input-border-focus);
+}

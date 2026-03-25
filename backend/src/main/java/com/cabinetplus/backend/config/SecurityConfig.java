@@ -93,6 +93,7 @@ public class SecurityConfig {
                 // 3. SHARED PROTECTED ENDPOINTS (DENTIST & ADMIN)
                 .requestMatchers(
                     "/api/hand-payments/create",
+                    "/api/hand-payments/create-no-password",
                     "/api/hand-payments/my-payments",
                     "/api/users/me/**"
                 ).hasAnyRole("DENTIST", "ADMIN")

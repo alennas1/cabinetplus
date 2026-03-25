@@ -167,9 +167,9 @@
 
 .security-field input {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 14px;
   font-size: 14px;
-  border-radius: 12px;
+  border-radius: var(--cp-input-radius);
   border: 1px solid #d1d5db;
   background: #ffffff;
   color: #111827;

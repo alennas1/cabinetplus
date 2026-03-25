@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.cabinetplus.backend.validation.UniqueIntegers;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 
 import jakarta.validation.Valid;
@@ -28,7 +29,7 @@ public class TreatmentCreateRequest {
     @Positive(message = "Prix invalide")
     private Double price;
 
-    @NotNull(message = "Date obligatoire")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime date;
 
     @Size(max = 500, message = "Les notes ne doivent pas depasser 500 caracteres")

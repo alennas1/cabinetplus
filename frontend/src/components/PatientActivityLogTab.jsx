@@ -5,6 +5,7 @@ import { getPatientAuditLogs } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatHour } from "../utils/workingHours";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+import DateInput from "./DateInput";
 import "../pages/Patients.css";
 import "./PatientActivityLogTab.css";
 
@@ -449,23 +450,23 @@ const PatientActivityLogTab = ({ patientId }) => {
         <div className="custom-range-container">
           <span className="custom-range-label">Plage personnalisee :</span>
           <div className="custom-range">
-            <input
-              type="date"
+            <DateInput
               value={customRange.start}
               onChange={(e) => {
                 setCustomRange((current) => ({ ...current, start: e.target.value }));
                 setSelectedDateFilter("custom");
                 setSelectedMonth("");
               }}
+              className="cp-date-compact cp-date-field--filter"
             />
-            <input
-              type="date"
+            <DateInput
               value={customRange.end}
               onChange={(e) => {
                 setCustomRange((current) => ({ ...current, end: e.target.value }));
                 setSelectedDateFilter("custom");
                 setSelectedMonth("");
               }}
+              className="cp-date-compact cp-date-field--filter"
             />
           </div>
         </div>

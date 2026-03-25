@@ -29,6 +29,12 @@ const GestionCabinet = () => {
           icon: <Briefcase />,
           path: "/gestion-cabinet/laboratories",
         },
+        {
+          title: "Fournisseurs",
+          desc: "Gérer la liste des fournisseurs pour les achats et l'inventaire",
+          icon: <Briefcase />,
+          path: "/gestion-cabinet/fournisseurs",
+        },
       ],
     },
     {

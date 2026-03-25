@@ -22,12 +22,12 @@ import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import "./Patients.css";
 
 const DOSAGE_FORMS = {
-  TABLET: "ComprimÃ©",
-  CAPSULE: "GÃ©lule",
+  TABLET: "Comprimé",
+  CAPSULE: "Gélule",
   SYRUP: "Sirop",
   INJECTION: "Injection",
   OINTMENT: "Pommade",
-  CREAM: "CrÃ¨me",
+  CREAM: "Crème",
   DROPS: "Gouttes",
   INHALER: "Inhalateur"
 };
@@ -73,7 +73,7 @@ const Medications = () => {
         setMedications(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching medications:", err);
-        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des mÃ©dicaments"));
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des médicaments"));
         setMedications([]);
       } finally {
         setLoading(false);
@@ -156,7 +156,7 @@ const Medications = () => {
     if (nameError) nextErrors.name = nameError;
 
     const genericNameError = validateText(form.genericName, {
-      label: "Nom gÃ©nÃ©rique",
+      label: "Nom générique",
       required: true,
       minLength: FIELD_LIMITS.MEDICATION_NAME_MIN,
       maxLength: FIELD_LIMITS.MEDICATION_NAME_MAX,
@@ -264,7 +264,7 @@ const Medications = () => {
   if (loading) {
     return (
       <DentistPageSkeleton
-        title="MÃ©dicaments"
+        title="Médicaments"
         subtitle="Chargement de la pharmacie du cabinet"
         variant="table"
       />
@@ -274,7 +274,7 @@ const Medications = () => {
   return (
     <div className="patients-container">
       <BackButton fallbackTo="/catalogue" />
-      <PageHeader title="MÃ©dicaments" subtitle="Gestion de la pharmacie" align="left" />
+      <PageHeader title="Médicaments" subtitle="Gestion de la pharmacie" align="left" />
 
       {/* Controls */}
       <div className="patients-controls">
@@ -298,7 +298,7 @@ const Medications = () => {
                 {filterBy === "name"
                   ? "Par Nom"
                   : filterBy === "genericName"
-                  ? "Par Nom GÃ©nÃ©rique"
+                  ? "Par Nom Générique"
                   : filterBy === "dosageForm"
                   ? "Par Forme"
                   : "Par Dosage"}
@@ -308,7 +308,7 @@ const Medications = () => {
             {dropdownOpen && (
               <ul className="dropdown-menu">
                 <li onClick={() => { setFilterBy("name"); setDropdownOpen(false); }}>Par Nom</li>
-                <li onClick={() => { setFilterBy("genericName"); setDropdownOpen(false); }}>Par Nom GÃ©nÃ©rique</li>
+                <li onClick={() => { setFilterBy("genericName"); setDropdownOpen(false); }}>Par Nom Générique</li>
                 <li onClick={() => { setFilterBy("dosageForm"); setDropdownOpen(false); }}>Par Forme</li>
                 <li onClick={() => { setFilterBy("strength"); setDropdownOpen(false); }}>Par Dosage</li>
               </ul>
@@ -326,7 +326,7 @@ const Medications = () => {
               setShowModal(true);
             }}
           >
-            <Plus size={16} /> Ajouter un mÃ©dicament
+            <Plus size={16} /> Ajouter un médicament
           </button>
         </div>
       </div>
@@ -335,7 +335,7 @@ const Medications = () => {
         <thead>
           <tr>
             <SortableTh label="Nom" sortKey="name" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Nom GÃ©nÃ©rique" sortKey="genericName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Nom Générique" sortKey="genericName" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Forme" sortKey="dosageForm" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Dosage" sortKey="strength" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
@@ -344,10 +344,10 @@ const Medications = () => {
         <tbody>
           {currentMedications.map((m) => (
             <tr key={m.id} onClick={() => setViewMedication(m)} style={{ cursor: "pointer" }}>
-              <td><strong>{m.name || "â€”"}</strong></td>
-              <td>{m.genericName || "â€”"}</td>
-              <td>{DOSAGE_FORMS[m.dosageForm] || m.dosageForm || "â€”"}</td>
-              <td>{m.strength || "â€”"}</td>
+              <td><strong>{m.name || "—"}</strong></td>
+              <td>{m.genericName || "—"}</td>
+              <td>{DOSAGE_FORMS[m.dosageForm] || m.dosageForm || "—"}</td>
+              <td>{m.strength || "—"}</td>
               <td className="actions-cell">
                 <button className="action-btn view" onClick={(e) => {
                   e.stopPropagation();
@@ -372,7 +372,7 @@ const Medications = () => {
           ))}
           {sortedMedications.length === 0 && (
             <tr>
-              <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun mÃ©dicament trouvÃ©</td>
+              <td colSpan="5" style={{ textAlign: "center", color: "#888" }}>Aucun médicament trouvé</td>
             </tr>
           )}
         </tbody>
@@ -380,13 +380,13 @@ const Medications = () => {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>â† PrÃ©cÃ©dent</button>
+          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>← Précédent</button>
           {[...Array(totalPages)].map((_, i) => (
             <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
               {i + 1}
             </button>
           ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant â†’</button>
+          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant →</button>
         </div>
       )}
 
@@ -395,11 +395,11 @@ const Medications = () => {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
-              <h2 className="mb-0">{isEditing ? "Modifier MÃ©dicament" : "Ajouter MÃ©dicament"}</h2>
+              <h2 className="mb-0">{isEditing ? "Modifier Médicament" : "Ajouter Médicament"}</h2>
               <X className="cursor-pointer" onClick={() => setShowModal(false)} />
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              {isEditing ? "Modifiez les informations du mÃ©dicament puis enregistrez." : "Ajoutez un mÃ©dicament au catalogue, puis enregistrez."}
+              {isEditing ? "Modifiez les informations du médicament puis enregistrez." : "Ajoutez un médicament au catalogue, puis enregistrez."}
             </p>
             <form noValidate className="modal-form" onSubmit={handleSubmit}>
               <div className="mb-3">
@@ -418,14 +418,14 @@ const Medications = () => {
               </div>
 
               <div className="mb-3">
-                <span className="field-label">Nom GÃ©nÃ©rique (MolÃ©cule)</span>
+                <span className="field-label">Nom Générique (Molécule)</span>
                 <input
                   type="text"
                   name="genericName"
                   value={form.genericName}
                   onChange={handleChange}
                   required
-                  placeholder="ex: ParacÃ©tamol"
+                  placeholder="ex: Paracétamol"
                   maxLength={FIELD_LIMITS.MEDICATION_NAME_MAX}
                   className={fieldErrors.genericName ? "invalid" : ""}
                 />
@@ -481,7 +481,7 @@ const Medications = () => {
               </div>
 
               <div className="modal-actions">
-                <button type="submit" className="btn-primary2">{isEditing ? "Mettre Ã  jour" : "Ajouter"}</button>
+                <button type="submit" className="btn-primary2">{isEditing ? "Mettre à jour" : "Ajouter"}</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)} disabled={isSubmitting}>Annuler</button>
               </div>
             </form>
@@ -494,10 +494,10 @@ const Medications = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">Supprimer le mÃ©dicament ?</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Supprimer le médicament ?</h2>
               <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
             </div>
-            <p className="text-gray-600 mb-6">ÃŠtes-vous sÃ»r ? Cette action est irrÃ©versible.</p>
+            <p className="text-gray-600 mb-6">Êtes-vous sûr ? Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100" disabled={isDeletingMedication}>Annuler</button>
               <button onClick={confirmDeleteMedication} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600" disabled={isDeletingMedication}>{isDeletingMedication ? "Suppression..." : "Supprimer"}</button>
@@ -511,15 +511,15 @@ const Medications = () => {
         <div className="modal-overlay" onClick={() => setViewMedication(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
-              <h2 className="mb-0">DÃ©tails du mÃ©dicament</h2>
+              <h2 className="mb-0">Détails du médicament</h2>
               <X className="cursor-pointer" onClick={() => setViewMedication(null)} />
             </div>
             <p className="text-sm text-gray-600 mb-4">Informations en lecture seule.</p>
-            <div className="view-field"><strong>Nom Commercial:</strong> {viewMedication.name || "â€”"}</div>
-            <div className="view-field"><strong>Nom GÃ©nÃ©rique:</strong> {viewMedication.genericName || "â€”"}</div>
-            <div className="view-field"><strong>Forme:</strong> {DOSAGE_FORMS[viewMedication.dosageForm] || viewMedication.dosageForm || "â€”"}</div>
-            <div className="view-field"><strong>Dosage:</strong> {viewMedication.strength || "â€”"}</div>
-            <div className="view-field"><strong>Description:</strong> {viewMedication.description || "â€”"}</div>
+            <div className="view-field"><strong>Nom Commercial:</strong> {viewMedication.name || "—"}</div>
+            <div className="view-field"><strong>Nom Générique:</strong> {viewMedication.genericName || "—"}</div>
+            <div className="view-field"><strong>Forme:</strong> {DOSAGE_FORMS[viewMedication.dosageForm] || viewMedication.dosageForm || "—"}</div>
+            <div className="view-field"><strong>Dosage:</strong> {viewMedication.strength || "—"}</div>
+            <div className="view-field"><strong>Description:</strong> {viewMedication.description || "—"}</div>
             <button className="btn-cancel" onClick={() => setViewMedication(null)} style={{ marginTop: "15px" }}>Fermer</button>
           </div>
         </div>

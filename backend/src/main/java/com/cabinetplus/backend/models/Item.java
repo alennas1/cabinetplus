@@ -54,6 +54,10 @@ public class Item {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "fournisseur_id")
+    private Fournisseur fournisseur;
+
 
     
     // helper method to calculate total price

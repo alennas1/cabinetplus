@@ -35,6 +35,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                 (:entity = 'PRESCRIPTION' AND l.eventType LIKE 'PRESCRIPTION_%') OR
                 (:entity = 'PROTHESIS' AND l.eventType LIKE 'PROTHESIS_%') OR
                 (:entity = 'LABORATORY' AND (l.eventType LIKE 'LABORATORY_%' OR l.eventType LIKE 'LAB_PAYMENT_%')) OR
+                (:entity = 'SUPPLIER' AND l.eventType LIKE 'SUPPLIER_%') OR
                 (:entity = 'JUSTIFICATION' AND l.eventType LIKE 'JUSTIFICATION_%') OR
                 (:entity = 'EXPENSE' AND l.eventType LIKE 'EXPENSE_%') OR
                 (:entity = 'ITEM' AND l.eventType LIKE 'ITEM_%') OR

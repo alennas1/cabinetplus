@@ -27,4 +27,6 @@ public class UpdateItemDTO {
     // Use LocalDate for proper date handling; format JSON as yyyy-MM-dd
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate expiryDate;
+
+    private Long fournisseurId;
 }

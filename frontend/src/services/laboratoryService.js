@@ -43,7 +43,8 @@ export const deleteLaboratory = async (id) => {
 };
 
 export const addLaboratoryPayment = async (id, payment) => {
-  const response = await api.post(`${BASE_URL}/${id}/payments`, payment);
+  const { paymentDate, ...payload } = payment || {};
+  const response = await api.post(`${BASE_URL}/${id}/payments`, payload);
   return response.data;
 };
 

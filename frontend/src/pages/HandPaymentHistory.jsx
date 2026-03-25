@@ -492,7 +492,7 @@ const HandPaymentHistory = () => {
                       fontSize: 13,
                     }}
                   >
-                    Mot de passe oubliÃ© ?
+                    Mot de passe oublié ?
                   </button>
                 </div>
               }
@@ -641,7 +641,7 @@ const HandPaymentHistory = () => {
                         fontSize: 13,
                       }}
                     >
-                      Mot de passe oubliÃ© ?
+                      Mot de passe oublié ?
                     </button>
                   </div>
                 </>

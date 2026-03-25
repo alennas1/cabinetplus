@@ -5,6 +5,7 @@ import { ResponsiveBar } from "@nivo/bar";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
 import { Activity, CreditCard, AlertTriangle } from 'react-feather';
+import DateInput from "../components/DateInput";
 import { getFinanceCards, getFinanceGraph } from "../services/financeService";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -578,23 +579,23 @@ const formatTypesToPie = (types, defaultColor, dictionary = {}) =>
   <div className="custom-range-container">
     <span className="custom-range-label">Plage personnalisée :</span>
     <div className="custom-range">
-     <input
-  type="date"
+     <DateInput
   value={customRange.start}
   onChange={(e) => {
     setCustomRange({ ...customRange, start: e.target.value });
     setSelectedFilter("custom");
     setSelectedMonth(""); // reset month dropdown
   }}
+  className="cp-date-compact cp-date-field--filter"
 />
-<input
-  type="date"
+<DateInput
   value={customRange.end}
   onChange={(e) => {
     setCustomRange({ ...customRange, end: e.target.value });
     setSelectedFilter("custom");
     setSelectedMonth(""); // reset month dropdown
   }}
+  className="cp-date-compact cp-date-field--filter"
 />
     </div>
   </div>

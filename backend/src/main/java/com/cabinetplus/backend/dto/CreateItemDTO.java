@@ -36,4 +36,6 @@ public class CreateItemDTO {
     @Null(message = "Champ non autorise")
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime createdAt;    
+
+    private Long fournisseurId;
 }

@@ -12,6 +12,7 @@ import {
   Briefcase,
   BookOpen,
   Layers,
+  Headphones,
   Lock,
   Unlock
 } from "react-feather";
@@ -32,6 +33,7 @@ import {
   getGestionCabinetPinStatus,
   setGestionCabinetUnlocked,
 } from "../services/pinGuardService";
+import { listMySupportThreads } from "../services/supportService";
 
 import "./Sidebar.css";
 
@@ -55,6 +57,7 @@ const Sidebar = () => {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState("enable"); // enable | remove | modify
   const [pinSubmitting, setPinSubmitting] = useState(false);
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0);
 
   const [password, setPassword] = useState("");
   const [newPin, setNewPin] = useState("");
@@ -81,6 +84,32 @@ const Sidebar = () => {
     window.addEventListener("gcPinStatusChanged", onChanged);
     return () => window.removeEventListener("gcPinStatusChanged", onChanged);
   }, [userKey]);
+
+  useEffect(() => {
+    if (!userKey) return;
+    let cancelled = false;
+
+    const fetchUnread = async () => {
+      if (location.pathname.startsWith("/support")) {
+        setSupportUnreadCount(0);
+      }
+      try {
+        const data = await listMySupportThreads();
+        if (cancelled) return;
+        const total = (Array.isArray(data) ? data : []).reduce((sum, t) => sum + Number(t?.unreadCount || 0), 0);
+        setSupportUnreadCount(total);
+      } catch {
+        if (!cancelled) setSupportUnreadCount(0);
+      }
+    };
+
+    fetchUnread();
+    const id = setInterval(fetchUnread, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [userKey, location.pathname]);
 
   const resetModal = () => {
     setPassword("");
@@ -249,6 +278,23 @@ const Sidebar = () => {
           >
             <FileText size={20} />
             <span className="link-text">Devis</span>
+          </Link>
+        </li>
+
+        <li>
+          <Link
+            to="/support"
+            className={isActivePath("/support") ? "active" : ""}
+          >
+            <span className="cp-sidebar-icon">
+              <Headphones size={20} />
+              {supportUnreadCount > 0 ? (
+                <span className="cp-sidebar-badge" aria-label={`${supportUnreadCount} message(s) non lu(s)`}>
+                  {supportUnreadCount > 99 ? "99+" : supportUnreadCount}
+                </span>
+              ) : null}
+            </span>
+            <span className="link-text">Support</span>
           </Link>
         </li>
 

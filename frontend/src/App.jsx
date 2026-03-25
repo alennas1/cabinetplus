@@ -52,11 +52,16 @@ import ManageAdmins from "./pages/ManageAdmins";
 import AdminChangePassword from "./pages/AdminChangePassword";
 import ManagePlans from "./pages/ManagePlans";
 import AdminAuditLogs from "./pages/AdminAuditLogs";
+import SupportCenter from "./pages/SupportCenter";
+import AdminSupportCenter from "./pages/AdminSupportCenter";
+import AdminFeedbackDetails from "./pages/AdminFeedbackDetails";
 import Justification from "./pages/Justification";
 
 import Devis from "./pages/Devis"; 
 import Laboratory from "./pages/Laboratory";
 import LaboratoryDetails from "./pages/LaboratoryDetails";
+import Fournisseurs from "./pages/Fournisseurs";
+import FournisseurDetails from "./pages/FournisseurDetails";
 // --- Components ---
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
@@ -271,6 +276,8 @@ const AppContent = () => {
                 <Route path="/gestion-cabinet" element={<GestionCabinet />} />
                 <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
                 <Route path="/gestion-cabinet/laboratories/:id" element={<LaboratoryDetails />} />
+                <Route path="/gestion-cabinet/fournisseurs" element={<Fournisseurs />} />
+                <Route path="/gestion-cabinet/fournisseurs/:id" element={<FournisseurDetails />} />
                 <Route path="/gestion-cabinet/finance" element={<Finance />} />
                 <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
                 <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
@@ -283,10 +290,12 @@ const AppContent = () => {
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />
               <Route path="/settings/audit-logs" element={<AuditLogs />} />
-              <Route path="/settings/payments" element={<HandPaymentHistory />} />
-            </Route>
+            <Route path="/settings/payments" element={<HandPaymentHistory />} />
+          </Route>
 
-            <Route path="/settings/medications" element={<Navigate to="/catalogue/medications" replace />} />
+          <Route path="/support" element={<SupportCenter />} />
+
+          <Route path="/settings/medications" element={<Navigate to="/catalogue/medications" replace />} />
             <Route path="/settings/treatments" element={<Navigate to="/catalogue/treatments" replace />} />
             <Route path="/settings/justifications" element={<Navigate to="/catalogue/justifications" replace />} />
             <Route path="/settings/prosthetics" element={<Navigate to="/catalogue/prosthetics" replace />} />
@@ -312,6 +321,8 @@ const AppContent = () => {
             <Route path="/admin/change-password" element={<AdminChangePassword />} />
             <Route path="/admin/manage-plans" element={<ManagePlans />} />
             <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
+            <Route path="/admin/support" element={<AdminSupportCenter />} />
+            <Route path="/admin/support/feedback/:id" element={<AdminFeedbackDetails />} />
           </Route>
         </Route>
 

@@ -3,6 +3,7 @@ package com.cabinetplus.backend.dto;
 import java.time.LocalDate;
 
 import com.cabinetplus.backend.enums.ExpenseCategory;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -28,10 +29,17 @@ public class ExpenseRequestDTO {
     @NotNull(message = "La categorie est obligatoire")
     private ExpenseCategory category;
 
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDate date;
 
     @Size(max = 500, message = "La description ne doit pas depasser 500 caracteres")
     private String description;
+
+    @Size(max = 80, message = "Le libelle de categorie ne doit pas depasser 80 caracteres")
+    private String otherCategoryLabel;
+
+    @Positive(message = "Fournisseur invalide")
+    private Long fournisseurId;
 
     // ðŸ‘‡ Added (optional except for SALARY)
     @Positive(message = "Employe invalide")

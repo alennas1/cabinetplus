@@ -354,3 +354,28 @@ html, body {
   opacity: 1;
   transform: translateX(0);
 }
+
+.cp-sidebar-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cp-sidebar-badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  line-height: 1;
+}

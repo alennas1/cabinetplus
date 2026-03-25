@@ -15,6 +15,7 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PatientDangerIcon from "../components/PatientDangerIcon";
 import ModernDropdown from "../components/ModernDropdown";
+import DateInput from "../components/DateInput";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
@@ -1367,7 +1368,14 @@ export default function Appointments() {
                   Demain
                 </button>
 
-                <input type="date" value={customDate} onChange={(e) => { setCustomDate(e.target.value); setSelectedDate("custom"); }} />
+                <DateInput
+                  value={customDate}
+                  onChange={(e) => {
+                    setCustomDate(e.target.value);
+                    setSelectedDate("custom");
+                  }}
+                  className="cp-date-compact cp-date-field--filter"
+                />
 
                 <button type="button" className="btn-secondary" onClick={openShiftModal}>
                   Décaler les rendez-vous d'aujourd'hui

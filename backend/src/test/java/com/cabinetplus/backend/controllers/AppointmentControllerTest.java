@@ -138,7 +138,22 @@ class AppointmentControllerTest {
         when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
-        PatientDto patientDto = new PatientDto(5L, "Ali", "Ben", 32, "Homme", "0550000000", LocalDateTime.now(), 0L, 0.0, false, false, false);
+        PatientDto patientDto = new PatientDto(
+                5L,
+                "Ali",
+                "Ben",
+                32,
+                "Homme",
+                "0550000000",
+                "",
+                "",
+                LocalDateTime.now(),
+                0L,
+                0.0,
+                false,
+                false,
+                false
+        );
         when(patientService.findByIdAndUser(5L, current)).thenReturn(patientDto);
 
         Appointment saved = new Appointment();

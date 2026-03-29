@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -12,8 +13,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.TreatmentCatalogRequest;
 import com.cabinetplus.backend.dto.TreatmentCatalogResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
@@ -23,6 +26,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.TreatmentCatalogService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 
@@ -53,6 +57,37 @@ public class TreatmentCatalogController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<TreatmentCatalogResponse>> getAllTreatmentCatalogsPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "field", required = false) String field,
+            Principal principal
+    ) {
+        User currentUser = getCurrentUser(principal);
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        String fieldNorm = field != null ? field.trim() : "";
+
+        List<TreatmentCatalog> all = treatmentCatalogService.findAllByUser(currentUser);
+        List<TreatmentCatalog> filtered = (all == null ? List.<TreatmentCatalog>of() : all).stream()
+                .filter(t -> matchesTreatmentCatalog(t, qNorm, fieldNorm))
+                .sorted(Comparator.comparing(t -> t.getName() != null ? t.getName().toLowerCase() : ""))
+                .toList();
+
+        PageResponse<TreatmentCatalog> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
+        List<TreatmentCatalogResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+
+        auditService.logSuccess(AuditEventType.TREATMENT_CATALOG_READ, "TREATMENT_CATALOG", null, "Catalogue traitements consulte (page)");
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                pageResponse.page(),
+                pageResponse.size(),
+                pageResponse.totalElements(),
+                pageResponse.totalPages()
+        ));
     }
 
     @GetMapping("/{id}")
@@ -135,6 +170,23 @@ public class TreatmentCatalogController {
                 c.isFlatFee(),
                 c.isMultiUnit()
         );
+    }
+
+    private static boolean matchesTreatmentCatalog(TreatmentCatalog treatment, String qNorm, String field) {
+        if (treatment == null) return false;
+        if (qNorm == null || qNorm.isBlank()) return true;
+
+        String safeField = field != null ? field.trim() : "";
+        String name = treatment.getName() != null ? treatment.getName().trim().toLowerCase() : "";
+        String desc = treatment.getDescription() != null ? treatment.getDescription().trim().toLowerCase() : "";
+        String price = treatment.getDefaultPrice() != null ? String.valueOf(treatment.getDefaultPrice()) : "";
+
+        return switch (safeField) {
+            case "name" -> name.contains(qNorm);
+            case "defaultPrice" -> price.contains(qNorm);
+            case "description" -> desc.contains(qNorm);
+            default -> name.contains(qNorm) || desc.contains(qNorm) || price.contains(qNorm);
+        };
     }
 }
 

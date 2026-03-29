@@ -22,12 +22,30 @@ export const updateAppointment = async (id, appointmentData) => {
   return response.data;
 };
 
-export const deleteAppointment = async (id) => {
-  await api.delete(`${API_URL}/${id}`);
+export const cancelAppointment = async (id) => {
+  await api.put(`${API_URL}/${id}/cancel`);
 };
 
 export const getAppointmentsByPatient = async (patientId) => {
   const response = await api.get(`${API_URL}/patient/${patientId}`);
+  return response.data;
+};
+
+export const getAppointmentsByPatientPage = async ({
+  patientId,
+  page = 0,
+  size = 10,
+  q,
+  field,
+  status,
+  from,
+  to,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`${API_URL}/patient/${patientId}/paged`, {
+    params: { page, size, q, field, status, from, to, sortKey, sortDirection },
+  });
   return response.data;
 };
 

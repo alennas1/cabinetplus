@@ -1,7 +1,10 @@
 package com.cabinetplus.backend.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+
+import com.cabinetplus.backend.enums.RecordStatus;
 
 public record FournisseurDetailsResponse(
         Long id,
@@ -15,5 +18,7 @@ public record FournisseurDetailsResponse(
         Double remainingToPay,
         List<FournisseurPaymentResponse> payments,
         List<FournisseurBillingSummaryResponse> billingHistory,
-        List<FournisseurBillingEntryResponse> billingEntries
+        List<FournisseurBillingEntryResponse> billingEntries,
+        RecordStatus recordStatus,
+        LocalDateTime archivedAt
 ) {}

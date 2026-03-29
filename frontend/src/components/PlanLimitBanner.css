@@ -1,0 +1,43 @@
+.cp-plan-banner {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.88rem;
+  line-height: 1.25rem;
+}
+
+.cp-plan-banner__text {
+  flex: 1;
+  color: #0f172a;
+}
+
+.cp-plan-banner--warn {
+  background: #fffbeb;
+  border-bottom-color: #fde68a;
+}
+
+.cp-plan-banner--danger {
+  background: #fef2f2;
+  border-bottom-color: #fecaca;
+}
+
+.cp-plan-banner__close {
+  border: none;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cp-plan-banner__close:hover {
+  color: #0f172a;
+}
+

@@ -1,6 +1,9 @@
 package com.cabinetplus.backend.dto;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
+
+import com.cabinetplus.backend.enums.RecordStatus;
 
 public record FournisseurResponse(
         Long id,
@@ -8,6 +11,7 @@ public record FournisseurResponse(
         String name,
         String contactPerson,
         String phoneNumber,
-        String address
+        String address,
+        RecordStatus recordStatus,
+        LocalDateTime archivedAt
 ) {}
-

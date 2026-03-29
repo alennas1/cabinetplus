@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { useLocation } from "react-router-dom";
-import { Plus, Search, Edit2, Filter, Trash2, X } from "react-feather";
+import { Plus, Search, Edit2, Filter, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import {
-  getExpenses,
+  getExpensesPage,
   createExpense,
   updateExpense,
   deleteExpense,
@@ -26,6 +27,7 @@ import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { createFournisseur, getAllFournisseurs } from "../services/fournisseurService";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -41,6 +43,10 @@ const Expenses = () => {
   const location = useLocation();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -61,10 +67,7 @@ const Expenses = () => {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeletingExpense, setIsDeletingExpense] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
   const [formData, setFormData] = useState({
@@ -79,10 +82,11 @@ const Expenses = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const pageSize = 10;
 
   // Search + filter
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [filterBy, setFilterBy] = useState("title");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef();
@@ -100,7 +104,12 @@ const Expenses = () => {
   // Load expenses
   useEffect(() => {
     fetchExpenses();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch, filterBy]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterBy]);
 
   const fetchFournisseurs = async () => {
     try {
@@ -137,14 +146,31 @@ const Expenses = () => {
 
   const fetchExpenses = async () => {
     try {
-      setLoading(true);
-      const data = await getExpenses();
-      setExpenses(data);
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getExpensesPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        field: filterBy || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setExpenses(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
     } catch (err) {
       console.error(err);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des dépenses"));
+      setExpenses([]);
+      setTotalPages(1);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
@@ -162,22 +188,8 @@ const Expenses = () => {
     });
   };
 
-  const filteredExpenses = useMemo(
-    () =>
-      expenses.filter((e) => {
-        let value = "";
-        if (filterBy === "category") {
-          if (e.category === "OTHER") value = e.otherCategoryLabel || EXPENSE_CATEGORIES.OTHER || "";
-          else value = EXPENSE_CATEGORIES[e.category] || "";
-        } else if (filterBy === "fournisseurName") {
-          value = e.fournisseurName || "";
-        } else {
-          value = (e[filterBy] || "").toString();
-        }
-        return value.toLowerCase().includes(search.toLowerCase());
-      }),
-    [expenses, filterBy, search]
-  );
+  // Server-side search: the backend returns a filtered page already.
+  const filteredExpenses = expenses;
 
   const sortedExpenses = useMemo(() => {
     const getValue = (e) => {
@@ -202,26 +214,12 @@ const Expenses = () => {
     return sortRowsBy(filteredExpenses, getValue, sortConfig.direction);
   }, [filteredExpenses, sortConfig.direction, sortConfig.key]);
 
-  // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentExpenses = sortedExpenses.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(sortedExpenses.length / itemsPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentExpenses = sortedExpenses;
 
   useEffect(() => {
     focusAppliedRef.current = null;
   }, [focusExpenseId]);
-
-  useEffect(() => {
-    if (!Number.isFinite(focusExpenseId)) return;
-    if (!sortedExpenses.length) return;
-
-    const idx = sortedExpenses.findIndex((row) => Number(row?.id) === Number(focusExpenseId));
-    if (idx < 0) return;
-
-    const targetPage = Math.floor(idx / itemsPerPage) + 1;
-    if (currentPage !== targetPage) setCurrentPage(targetPage);
-  }, [currentPage, focusExpenseId, sortedExpenses, itemsPerPage]);
 
   useEffect(() => {
     if (!Number.isFinite(focusExpenseId)) return;
@@ -334,12 +332,13 @@ const Expenses = () => {
         fournisseurId,
       };
       if (isEditing) {
-        const updated = await updateExpense(editingExpense.id, payload);
-        setExpenses(expenses.map((e) => (e.id === updated.id ? updated : e)));
+        await updateExpense(editingExpense.id, payload);
+        await fetchExpenses();
         toast.success("Dépense mise à jour");
       } else {
-        const newExpense = await createExpense(payload);
-        setExpenses([...expenses, newExpense]);
+        await createExpense(payload);
+        if (currentPage !== 1) setCurrentPage(1);
+        else await fetchExpenses();
         toast.success("Dépense ajoutée");
       }
       setShowModal(false);
@@ -387,17 +386,13 @@ const Expenses = () => {
     setShowModal(true);
   };
 
-  const handleDeleteClick = (id) => {
-    setConfirmDelete(id);
-    setShowConfirm(true);
-  };
-
   const confirmDeleteExpense = async () => {
     if (isDeletingExpense) return;
     try {
       setIsDeletingExpense(true);
       await deleteExpense(confirmDelete);
-      setExpenses(expenses.filter((e) => e.id !== confirmDelete));
+      if (currentExpenses.length <= 1 && currentPage > 1) setCurrentPage((p) => Math.max(1, p - 1));
+      else await fetchExpenses();
       toast.success("Dépense supprimée");
     } catch (err) {
       console.error(err);
@@ -515,7 +510,6 @@ const Expenses = () => {
               <td>{e.description || "—"}</td>
               <td className="actions-cell">
                 <button className="action-btn edit" onClick={() => handleEdit(e)} title="Modifier"> <Edit2 size={16} /> </button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(e.id)} title="Supprimer"> <Trash2 size={16} /> </button>
               </td>
             </tr>
           ))}
@@ -529,19 +523,12 @@ const Expenses = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>← Précédent</button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant →</button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+        />
       )}
 
       {/* Modal */}
@@ -913,7 +900,7 @@ const Expenses = () => {
 	      )}
 
 	      {/* Delete Confirmation */}
-	      {showConfirm && (
+	      {false && (
 	        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
 	          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Supprimer la dépense ?</h2>

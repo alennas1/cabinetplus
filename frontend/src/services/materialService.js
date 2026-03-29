@@ -10,6 +10,13 @@ export const getAllMaterials = async () => {
   return response.data;
 };
 
+export const getMaterialsPage = async ({ page = 0, size = 20, q } = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q },
+  });
+  return response.data;
+};
+
 /**
  * Create a new material
  * @param {Object} material - { name: "MDF 18mm" }

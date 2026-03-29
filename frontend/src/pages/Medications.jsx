@@ -8,10 +8,12 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import FieldError from "../components/FieldError";
 import {
   getMedications,
+  getMedicationsPage,
   createMedication,
   updateMedication,
   deleteMedication,
@@ -45,7 +47,9 @@ const Medications = () => {
   const dropdownRef = useRef();
 
   const [currentPage, setCurrentPage] = useState(1);
-  const medicationsPerPage = 10;
+  const pageSize = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
 
   const [showModal, setShowModal] = useState(false);
@@ -69,18 +73,30 @@ const Medications = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await getMedications(token);
-        setMedications(Array.isArray(data) ? data : []);
+        const data = await getMedicationsPage({
+          page: Math.max((currentPage || 1) - 1, 0),
+          size: pageSize,
+          q: filterBy !== "dosageForm" ? (search?.trim() || undefined) : undefined,
+        });
+        setMedications(Array.isArray(data?.items) ? data.items : []);
+        setTotalPages(Number(data?.totalPages || 1));
+        setTotalElements(Number(data?.totalElements || 0));
       } catch (err) {
         console.error("Error fetching medications:", err);
         toast.error(getApiErrorMessage(err, "Erreur lors du chargement des médicaments"));
         setMedications([]);
+        setTotalPages(1);
+        setTotalElements(0);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [token]);
+  }, [token, currentPage, search, filterBy]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterBy]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -93,16 +109,13 @@ const Medications = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filtered medications
-  const filteredMedications = medications.filter((m) => {
-    let value = "";
-    if (filterBy === "dosageForm") {
-      value = DOSAGE_FORMS[m.dosageForm] || "";
-    } else {
-      value = (m[filterBy] || "").toString();
-    }
-    return value.toLowerCase().includes(search.toLowerCase());
-  });
+  // Filtered medications (only needed for dosageForm; other fields use server-side search)
+  const filteredMedications = useMemo(() => {
+    if (filterBy !== "dosageForm") return medications;
+    const q = (search || "").toLowerCase();
+    if (!q) return medications;
+    return (medications || []).filter((m) => (DOSAGE_FORMS[m.dosageForm] || "").toLowerCase().includes(q));
+  }, [filterBy, medications, search]);
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -256,10 +269,7 @@ const Medications = () => {
   };
 
   // Pagination
-  const indexOfLast = currentPage * medicationsPerPage;
-  const indexOfFirst = indexOfLast - medicationsPerPage;
-  const currentMedications = sortedMedications.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedMedications.length / medicationsPerPage);
+  const currentMedications = sortedMedications;
 
   if (loading) {
     return (
@@ -379,15 +389,7 @@ const Medications = () => {
       </table>
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>← Précédent</button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant →</button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
 
       {/* Form Modal */}

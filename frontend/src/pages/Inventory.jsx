@@ -1,19 +1,19 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Plus, Search, Edit2, Trash2, Filter, X } from "react-feather";
+import { Plus, Search, Edit2, Filter, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import { createItemDefault, getItemDefaults } from "../services/itemDefaultService";
 import {
   createInventoryItem,
   updateInventoryItem,
-  deleteInventoryItem,
   getInventoryItems,
+  getInventoryItemsPage,
 } from "../services/itemService";
 import { createFournisseur, getAllFournisseurs } from "../services/fournisseurService";
 import { getApiErrorMessage } from "../utils/error";
@@ -84,10 +84,7 @@ const Inventory = () => {
   });
   const [fournisseurErrors, setFournisseurErrors] = useState({});
 
-  // Delete confirmation modal
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [isDeletingInventoryItem, setIsDeletingInventoryItem] = useState(false);
+
 
   const [formData, setFormData] = useState({
     itemDefaultId: "",
@@ -109,11 +106,12 @@ const Inventory = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const pageSize = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
 
   useEffect(() => {
     fetchItemDefaults();
-    fetchInventoryItems();
     fetchFournisseurs();
   }, []);
 
@@ -144,15 +142,33 @@ const Inventory = () => {
   const fetchInventoryItems = async () => {
     try {
       setLoading(true);
-      const data = await getInventoryItems();
-      setInventoryItems(data);
+      const data = await getInventoryItemsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: ["itemDefaultName", "fournisseurName"].includes(filterBy) ? (search?.trim() || undefined) : undefined,
+      });
+      setInventoryItems(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      setTotalElements(Number(data?.totalElements || 0));
     } catch (err) {
       console.error(err);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des articles en stock"));
+      setInventoryItems([]);
+      setTotalPages(1);
+      setTotalElements(0);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchInventoryItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, search, filterBy]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterBy]);
 
   const fetchFournisseurs = async () => {
     try {
@@ -370,11 +386,6 @@ const Inventory = () => {
     setShowModal(true);
   };
 
-  const handleDeleteClick = (item) => {
-    setConfirmDelete(item.id);
-    setShowConfirm(true);
-  };
-
   const confirmDeleteItem = async () => {
     if (isDeletingInventoryItem) return;
     try {
@@ -437,25 +448,13 @@ const Inventory = () => {
     return sortRowsBy(filteredItems, getValue, sortConfig.direction);
   }, [filteredItems, sortConfig.direction, sortConfig.key]);
 
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = sortedItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
+  const currentItems = sortedItems;
 
   useEffect(() => {
     focusAppliedRef.current = null;
   }, [focusItemId]);
 
-  useEffect(() => {
-    if (!Number.isFinite(focusItemId)) return;
-    if (!sortedItems.length) return;
-
-    const idx = sortedItems.findIndex((row) => Number(row?.id) === Number(focusItemId));
-    if (idx < 0) return;
-
-    const targetPage = Math.floor(idx / itemsPerPage) + 1;
-    if (currentPage !== targetPage) setCurrentPage(targetPage);
-  }, [currentPage, focusItemId, sortedItems, itemsPerPage]);
+  // Note: with server-side pagination, we can only focus/scroll items that are already on the current page.
 
   useEffect(() => {
     if (!Number.isFinite(focusItemId)) return;
@@ -580,7 +579,6 @@ const Inventory = () => {
               <td>{i.expiryDate || "—"}</td>
               <td className="actions-cell">
                 <button className="action-btn edit" onClick={() => handleEdit(i)} title="Modifier"><Edit2 size={16} /></button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(i)} title="Supprimer"><Trash2 size={16} /></button>
               </td>
             </tr>
           ))}
@@ -594,17 +592,7 @@ const Inventory = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>← Précédent</button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >{i + 1}</button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant →</button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
 
       {/* Add/Edit Modal */}
@@ -1022,7 +1010,7 @@ const Inventory = () => {
       )}
 
       {/* Delete Confirmation Modal */}
-      {showConfirm && (
+      {false && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
             <div className="flex justify-between items-center mb-4">

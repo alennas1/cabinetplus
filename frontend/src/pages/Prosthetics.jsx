@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Search, ChevronDown, Trash2, Send, Edit2, X, ArrowUpRight, DownloadCloud, Check } from "react-feather";
+import { Search, ChevronDown, Send, Edit2, X, ArrowUpRight, DownloadCloud, Check } from "react-feather";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -10,14 +10,15 @@ import { FaTooth } from "react-icons/fa";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import FieldError from "../components/FieldError";
 import DateInput from "../components/DateInput";
 import {
-  getAllProthetics,
+  getProtheticsPage,
   updateProtheticsStatus,
   assignProtheticsToLab,
-  deleteProthetics,
+  cancelProthetics,
   updateProthetics,
 } from "../services/prostheticsService";
 import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
@@ -27,7 +28,8 @@ import { formatDateByPreference, formatMonthYearByPreference } from "../utils/da
 import { formatMoneyWithLabel } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import { FIELD_LIMITS, validateNumber, validateText } from "../utils/validation";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
 import "./Patients.css";
 import "./Finance.css";
@@ -59,8 +61,15 @@ const Prosthetics = () => {
   const [laboratories, setLaboratories] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
+  const skipNextLoadRef = useRef(false);
+  const focusPageRequestedRef = useRef(false);
 
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [filterBy, setFilterBy] = useState("prothesisName");
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -81,18 +90,18 @@ const Prosthetics = () => {
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [isReturningBulk, setIsReturningBulk] = useState(false);
   const [busyStatusId, setBusyStatusId] = useState(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isAssigningLab, setIsAssigningLab] = useState(false);
-  const [isDeletingProthesis, setIsDeletingProthesis] = useState(false);
+  const [isCancellingProthesis, setIsCancellingProthesis] = useState(false);
   const [assignData, setAssignData] = useState({ labId: "", cost: "" });
   const [assignTargetIds, setAssignTargetIds] = useState([]);
   const [assignErrors, setAssignErrors] = useState({});
   const [editingProthesis, setEditingProthesis] = useState(null);
   const [editErrors, setEditErrors] = useState({});
-  const [prothesisToDelete, setProthesisToDelete] = useState(null);
+  const [prothesisToCancel, setProthesisToCancel] = useState(null);
   const [teethPreview, setTeethPreview] = useState(null);
   const [highlightedProthesisId, setHighlightedProthesisId] = useState(null);
   const focusAppliedRef = useRef(null);
@@ -128,26 +137,140 @@ const Prosthetics = () => {
   }, [laboratories]);
 
   useEffect(() => {
-    loadData();
+    if (!token) return;
+
+    const loadLookups = async () => {
+      try {
+        const [lData, catalogData] = await Promise.all([getAllLaboratories(), getAllProstheticsCatalogue()]);
+        setLaboratories(Array.isArray(lData) ? lData : []);
+        setProthesisCatalog(Array.isArray(catalogData) ? catalogData : []);
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
+      }
+    };
+
+    loadLookups();
   }, [token]);
 
-  const loadData = async () => {
+  const formatDateParam = (value) => {
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const getDateRangeParams = () => {
+    if (selectedFilter === "today") {
+      const d = new Date();
+      const formatted = formatDateParam(d);
+      return { from: formatted, to: formatted };
+    }
+
+    if (selectedFilter === "yesterday") {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const formatted = formatDateParam(d);
+      return { from: formatted, to: formatted };
+    }
+
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split("-").map(Number);
+      if (Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12) {
+        const first = new Date(year, month - 1, 1);
+        const last = new Date(year, month, 0);
+        return { from: formatDateParam(first), to: formatDateParam(last) };
+      }
+    }
+
+    if (customRange.start || customRange.end) {
+      const start = customRange.start ? new Date(customRange.start) : null;
+      const end = customRange.end ? new Date(customRange.end) : null;
+      return {
+        from: start && !Number.isNaN(start.getTime()) ? formatDateParam(start) : "",
+        to: end && !Number.isNaN(end.getTime()) ? formatDateParam(end) : "",
+      };
+    }
+
+    return { from: "", to: "" };
+  };
+
+  const loadProthesesPage = async ({ page = currentPage, focusId } = {}) => {
+    const requestId = ++requestIdRef.current;
+    const isInitial = !hasLoadedRef.current;
+
+    if (isInitial) setLoading(true);
+    else setIsFetching(true);
+
+    const { from, to } = getDateRangeParams();
+    const normalizedStatus = String(statusFilter || "").trim();
+    const normalizedQ = String(debouncedSearch || "").trim();
+
     try {
-      setLoading(true);
-      const [pData, lData, catalogData] = await Promise.all([
-        getAllProthetics(),
-        getAllLaboratories(),
-        getAllProstheticsCatalogue(),
-      ]);
-      setProtheses(pData);
-      setLaboratories(lData);
-      setProthesisCatalog(catalogData);
+      const response = await getProtheticsPage({
+        page: Math.max(0, Number(page) - 1),
+        size: prothesesPerPage,
+        q: normalizedQ || undefined,
+        status: normalizedStatus || undefined,
+        filterBy,
+        dateType,
+        from: from || undefined,
+        to: to || undefined,
+        sortKey: sortConfig.key,
+        direction: sortConfig.direction,
+        focusId,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      const items = Array.isArray(response?.items) ? response.items : [];
+      setProtheses(items);
+      setTotalPages(Number(response?.totalPages || 1));
+      hasLoadedRef.current = true;
+
+      if (focusId != null) {
+        focusPageRequestedRef.current = true;
+      }
+
+      const serverPageOneBased = Number(response?.page ?? 0) + 1;
+      if (serverPageOneBased !== currentPage) {
+        skipNextLoadRef.current = true;
+        setCurrentPage(serverPageOneBased);
+      }
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
     } finally {
+      if (requestId !== requestIdRef.current) return;
       setLoading(false);
+      setIsFetching(false);
     }
   };
+
+  useEffect(() => {
+    if (!token) return;
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false;
+      return;
+    }
+
+    const shouldResolveFocusPage = !focusPageRequestedRef.current && Number.isFinite(focusProthesisId);
+    loadProthesesPage({ page: currentPage, focusId: shouldResolveFocusPage ? focusProthesisId : undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    token,
+    currentPage,
+    debouncedSearch,
+    filterBy,
+    statusFilter,
+    dateType,
+    selectedFilter,
+    selectedMonth,
+    customRange.start,
+    customRange.end,
+    sortConfig.key,
+    sortConfig.direction,
+  ]);
 
   const resetAssignModal = () => {
     setAssignData({ labId: "", cost: "" });
@@ -224,7 +347,7 @@ const Prosthetics = () => {
       await Promise.all(selectedIds.map((id) => updateProtheticsStatus(id, "RECEIVED")));
       toast.success("Travaux marques comme recus");
       clearSelection();
-      await loadData();
+      await loadProthesesPage();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors du retour des travaux"));
     } finally {
@@ -276,7 +399,7 @@ const Prosthetics = () => {
       await updateProtheticsStatus(confirmStatusTarget.id, confirmNextStatus);
       toast.success(`Statut mis a jour : ${prothesisStatusLabels[confirmNextStatus] || confirmNextStatus}`);
       closeConfirmStatusChange(true);
-      await loadData();
+      await loadProthesesPage();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors du changement de statut"));
     } finally {
@@ -317,26 +440,26 @@ const Prosthetics = () => {
     setShowEditModal(true);
   };
 
-  const handleDeleteClick = (p) => {
-    setProthesisToDelete(p);
-    setShowConfirmDelete(true);
+  const handleCancelClick = (p) => {
+    setProthesisToCancel(p);
+    setShowConfirmCancel(true);
   };
 
-  const confirmDelete = async () => {
-    if (!prothesisToDelete || isDeletingProthesis) return;
+  const confirmCancel = async () => {
+    if (!prothesisToCancel || isCancellingProthesis) return;
 
     try {
-      setIsDeletingProthesis(true);
-      await deleteProthetics(prothesisToDelete.id);
-      setSelectedIds((current) => current.filter((id) => id !== prothesisToDelete.id));
-      toast.success("Travail supprime");
-      await loadData();
+      setIsCancellingProthesis(true);
+      await cancelProthetics(prothesisToCancel.id);
+      setSelectedIds((current) => current.filter((id) => id !== prothesisToCancel.id));
+      toast.success("Travail annulé");
+      await loadProthesesPage();
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
     } finally {
-      setIsDeletingProthesis(false);
-      setShowConfirmDelete(false);
-      setProthesisToDelete(null);
+      setIsCancellingProthesis(false);
+      setShowConfirmCancel(false);
+      setProthesisToCancel(null);
     }
   };
 
@@ -354,69 +477,13 @@ const Prosthetics = () => {
     });
   };
 
-  const filteredProtheses = protheses.filter((p) => {
-      const searchValue = (p[filterBy] || "").toString().toLowerCase();
-      if (search && !searchValue.includes(search.toLowerCase())) return false;
-      if (statusFilter && p.status !== statusFilter) return false;
 
-      const targetDateStr = p[dateType];
-      if (!targetDateStr) return selectedFilter === "all";
-
-      const targetDate = new Date(targetDateStr);
-      const today = new Date();
-
-      if (selectedFilter === "today") {
-        return targetDate.toDateString() === today.toDateString();
-      }
-      if (selectedFilter === "yesterday") {
-        const yesterday = new Date();
-        yesterday.setDate(today.getDate() - 1);
-        return targetDate.toDateString() === yesterday.toDateString();
-      }
-      if (selectedMonth) {
-        const [year, month] = selectedMonth.split("-").map(Number);
-        return targetDate.getFullYear() === year && targetDate.getMonth() + 1 === month;
-      }
-      if (customRange.start || customRange.end) {
-        if (customRange.start && targetDate < new Date(customRange.start)) return false;
-        if (customRange.end) {
-          const endLimit = new Date(customRange.end);
-          endLimit.setHours(23, 59, 59);
-          if (targetDate > endLimit) return false;
-        }
-      }
-
-      return true;
-    });
-
-  const sortedProtheses = useMemo(() => {
-    const getValue = (p) => {
-      switch (sortConfig.key) {
-        case "work":
-          return `${p.prothesisName || ""} ${p.materialName || ""}`.trim();
-        case "code":
-          return p.code;
-        case "teeth":
-          return Array.isArray(p.teeth) ? p.teeth.join(",") : "";
-        case "lab":
-          return p.labName === "Not Sent" ? "" : p.labName;
-        case "labCost":
-          return p.labCost;
-        case "dates":
-          return p[dateType];
-        case "status":
-          return prothesisStatusLabels[p.status] || p.status;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filteredProtheses, getValue, sortConfig.direction);
-  }, [dateType, filteredProtheses, sortConfig.direction, sortConfig.key]);
 
   useEffect(() => {
     setCurrentPage(1);
+    clearSelection();
   }, [
-    search,
+    debouncedSearch,
     filterBy,
     statusFilter,
     dateType,
@@ -428,12 +495,11 @@ const Prosthetics = () => {
     sortConfig.direction,
   ]);
 
-  const indexOfLastProthesis = currentPage * prothesesPerPage;
-  const indexOfFirstProthesis = indexOfLastProthesis - prothesesPerPage;
-  const currentProtheses = sortedProtheses.slice(indexOfFirstProthesis, indexOfLastProthesis);
-  const totalPages = Math.ceil(sortedProtheses.length / prothesesPerPage);
+  useEffect(() => {
+    clearSelection();
+  }, [currentPage]);
 
-  const currentPageIds = useMemo(() => currentProtheses.map((p) => p.id), [currentProtheses]);
+  const currentPageIds = useMemo(() => (protheses || []).map((p) => p.id), [protheses]);
   const isAllCurrentSelected =
     currentPageIds.length > 0 && currentPageIds.every((rowId) => selectedIds.includes(rowId));
   const isSomeCurrentSelected = currentPageIds.some((rowId) => selectedIds.includes(rowId));
@@ -445,18 +511,8 @@ const Prosthetics = () => {
 
   useEffect(() => {
     focusAppliedRef.current = null;
+    focusPageRequestedRef.current = false;
   }, [focusProthesisId]);
-
-  useEffect(() => {
-    if (!Number.isFinite(focusProthesisId)) return;
-    if (!sortedProtheses.length) return;
-
-    const idx = sortedProtheses.findIndex((p) => Number(p?.id) === Number(focusProthesisId));
-    if (idx < 0) return;
-
-    const targetPage = Math.floor(idx / prothesesPerPage) + 1;
-    if (currentPage !== targetPage) setCurrentPage(targetPage);
-  }, [currentPage, focusProthesisId, sortedProtheses, prothesesPerPage]);
 
   useEffect(() => {
     if (!Number.isFinite(focusProthesisId)) return;
@@ -471,7 +527,7 @@ const Prosthetics = () => {
 
     const t = setTimeout(() => setHighlightedProthesisId(null), 4500);
     return () => clearTimeout(t);
-  }, [currentPage, focusProthesisId]);
+  }, [currentPage, focusProthesisId, protheses]);
 
   const formatDateLabel = (dateStr) =>
     dateStr ? formatDateByPreference(dateStr) : "-";
@@ -773,14 +829,14 @@ const Prosthetics = () => {
                 Chargement...
               </td>
             </tr>
-          ) : sortedProtheses.length === 0 ? (
+          ) : protheses.length === 0 ? (
             <tr>
               <td colSpan={9} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
                 Aucun travail trouve
               </td>
             </tr>
           ) : (
-            currentProtheses.map((p) => (
+            protheses.map((p) => (
               <tr
                 key={p.id}
                 id={`prothesis-row-${p.id}`}
@@ -929,10 +985,15 @@ const Prosthetics = () => {
                   >
                     <ArrowUpRight size={16} />
                   </button>
-                  <button className="action-btn delete" onClick={() => {
-                    handleDeleteClick(p);
-                  }}>
-                    <Trash2 size={16} color="#ff4d4d" />
+                  <button
+                    className="action-btn cancel"
+                    onClick={() => {
+                      handleCancelClick(p);
+                    }}
+                    title="Annuler"
+                    aria-label="Annuler"
+                  >
+                    <X size={16} />
                   </button>
                 </td>
               </tr>
@@ -942,25 +1003,7 @@ const Prosthetics = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-            ← Précédent
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} disabled={isFetching} />
       )}
 
       {teethPreview && (
@@ -1060,7 +1103,7 @@ const Prosthetics = () => {
                   await updateProthetics(editingProthesis.id, dataToSend);
                   toast.success("Mise a jour reussie");
                   setShowEditModal(false);
-                  await loadData();
+                  await loadProthesesPage();
                 } catch (err) {
                   toast.error(getApiErrorMessage(err, "Erreur de modification"));
                 } finally {
@@ -1213,7 +1256,7 @@ const Prosthetics = () => {
                   toast.success("Envoye au laboratoire avec succes");
                   resetAssignModal();
                   if (wasBulkAssign) clearSelection();
-                  await loadData();
+                  await loadProthesesPage();
                 } catch (err) {
                   toast.error(getApiErrorMessage(err, "Erreur d'assignation"));
                 } finally {
@@ -1286,40 +1329,40 @@ const Prosthetics = () => {
         </div>
       )}
 
-      {showConfirmDelete && (
+      {showConfirmCancel && (
         <div
           className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]"
-          onClick={() => setShowConfirmDelete(false)}
+          onClick={() => setShowConfirmCancel(false)}
         >
           <div
             className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-2">
-              <h2 className="text-lg font-semibold text-gray-800">Supprimer le travail ?</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Annuler le travail ?</h2>
               <X
                 className="cursor-pointer text-gray-400 hover:text-gray-600"
                 size={20}
-                onClick={() => setShowConfirmDelete(false)}
+                onClick={() => setShowConfirmCancel(false)}
               />
             </div>
             <p className="text-gray-600 mb-6">
-              Voulez-vous vraiment supprimer ce travail ? Cette action est irreversible.
+              Voulez-vous vraiment annuler ce travail ? Il sera conservÃ© dans l'historique (lecture seule).
             </p>
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setShowConfirmDelete(false)}
+                onClick={() => setShowConfirmCancel(false)}
                 className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
-                disabled={isDeletingProthesis}
+                disabled={isCancellingProthesis}
               >
                 Annuler
               </button>
               <button
-                onClick={confirmDelete}
+                onClick={confirmCancel}
                 className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
-                disabled={isDeletingProthesis}
+                disabled={isCancellingProthesis}
               >
-                {isDeletingProthesis ? "Suppression..." : "Supprimer"}
+                {isCancellingProthesis ? "Annulation..." : "Annuler"}
               </button>
             </div>
           </div>

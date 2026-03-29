@@ -214,6 +214,18 @@
   background: #e2e8f0;
 }
 
+.cp-plan-card-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cp-plan-card-btn.primary:disabled,
+.cp-plan-card-btn.outline:disabled {
+  background: #e2e8f0;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
 .cp-plan-card-extra {
   display: flex;
   flex-direction: column;

@@ -4,6 +4,8 @@ import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Medication;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.MedicationRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -31,6 +33,11 @@ public class MedicationService {
 
     public List<Medication> findAllByUser(User user) {
         return medicationRepository.findByCreatedBy(user);
+    }
+
+    public Page<Medication> searchByUser(User user, String q, Pageable pageable) {
+        String safeQ = q != null ? q.trim() : "";
+        return medicationRepository.searchByCreatedBy(user, safeQ, pageable);
     }
 
     public Optional<Medication> findByIdAndUser(Long id, User user) {

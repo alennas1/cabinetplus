@@ -11,12 +11,15 @@ public record PatientDto(
     Integer age,
     String sex,            //  Added
     String phone,
+    String diseases,
+    String allergies,
     LocalDateTime createdAt,
     Long cancelledAppointmentsCount,
     Double moneyOwed,
     Boolean danger,
     Boolean dangerCancelled,
-    Boolean dangerOwed
+    Boolean dangerOwed,
+    LocalDateTime archivedAt
 ) {
 
     public PatientDto(
@@ -26,6 +29,8 @@ public record PatientDto(
             Integer age,
             String sex,
             String phone,
+            String diseases,
+            String allergies,
             LocalDateTime createdAt,
             Long cancelledAppointmentsCount,
             Double moneyOwed,
@@ -41,12 +46,15 @@ public record PatientDto(
                 age,
                 sex,
                 phone,
+                diseases,
+                allergies,
                 createdAt,
                 cancelledAppointmentsCount,
                 moneyOwed,
                 danger,
                 dangerCancelled,
-                dangerOwed
+                dangerOwed,
+                null
         );
     }
 }

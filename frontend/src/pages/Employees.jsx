@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Eye, Trash2, Search, X } from "react-feather";
+import { Plus, Eye, Search, X, Archive, RotateCcw } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
@@ -10,19 +10,23 @@ import SortableTh from "../components/SortableTh";
 import PasswordInput from "../components/PasswordInput";
 import FieldError from "../components/FieldError";
 import ModernDropdown from "../components/ModernDropdown";
+import Pagination from "../components/Pagination";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { FIELD_LIMITS, isStrongPassword, validateText } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import DateInput from "../components/DateInput";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
 import {
-  getEmployees,
+  getEmployeesPage,
+  getArchivedEmployeesPage,
   createEmployee,
   updateEmployee,
-  deleteEmployee,
+  archiveEmployee,
+  unarchiveEmployee,
 } from "../services/employeeService";
 import "./Patients.css"; // reuse same CSS as Patients
 
@@ -47,7 +51,7 @@ const EMPLOYEE_ROLE_OPTIONS = [
   },
 ];
 
-const Employees = () => {
+const Employees = ({ view = "active" }) => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
 
@@ -56,10 +60,13 @@ const Employees = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const employeesPerPage = 10;
+  const pageSize = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
 
   // Search
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [sortConfig, setSortConfig] = useState({ key: "lastName", direction: SORT_DIRECTIONS.ASC });
 
   // Modal + form
@@ -99,33 +106,39 @@ const Employees = () => {
   const getRoleAccessLabel = (roleValue) =>
     getRoleOption(roleValue)?.accessLabel || roleValue || "—";
 
-  // Load employees
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        setLoading(true);
-        const data = await getEmployees(token);
-        setEmployees(data);
-      } catch (err) {
-        console.error("Error fetching employees:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEmployees();
-  }, [token]);
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const getter = view === "archived" ? getArchivedEmployeesPage : getEmployeesPage;
+      const data = await getter({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        sortKey: sortConfig?.key || undefined,
+        sortDirection: sortConfig?.direction || undefined,
+      });
+      setEmployees(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      setTotalElements(Number(data?.totalElements || 0));
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+      setEmployees([]);
+      setTotalPages(1);
+      setTotalElements(0);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Filtered employees
-  const filteredEmployees = employees.filter((e) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    const searchDigits = normalizePhoneInput(search);
-    const phoneDigits = normalizePhoneInput(e.phone);
-    return (
-      `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-      (searchDigits && phoneDigits.includes(searchDigits))
-    );
-  });
+  // Load employees (server-side pagination / search)
+  useEffect(() => {
+    fetchEmployees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, currentPage, view, debouncedSearch, sortConfig.key, sortConfig.direction]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [view, search, sortConfig.key, sortConfig.direction]);
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -139,33 +152,11 @@ const Employees = () => {
           : SORT_DIRECTIONS.ASC);
       return { key, direction: nextDirection };
     });
+    setCurrentPage((p) => (p === 1 ? p : 1));
   };
 
-  const sortedEmployees = useMemo(() => {
-    const getValue = (e) => {
-      switch (sortConfig.key) {
-        case "firstName":
-          return e.firstName;
-        case "lastName":
-          return e.lastName;
-        case "phone":
-          return e.phone;
-        case "role":
-          return getRoleAccessLabel(e.accessRole);
-        case "status":
-          return e.status;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filteredEmployees, getValue, sortConfig.direction);
-  }, [filteredEmployees, sortConfig.direction, sortConfig.key]);
-
-  // Pagination logic
-  const indexOfLast = currentPage * employeesPerPage;
-  const indexOfFirst = indexOfLast - employeesPerPage;
-  const currentEmployees = sortedEmployees.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedEmployees.length / employeesPerPage);
+  // Server already returns current page
+  const currentEmployees = employees || [];
 
   // Handle form input
   const handleChange = (e) => {
@@ -235,14 +226,12 @@ const Employees = () => {
     try {
       setIsSubmitting(true);
       if (isEditing) {
-        const updated = await updateEmployee(formData.id, cleanedPayload, token);
-        setEmployees(
-          employees.map((emp) => (emp.id === updated.id ? updated : emp))
-        );
+        await updateEmployee(formData.id, cleanedPayload, token);
+        await fetchEmployees();
         toast.success("Employé mis à jour");
       } else {
-        const newEmp = await createEmployee(cleanedPayload, token);
-        setEmployees([...employees, newEmp]);
+        await createEmployee(cleanedPayload, token);
+        await fetchEmployees();
         toast.success("Employé ajouté");
       }
       setShowModal(false);
@@ -275,16 +264,26 @@ const Employees = () => {
     if (isDeletingEmployee) return;
     try {
       setIsDeletingEmployee(true);
-      await deleteEmployee(empIdToDelete, token);
-      setEmployees(employees.filter((emp) => emp.id !== empIdToDelete));
-      toast.success("Employé supprimé");
+      await archiveEmployee(empIdToDelete, token);
+      await fetchEmployees();
+      toast.success("Employé archivé");
     } catch (err) {
       console.error("Erreur suppression:", err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'archivage"));
     } finally {
       setIsDeletingEmployee(false);
       setShowConfirm(false);
       setEmpIdToDelete(null);
+    }
+  };
+
+  const handleRestore = async (id) => {
+    try {
+      await unarchiveEmployee(id, token);
+      await fetchEmployees();
+      toast.success("Employé restauré");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de la restauration"));
     }
   };
 
@@ -320,8 +319,8 @@ const Employees = () => {
   if (loading) {
     return (
       <DentistPageSkeleton
-        title="Employes"
-        subtitle="Chargement de l'equipe du cabinet"
+        title={view === "archived" ? "Employés archivés" : "Employés"}
+        subtitle={view === "archived" ? "Chargement des employés archivés" : "Chargement de l'equipe du cabinet"}
         variant="table"
       />
     );
@@ -329,10 +328,10 @@ const Employees = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/gestion-cabinet" />
+      <BackButton fallbackTo={view === "archived" ? "/gestion-cabinet/employees" : "/gestion-cabinet"} />
       <PageHeader
-        title="Employés"
-        subtitle="Liste des employés enregistrés"
+        title={view === "archived" ? "Employés archivés" : "Employés"}
+        subtitle={view === "archived" ? "Liste des employés archivés" : "Liste des employés enregistrés"}
         align="left"
       />
 
@@ -351,19 +350,32 @@ const Employees = () => {
         </div>
 
         <div className="controls-right">
-          <button
-            className="btn-primary"
-            onClick={() => {
-              resetForm();
-              setFieldErrors({});
-              setIsEditing(false);
-              setFormStep(0);
-              setShowModal(true);
-            }}
-          >
-            <Plus size={16} />
-            Ajouter un employé
-          </button>
+          {view === "archived" ? null : (
+            <>
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => navigate("/gestion-cabinet/employees/archived")}
+                title="Employés archivés"
+                aria-label="Employés archivés"
+              >
+                <Archive size={16} />
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  resetForm();
+                  setFieldErrors({});
+                  setIsEditing(false);
+                  setFormStep(0);
+                  setShowModal(true);
+                }}
+              >
+                <Plus size={16} />
+                Ajouter un employé
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -403,23 +415,37 @@ const Employees = () => {
                 <button className="action-btn view" onClick={(e) => {
                   e.stopPropagation();
                   navigate(`/gestion-cabinet/employees/${emp.publicId || emp.id}`);
-                }} title="Voir / Modifier">
+                }} title={view === "archived" ? "Voir" : "Voir / Modifier"}>
                   <Eye size={16} />
                 </button>
-                <button className="action-btn delete" onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteClick(emp.id);
-                }} title="Supprimer">
-                  <Trash2 size={16} />
-                </button>
+                {view !== "archived" && (
+                  <button className="action-btn delete" onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(emp.id);
+                  }} title="Archiver">
+                    <Archive size={16} />
+                  </button>
+                )}
+                {view === "archived" && (
+                  <button
+                    className="action-btn edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRestore(emp.id);
+                    }}
+                    title="Restaurer"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                )}
               </td>
             </tr>
           ))}
 
-          {sortedEmployees.length === 0 && (
+          {currentEmployees.length === 0 && (
             <tr>
               <td colSpan={6} style={{ textAlign: "center", color: "#888" }}>
-                Aucun employé trouvé
+                {view === "archived" ? "Aucun employé archivé" : "Aucun employé trouvé"}
               </td>
             </tr>
           )}
@@ -428,29 +454,7 @@ const Employees = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="pagination">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-          >
-            ← Précédent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-          >
-            Suivant →
-          </button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
 
       {/* Modal multi-step form */}
@@ -768,8 +772,8 @@ const Employees = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Supprimer l'employé ?</h2>
-            <p className="text-gray-600 mb-6">Voulez-vous vraiment supprimer cet employé ? Cette action est irréversible.</p>
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Archiver l'employé ?</h2>
+            <p className="text-gray-600 mb-6">Voulez-vous vraiment archiver cet employé ? Il sera déplacé vers la liste des archives (lecture seule).</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
@@ -780,10 +784,10 @@ const Employees = () => {
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                className="px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition-colors"
                 disabled={isDeletingEmployee}
               >
-                {isDeletingEmployee ? "Suppression..." : "Supprimer"}
+                {isDeletingEmployee ? "Archivage..." : "Archiver"}
               </button>
             </div>
           </div>

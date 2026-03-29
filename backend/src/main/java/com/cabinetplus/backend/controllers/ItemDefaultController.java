@@ -2,6 +2,7 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.ItemDefaultDTO;
 import com.cabinetplus.backend.dto.ItemDefaultRequest;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.ItemDefault;
@@ -10,6 +11,8 @@ import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.ItemDefaultService;
 import com.cabinetplus.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,6 +39,33 @@ public class ItemDefaultController {
                 .map(itemDefaultService::toDTO)
                 .toList();
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<ItemDefaultDTO>> getAllPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            Principal principal) {
+
+        User dentist = userService.findByPhoneNumber(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.ASC, "name"));
+
+        var itemsPage = itemDefaultService.searchDefaultsForDentist(dentist, q, pageable);
+        var items = itemsPage.getContent().stream().map(itemDefaultService::toDTO).toList();
+
+        auditService.logSuccess(AuditEventType.ITEM_DEFAULT_READ, "ITEM_DEFAULT", null, "Articles par defaut consultes (page)");
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                itemsPage.getNumber(),
+                itemsPage.getSize(),
+                itemsPage.getTotalElements(),
+                itemsPage.getTotalPages()
+        ));
     }
 
     @GetMapping("/{id}")
@@ -87,6 +117,11 @@ public class ItemDefaultController {
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
         User dentist = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        if (id != null) {
+            // Strict no-delete policy: item defaults are immutable history.
+            return ResponseEntity.status(org.springframework.http.HttpStatus.METHOD_NOT_ALLOWED).build();
+        }
+
         itemDefaultService.deleteDefault(id, dentist);
         auditService.logSuccess(AuditEventType.ITEM_DEFAULT_DELETE, "ITEM_DEFAULT", String.valueOf(id), "Article par défaut supprimé");
         return ResponseEntity.noContent().build();

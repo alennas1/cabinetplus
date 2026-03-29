@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Prescription;
 import com.cabinetplus.backend.models.User;  
+import com.cabinetplus.backend.enums.RecordStatus;
 
 
 public interface PrescriptionRepository extends JpaRepository<Prescription, Long> {
@@ -20,6 +21,7 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
     List<Prescription> findByPatientId(Long patientId);
 
     List<Prescription> findByPatientIdAndPractitionerInOrderByDateDesc(Long patientId, List<User> practitioners);
+    List<Prescription> findByPatientIdAndPractitionerInAndRecordStatusOrderByDateDesc(Long patientId, List<User> practitioners, RecordStatus recordStatus);
 
 
     @Query("SELECT p FROM Prescription p LEFT JOIN FETCH p.medications WHERE p.id = :id")

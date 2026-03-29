@@ -8,22 +8,26 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.LaboratoryPayment;
 import com.cabinetplus.backend.models.User;
 
 @Repository
 public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPayment, Long> {
+    List<LaboratoryPayment> findByLaboratoryIdAndCreatedByAndRecordStatusOrderByPaymentDateDesc(Long laboratoryId,
+                                                                                                User createdBy,
+                                                                                                RecordStatus recordStatus);
+
     List<LaboratoryPayment> findByLaboratoryIdAndCreatedByOrderByPaymentDateDesc(Long laboratoryId, User createdBy);
 
-    List<LaboratoryPayment> findByCreatedByOrderByPaymentDateDesc(User createdBy);
-
-    long countByLaboratoryIdAndCreatedBy(Long laboratoryId, User createdBy);
+    long countByLaboratoryIdAndCreatedByAndRecordStatus(Long laboratoryId, User createdBy, RecordStatus recordStatus);
 
     @Query("""
         select coalesce(sum(lp.amount), 0)
         from LaboratoryPayment lp
         where lp.laboratory.id = :laboratoryId
           and lp.createdBy = :createdBy
+          and lp.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
     """)
     Double sumAmountByLaboratoryIdAndCreatedBy(@Param("laboratoryId") Long laboratoryId,
                                                @Param("createdBy") User createdBy);
@@ -33,6 +37,7 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
         from LaboratoryPayment lp
         where lp.createdBy = :createdBy
           and lp.paymentDate between :start and :end
+          and lp.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
     """)
     Double sumAmountByCreatedByAndPaymentDateBetween(@Param("createdBy") User createdBy,
                                                      @Param("start") LocalDateTime start,

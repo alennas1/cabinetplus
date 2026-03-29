@@ -11,6 +11,13 @@ export const getTreatments = async () => {
   return response.data;
 };
 
+export const getTreatmentsPage = async ({ page = 0, size = 20, q, field } = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q, field },
+  });
+  return response.data;
+};
+
 /**
  * Get treatment by ID
  */

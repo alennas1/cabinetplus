@@ -32,6 +32,7 @@ import Ordonnance from "./pages/Ordonnance";
 import Inventory from "./pages/Inventory";
 import Items from "./pages/Items";
 import Employees from "./pages/Employees";
+import ArchivedEmployees from "./pages/ArchivedEmployees";
 import EmployeeDetails from "./pages/EmployeeDetails"; 
 import VerificationPage from "./pages/VerificationPage"; 
 import PlanPage from "./pages/PlanPage"; 
@@ -40,6 +41,8 @@ import HandPaymentHistory from "./pages/HandPaymentHistory";
 import JustificationContent from "./pages/JustificationContent";
 import GestionCabinet from "./pages/GestionCabinet";
 import Catalogue from "./pages/Catalogue";
+import DiseaseCatalog from "./pages/DiseaseCatalog";
+import AllergyCatalog from "./pages/AllergyCatalog";
 // --- Admin Pages ---
 import DentistsPage from "./pages/Dentists"; 
 import DentistDetails from "./pages/DentistDetails";
@@ -59,8 +62,10 @@ import Justification from "./pages/Justification";
 
 import Devis from "./pages/Devis"; 
 import Laboratory from "./pages/Laboratory";
+import ArchivedLaboratories from "./pages/ArchivedLaboratories";
 import LaboratoryDetails from "./pages/LaboratoryDetails";
 import Fournisseurs from "./pages/Fournisseurs";
+import ArchivedFournisseurs from "./pages/ArchivedFournisseurs";
 import FournisseurDetails from "./pages/FournisseurDetails";
 // --- Components ---
 import Layout from "./components/Layout";
@@ -269,19 +274,24 @@ const AppContent = () => {
               <Route path="/catalogue/prosthetics" element={<ProstheticsSettings />} />
               <Route path="/catalogue/materials" element={<MaterialsSettings />} />
               <Route path="/catalogue/items" element={<Items />} />
+              <Route path="/catalogue/diseases" element={<DiseaseCatalog />} />
+              <Route path="/catalogue/allergies" element={<AllergyCatalog />} />
             </Route>
 
             <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST]} />}>
               <Route element={<GestionCabinetPinGuard />}>
                 <Route path="/gestion-cabinet" element={<GestionCabinet />} />
                 <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
+                <Route path="/gestion-cabinet/laboratories/archived" element={<ArchivedLaboratories />} />
                 <Route path="/gestion-cabinet/laboratories/:id" element={<LaboratoryDetails />} />
                 <Route path="/gestion-cabinet/fournisseurs" element={<Fournisseurs />} />
+                <Route path="/gestion-cabinet/fournisseurs/archived" element={<ArchivedFournisseurs />} />
                 <Route path="/gestion-cabinet/fournisseurs/:id" element={<FournisseurDetails />} />
                 <Route path="/gestion-cabinet/finance" element={<Finance />} />
                 <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
                 <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
                 <Route path="/gestion-cabinet/employees" element={<Employees />} />
+                <Route path="/gestion-cabinet/employees/archived" element={<ArchivedEmployees />} />
                 <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
               </Route>
               <Route path="/settings" element={<Settings />} />

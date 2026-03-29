@@ -4,38 +4,71 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import SortableTh from "../components/SortableTh";
-import { getAllHandPayments } from "../services/handPaymentService";
+import Pagination from "../components/Pagination";
+import { getAllHandPaymentsPage } from "../services/handPaymentService";
 import { Search, ChevronDown } from "react-feather";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const AllPayments = () => {
   const token = useSelector((state) => state.auth.token);
   const [payments, setPayments] = useState([]);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [statusFilter, setStatusFilter] = useState(""); 
   const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
-  const paymentsPerPage = 10;
   const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: SORT_DIRECTIONS.DESC });
 
   const loadPayments = async () => {
     try {
-      const data = await getAllHandPayments(token);
-      setPayments(data);
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getAllHandPaymentsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        status: statusFilter || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setPayments(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
     } catch (err) {
       console.error("Error fetching payments:", err);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des paiements"));
+      setPayments([]);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
     loadPayments();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, currentPage, debouncedSearch, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -75,17 +108,8 @@ const AllPayments = () => {
     });
   };
 
-  const filteredPayments = useMemo(() => {
-    return payments.filter((p) => {
-      const matchesSearch =
-        !search ||
-        p.fullName.toLowerCase().includes(search.toLowerCase()) ||
-        p.planName.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus =
-        !statusFilter || p.paymentStatus.toLowerCase() === statusFilter.toLowerCase();
-      return matchesSearch && matchesStatus;
-    });
-  }, [payments, search, statusFilter]);
+  // Server-side search/filter: the backend returns a filtered page already.
+  const filteredPayments = payments;
 
   const sortedPayments = useMemo(() => {
     const getValue = (p) => {
@@ -107,10 +131,8 @@ const AllPayments = () => {
     return sortRowsBy(filteredPayments, getValue, sortConfig.direction);
   }, [filteredPayments, sortConfig.direction, sortConfig.key]);
 
-  const indexOfLast = currentPage * paymentsPerPage;
-  const indexOfFirst = indexOfLast - paymentsPerPage;
-  const currentPayments = sortedPayments.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentPayments = sortedPayments;
 
   return (
     <div className="patients-container">
@@ -209,29 +231,12 @@ const AllPayments = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-          >
-            ← Précédent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-          >
-            Suivant →
-          </button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+        />
       )}
 
       <ToastContainer

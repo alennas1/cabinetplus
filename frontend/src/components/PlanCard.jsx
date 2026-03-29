@@ -7,7 +7,7 @@ import "./PlanCard.css";
 const getPlanFeatures = (plan) => [
   `${plan?.maxDentists ?? 1} dentiste(s) maximum`,
   `${plan?.maxEmployees ?? 0} employé(s) maximum`,
-  `${plan?.maxPatients ?? 0} patient(s) maximum`,
+  `${plan?.maxPatients ?? 0} patient(s) actif(s) maximum`,
   `${plan?.maxStorageGb ?? 0} Go de stockage`,
 ];
 
@@ -19,6 +19,7 @@ const PlanCard = ({
   className,
   showFeatures = true,
   showButton = true,
+  disabled = false,
   buttonVariant, // primary | outline (optional override)
   buttonLabel,
   onSelect,
@@ -116,7 +117,8 @@ const PlanCard = ({
         <button
           type="button"
           className={`cp-plan-card-btn ${resolvedButtonVariant}`}
-          onClick={onSelect}
+          onClick={disabled ? undefined : onSelect}
+          disabled={disabled}
         >
           {buttonLabel || (isFree ? "Essayer maintenant" : "Choisir ce plan")}
         </button>

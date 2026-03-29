@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { Plus, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -6,11 +6,13 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
-import { getAllMaterials, createMaterial, deleteMaterial } from "../services/materialService";
+import Pagination from "../components/Pagination";
+import { getMaterialsPage, createMaterial, deleteMaterial } from "../services/materialService";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import FieldError from "../components/FieldError";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
 import "./Patients.css"; // Using shared CSS for consistent styling
 
@@ -18,14 +20,19 @@ const MaterialsSettings = () => {
     const [materials, setMaterials] = useState([]);
     const [newMaterialName, setNewMaterialName] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
-    const [loading, setLoading] = useState(false);
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 250);
+    const [loading, setLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [fieldErrors, setFieldErrors] = useState({});
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const pageSize = 10;
+    const [totalPages, setTotalPages] = useState(1);
     const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
+    const requestIdRef = useRef(0);
+    const hasLoadedRef = useRef(false);
 
     // Delete Confirmation State
     const [showConfirm, setShowConfirm] = useState(false);
@@ -34,17 +41,38 @@ const MaterialsSettings = () => {
 
     useEffect(() => {
         fetchMaterials();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage, debouncedSearchTerm]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearchTerm]);
 
     const fetchMaterials = async () => {
         try {
-            setLoading(true);
-            const data = await getAllMaterials();
-            setMaterials(data);
+            const requestId = ++requestIdRef.current;
+            const isInitial = !hasLoadedRef.current;
+            if (isInitial) setLoading(true);
+            else setIsFetching(true);
+
+            const data = await getMaterialsPage({
+                page: Math.max((currentPage || 1) - 1, 0),
+                size: pageSize,
+                q: debouncedSearchTerm?.trim() || undefined,
+            });
+
+            if (requestId !== requestIdRef.current) return;
+
+            setMaterials(Array.isArray(data?.items) ? data.items : []);
+            setTotalPages(Number(data?.totalPages || 1));
+            hasLoadedRef.current = true;
         } catch (err) {
             toast.error(getApiErrorMessage(err, "Erreur lors du chargement des matériaux."));
+            setMaterials([]);
+            setTotalPages(1);
         } finally {
             setLoading(false);
+            setIsFetching(false);
         }
     };
 
@@ -71,7 +99,8 @@ const MaterialsSettings = () => {
         try {
             setIsSubmitting(true);
             const savedMaterial = await createMaterial({ name: String(newMaterialName || "").trim() });
-            setMaterials([...materials, savedMaterial]);
+            if (currentPage !== 1) setCurrentPage(1);
+            else await fetchMaterials();
             setNewMaterialName(""); 
             setFieldErrors({});
             toast.success("Matériau ajouté avec succès");
@@ -93,7 +122,8 @@ const MaterialsSettings = () => {
         try {
             setIsDeletingMaterial(true);
             await deleteMaterial(materialIdToDelete);
-            setMaterials(materials.filter((m) => m.id !== materialIdToDelete));
+            if (materials.length <= 1 && currentPage > 1) setCurrentPage((p) => Math.max(1, p - 1));
+            else await fetchMaterials();
             toast.success("Matériau supprimé");
         } catch (err) {
             toast.error(getApiErrorMessage(err, "Erreur lors de la suppression."));
@@ -118,9 +148,8 @@ const MaterialsSettings = () => {
         });
     };
 
-    const filteredMaterials = materials.filter((m) =>
-        m.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Server-side search: the backend returns a filtered page already.
+    const filteredMaterials = materials;
 
     const sortedMaterials = useMemo(() => {
         const getValue = (m) => {
@@ -136,11 +165,8 @@ const MaterialsSettings = () => {
         return sortRowsBy(filteredMaterials, getValue, sortConfig.direction);
     }, [filteredMaterials, sortConfig.direction, sortConfig.key]);
 
-    // Pagination logic
-    const indexOfLast = currentPage * itemsPerPage;
-    const indexOfFirst = indexOfLast - itemsPerPage;
-    const currentMaterials = sortedMaterials.slice(indexOfFirst, indexOfLast);
-    const totalPages = Math.ceil(sortedMaterials.length / itemsPerPage);
+    // Server-side pagination: the backend already returns a single page.
+    const currentMaterials = sortedMaterials;
 
     if (loading) {
         return (
@@ -242,29 +268,12 @@ const MaterialsSettings = () => {
 
             {/* Pagination Section */}
             {totalPages > 1 && (
-                <div className="pagination">
-                    <button 
-                        disabled={currentPage === 1} 
-                        onClick={() => setCurrentPage(prev => prev - 1)}
-                    >
-                        ← Précédent
-                    </button>
-                    {[...Array(totalPages)].map((_, i) => (
-                        <button 
-                            key={i} 
-                            className={currentPage === i + 1 ? "active" : ""} 
-                            onClick={() => setCurrentPage(i + 1)}
-                        >
-                            {i + 1}
-                        </button>
-                    ))}
-                    <button 
-                        disabled={currentPage === totalPages} 
-                        onClick={() => setCurrentPage(prev => prev + 1)}
-                    >
-                        Suivant →
-                    </button>
-                </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    disabled={loading || isFetching}
+                />
             )}
 
             {/* Internal Delete Confirmation Modal */}

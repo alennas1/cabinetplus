@@ -1,0 +1,18 @@
+# Local caches / build artifacts (do not commit)
+m2repo/
+.m2/
+maven-user-home/
+.npm-cache/
+
+# Java / Maven
+**/target/
+*.class
+
+# Node
+**/node_modules/
+**/dist/
+**/build/
+
+# OS / editor
+.DS_Store
+Thumbs.db

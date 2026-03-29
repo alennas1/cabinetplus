@@ -1,22 +1,26 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Filter, X } from "react-feather";
-import { Edit2, Trash2, Eye, Search, Archive, RotateCcw } from "react-feather";
+import { Edit2, Eye, Search, Archive, RotateCcw } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { FaMale, FaFemale } from "react-icons/fa";
 import PatientDangerIcon from "../components/PatientDangerIcon";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 
   import { ChevronDown } from "react-feather"; // ⬅️ at the top with imports
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import PageHeader from "../components/PageHeader";
-import DentistPageSkeleton from "../components/DentistPageSkeleton";
-import BackButton from "../components/BackButton";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
-import {
-  getPatients,
-  getArchivedPatients,
+	import PageHeader from "../components/PageHeader";
+	import DentistPageSkeleton from "../components/DentistPageSkeleton";
+	import BackButton from "../components/BackButton";
+	import { SORT_DIRECTIONS } from "../utils/tableSort";
+	import useDebouncedValue from "../hooks/useDebouncedValue";
+	import {
+	  getPatients,
+	  getArchivedPatients,
+	  getPatientsPage,
+	  getArchivedPatientsPage,
   createPatient,
   updatePatient,
   archivePatient,
@@ -28,29 +32,23 @@ import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../u
 import PhoneInput from "../components/PhoneInput";
 import FieldError from "../components/FieldError";
 import { FIELD_LIMITS, validateAge, validateText } from "../utils/validation";
-import "./Patients.css";
+	import "./Patients.css";
+	
+	const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/dashboard" }) => {
+	  const token = useSelector((state) => state.auth.token);
+	  const [sortConfig, setSortConfig] = useState({ key: null, direction: SORT_DIRECTIONS.ASC });
 
-
-const PATIENT_SORT_ACCESSORS = {
-  firstname: (p) => p.firstname,
-  lastname: (p) => p.lastname,
-  age: (p) => p.age,
-  sex: (p) => p.sex,
-  phone: (p) => p.phone,
-  createdAt: (p) => p.createdAt,
-};
-
-const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/dashboard" }) => {
-  const token = useSelector((state) => state.auth.token);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: SORT_DIRECTIONS.ASC });
-
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
+	  const [patients, setPatients] = useState([]);
+	  const [loading, setLoading] = useState(true);
+	  const [isFetching, setIsFetching] = useState(false);
+	  const hasLoadedRef = useRef(false);
 
 
   // Pagination
 const [currentPage, setCurrentPage] = useState(1);
-const patientsPerPage = 10; // change this number if you want more/less per page
+const pageSize = 20;
+const [totalPages, setTotalPages] = useState(1);
+const [totalElements, setTotalElements] = useState(0);
 
 // inside Patients component:
 const [filterBy, setFilterBy] = useState("firstname");
@@ -58,8 +56,9 @@ const [dropdownOpen, setDropdownOpen] = useState(false);
 const dropdownRef = useRef();
 const navigate = useNavigate();
 
-  // Search + field filter
-  const [search, setSearch] = useState("");
+	  // Search + field filter
+	  const [search, setSearch] = useState("");
+	  const debouncedSearch = useDebouncedValue(search, 300);
 
   // Advanced filters
   const [showFilter, setShowFilter] = useState(false);
@@ -127,25 +126,75 @@ const formatDate = (dateStr) => {
 
 const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
-  // Load patients
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        setLoading(true);
-        const data = view === "archived" ? await getArchivedPatients(token) : await getPatients(token);
-        setPatients(data);
-      } catch (err) {
-        console.error("Error fetching patients:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPatients();
-  }, [token, view]);
+	  const fetchPatients = async () => {
+	    try {
+	      const isInitial = !hasLoadedRef.current;
+	      if (isInitial) setLoading(true);
+	      else setIsFetching(true);
+	      const params = {
+	        page: Math.max((currentPage || 1) - 1, 0),
+	        size: pageSize,
+	        q: debouncedSearch?.trim() || undefined,
+	        field: filterBy || undefined,
+	        sex: sexFilter || undefined,
+	        ageFrom: ageRange?.from ? Number(ageRange.from) : undefined,
+	        ageTo: ageRange?.to ? Number(ageRange.to) : undefined,
+	        from: dateRange?.from || undefined,
+	        to: dateRange?.to || undefined,
+	        sortKey: sortConfig.key || undefined,
+	        sortDirection: sortConfig.direction || undefined,
+	      };
+	
+	      const data = view === "archived"
+	        ? await getArchivedPatientsPage(params)
+	        : await getPatientsPage(params);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [view, search, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to]);
+      const nextItems = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.content) // in case API returns Spring Page directly
+          ? data.content
+          : Array.isArray(data)
+            ? data
+            : [];
+
+      setPatients(nextItems);
+      setTotalPages(Number(data?.totalPages || data?.total_pages || 1));
+      setTotalElements(Number(data?.totalElements || data?.total_elements || nextItems.length || 0));
+      hasLoadedRef.current = true;
+    } catch (err) {
+      console.error("Error fetching patients:", err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des patients"));
+
+      // Fallback: if the paged endpoint is missing/broken, try the non-paged endpoint.
+      try {
+        const fallback = view === "archived" ? await getArchivedPatients() : await getPatients();
+        const items = Array.isArray(fallback) ? fallback : [];
+        setPatients(items);
+        setTotalPages(1);
+        setTotalElements(items.length);
+        hasLoadedRef.current = true;
+      } catch (fallbackErr) {
+        console.error("Fallback fetch patients failed:", fallbackErr);
+        setPatients([]);
+        setTotalPages(1);
+        setTotalElements(0);
+        hasLoadedRef.current = true;
+      }
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+	  // Load patients (server-side pagination / search / filters)
+	  useEffect(() => {
+	    fetchPatients();
+	    // eslint-disable-next-line react-hooks/exhaustive-deps
+	  }, [token, view, currentPage, debouncedSearch, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to, sortConfig.key, sortConfig.direction]);
+	
+	  useEffect(() => {
+	    setCurrentPage(1);
+	  }, [view, search, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to, sortConfig.key, sortConfig.direction]);
 
   const handleArchiveToggle = (patientId, action) => {
     const patient = patients.find((p) => p.id === patientId);
@@ -155,12 +204,12 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
       try {
         if (action === "archive") {
           await archivePatient(patientId, token);
-          setPatients((prev) => prev.filter((p) => p.id !== patientId));
+          await fetchPatients();
           toast.success("Patient archivé");
           return;
         }
         await unarchivePatient(patientId, token);
-        setPatients((prev) => prev.filter((p) => p.id !== patientId));
+        await fetchPatients();
         toast.success("Patient désarchivé");
       } catch (err) {
         console.error(err);
@@ -187,45 +236,21 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
     setShowConfirm(true);
   };
 
-  const handleSort = (key, explicitDirection) => {
-    if (!key) return;
-    setSortConfig((prev) => {
-      const nextDirection =
-        explicitDirection ||
+	  const handleSort = (key, explicitDirection) => {
+	    if (!key) return;
+	    setSortConfig((prev) => {
+	      const nextDirection =
+	        explicitDirection ||
         (prev.key === key
           ? prev.direction === SORT_DIRECTIONS.ASC
             ? SORT_DIRECTIONS.DESC
             : SORT_DIRECTIONS.ASC
           : SORT_DIRECTIONS.ASC);
-
-      return { key, direction: nextDirection };
-    });
-  };
-
-  // Filtered patients
-  const filteredPatients = patients.filter((p) => {
-    const value = (p[filterBy] || "").toString().toLowerCase();
-    if (search && !value.includes(search.toLowerCase())) return false;
-
-    if (sexFilter && p.sex !== sexFilter) return false;
-
-    const age = Number(p.age);
-    if (ageRange.from && age < Number(ageRange.from)) return false;
-    if (ageRange.to && age > Number(ageRange.to)) return false;
-
-    const created = new Date(p.createdAt);
-    if (dateRange.from && created < new Date(dateRange.from)) return false;
-    if (dateRange.to && created > new Date(dateRange.to)) return false;
-
-    return true;
-  });
-
-  const sortedPatients = useMemo(() => {
-    if (!sortConfig.key) return filteredPatients;
-    const accessor = PATIENT_SORT_ACCESSORS[sortConfig.key];
-    if (!accessor) return filteredPatients;
-    return sortRowsBy(filteredPatients, accessor, sortConfig.direction);
-  }, [filteredPatients, sortConfig.direction, sortConfig.key]);
+	
+	      return { key, direction: nextDirection };
+	    });
+	    setCurrentPage(1);
+	  };
 
   // Handle form input
   const handleChange = (e) => {
@@ -264,8 +289,9 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
     const ageError = validateAge(formData.age);
     if (ageError) nextErrors.age = ageError;
 
-    if (!String(formData.phone || "").trim()) nextErrors.phone = "Le numéro de téléphone est obligatoire.";
-    else if (!isValidPhoneNumber(formData.phone)) nextErrors.phone = "Numéro de téléphone invalide.";
+    if (String(formData.phone || "").trim() && !isValidPhoneNumber(formData.phone)) {
+      nextErrors.phone = "Numéro de téléphone invalide.";
+    }
 
     if (!String(formData.sex || "").trim()) nextErrors.sex = "Le sexe est obligatoire.";
 
@@ -335,18 +361,15 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
 
  
-// Pagination logic
-const indexOfLastPatient = currentPage * patientsPerPage;
-const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
-const currentPatients = sortedPatients.slice(indexOfFirstPatient, indexOfLastPatient);
-
-const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
-
-  if (loading) {
-    return (
-      <DentistPageSkeleton
-        title={view === "archived" ? "Patients archivés" : "Patients"}
-        subtitle={view === "archived" ? "Chargement de la liste des patients archivés" : "Chargement de la liste des patients"}
+	// Pagination logic
+ 	const currentPatients = useMemo(() => patients || [], [patients]);
+	
+	  // Only show full-page skeleton on the first load.
+	  if (loading && !hasLoadedRef.current) {
+	    return (
+	      <DentistPageSkeleton
+	        title={view === "archived" ? "Patients archivés" : "Patients"}
+	        subtitle={view === "archived" ? "Chargement de la liste des patients archivés" : "Chargement de la liste des patients"}
         variant="table"
       />
     );
@@ -589,30 +612,20 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
           <Eye size={16} />
         </button>
 
-        <button
-          className="action-btn edit"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleEdit(p);
-          }}
-          title="Modifier"
-        >
-          <Edit2 size={16} />
-        </button>
-
-        {view === "archived" ? (
+        {view !== "archived" && (
           <button
-            className="action-btn view"
+            className="action-btn edit"
             onClick={(e) => {
               e.stopPropagation();
-              handleArchiveToggle(p.id, "unarchive");
+              handleEdit(p);
             }}
-            title="Désarchiver"
+            title="Modifier"
           >
-            <RotateCcw size={16} />
+            <Edit2 size={16} />
           </button>
-        ) : (
-          <button
+        )}
+
+        {view !== "archived" && (<button
             className="action-btn delete"
             onClick={(e) => {
               e.stopPropagation();
@@ -621,19 +634,31 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
             title="Archiver"
           >
             <Archive size={16} />
+          </button>)}
+
+        {view === "archived" && (
+          <button
+            className="action-btn edit"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleArchiveToggle(p.id, "unarchive");
+            }}
+            title="Restaurer"
+          >
+            <RotateCcw size={16} />
           </button>
         )}
       </td>
     </tr>
   ))}
 
-  {sortedPatients.length === 0 && (
-    <tr>
-      <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
-        {view === "archived" ? "Aucun patient archivé" : "Aucun patient trouvé"}
-      </td>
-    </tr>
-  )}
+	  {currentPatients.length === 0 && (
+	    <tr>
+	      <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
+	        {view === "archived" ? "Aucun patient archivé" : "Aucun patient trouvé"}
+	      </td>
+	    </tr>
+	  )}
 </tbody>
       </table>
 
@@ -683,31 +708,7 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
       )}
 {/* Pagination controls */}
 {totalPages > 1 && (
-  <div className="pagination">
-    <button
-      disabled={currentPage === 1}
-      onClick={() => setCurrentPage((prev) => prev - 1)}
-    >
-      ← Précédent
-    </button>
-
-    {[...Array(totalPages)].map((_, i) => (
-      <button
-        key={i}
-        className={currentPage === i + 1 ? "active" : ""}
-        onClick={() => setCurrentPage(i + 1)}
-      >
-        {i + 1}
-      </button>
-    ))}
-
-    <button
-      disabled={currentPage === totalPages}
-      onClick={() => setCurrentPage((prev) => prev + 1)}
-    >
-      Suivant →
-    </button>
-  </div>
+  <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
 )}
       {/* Modal */}
       {showModal && (
@@ -946,5 +947,3 @@ const totalPages = Math.ceil(sortedPatients.length / patientsPerPage);
 };
 
 export default Patients;
-
-

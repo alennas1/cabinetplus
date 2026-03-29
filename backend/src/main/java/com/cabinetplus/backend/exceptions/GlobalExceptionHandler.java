@@ -470,9 +470,12 @@ public class GlobalExceptionHandler {
         if (c.contains("ux_treatment_catalog_created_by_name_ci")) return Map.of("name", "Ce traitement existe deja");
         if (c.contains("ux_prothesis_catalog_created_by_name_ci")) return Map.of("name", "Cette prothese existe deja");
         if (c.contains("ux_medications_created_by_name_strength_ci")) return Map.of("name", "Ce medicament existe deja");
+        if (c.contains("ux_disease_catalog_created_by_name_ci")) return Map.of("name", "Cette maladie existe deja");
+        if (c.contains("ux_allergy_catalog_created_by_name_ci")) return Map.of("name", "Cette allergie existe deja");
 
         return Map.of("_", "Donnees invalides");
     }
+
 
     private String toCamelCase(String snake) {
         if (snake == null) return "";
@@ -543,7 +546,9 @@ public class GlobalExceptionHandler {
         }
         if (n.contains("payment is already processed")) return "Ce paiement est deja traite";
         if (n.contains("email already exists")) return "Cet email est deja utilise";
-        if (n.contains("limite de patients atteinte")) return "Limite de patients atteinte pour votre plan";
+        if (n.contains("limite de patients actifs atteinte") || n.contains("limite de patients atteinte")) {
+            return "Limite de patients actifs atteinte pour votre plan";
+        }
         if (n.contains("limite de dentistes atteinte")) return "Limite de dentistes atteinte pour votre plan";
         if (n.contains("limite d'employes atteinte")) return "Limite d'employes atteinte pour votre plan";
         if (n.contains("limite de stockage atteinte")) return "Limite de stockage atteinte pour votre plan";

@@ -1,7 +1,10 @@
 package com.cabinetplus.backend.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+
+import com.cabinetplus.backend.enums.RecordStatus;
 
 /**
  * DTO for returning Laboratory details to the frontend.
@@ -18,5 +21,7 @@ public record LaboratoryResponse(
     Double remainingToPay,
     List<LaboratoryPaymentResponse> payments,
     List<LaboratoryBillingSummaryResponse> billingHistory,
-    List<LaboratoryBillingEntryResponse> billingEntries
+    List<LaboratoryBillingEntryResponse> billingEntries,
+    RecordStatus recordStatus,
+    LocalDateTime archivedAt
 ) {}

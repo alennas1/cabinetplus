@@ -4,6 +4,7 @@ import com.cabinetplus.backend.models.Justification;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.repositories.JustificationRepository;
 import com.cabinetplus.backend.repositories.JustificationContentRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +45,7 @@ public class JustificationService {
     }
 
     public List<Justification> findByPractitioner(User practitioner) {
-        return justificationRepository.findByPractitioner(practitioner);
+        return justificationRepository.findByPractitionerAndRecordStatus(practitioner, RecordStatus.ACTIVE);
     }
 
     public Optional<Justification> findByIdAndPractitioner(Long id, User practitioner) {
@@ -54,6 +56,9 @@ public class JustificationService {
     public Optional<Justification> update(Long id, String title, String content, User practitioner) {
         return justificationRepository.findByIdAndPractitioner(id, practitioner)
                 .map(existing -> {
+                    if (existing.getRecordStatus() == RecordStatus.CANCELLED) {
+                        throw new BadRequestException(java.util.Map.of("_", "Justificatif annulé : lecture seule."));
+                    }
                     existing.setTitle(title);
                     existing.setFinalContent(content);
                     return justificationRepository.save(existing);
@@ -64,14 +69,18 @@ public class JustificationService {
     public boolean deleteByPractitioner(Long id, User practitioner) {
         return justificationRepository.findByIdAndPractitioner(id, practitioner)
                 .map(j -> {
-                    justificationRepository.delete(j);
+                    if (j.getRecordStatus() != RecordStatus.CANCELLED) {
+                        j.setRecordStatus(RecordStatus.CANCELLED);
+                        j.setCancelledAt(LocalDateTime.now());
+                        justificationRepository.save(j);
+                    }
                     return true;
                 })
                 .orElse(false);
     }
 
     public List<Justification> findByPatientAndPractitioner(Patient patient, User practitioner) {
-        return justificationRepository.findByPatientAndPractitioner(patient, practitioner);
+        return justificationRepository.findByPatientAndPractitionerAndRecordStatus(patient, practitioner, RecordStatus.ACTIVE);
     }
 
     // ðŸ”µ GENERATE FROM JUSTIFICATION CONTENT (ID-BASED)

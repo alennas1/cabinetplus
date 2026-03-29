@@ -14,6 +14,23 @@ export const getDevises = async () => {
   return response.data;
 };
 
+export const getDevisesPage = async ({
+  page = 0,
+  size = 20,
+  q,
+  from,
+  to,
+  amountFrom,
+  amountTo,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q, from, to, amountFrom, amountTo, sortKey, sortDirection },
+  });
+  return response.data;
+};
+
 // 🔹 Delete devise by id
 export const deleteDevise = async (id) => {
   const response = await api.delete(`${BASE_URL}/${id}`);

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.*;
 
@@ -63,4 +64,10 @@ public class Prothesis {
     )
     @Column(name = "tooth_number")
     private List<Integer> teeth = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime cancelledAt;
 }

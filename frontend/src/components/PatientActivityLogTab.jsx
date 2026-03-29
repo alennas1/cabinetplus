@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown, RefreshCw, Search } from "react-feather";
-import { toast } from "react-toastify";
-import { getPatientAuditLogs } from "../services/auditService";
-import { getApiErrorMessage } from "../utils/error";
-import { formatHour } from "../utils/workingHours";
-import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
-import DateInput from "./DateInput";
-import "../pages/Patients.css";
-import "./PatientActivityLogTab.css";
+	import React, { useEffect, useMemo, useRef, useState } from "react";
+	import { ChevronDown, RefreshCw, Search } from "react-feather";
+	import { toast } from "react-toastify";
+	import { getPatientAuditLogs } from "../services/auditService";
+	import { getApiErrorMessage } from "../utils/error";
+	import { formatHour } from "../utils/workingHours";
+	import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+	import DateInput from "./DateInput";
+	import Pagination from "./Pagination";
+	import SortableTh from "./SortableTh";
+	import { SORT_DIRECTIONS } from "../utils/tableSort";
+	import useDebouncedValue from "../hooks/useDebouncedValue";
+	import "../pages/Patients.css";
+	import "./PatientActivityLogTab.css";
 
 const STATUS_LABELS = {
   SUCCESS: "Succes",
@@ -57,12 +61,10 @@ const getEntityLabel = (eventType) => ENTITY_LABELS[getEntityKey(eventType)] || 
 
 const getActionLabel = (eventType = "") => {
   if (!eventType) return "-";
-  if (eventType === "PATIENT_READ") return "Voir";
-  if (eventType === "PATIENT_PDF_DOWNLOAD") return "Telecharger PDF";
-  if (eventType.endsWith("_PDF_DOWNLOAD")) return "Telecharger PDF";
-  if (eventType.endsWith("_READ")) return "Voir";
+  if (eventType.endsWith("_CANCEL")) return "Annulation";
   if (eventType.includes("UNARCHIVE")) return "Restauration";
   if (eventType.includes("ARCHIVE")) return "Archivage";
+  if (eventType.includes("GENERATE")) return "Generation";
   if (eventType.includes("CREATE")) return "Ajout";
   if (eventType.includes("DELETE")) return "Suppression";
   if (eventType.includes("ASSIGN")) return "Affectation";
@@ -88,115 +90,170 @@ const formatDateParam = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const monthsList = Array.from({ length: 12 }).map((_, i) => {
-  const date = new Date();
-  date.setMonth(date.getMonth() - i);
-  const monthStr = (date.getMonth() + 1).toString().padStart(2, "0");
-  const label = formatMonthYearByPreference(date);
+	const monthsList = Array.from({ length: 12 }).map((_, i) => {
+	  const date = new Date();
+	  date.setMonth(date.getMonth() - i);
+	  const monthStr = (date.getMonth() + 1).toString().padStart(2, "0");
+	  const label = formatMonthYearByPreference(date);
 
-  return {
-    label: label.charAt(0).toUpperCase() + label.slice(1),
-    value: `${date.getFullYear()}-${monthStr}`,
-  };
-});
+	  return {
+	    label: label.charAt(0).toUpperCase() + label.slice(1),
+	    value: `${date.getFullYear()}-${monthStr}`,
+	  };
+	});
 
-const PatientActivityLogTab = ({ patientId }) => {
-  const [loading, setLoading] = useState(true);
-  const [logs, setLogs] = useState([]);
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 10;
+	const PatientActivityLogTab = ({ patientId }) => {
+	  const [loading, setLoading] = useState(true);
+	  const [isRefreshing, setIsRefreshing] = useState(false);
+	  const [logs, setLogs] = useState([]);
+	  const logsRef = useRef([]);
+	  useEffect(() => {
+	    logsRef.current = logs;
+	  }, [logs]);
+	  const [query, setQuery] = useState("");
+	  const debouncedQuery = useDebouncedValue(query.trim(), 300);
+	  const [page, setPage] = useState(1);
+	  const [totalPages, setTotalPages] = useState(1);
+	  const pageSize = 10;
+	  const [sortConfig, setSortConfig] = useState({ key: "occurredAt", direction: SORT_DIRECTIONS.DESC });
 
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [entityFilter, setEntityFilter] = useState("ALL");
-  const [actionFilter, setActionFilter] = useState("ALL");
+	  const [statusFilter, setStatusFilter] = useState("ALL");
+	  const [entityFilter, setEntityFilter] = useState("ALL");
+	  const [actionFilter, setActionFilter] = useState("ALL");
+	  const debouncedStatusFilter = useDebouncedValue(statusFilter, 200);
+	  const debouncedEntityFilter = useDebouncedValue(entityFilter, 200);
+	  const debouncedActionFilter = useDebouncedValue(actionFilter, 200);
 
-  const [selectedDateFilter, setSelectedDateFilter] = useState("all");
-  const [selectedMonth, setSelectedMonth] = useState("");
-  const [customRange, setCustomRange] = useState({ start: "", end: "" });
+	  const [selectedDateFilter, setSelectedDateFilter] = useState("all");
+	  const [selectedMonth, setSelectedMonth] = useState("");
+	  const [customRange, setCustomRange] = useState({ start: "", end: "" });
+	  const debouncedCustomRange = useDebouncedValue(customRange, 300);
+	  const debouncedSelectedMonth = useDebouncedValue(selectedMonth, 200);
+	  const debouncedSelectedDateFilter = useDebouncedValue(selectedDateFilter, 200);
 
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false);
   const [actionDropdownOpen, setActionDropdownOpen] = useState(false);
   const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
 
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => clearTimeout(handle);
-  }, [query]);
+	  const { fromParam, toParam } = useMemo(() => {
+	    if (debouncedCustomRange.start || debouncedCustomRange.end) {
+	      return {
+	        fromParam: debouncedCustomRange.start || undefined,
+	        toParam: debouncedCustomRange.end || undefined,
+	      };
+	    }
 
-  const { fromParam, toParam } = useMemo(() => {
-    if (customRange.start || customRange.end) {
-      return {
-        fromParam: customRange.start || undefined,
-        toParam: customRange.end || undefined,
-      };
-    }
+	    if (debouncedSelectedMonth) {
+	      const [year, month] = debouncedSelectedMonth.split("-").map(Number);
+	      if (!Number.isFinite(year) || !Number.isFinite(month)) return { fromParam: undefined, toParam: undefined };
+	      const start = new Date(year, month - 1, 1);
+	      const end = new Date(year, month, 0);
+	      return { fromParam: formatDateParam(start), toParam: formatDateParam(end) };
+	    }
 
-    if (selectedMonth) {
-      const [year, month] = selectedMonth.split("-").map(Number);
-      if (!Number.isFinite(year) || !Number.isFinite(month)) return { fromParam: undefined, toParam: undefined };
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0);
-      return { fromParam: formatDateParam(start), toParam: formatDateParam(end) };
-    }
+	    if (debouncedSelectedDateFilter === "today") {
+	      const today = new Date();
+	      const formatted = formatDateParam(today);
+	      return { fromParam: formatted, toParam: formatted };
+	    }
 
-    if (selectedDateFilter === "today") {
-      const today = new Date();
-      const formatted = formatDateParam(today);
-      return { fromParam: formatted, toParam: formatted };
-    }
+	    if (debouncedSelectedDateFilter === "yesterday") {
+	      const yesterday = new Date();
+	      yesterday.setDate(yesterday.getDate() - 1);
+	      const formatted = formatDateParam(yesterday);
+	      return { fromParam: formatted, toParam: formatted };
+	    }
 
-    if (selectedDateFilter === "yesterday") {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const formatted = formatDateParam(yesterday);
-      return { fromParam: formatted, toParam: formatted };
-    }
+	    return { fromParam: undefined, toParam: undefined };
+	  }, [debouncedCustomRange.end, debouncedCustomRange.start, debouncedSelectedDateFilter, debouncedSelectedMonth]);
 
-    return { fromParam: undefined, toParam: undefined };
-  }, [customRange.end, customRange.start, selectedDateFilter, selectedMonth]);
+	  const fetchLogs = async () => {
+	    if (!patientId) return;
+	    try {
+	      const hasExistingRows = (logsRef.current || []).length > 0;
+	      if (!hasExistingRows) setLoading(true);
+	      else setIsRefreshing(true);
+	      const response = await getPatientAuditLogs(patientId, {
+	        page: page - 1,
+	        size: pageSize,
+	        sortKey: sortConfig.key || undefined,
+	        sortDirection: sortConfig.direction || undefined,
+	        ...(debouncedQuery ? { q: debouncedQuery } : {}),
+	        ...(debouncedStatusFilter !== "ALL" ? { status: debouncedStatusFilter } : {}),
+	        ...(debouncedEntityFilter !== "ALL" ? { entity: debouncedEntityFilter } : {}),
+	        ...(debouncedActionFilter !== "ALL" ? { action: debouncedActionFilter } : {}),
+	        ...(fromParam ? { from: fromParam } : {}),
+	        ...(toParam ? { to: toParam } : {}),
+	      });
 
-  const fetchLogs = async () => {
-    if (!patientId) return;
-    try {
-      setLoading(true);
-      const response = await getPatientAuditLogs(patientId, {
-        page: page - 1,
-        size: pageSize,
-        ...(debouncedQuery ? { q: debouncedQuery } : {}),
-        ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
-        ...(entityFilter !== "ALL" ? { entity: entityFilter } : {}),
-        ...(actionFilter !== "ALL" ? { action: actionFilter } : {}),
-        ...(fromParam ? { from: fromParam } : {}),
-        ...(toParam ? { to: toParam } : {}),
-      });
-      setLogs(response?.items || []);
-      setTotalPages(Math.max(1, response?.totalPages || 1));
-    } catch (err) {
-      console.error("Erreur chargement audit patient:", err);
-      toast.error(getApiErrorMessage(err, "Erreur chargement journal"));
-    } finally {
-      setLoading(false);
-    }
-  };
+	      setLogs(Array.isArray(response?.items) ? response.items : []);
+	      setTotalPages(Math.max(1, Number(response?.totalPages || 1)));
+	    } catch (err) {
+	      console.error("Erreur chargement audit patient:", err);
+	      toast.error(getApiErrorMessage(err, "Erreur chargement journal"));
+	    } finally {
+	      setLoading(false);
+	      setIsRefreshing(false);
+	    }
+	  };
 
-  useEffect(() => {
-    setPage(1);
-  }, [patientId, debouncedQuery, statusFilter, entityFilter, actionFilter, fromParam, toParam]);
+	  useEffect(() => {
+	    setPage(1);
+	    // eslint-disable-next-line react-hooks/exhaustive-deps
+	  }, [patientId]);
 
-  useEffect(() => {
-    fetchLogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId, page, pageSize, debouncedQuery, statusFilter, entityFilter, actionFilter, fromParam, toParam]);
+	  useEffect(() => {
+	    setPage((prev) => (prev === 1 ? prev : 1));
+	  }, [
+	    patientId,
+	    debouncedQuery,
+	    debouncedStatusFilter,
+	    debouncedEntityFilter,
+	    debouncedActionFilter,
+	    fromParam,
+	    toParam,
+	    sortConfig.key,
+	    sortConfig.direction,
+	  ]);
+
+	  useEffect(() => {
+	    fetchLogs();
+	    // eslint-disable-next-line react-hooks/exhaustive-deps
+	  }, [
+	    patientId,
+	    page,
+	    pageSize,
+	    debouncedQuery,
+	    debouncedStatusFilter,
+	    debouncedEntityFilter,
+	    debouncedActionFilter,
+	    fromParam,
+	    toParam,
+	    sortConfig.key,
+	    sortConfig.direction,
+	  ]);
+
+	  const handleSort = (key, explicitDirection) => {
+	    if (!key) return;
+	    setSortConfig((prev) => {
+	      const nextDirection =
+	        explicitDirection ||
+	        (prev.key === key
+	          ? prev.direction === SORT_DIRECTIONS.ASC
+	            ? SORT_DIRECTIONS.DESC
+	            : SORT_DIRECTIONS.ASC
+	          : SORT_DIRECTIONS.ASC);
+	      return { key, direction: nextDirection };
+	    });
+	    setPage(1);
+	  };
 
   return (
     <div>
-      <div className="controls-card" style={{ marginBottom: 12 }}>
-        <div className="patients-controls">
-          <div className="controls-left">
+	      <div className="controls-card" style={{ marginBottom: 12 }}>
+	        <div className="patients-controls">
+	          <div className="controls-left">
             <div className="search-group">
               <span className="search-icon">
                 <Search size={16} />
@@ -295,15 +352,15 @@ const PatientActivityLogTab = ({ patientId }) => {
                     ? "Toutes actions"
                     : actionFilter === "CREATE"
                       ? "Ajouts"
-                      : actionFilter === "UPDATE"
+                    : actionFilter === "UPDATE"
                         ? "Modifications"
+                        : actionFilter === "CANCEL"
+                          ? "Annulations"
                         : actionFilter === "DELETE"
                           ? "Suppressions"
                           : actionFilter === "ARCHIVE"
                             ? "Archivage"
-                            : actionFilter === "READ"
-                              ? "Consultations"
-                              : "Securite"}
+                            : "Securite"}
                 </span>
                 <ChevronDown size={18} className={`chevron ${actionDropdownOpen ? "rotated" : ""}`} />
               </button>
@@ -335,6 +392,14 @@ const PatientActivityLogTab = ({ patientId }) => {
                   </li>
                   <li
                     onClick={() => {
+                      setActionFilter("CANCEL");
+                      setActionDropdownOpen(false);
+                    }}
+                  >
+                    Annulations
+                  </li>
+                  <li
+                    onClick={() => {
                       setActionFilter("DELETE");
                       setActionDropdownOpen(false);
                     }}
@@ -351,14 +416,6 @@ const PatientActivityLogTab = ({ patientId }) => {
                   </li>
                   <li
                     onClick={() => {
-                      setActionFilter("READ");
-                      setActionDropdownOpen(false);
-                    }}
-                  >
-                    Consultations
-                  </li>
-                  <li
-                    onClick={() => {
                       setActionFilter("SECURITY");
                       setActionDropdownOpen(false);
                     }}
@@ -370,13 +427,18 @@ const PatientActivityLogTab = ({ patientId }) => {
             </div>
           </div>
 
-          <div className="controls-right">
-            <button type="button" className="btn-primary" onClick={fetchLogs} disabled={loading}>
-              <RefreshCw size={16} />
-              Actualiser
-            </button>
-          </div>
-        </div>
+	          <div className="controls-right">
+	            <button
+	              type="button"
+	              className="btn-primary"
+	              onClick={fetchLogs}
+	              disabled={loading || isRefreshing}
+	            >
+	              <RefreshCw size={16} />
+	              {isRefreshing ? "Actualisation..." : "Actualiser"}
+	            </button>
+	          </div>
+	        </div>
 
         <div className="date-selector" style={{ marginTop: 12, marginBottom: 0, flexWrap: "wrap" }}>
         <button
@@ -473,86 +535,63 @@ const PatientActivityLogTab = ({ patientId }) => {
       </div>
       </div>
 
-      <table className="treatment-table">
-        <thead>
-          <tr>
-            <th>Date et heure</th>
-            <th>Action</th>
-            <th>Bloc</th>
-            <th>Details</th>
-            <th>Statut</th>
-            <th>Fait par</th>
-            <th>Adresse IP</th>
-            <th>Localisation</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading && (
-            <tr>
-              <td colSpan="8" style={{ textAlign: "center", color: "#888" }}>
-                Chargement du journal...
-              </td>
-            </tr>
-          )}
+	      <table className="treatment-table">
+	        <thead>
+	          <tr>
+	            <SortableTh label="Date et heure" sortKey="occurredAt" sortConfig={sortConfig} onSort={handleSort} />
+	            <SortableTh label="Action" sortKey="eventType" sortConfig={sortConfig} onSort={handleSort} />
+	            <SortableTh label="Bloc" sortKey="eventType" sortConfig={sortConfig} onSort={handleSort} />
+	            <SortableTh label="Details" sortKey="message" sortConfig={sortConfig} onSort={handleSort} />
+	            <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
+	            <SortableTh label="Fait par" sortKey="actorUsername" sortConfig={sortConfig} onSort={handleSort} />
+	            <SortableTh label="Adresse IP" sortKey="ipAddress" sortConfig={sortConfig} onSort={handleSort} />
+	            <SortableTh label="Localisation" sortKey="location" sortConfig={sortConfig} onSort={handleSort} />
+	          </tr>
+	        </thead>
+	        <tbody>
+	          {loading && logs.length === 0 && (
+	            <tr>
+	              <td colSpan="8" style={{ textAlign: "center", color: "#888" }}>
+	                Chargement du journal...
+	              </td>
+	            </tr>
+	          )}
 
-          {!loading &&
-            logs.map((log, index) => {
-              const status = log?.status || "SUCCESS";
-              const badgeClass = status === "SUCCESS" ? "active" : "inactive";
-              const details = log?.message || log?.targetDisplay || "-";
-              return (
-                <tr key={`${log?.occurredAt || "date"}-${index}`}>
-                  <td>{formatDateTime(log?.occurredAt)}</td>
-                  <td>{getActionLabel(log?.eventType)}</td>
-                  <td>{getEntityLabel(log?.eventType)}</td>
-                  <td>{details}</td>
-                  <td>
-                    <span className={`status-badge ${badgeClass}`}>{STATUS_LABELS[status] || status}</span>
-                  </td>
-                  <td>{log?.actorDisplayName || "-"}</td>
-                  <td>{log?.ipAddress || "-"}</td>
-                  <td>{log?.location || "-"}</td>
-                </tr>
-              );
-            })}
+	          {logs.map((log, index) => {
+	              const status = log?.status || "SUCCESS";
+	              const badgeClass = status === "SUCCESS" ? "active" : "inactive";
+	              const details = log?.message || log?.targetDisplay || "-";
+	              return (
+	                <tr key={`${log?.occurredAt || "date"}-${index}`}>
+	                  <td>{formatDateTime(log?.occurredAt)}</td>
+	                  <td>{getActionLabel(log?.eventType)}</td>
+	                  <td>{getEntityLabel(log?.eventType)}</td>
+	                  <td>{details}</td>
+	                  <td>
+	                    <span className={`status-badge ${badgeClass}`}>{STATUS_LABELS[status] || status}</span>
+	                  </td>
+	                  <td>{log?.actorDisplayName || "-"}</td>
+	                  <td>{log?.ipAddress || "-"}</td>
+	                  <td>{log?.location || "-"}</td>
+	                </tr>
+	              );
+	            })}
 
-          {!loading && logs.length === 0 && (
-            <tr>
-              <td colSpan="8" style={{ textAlign: "center", color: "#888" }}>
-                Aucune activite
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+	          {!loading && logs.length === 0 && (
+	            <tr>
+	              <td colSpan="8" style={{ textAlign: "center", color: "#888" }}>
+	                Aucune activite
+	              </td>
+	            </tr>
+	          )}
+	        </tbody>
+	      </table>
 
-      {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            ← Précédent
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={`patient-activity-page-${i}`}
-              className={page === i + 1 ? "active" : ""}
-              onClick={() => setPage(i + 1)}
-              disabled={loading}
-            >
-              {i + 1}
-            </button>
-          ))}
-
-          <button
-            disabled={page === totalPages || loading}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            Suivant →
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
+	      {totalPages > 1 && (
+	        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} disabled={loading || isRefreshing} />
+	      )}
+	    </div>
+	  );
+	};
 
 export default PatientActivityLogTab;

@@ -359,6 +359,18 @@ html, body {
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  transition: margin 0.35s ease;
+}
+
+.sidebar:hover .sidebar-links li a .cp-sidebar-icon {
+  margin-right: 14px;
+}
+
+/* Keep the badge anchored on the icon even when sidebar expands.
+   (The global rule adds margin-right to all SVGs on hover, which would shift the badge and the icon centering.) */
+.sidebar:hover .sidebar-links li a .cp-sidebar-icon svg {
+  margin-right: 0;
 }
 
 .cp-sidebar-badge {

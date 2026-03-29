@@ -7,6 +7,13 @@ export const getAllProstheticsCatalogue = async () => {
   return response.data;
 };
 
+export const getProstheticsCataloguePage = async ({ page = 0, size = 20, q, sortKey, direction } = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q, sortKey, direction },
+  });
+  return response.data;
+};
+
 export const createProstheticCatalogue = async (data) => {
   // data = { name, materialId, defaultPrice, isFlatFee }
   const response = await api.post(BASE_URL, data);

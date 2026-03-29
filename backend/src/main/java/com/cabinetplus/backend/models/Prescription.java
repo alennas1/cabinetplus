@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.util.UuidV7;
 import com.cabinetplus.backend.security.EncryptionConverter;
 
@@ -19,6 +20,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -55,6 +58,12 @@ public class Prescription {
     @ManyToOne
     @JoinColumn(name = "practitioner_id", nullable = false)
     private User practitioner;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime cancelledAt;
 
    @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
 private List<PrescriptionMedication> medications = new ArrayList<>();

@@ -2,6 +2,7 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.JustificationContentRequestDTO;
 import com.cabinetplus.backend.dto.JustificationContentResponseDTO;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.User;
@@ -10,12 +11,14 @@ import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.JustificationContentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.security.Principal;
+import java.util.Comparator;
 import java.util.List;
 
 @RestController
@@ -89,6 +92,46 @@ public class JustificationContentController {
                         .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<JustificationContentResponseDTO>> getAllPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            Principal principal
+    ) {
+        User practitioner = getPractitioner(principal);
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+
+        List<JustificationContent> all = service.findByPractitioner(practitioner);
+        List<JustificationContent> filtered = (all == null ? List.<JustificationContent>of() : all).stream()
+                .filter(j -> {
+                    if (qNorm.isBlank()) return true;
+                    String title = j.getTitle() != null ? j.getTitle().trim().toLowerCase() : "";
+                    String content = j.getContent() != null ? j.getContent().trim().toLowerCase() : "";
+                    return title.contains(qNorm) || content.contains(qNorm);
+                })
+                .sorted(Comparator.comparing(j -> j.getTitle() != null ? j.getTitle().toLowerCase() : ""))
+                .toList();
+
+        PageResponse<JustificationContent> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
+        List<JustificationContentResponseDTO> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+
+        auditService.logSuccess(
+                AuditEventType.JUSTIFICATION_TEMPLATE_READ,
+                "JUSTIFICATION_TEMPLATE",
+                null,
+                "Modeles justificatif consultes (page)"
+        );
+
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                pageResponse.page(),
+                pageResponse.size(),
+                pageResponse.totalElements(),
+                pageResponse.totalPages()
+        ));
     }
 
     // =========================

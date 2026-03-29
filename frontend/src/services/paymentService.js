@@ -14,7 +14,25 @@ export const getPaymentsByPatient = async (patientId) => {
   return response.data;
 };
 
+export const getPaymentsByPatientPage = async ({
+  patientId,
+  page = 0,
+  size = 10,
+  q,
+  field,
+  status,
+  from,
+  to,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`/api/patients/${patientId}/payments/paged`, {
+    params: { page, size, q, field, status, from, to, sortKey, sortDirection },
+  });
+  return response.data;
+};
+
 // 🔹 Delete payment
-export const deletePayment = async (paymentId) => {
-  await api.delete(`/api/payments/${paymentId}`);
+export const cancelPayment = async (paymentId) => {
+  await api.put(`/api/payments/${paymentId}/cancel`);
 };

@@ -1,12 +1,12 @@
 // src/pages/WaitingPage.jsx
-import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import {
-  getPendingHandPayments,
+  getPendingHandPaymentsPage,
   confirmHandPayment,
   rejectHandPayment,
 } from "../services/handPaymentService";
@@ -15,36 +15,66 @@ import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const WaitingPage = () => {
-  const token = useSelector((state) => state.auth.token);
   const [payments, setPayments] = useState([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
   const [busyPaymentAction, setBusyPaymentAction] = useState({ id: null, type: null });
-  const paymentsPerPage = 10;
   const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: SORT_DIRECTIONS.DESC });
 
   const loadPayments = async () => {
     try {
-      const data = await getPendingHandPayments(token);
-      setPayments(data);
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getPendingHandPaymentsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setPayments(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
     } catch (err) {
       console.error("Error fetching payments:", err);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des paiements"));
+      setPayments([]);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
     loadPayments();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   const handleConfirm = async (id) => {
     if (busyPaymentAction.id === id) return;
     try {
       setBusyPaymentAction({ id, type: "confirm" });
-      await confirmHandPayment(id, token);
+      await confirmHandPayment(id);
       toast.success("Paiement confirmé");
       await loadPayments();
     } catch (err) {
@@ -58,7 +88,7 @@ const WaitingPage = () => {
     if (busyPaymentAction.id === id) return;
     try {
       setBusyPaymentAction({ id, type: "reject" });
-      await rejectHandPayment(id, token);
+      await rejectHandPayment(id);
       toast.error("Paiement rejeté");
       await loadPayments();
     } catch (err) {
@@ -88,15 +118,10 @@ const WaitingPage = () => {
     });
   };
 
-  const filteredPayments = payments.filter((p) => {
-    if (!search) return true;
-    return (
-      p.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      p.planName.toLowerCase().includes(search.toLowerCase())
-    );
-  });
+  // Server-side search: the backend returns a filtered page already.
+  const filteredPayments = payments;
 
-  const sortedPayments = React.useMemo(() => {
+  const sortedPayments = useMemo(() => {
     const getValue = (p) => {
       switch (sortConfig.key) {
         case "fullName":
@@ -116,11 +141,8 @@ const WaitingPage = () => {
     return sortRowsBy(filteredPayments, getValue, sortConfig.direction);
   }, [filteredPayments, sortConfig.direction, sortConfig.key]);
 
-  // Pagination
-  const indexOfLast = currentPage * paymentsPerPage;
-  const indexOfFirst = indexOfLast - paymentsPerPage;
-  const currentPayments = sortedPayments.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentPayments = sortedPayments;
 
   return (
     <div className="patients-container">
@@ -157,7 +179,13 @@ const WaitingPage = () => {
           </tr>
         </thead>
         <tbody>
-          {currentPayments.length === 0 ? (
+          {loading && payments.length === 0 ? (
+            <tr>
+              <td colSpan="6" style={{ textAlign: "center", color: "#888" }}>
+                Chargement...
+              </td>
+            </tr>
+          ) : currentPayments.length === 0 ? (
             <tr>
               <td colSpan="6" style={{ textAlign: "center", color: "#888" }}>
                 Aucun paiement en attente
@@ -210,29 +238,12 @@ const WaitingPage = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-          >
-            ← Précédent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-          >
-            Suivant →
-          </button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+        />
       )}
 
       <ToastContainer

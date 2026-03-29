@@ -1,28 +1,34 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Eye, Trash2, Search, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import PasswordInput from "../components/PasswordInput";
 import FieldError from "../components/FieldError";
-import { getAllAdmins, createAdmin, deleteAdmin } from "../services/userService";
+import { getAdminsPage, createAdmin, deleteAdmin } from "../services/userService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { isValidUsername } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const ManageAdmins = () => {
-  const token = useSelector((state) => state.auth.token);
   const [admins, setAdmins] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const adminsPerPage = 10;
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: "lastname", direction: SORT_DIRECTIONS.ASC });
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     id: null,
@@ -38,21 +44,45 @@ const ManageAdmins = () => {
 
   const getErrorMessage = (err) => getApiErrorMessage(err, "Erreur inconnue");
 
-  useEffect(() => {
-    const fetchAdmins = async () => {
-      try {
-        const data = await getAllAdmins(token);
-        setAdmins(data);
-      } catch (err) {
-        toast.error(getErrorMessage(err));
-      }
-    };
-    fetchAdmins();
-  }, [token]);
+  const loadAdmins = async () => {
+    try {
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
 
-  const filteredAdmins = admins.filter((a) =>
-    `${a.firstname} ${a.lastname} ${a.username}`.toLowerCase().includes(search.toLowerCase())
-  );
+      const data = await getAdminsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setAdmins(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
+    } catch (err) {
+      setAdmins([]);
+      setTotalPages(1);
+      toast.error(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAdmins();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  // Server-side search: the backend returns a filtered page already.
+  const filteredAdmins = admins;
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -88,10 +118,8 @@ const ManageAdmins = () => {
     return sortRowsBy(filteredAdmins, getValue, sortConfig.direction);
   }, [filteredAdmins, sortConfig.direction, sortConfig.key]);
 
-  const indexOfLast = currentPage * adminsPerPage;
-  const indexOfFirst = indexOfLast - adminsPerPage;
-  const currentAdmins = sortedAdmins.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedAdmins.length / adminsPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentAdmins = sortedAdmins;
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -137,9 +165,9 @@ const ManageAdmins = () => {
         canDeleteAdmin: formData.canDeleteAdmin,
       };
 
-      const created = await createAdmin(payload, token);
-      const createdUser = created?.user || created;
-      if (createdUser) setAdmins((prev) => [...prev, createdUser]);
+      await createAdmin(payload);
+      if (currentPage !== 1) setCurrentPage(1);
+      else await loadAdmins();
       toast.success("Admin ajouté");
       setShowModal(false);
       setFieldErrors({});
@@ -151,8 +179,9 @@ const ManageAdmins = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Supprimer cet admin ?")) return;
     try {
-      await deleteAdmin(id, token);
-      setAdmins((prev) => prev.filter((a) => a.id !== id));
+      await deleteAdmin(id);
+      if (admins.length <= 1 && currentPage > 1) setCurrentPage((p) => Math.max(1, p - 1));
+      else await loadAdmins();
       toast.success("Admin supprimé");
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -247,21 +276,12 @@ const ManageAdmins = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-            ← Précédent
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => (
-            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
-              {i + 1}
-            </button>
-          ))}
-
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+        />
       )}
 
       {showModal && (

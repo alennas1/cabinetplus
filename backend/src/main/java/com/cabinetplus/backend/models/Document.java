@@ -1,7 +1,11 @@
 package com.cabinetplus.backend.models;
 
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.security.EncryptionConverter;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
@@ -9,7 +13,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Convert;
-import jakarta.persistence.Column;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -45,4 +48,10 @@ public class Document {
     @ManyToOne
     @JoinColumn(name = "uploaded_by")
     private User uploadedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime cancelledAt;
 }

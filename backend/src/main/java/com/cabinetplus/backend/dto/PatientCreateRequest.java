@@ -25,6 +25,12 @@ public record PatientCreateRequest(
 
         @NotBlank(message = "Le numero de telephone est obligatoire")
         @Pattern(regexp = "^0\\d{9}$", message = "Numero de telephone invalide")
-        String phone
+        String phone,
+
+        @Size(max = 2000, message = "La liste de maladies est trop longue")
+        String diseases,
+
+        @Size(max = 2000, message = "La liste d'allergies est trop longue")
+        String allergies
 ) {
 }

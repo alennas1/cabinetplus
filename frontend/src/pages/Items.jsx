@@ -1,17 +1,18 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Search, Edit2,Filter, Trash2, X } from "react-feather";
+import { Plus, Search, Edit2,Filter, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import {
   getItemDefaults,
+  getItemDefaultsPage,
   createItemDefault,
   updateItemDefault,
-  deleteItemDefault,
 } from "../services/itemDefaultService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
@@ -57,7 +58,9 @@ const Items = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const pageSize = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
 
   // Search + filter
   const [search, setSearch] = useState("");
@@ -66,23 +69,37 @@ const Items = () => {
   const dropdownRef = useRef();
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
 
-  // Load items
-  useEffect(() => {
-    fetchItems();
-  }, []);
-
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const data = await getItemDefaults(token);
-      setItems(data);
+      const data = await getItemDefaultsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: filterBy === "name" ? (search?.trim() || undefined) : undefined,
+      });
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      setTotalElements(Number(data?.totalElements || 0));
     } catch (err) {
       console.error(err);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des articles"));
+      setItems([]);
+      setTotalPages(1);
+      setTotalElements(0);
     } finally {
       setLoading(false);
     }
   };
+
+  // Load items (server-side pagination)
+  useEffect(() => {
+    fetchItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, currentPage, search, filterBy]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterBy]);
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -131,10 +148,7 @@ const Items = () => {
   }, [filteredItems, sortConfig.direction, sortConfig.key]);
 
   // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = sortedItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
+  const currentItems = sortedItems;
 
   if (loading) {
     return (
@@ -224,11 +238,6 @@ const Items = () => {
     setEditingItem(item);
     setIsEditing(true);
     setShowModal(true);
-  };
-
-  const handleDeleteClick = (id) => {
-    setConfirmDelete(id);
-    setShowConfirm(true);
   };
 
   const confirmDeleteItem = async () => {
@@ -325,7 +334,6 @@ const Items = () => {
               <td>{i.description || "—"}</td>
               <td className="actions-cell">
                 <button className="action-btn edit" onClick={() => handleEdit(i)}> <Edit2 size={16} /> </button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(i.id)}> <Trash2 size={16} /> </button>
               </td>
             </tr>
           ))}
@@ -339,19 +347,7 @@ const Items = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>← Précédent</button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant →</button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
 
       {/* Modal */}
@@ -429,7 +425,7 @@ const Items = () => {
       )}
 
       {/* Delete Confirmation */}
-      {showConfirm && (
+      {false && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
             <div className="flex justify-between items-center mb-4">

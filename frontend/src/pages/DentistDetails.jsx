@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -15,13 +15,14 @@ import {
 import { toast } from "react-toastify";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
-import { getHandPaymentsByUserId } from "../services/handPaymentService";
+import Pagination from "../components/Pagination";
+import { getHandPaymentsByUserIdPage, getHandPaymentsByUserIdSummary } from "../services/handPaymentService";
 import { getUserById } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { getApiErrorMessage } from "../utils/error";
 import { formatMoneyWithLabel } from "../utils/format";
 import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import "./Patient.css";
 import "./Profile.css";
 
@@ -48,9 +49,32 @@ const DentistDetails = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [isFetchingPayments, setIsFetchingPayments] = useState(false);
+  const [paymentsTotalPages, setPaymentsTotalPages] = useState(1);
+  const [paymentsSummary, setPaymentsSummary] = useState({
+    all: { count: 0, total: 0 },
+    confirmed: { count: 0, total: 0 },
+    pending: { count: 0, total: 0 },
+    rejected: { count: 0, total: 0 },
+  });
   const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: SORT_DIRECTIONS.DESC });
   const [currentPage, setCurrentPage] = useState(1);
-  const paymentsPerPage = 10;
+  const pageSize = 10;
+  const paymentsRequestIdRef = useRef(0);
+  const paymentsLoadedRef = useRef(false);
+
+  useEffect(() => {
+    paymentsLoadedRef.current = false;
+    paymentsRequestIdRef.current = 0;
+    setPayments([]);
+    setPaymentsTotalPages(1);
+    setPaymentsSummary({
+      all: { count: 0, total: 0 },
+      confirmed: { count: 0, total: 0 },
+      pending: { count: 0, total: 0 },
+      rejected: { count: 0, total: 0 },
+    });
+  }, [id]);
 
   const formatDateTime = (value) => {
     if (!value) return "—";
@@ -83,21 +107,68 @@ const DentistDetails = () => {
   }, [id]);
 
   useEffect(() => {
-    const loadPayments = async () => {
+    if (activeTab !== "payments") return;
+
+    const loadSummary = async () => {
       try {
-        setPaymentsLoading(true);
-        const data = await getHandPaymentsByUserId(id);
-        setPayments(Array.isArray(data) ? data : []);
+        const data = await getHandPaymentsByUserIdSummary(id);
+        setPaymentsSummary({
+          all: { count: Number(data?.allCount || 0), total: Number(data?.allTotal || 0) },
+          confirmed: { count: Number(data?.confirmedCount || 0), total: Number(data?.confirmedTotal || 0) },
+          pending: { count: Number(data?.pendingCount || 0), total: Number(data?.pendingTotal || 0) },
+          rejected: { count: Number(data?.rejectedCount || 0), total: Number(data?.rejectedTotal || 0) },
+        });
       } catch (err) {
-        setPayments([]);
+        toast.error(getApiErrorMessage(err, "Impossible de charger le résumé des paiements"));
+      }
+    };
+
+    loadSummary();
+  }, [activeTab, id]);
+
+  useEffect(() => {
+    if (activeTab !== "payments") return;
+
+    const loadPayments = async () => {
+      const requestId = ++paymentsRequestIdRef.current;
+      const isInitial = !paymentsLoadedRef.current;
+
+      if (isInitial) setPaymentsLoading(true);
+      else setIsFetchingPayments(true);
+
+      try {
+        const data = await getHandPaymentsByUserIdPage(id, {
+          page: Math.max(0, currentPage - 1),
+          size: pageSize,
+          sortKey: sortConfig.key,
+          direction: sortConfig.direction,
+        });
+
+        if (requestId !== paymentsRequestIdRef.current) return;
+
+        const items = Array.isArray(data?.items) ? data.items : [];
+        setPayments(
+          items.map((payment) => ({
+            ...payment,
+            paymentStatus: String(payment.paymentStatus || "").toLowerCase(),
+            amount: Number(payment.amount || 0),
+            paymentDate: payment.paymentDate || null,
+          }))
+        );
+        setPaymentsTotalPages(Number(data?.totalPages || 1));
+        paymentsLoadedRef.current = true;
+      } catch (err) {
+        if (requestId !== paymentsRequestIdRef.current) return;
         toast.error(getApiErrorMessage(err, "Impossible de charger les paiements"));
       } finally {
+        if (requestId !== paymentsRequestIdRef.current) return;
         setPaymentsLoading(false);
+        setIsFetchingPayments(false);
       }
     };
 
     loadPayments();
-  }, [id]);
+  }, [activeTab, currentPage, id, sortConfig.direction, sortConfig.key]);
 
   const computed = useMemo(() => {
     if (!dentist) return null;
@@ -127,39 +198,6 @@ const DentistDetails = () => {
     };
   }, [dentist]);
 
-  const paymentComputed = useMemo(() => {
-    const safePayments = Array.isArray(payments) ? payments : [];
-
-    const normalized = safePayments.map((payment) => ({
-      ...payment,
-      paymentStatus: String(payment.paymentStatus || "").toLowerCase(),
-      amount: Number(payment.amount || 0),
-      paymentDate: payment.paymentDate || null,
-    }));
-
-    const byDateDesc = [...normalized].sort(
-      (a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0)
-    );
-
-    const summarize = (list) => ({
-      count: list.length,
-      total: list.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0),
-    });
-
-    const all = summarize(normalized);
-    const confirmed = summarize(normalized.filter((p) => p.paymentStatus === "confirmed"));
-    const pending = summarize(normalized.filter((p) => p.paymentStatus === "pending"));
-    const rejected = summarize(normalized.filter((p) => p.paymentStatus === "rejected"));
-
-    return {
-      byDateDesc,
-      all,
-      confirmed,
-      pending,
-      rejected,
-    };
-  }, [payments]);
-
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
     setSortConfig((prev) => {
@@ -174,32 +212,9 @@ const DentistDetails = () => {
     });
   };
 
-  const sortedPayments = useMemo(() => {
-    const getValue = (payment) => {
-      switch (sortConfig.key) {
-        case "planName":
-          return payment.planName;
-        case "amount":
-          return payment.amount;
-        case "paymentDate":
-          return payment.paymentDate;
-        case "status":
-          return payment.paymentStatus;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(paymentComputed.byDateDesc, getValue, sortConfig.direction);
-  }, [paymentComputed.byDateDesc, sortConfig.direction, sortConfig.key]);
-
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, sortConfig.key, sortConfig.direction]);
-
-  const indexOfLastPayment = currentPage * paymentsPerPage;
-  const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
-  const currentPayments = sortedPayments.slice(indexOfFirstPayment, indexOfLastPayment);
-  const totalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
 
   if (loading) {
     return (
@@ -376,15 +391,13 @@ const DentistDetails = () => {
         <div>
           <div className="patient-stats" style={{ marginBottom: "16px" }}>
             <div className="stat-box stat-facture">
-              Paiements: {paymentComputed.all.count} ({formatMoneyWithLabel(paymentComputed.all.total)})
+              Paiements: {paymentsSummary.all.count} ({formatMoneyWithLabel(paymentsSummary.all.total)})
             </div>
             <div className="stat-box stat-paiement">
-              Confirmés: {paymentComputed.confirmed.count} (
-              {formatMoneyWithLabel(paymentComputed.confirmed.total)})
+              Confirmés: {paymentsSummary.confirmed.count} ({formatMoneyWithLabel(paymentsSummary.confirmed.total)})
             </div>
             <div className="stat-box stat-reste">
-              En attente: {paymentComputed.pending.count} (
-              {formatMoneyWithLabel(paymentComputed.pending.total)})
+              En attente: {paymentsSummary.pending.count} ({formatMoneyWithLabel(paymentsSummary.pending.total)})
             </div>
           </div>
 
@@ -401,14 +414,14 @@ const DentistDetails = () => {
                 </tr>
               </thead>
               <tbody>
-                {sortedPayments.length === 0 ? (
+                {payments.length === 0 ? (
                   <tr>
                     <td colSpan="4" style={{ textAlign: "center", color: "#888" }}>
                       Aucun paiement
                     </td>
                   </tr>
                 ) : (
-                  currentPayments.map((payment) => (
+                  payments.map((payment) => (
                     <tr key={payment.paymentId}>
                       <td>{payment.planName || "—"}</td>
                       <td>{formatMoneyWithLabel(payment.amount)}</td>
@@ -439,26 +452,13 @@ const DentistDetails = () => {
             </table>
           )}
 
-          {!paymentsLoading && totalPages > 1 && (
-            <div className="pagination">
-              <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-                ← Précédent
-              </button>
-
-              {[...Array(totalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  className={currentPage === i + 1 ? "active" : ""}
-                  onClick={() => setCurrentPage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
-              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-                Suivant →
-              </button>
-            </div>
+          {!paymentsLoading && paymentsTotalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={paymentsTotalPages}
+              onPageChange={setCurrentPage}
+              disabled={isFetchingPayments}
+            />
           )}
         </div>
       )}

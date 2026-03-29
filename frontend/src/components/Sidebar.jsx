@@ -90,9 +90,9 @@ const Sidebar = () => {
     let cancelled = false;
 
     const fetchUnread = async () => {
-      if (location.pathname.startsWith("/support")) {
-        setSupportUnreadCount(0);
-      }
+      // When the user is on the Support screen, keep the badge hidden.
+      // (SupportCenter will mark threads as read, but we don't want to briefly re-show stale counts.)
+      if (location.pathname.startsWith("/support")) return;
       try {
         const data = await listMySupportThreads();
         if (cancelled) return;
@@ -102,6 +102,13 @@ const Sidebar = () => {
         if (!cancelled) setSupportUnreadCount(0);
       }
     };
+
+    if (location.pathname.startsWith("/support")) {
+      setSupportUnreadCount(0);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     fetchUnread();
     const id = setInterval(fetchUnread, 15000);

@@ -53,6 +53,14 @@ public class Patient {
     @Convert(converter = EncryptionConverter.class)
     private String phone;
 
+    @Column(name = "diseases", columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
+    private String diseases;
+
+    @Column(name = "allergies", columnDefinition = "TEXT")
+    @Convert(converter = EncryptionConverter.class)
+    private String allergies;
+
     @ManyToOne
     @JoinColumn(name = "created_by")
     private User createdBy;

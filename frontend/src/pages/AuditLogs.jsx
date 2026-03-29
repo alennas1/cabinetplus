@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, ChevronDown, RefreshCw, Search } from "react-feather";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -6,12 +6,14 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
-import { getMyAuditLogs } from "../services/auditService";
+import Pagination from "../components/Pagination";
+import { getMyAuditLogsPage } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatHour } from "../utils/workingHours";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import DateInput from "../components/DateInput";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const STATUS_LABELS = {
@@ -25,6 +27,10 @@ const EVENT_GROUPS = {
     "AUTH_LOGOUT",
     "AUTH_LOGOUT_ALL",
     "AUTH_REGISTER",
+    "AUTH_SESSION_REFRESH",
+    "AUTH_PASSWORD_RESET_SEND",
+    "AUTH_LOGIN_2FA_SEND",
+    "AUTH_LOGIN_2FA_VERIFY",
     "SECURITY_PIN_STATUS",
     "SECURITY_PIN_ENABLE",
     "SECURITY_PIN_CHANGE",
@@ -35,8 +41,16 @@ const EVENT_GROUPS = {
     "PHONE_CHANGE_SEND",
     "PHONE_CHANGE_CONFIRM",
     "USER_PASSWORD_CHANGE",
+    "USER_PROFILE_UPDATE",
+    "USER_PLAN_SELECT",
+    "USER_PLAN_ADMIN_ACTIVATE",
+    "USER_PLAN_ADMIN_DEACTIVATE",
+    "USER_READ",
+    "USER_CREATE",
+    "USER_UPDATE",
     "USER_DELETE",
     "USER_ADMIN_CREATE",
+    "SETTINGS_LOGIN_2FA_UPDATE",
   ],
   PATIENT: [
     "PATIENT_READ",
@@ -48,18 +62,27 @@ const EVENT_GROUPS = {
     "PATIENT_ARCHIVE",
     "PATIENT_UNARCHIVE",
   ],
-  APPOINTMENT: ["APPOINTMENT_READ", "APPOINTMENT_CREATE", "APPOINTMENT_UPDATE", "APPOINTMENT_DELETE"],
-  TREATMENT: ["TREATMENT_READ", "TREATMENT_CREATE", "TREATMENT_UPDATE", "TREATMENT_DELETE"],
+  APPOINTMENT: ["APPOINTMENT_READ", "APPOINTMENT_CREATE", "APPOINTMENT_UPDATE", "APPOINTMENT_DELETE", "APPOINTMENT_CANCEL"],
+  TREATMENT: ["TREATMENT_READ", "TREATMENT_CREATE", "TREATMENT_UPDATE", "TREATMENT_DELETE", "TREATMENT_CANCEL"],
   PAYMENT: [
     "PAYMENT_READ",
     "PAYMENT_CREATE",
     "PAYMENT_DELETE",
+    "PAYMENT_CANCEL",
     "HAND_PAYMENT_CREATE",
     "HAND_PAYMENT_READ",
     "HAND_PAYMENT_CONFIRM",
     "HAND_PAYMENT_REJECT",
   ],
-  DOCUMENT: ["DOCUMENT_CREATE", "DOCUMENT_READ", "DOCUMENT_DELETE"],
+  DOCUMENT: ["DOCUMENT_CREATE", "DOCUMENT_READ", "DOCUMENT_DELETE", "DOCUMENT_CANCEL"],
+  PRESCRIPTION: [
+    "PRESCRIPTION_READ",
+    "PRESCRIPTION_CREATE",
+    "PRESCRIPTION_UPDATE",
+    "PRESCRIPTION_DELETE",
+    "PRESCRIPTION_CANCEL",
+    "PRESCRIPTION_PDF_DOWNLOAD",
+  ],
   PROTHESIS: [
     "PROTHESIS_READ",
     "PROTHESIS_CREATE",
@@ -67,6 +90,7 @@ const EVENT_GROUPS = {
     "PROTHESIS_ASSIGN_LAB",
     "PROTHESIS_STATUS_CHANGE",
     "PROTHESIS_DELETE",
+    "PROTHESIS_CANCEL",
   ],
   JUSTIFICATION: [
     "JUSTIFICATION_READ",
@@ -74,6 +98,7 @@ const EVENT_GROUPS = {
     "JUSTIFICATION_CREATE",
     "JUSTIFICATION_UPDATE",
     "JUSTIFICATION_DELETE",
+    "JUSTIFICATION_CANCEL",
     "JUSTIFICATION_PDF_DOWNLOAD",
     "JUSTIFICATION_TEMPLATE_READ",
     "JUSTIFICATION_TEMPLATE_CREATE",
@@ -87,6 +112,17 @@ const EVENT_GROUPS = {
     "LABORATORY_DELETE",
     "LAB_PAYMENT_CREATE",
     "LAB_PAYMENT_DELETE",
+    "LAB_PAYMENT_CANCEL",
+  ],
+  SUPPLIER: [
+    "SUPPLIER_READ",
+    "SUPPLIER_CREATE",
+    "SUPPLIER_UPDATE",
+    "SUPPLIER_DELETE",
+    "SUPPLIER_ARCHIVE",
+    "SUPPLIER_PAYMENT_CREATE",
+    "SUPPLIER_PAYMENT_DELETE",
+    "SUPPLIER_PAYMENT_CANCEL",
   ],
   EMPLOYEE: [
     "EMPLOYEE_READ",
@@ -111,6 +147,30 @@ const EVENT_GROUPS = {
   ],
   MATERIAL: ["MATERIAL_READ", "MATERIAL_CREATE", "MATERIAL_DELETE"],
   MEDICATION: ["MEDICATION_READ", "MEDICATION_CREATE", "MEDICATION_UPDATE", "MEDICATION_DELETE"],
+  TREATMENT_CATALOG: [
+    "TREATMENT_CATALOG_READ",
+    "TREATMENT_CATALOG_CREATE",
+    "TREATMENT_CATALOG_UPDATE",
+    "TREATMENT_CATALOG_DELETE",
+  ],
+  PROTHESIS_CATALOG: [
+    "PROTHESIS_CATALOG_READ",
+    "PROTHESIS_CATALOG_CREATE",
+    "PROTHESIS_CATALOG_UPDATE",
+    "PROTHESIS_CATALOG_DELETE",
+  ],
+  DISEASE_CATALOG: [
+    "DISEASE_CATALOG_READ",
+    "DISEASE_CATALOG_CREATE",
+    "DISEASE_CATALOG_UPDATE",
+    "DISEASE_CATALOG_DELETE",
+  ],
+  ALLERGY_CATALOG: [
+    "ALLERGY_CATALOG_READ",
+    "ALLERGY_CATALOG_CREATE",
+    "ALLERGY_CATALOG_UPDATE",
+    "ALLERGY_CATALOG_DELETE",
+  ],
   PLAN: [
     "PLAN_CREATE",
     "PLAN_READ",
@@ -128,19 +188,27 @@ const EVENT_GROUPS = {
 const ACTION_GROUPS = {
   CREATE: ["CREATE"],
   UPDATE: ["UPDATE", "CHANGE", "ASSIGN"],
+  CANCEL: ["CANCEL"],
   DELETE: ["DELETE"],
   ARCHIVE: ["ARCHIVE", "UNARCHIVE"],
-  READ: ["READ", "PDF_DOWNLOAD"],
   SECURITY: [
     "AUTH_LOGIN",
     "AUTH_LOGOUT",
     "AUTH_LOGOUT_ALL",
     "AUTH_REGISTER",
+    "AUTH_SESSION_REFRESH",
+    "AUTH_PASSWORD_RESET_SEND",
+    "AUTH_LOGIN_2FA_SEND",
+    "AUTH_LOGIN_2FA_VERIFY",
     "SECURITY_PIN_ENABLE",
     "SECURITY_PIN_CHANGE",
     "SECURITY_PIN_DISABLE",
     "SECURITY_PIN_VERIFY",
+    "SETTINGS_LOGIN_2FA_UPDATE",
     "USER_PASSWORD_CHANGE",
+    "USER_READ",
+    "USER_CREATE",
+    "USER_UPDATE",
     "USER_DELETE",
     "USER_ADMIN_CREATE",
   ],
@@ -152,14 +220,20 @@ const ENTITY_LABELS = {
   TREATMENT: "Traitement",
   PAYMENT: "Paiement",
   DOCUMENT: "Documents",
-  PROTHESIS: "Prothese",
+  PRESCRIPTION: "Ordonnances",
+  PROTHESIS: "Protheses",
   LABORATORY: "Laboratoires",
   JUSTIFICATION: "Justificatifs",
+  SUPPLIER: "Fournisseurs",
   EMPLOYEE: "Employes",
   EXPENSE: "Depenses",
   ITEM: "Articles",
   MATERIAL: "Materiaux",
   MEDICATION: "Medicaments",
+  TREATMENT_CATALOG: "Catalogue traitements",
+  PROTHESIS_CATALOG: "Catalogue protheses",
+  DISEASE_CATALOG: "Catalogue maladies",
+  ALLERGY_CATALOG: "Catalogue allergies",
   PLAN: "Plans",
   FINANCE: "Finance",
   SETTINGS: "Paramètres",
@@ -185,6 +259,11 @@ const SECURITY_ACTION_LABELS = {
   USER_ADMIN_CREATE: "Creation admin",
   HAND_PAYMENT_CONFIRM: "Paiement confirme",
   HAND_PAYMENT_REJECT: "Paiement rejete",
+  AUTH_SESSION_REFRESH: "Rafraichissement session",
+  AUTH_PASSWORD_RESET_SEND: "Envoi reset mot de passe",
+  AUTH_LOGIN_2FA_SEND: "Envoi 2FA",
+  AUTH_LOGIN_2FA_VERIFY: "Verification 2FA",
+  SETTINGS_LOGIN_2FA_UPDATE: "Mise a jour 2FA",
 };
 
 const formatDateTime = (isoDate) => {
@@ -203,14 +282,14 @@ const getEntityLabel = (eventType) => ENTITY_LABELS[getEntityKey(eventType)] || 
 
 const getActionLabel = (eventType = "") => {
   if (SECURITY_ACTION_LABELS[eventType]) return SECURITY_ACTION_LABELS[eventType];
-  if (eventType === "PATIENT_READ") return "Voir";
-  if (eventType === "PATIENT_PDF_DOWNLOAD") return "Télécharger PDF";
-  if (eventType === "LABORATORY_READ") return "Voir";
-  if (eventType === "DOCUMENT_READ") return "Voir";
+  if (eventType.endsWith("_CANCEL")) return "Annulation";
   if (eventType === "DOCUMENT_CREATE") return "Ajout";
   if (eventType === "DOCUMENT_DELETE") return "Suppression";
   if (eventType.includes("UNARCHIVE")) return "Restauration";
   if (eventType.includes("ARCHIVE")) return "Archivage";
+  if (eventType.includes("GENERATE")) return "Generation";
+  if (eventType.includes("DEACTIVATE")) return "Desactivation";
+  if (eventType.includes("RECOMMENDED_SET")) return "Recommendation";
   if (eventType.includes("CREATE")) return "Ajout";
   if (eventType.includes("DELETE")) return "Suppression";
   if (eventType.includes("ASSIGN")) return "Affectation";
@@ -254,38 +333,105 @@ const AuditLogs = () => {
   const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 250);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [entityFilter, setEntityFilter] = useState("ALL");
   const [actionFilter, setActionFilter] = useState("ALL");
   const [selectedDateFilter, setSelectedDateFilter] = useState("all");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [customRange, setCustomRange] = useState({ start: "", end: "" });
+
+  const formatDateParam = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return undefined;
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const { fromParam, toParam } = useMemo(() => {
+    if (customRange.start || customRange.end) {
+      return { fromParam: customRange.start || undefined, toParam: customRange.end || undefined };
+    }
+
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split("-").map(Number);
+      if (!Number.isFinite(year) || !Number.isFinite(month)) return { fromParam: undefined, toParam: undefined };
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0);
+      return { fromParam: formatDateParam(start), toParam: formatDateParam(end) };
+    }
+
+    if (selectedDateFilter === "today") {
+      const today = new Date();
+      const formatted = formatDateParam(today);
+      return { fromParam: formatted, toParam: formatted };
+    }
+
+    if (selectedDateFilter === "yesterday") {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const formatted = formatDateParam(yesterday);
+      return { fromParam: formatted, toParam: formatted };
+    }
+
+    return { fromParam: undefined, toParam: undefined };
+  }, [customRange.end, customRange.start, selectedDateFilter, selectedMonth]);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false);
   const [actionDropdownOpen, setActionDropdownOpen] = useState(false);
   const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "occurredAt", direction: SORT_DIRECTIONS.DESC });
   const [currentPage, setCurrentPage] = useState(1);
-  const logsPerPage = 10;
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const loadLogs = async (showToast = false) => {
     try {
-      setLoading(true);
-      const data = await getMyAuditLogs();
-      setLogs(Array.isArray(data) ? data : []);
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getMyAuditLogsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedQuery?.trim() || undefined,
+        status: statusFilter !== "ALL" ? statusFilter : undefined,
+        entity: entityFilter !== "ALL" ? entityFilter : undefined,
+        action: actionFilter !== "ALL" ? actionFilter : undefined,
+        from: fromParam,
+        to: toParam,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setLogs(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      setTotalElements(Number(data?.totalElements || 0));
+      hasLoadedRef.current = true;
       if (showToast) toast.success("Journal mis a jour");
     } catch (err) {
       console.error("Erreur chargement audit logs:", err);
+      setLogs([]);
+      setTotalPages(1);
+      setTotalElements(0);
       toast.error(getApiErrorMessage(err, "Impossible de charger le journal d activite"));
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
     loadLogs(false);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedQuery, statusFilter, entityFilter, actionFilter, fromParam, toParam]);
 
   const getActorLabel = (log) => {
     if (!log?.actorUserId) return "-";
@@ -313,67 +459,8 @@ const AuditLogs = () => {
     return label;
   };
 
-  const filteredLogs = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return logs
-      .filter((log) => {
-        if (statusFilter !== "ALL" && log.status !== statusFilter) return false;
-        if (entityFilter !== "ALL" && !EVENT_GROUPS[entityFilter]?.includes(log.eventType)) return false;
-        if (
-          actionFilter !== "ALL" &&
-          !ACTION_GROUPS[actionFilter]?.some((keyword) => (log.eventType || "").includes(keyword))
-        ) {
-          return false;
-        }
-
-        const targetDate = log.occurredAt ? new Date(log.occurredAt) : null;
-        if (targetDate && !Number.isNaN(targetDate.getTime())) {
-          const today = new Date();
-
-          if (selectedDateFilter === "today" && targetDate.toDateString() !== today.toDateString()) {
-            return false;
-          }
-
-          if (selectedDateFilter === "yesterday") {
-            const yesterday = new Date();
-            yesterday.setDate(today.getDate() - 1);
-            if (targetDate.toDateString() !== yesterday.toDateString()) return false;
-          }
-
-          if (selectedMonth) {
-            const [year, month] = selectedMonth.split("-").map(Number);
-            if (targetDate.getFullYear() !== year || targetDate.getMonth() + 1 !== month) return false;
-          }
-
-          if (customRange.start || customRange.end) {
-            if (customRange.start && targetDate < new Date(customRange.start)) return false;
-            if (customRange.end) {
-              const endLimit = new Date(customRange.end);
-              endLimit.setHours(23, 59, 59, 999);
-              if (targetDate > endLimit) return false;
-            }
-          }
-        } else if (selectedDateFilter !== "all" || selectedMonth || customRange.start || customRange.end) {
-          return false;
-        }
-
-        if (!normalizedQuery) return true;
-
-        const actionLabel = getActionLabel(log.eventType).toLowerCase();
-        const entityLabel = getEntityLabel(log.eventType).toLowerCase();
-        const message = (log.message || "").toLowerCase();
-        const ipAddress = (log.ipAddress || "").toLowerCase();
-        const location = (log.location || "").toLowerCase();
-
-        return (
-          actionLabel.includes(normalizedQuery) ||
-          entityLabel.includes(normalizedQuery) ||
-          message.includes(normalizedQuery) ||
-          ipAddress.includes(normalizedQuery) ||
-          location.includes(normalizedQuery)
-        );
-      });
-  }, [logs, query, statusFilter, entityFilter, actionFilter, selectedDateFilter, selectedMonth, customRange]);
+  // Server-side filtering: the backend returns the filtered page already.
+  const filteredLogs = logs;
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -419,7 +506,7 @@ const AuditLogs = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [
-    query,
+    debouncedQuery,
     statusFilter,
     entityFilter,
     actionFilter,
@@ -431,10 +518,8 @@ const AuditLogs = () => {
     sortConfig.direction,
   ]);
 
-  const indexOfLastLog = currentPage * logsPerPage;
-  const indexOfFirstLog = indexOfLastLog - logsPerPage;
-  const currentLogs = sortedLogs.slice(indexOfFirstLog, indexOfLastLog);
-  const totalPages = Math.ceil(sortedLogs.length / logsPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentLogs = sortedLogs;
 
   return (
     <div className="patients-container">
@@ -494,6 +579,10 @@ const AuditLogs = () => {
                           ? "Paiements"
                           : entityFilter === "DOCUMENT"
                             ? "Documents"
+                            : entityFilter === "PRESCRIPTION"
+                              ? "Ordonnances"
+                              : entityFilter === "JUSTIFICATION"
+                                ? "Justificatifs"
                           : entityFilter === "PROTHESIS"
                             ? "Protheses"
                             : entityFilter === "LABORATORY"
@@ -512,6 +601,8 @@ const AuditLogs = () => {
                 <li onClick={() => { setEntityFilter("TREATMENT"); setEntityDropdownOpen(false); }}>Traitements</li>
                 <li onClick={() => { setEntityFilter("PAYMENT"); setEntityDropdownOpen(false); }}>Paiements</li>
                 <li onClick={() => { setEntityFilter("DOCUMENT"); setEntityDropdownOpen(false); }}>Documents</li>
+                <li onClick={() => { setEntityFilter("PRESCRIPTION"); setEntityDropdownOpen(false); }}>Ordonnances</li>
+                <li onClick={() => { setEntityFilter("JUSTIFICATION"); setEntityDropdownOpen(false); }}>Justificatifs</li>
                 <li onClick={() => { setEntityFilter("PROTHESIS"); setEntityDropdownOpen(false); }}>Protheses</li>
                 <li onClick={() => { setEntityFilter("LABORATORY"); setEntityDropdownOpen(false); }}>Laboratoires</li>
                 <li onClick={() => { setEntityFilter("SETTINGS"); setEntityDropdownOpen(false); }}>Paramètres</li>
@@ -530,14 +621,14 @@ const AuditLogs = () => {
                   ? "Toutes actions"
                   : actionFilter === "CREATE"
                     ? "Ajouts"
-                    : actionFilter === "UPDATE"
+                  : actionFilter === "UPDATE"
                       ? "Modifications"
+                      : actionFilter === "CANCEL"
+                        ? "Annulations"
                       : actionFilter === "DELETE"
                         ? "Suppressions"
                         : actionFilter === "ARCHIVE"
                           ? "Archivage"
-                          : actionFilter === "READ"
-                            ? "Consultations"
                           : "Securite"}
               </span>
               <ChevronDown size={18} className={`chevron ${actionDropdownOpen ? "rotated" : ""}`} />
@@ -547,9 +638,9 @@ const AuditLogs = () => {
                 <li onClick={() => { setActionFilter("ALL"); setActionDropdownOpen(false); }}>Toutes actions</li>
                 <li onClick={() => { setActionFilter("CREATE"); setActionDropdownOpen(false); }}>Ajouts</li>
                 <li onClick={() => { setActionFilter("UPDATE"); setActionDropdownOpen(false); }}>Modifications</li>
+                <li onClick={() => { setActionFilter("CANCEL"); setActionDropdownOpen(false); }}>Annulations</li>
                 <li onClick={() => { setActionFilter("DELETE"); setActionDropdownOpen(false); }}>Suppressions</li>
                 <li onClick={() => { setActionFilter("ARCHIVE"); setActionDropdownOpen(false); }}>Archivage</li>
-                <li onClick={() => { setActionFilter("READ"); setActionDropdownOpen(false); }}>Consultations</li>
                 <li onClick={() => { setActionFilter("SECURITY"); setActionDropdownOpen(false); }}>Securite</li>
               </ul>
             )}
@@ -719,25 +810,7 @@ const AuditLogs = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-            ← Précédent
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
     </div>
   );

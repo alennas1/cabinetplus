@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.cabinetplus.backend.dto.FournisseurBillingEntryResponse;
 import com.cabinetplus.backend.dto.FournisseurBillingSummaryResponse;
 import com.cabinetplus.backend.dto.FournisseurPaymentRequest;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Expense;
@@ -54,7 +55,10 @@ public class FournisseurDetailsService {
     }
 
     public List<FournisseurPayment> getPaymentsForFournisseur(Fournisseur fournisseur, User user) {
-        return fournisseurPaymentRepository.findByFournisseurIdAndCreatedByOrderByPaymentDateDesc(fournisseur.getId(), user);
+        return fournisseurPaymentRepository.findByFournisseurIdAndCreatedByOrderByPaymentDateDesc(fournisseur.getId(), user)
+                .stream()
+                .filter(p -> p != null && p.getRecordStatus() != RecordStatus.ARCHIVED)
+                .toList();
     }
 
     public List<FournisseurBillingEntryResponse> getBillingEntriesForFournisseur(Fournisseur fournisseur, User user) {
@@ -114,6 +118,9 @@ public class FournisseurDetailsService {
     public FournisseurPayment addPayment(Long fournisseurId, FournisseurPaymentRequest request, User user) {
         Fournisseur fournisseur = fournisseurRepository.findByIdAndCreatedBy(fournisseurId, user)
                 .orElseThrow(() -> new NotFoundException("Fournisseur introuvable"));
+        if (fournisseur.getArchivedAt() != null || fournisseur.getRecordStatus() != RecordStatus.ACTIVE) {
+            throw new BadRequestException(java.util.Map.of("_", "Fournisseur archivé : lecture seule."));
+        }
 
         if (request.amount() == null || request.amount() <= 0) {
             throw new BadRequestException(java.util.Map.of("amount", "Montant invalide"));
@@ -134,7 +141,11 @@ public class FournisseurDetailsService {
     public boolean deletePayment(Long fournisseurId, Long paymentId, User user) {
         return fournisseurPaymentRepository.findByIdAndFournisseurIdAndCreatedBy(paymentId, fournisseurId, user)
                 .map(payment -> {
-                    fournisseurPaymentRepository.delete(payment);
+                    if (payment.getRecordStatus() != RecordStatus.CANCELLED) {
+                        payment.setRecordStatus(RecordStatus.CANCELLED);
+                        payment.setCancelledAt(LocalDateTime.now());
+                        fournisseurPaymentRepository.save(payment);
+                    }
                     return true;
                 })
                 .orElse(false);

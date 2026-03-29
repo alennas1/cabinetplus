@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.cabinetplus.backend.dto.MaterialRequest;
 import com.cabinetplus.backend.dto.MaterialResponse;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Material;
@@ -16,6 +18,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.MaterialService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 
@@ -44,6 +47,39 @@ public class MaterialController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<MaterialResponse>> getAllMaterialsPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            Principal principal
+    ) {
+        User currentUser = getCurrentUser(principal);
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+
+        List<Material> all = materialService.findAllByUser(currentUser);
+        List<Material> filtered = (all == null ? List.<Material>of() : all).stream()
+                .filter(m -> {
+                    if (qNorm.isBlank()) return true;
+                    String name = m.getName() != null ? m.getName().trim().toLowerCase() : "";
+                    return name.contains(qNorm);
+                })
+                .sorted(Comparator.comparing(m -> m.getName() != null ? m.getName().toLowerCase() : ""))
+                .toList();
+
+        PageResponse<Material> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
+        List<MaterialResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+
+        auditService.logSuccess(AuditEventType.MATERIAL_READ, "MATERIAL", null, "Materiaux consultes (page)");
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                pageResponse.page(),
+                pageResponse.size(),
+                pageResponse.totalElements(),
+                pageResponse.totalPages()
+        ));
     }
 
     @PostMapping

@@ -10,6 +10,24 @@ export const getProtheticsByPatient = async (patientId) => {
   return response.data;
 };
 
+export const getProtheticsByPatientPage = async ({
+  patientId,
+  page = 0,
+  size = 10,
+  q,
+  field,
+  status,
+  from,
+  to,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`${BASE_URL}/patient/${patientId}/paged`, {
+    params: { page, size, q, field, status, from, to, sortKey, sortDirection },
+  });
+  return response.data;
+};
+
 /**
  * Create a new prothesis record
  */
@@ -37,6 +55,14 @@ export const updateProtheticsStatus = async (id, status) => {
 };
 
 /**
+ * Cancel a prothesis record (kept for audit/logging and read-only history in patient dossier)
+ */
+export const cancelProthetics = async (id) => {
+  const response = await api.put(`${BASE_URL}/${id}/cancel`);
+  return response.data;
+};
+
+/**
  * Delete a prothesis record
  */
 export const deleteProthetics = async (id) => {
@@ -50,6 +76,25 @@ export const deleteProthetics = async (id) => {
 export const getAllProthetics = async (status = null) => {
   const response = await api.get(BASE_URL, {
     params: status ? { status } : {},
+  });
+  return response.data;
+};
+
+export const getProtheticsPage = async ({
+  page = 0,
+  size = 20,
+  q,
+  status,
+  filterBy,
+  dateType,
+  from,
+  to,
+  sortKey,
+  direction,
+  focusId,
+} = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q, status, filterBy, dateType, from, to, sortKey, direction, focusId },
   });
   return response.data;
 };

@@ -8,6 +8,7 @@ import {
   getAppointments,
   createAppointment,
   updateAppointment,
+  cancelAppointment,
   shiftAppointments,
 } from "../services/appointmentService";
 import { createPatient, getPatients } from "../services/patientService";
@@ -440,16 +441,8 @@ export default function Appointments() {
       slot.appointments?.some((a) => a.id === cancelAppt.id)
     );
     try {
-      // Backend expects AppointmentRequest shape. Avoid sending extra fields (id, patient object, practitioner, etc.).
-      const payload = {
-        dateTimeStart: cancelAppt.dateTimeStart,
-        dateTimeEnd: cancelAppt.dateTimeEnd,
-        status: "CANCELLED",
-        notes: cancelAppt.notes ?? null,
-        patientId: cancelAppt.patient?.id ?? cancelAppt.patientId,
-      };
-      const updated = await updateAppointment(cancelAppt.id, payload);
-      setAppointments((prev) => prev.filter((a) => a.id !== updated.id));
+      await cancelAppointment(cancelAppt.id);
+      setAppointments((prev) => prev.filter((a) => a.id !== cancelAppt.id));
       if (cancelledSlotIndex >= 0) {
         setAutoAdvanceFromIndex(cancelledSlotIndex);
       }
@@ -490,8 +483,9 @@ export default function Appointments() {
      const ageError = validateAge(newPatient.age);
      if (ageError) nextErrors.age = ageError;
 
-     if (!String(newPatient.phone || "").trim()) nextErrors.phone = "Le numéro de téléphone est obligatoire.";
-     else if (!isValidPhoneNumber(newPatient.phone)) nextErrors.phone = "Numéro de téléphone invalide.";
+     if (String(newPatient.phone || "").trim() && !isValidPhoneNumber(newPatient.phone)) {
+       nextErrors.phone = "Numéro de téléphone invalide.";
+     }
 
      if (!String(newPatient.sex || "").trim()) nextErrors.sex = "Le sexe est obligatoire.";
    } else if (!formData.patientId) {

@@ -1,5 +1,4 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { useSelector } from "react-redux";
 import { Plus, Edit2, Trash2, Eye, Search, Filter, X } from "react-feather";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
@@ -8,8 +7,9 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import {
-  getTreatments,
+  getTreatmentsPage,
   createTreatment,
   updateTreatment,
   deleteTreatment,
@@ -22,14 +22,16 @@ import { parseMoneyInput } from "../utils/moneyInput";
 import FieldError from "../components/FieldError";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const Treatments = () => {
-  const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
   const [treatments, setTreatments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [viewTreatment, setViewTreatment] = useState(null);
 
   const [filterBy, setFilterBy] = useState("name");
@@ -37,8 +39,11 @@ const Treatments = () => {
   const dropdownRef = useRef();
 
   const [currentPage, setCurrentPage] = useState(1);
-  const treatmentsPerPage = 10;
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -58,23 +63,44 @@ const Treatments = () => {
   const [isDeletingTreatment, setIsDeletingTreatment] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  // Load treatments
+  const loadTreatments = async () => {
+    try {
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getTreatmentsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        field: filterBy || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setTreatments(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
+    } catch (err) {
+      console.error("Error fetching treatments:", err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des traitements"));
+      setTreatments([]);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const data = await getTreatments(token);
-        setTreatments(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Error fetching treatments:", err);
-        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des traitements"));
-        setTreatments([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [token]);
+    loadTreatments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch, filterBy]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterBy]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -87,18 +113,8 @@ const Treatments = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filtered treatments
-  const filteredTreatments = treatments.filter((t) => {
-  if (!search) return true;
-
-  if (filterBy === "name") {
-    return t.name?.toLowerCase().includes(search.toLowerCase());
-  } else if (filterBy === "defaultPrice") {
-    return t.defaultPrice?.toString().includes(search);
-  }
-
-  return true;
-});
+  // Server-side search: the backend returns a filtered page already.
+  const filteredTreatments = treatments;
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -184,14 +200,13 @@ const Treatments = () => {
     try {
       setIsSubmitting(true);
       if (isEditing) {
-        const updated = await updateTreatment(formData.id, payload, token);
-        setTreatments(
-          treatments.map((t) => (t.id === updated.id ? updated : t))
-        );
+        await updateTreatment(formData.id, payload);
+        await loadTreatments();
         toast.success("Traitement mis à  jour");
       } else {
-        const newTreatment = await createTreatment(payload, token);
-        setTreatments([...treatments, newTreatment]);
+        await createTreatment(payload);
+        if (currentPage !== 1) setCurrentPage(1);
+        else await loadTreatments();
         toast.success("Traitement ajouté");
       }
 
@@ -228,8 +243,9 @@ const Treatments = () => {
     if (isDeletingTreatment) return;
     try {
       setIsDeletingTreatment(true);
-      await deleteTreatment(confirmDelete, token);
-      setTreatments(treatments.filter((t) => t.id !== confirmDelete));
+      await deleteTreatment(confirmDelete);
+      if (treatments.length <= 1 && currentPage > 1) setCurrentPage((p) => Math.max(1, p - 1));
+      else await loadTreatments();
       toast.success("Traitement supprimé");
     } catch (err) {
       console.error(err);
@@ -241,11 +257,8 @@ const Treatments = () => {
     }
   };
 
-  // Pagination
-  const indexOfLast = currentPage * treatmentsPerPage;
-  const indexOfFirst = indexOfLast - treatmentsPerPage;
-  const currentTreatments = sortedTreatments.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedTreatments.length / treatmentsPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentTreatments = sortedTreatments;
 
   if (loading) {
     return (
@@ -356,15 +369,12 @@ const Treatments = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>← Précédent</button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Suivant →</button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+        />
       )}
 
       {/* Modal */}

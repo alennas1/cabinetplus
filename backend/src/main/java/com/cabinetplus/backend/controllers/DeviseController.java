@@ -3,14 +3,17 @@ package com.cabinetplus.backend.controllers;
 import com.cabinetplus.backend.dto.DeviseItemResponse;
 import com.cabinetplus.backend.dto.DeviseRequest;
 import com.cabinetplus.backend.dto.DeviseResponse;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Devise;
 import com.cabinetplus.backend.models.DeviseItem;
+import com.cabinetplus.backend.models.Material;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.DeviseService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PaginationUtil;
 import com.lowagie.text.FontFactory;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -29,10 +32,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.security.Principal;
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.cabinetplus.backend.util.PagedQueryUtil;
 
 @RestController
 @RequestMapping("/api/devises")
@@ -52,6 +59,101 @@ public class DeviseController {
                 .collect(Collectors.toList());
         auditService.logSuccess(AuditEventType.DEVISE_READ, "DEVISE", null, "Devis consultés");
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<DeviseResponse>> getAllPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "amountFrom", required = false) Double amountFrom,
+            @RequestParam(name = "amountTo", required = false) Double amountTo,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @RequestParam(name = "from", required = false) LocalDate from,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @RequestParam(name = "to", required = false) LocalDate to,
+            @RequestParam(name = "sortKey", required = false) String sortKey,
+            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+            Principal principal
+    ) {
+        User currentUser = getCurrentUser(principal);
+        String qNorm = PagedQueryUtil.normalizeText(q);
+        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
+        String sortDirNorm = sortDirection != null ? sortDirection.trim().toLowerCase() : "";
+        Comparator<Devise> sortComparator = buildDeviseSortComparator(sortKeyNorm, sortDirNorm);
+
+        List<Devise> all = deviseService.findAllByUser(currentUser);
+        List<Devise> filtered = (all == null ? List.<Devise>of() : all).stream()
+                .filter(d -> matchesDeviseQuery(d, qNorm))
+                .filter(d -> PagedQueryUtil.isInDateRange(d == null ? null : d.getCreatedAt(), from, to))
+                .filter(d -> matchesAmountRange(d == null ? null : d.getTotalAmount(), amountFrom, amountTo))
+                .sorted(sortComparator)
+                .toList();
+
+        PageResponse<Devise> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
+        List<DeviseResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+
+        auditService.logSuccess(AuditEventType.DEVISE_READ, "DEVISE", null, "Devis consultes (page)");
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                pageResponse.page(),
+                pageResponse.size(),
+                pageResponse.totalElements(),
+                pageResponse.totalPages()
+        ));
+    }
+
+    private static boolean matchesDeviseQuery(Devise devise, String qNorm) {
+        if (qNorm == null || qNorm.isBlank()) return true;
+        if (devise == null) return false;
+
+        if (PagedQueryUtil.matchesSearch(devise.getTitle(), qNorm)) {
+            return true;
+        }
+
+        List<DeviseItem> items = devise.getItems();
+        if (items == null || items.isEmpty()) return false;
+
+        return items.stream().anyMatch(item -> {
+            if (item == null) return false;
+            if (item.getTreatmentCatalog() != null && PagedQueryUtil.matchesSearch(item.getTreatmentCatalog().getName(), qNorm)) {
+                return true;
+            }
+            if (item.getProthesisCatalog() != null) {
+                if (PagedQueryUtil.matchesSearch(item.getProthesisCatalog().getName(), qNorm)) return true;
+                Material material = item.getProthesisCatalog().getMaterial();
+                return material != null && PagedQueryUtil.matchesSearch(material.getName(), qNorm);
+            }
+            return false;
+        });
+    }
+
+    private static boolean matchesAmountRange(Double totalAmount, Double amountFrom, Double amountTo) {
+        if (amountFrom == null && amountTo == null) return true;
+        if (totalAmount == null) return false;
+        if (amountFrom != null && totalAmount < amountFrom) return false;
+        if (amountTo != null && totalAmount > amountTo) return false;
+        return true;
+    }
+
+    private static Comparator<Devise> buildDeviseSortComparator(String sortKeyNorm, String sortDirNorm) {
+        boolean desc = "desc".equalsIgnoreCase(sortDirNorm);
+
+        Comparator<Devise> comparator = switch (sortKeyNorm == null ? "" : sortKeyNorm) {
+            case "title" -> Comparator.comparing(
+                    d -> d == null ? null : d.getTitle(),
+                    PagedQueryUtil.stringComparator(desc)
+            );
+            case "totalamount", "total_amount", "amount" -> Comparator.comparing(
+                    Devise::getTotalAmount,
+                    PagedQueryUtil.doubleComparator(desc)
+            );
+            case "createdat", "created_at", "created" -> Comparator.comparing(
+                    Devise::getCreatedAt,
+                    PagedQueryUtil.dateTimeComparator(desc)
+            );
+            default -> Comparator.comparing(Devise::getCreatedAt, PagedQueryUtil.dateTimeComparator(true));
+        };
+
+        return comparator.thenComparing(Devise::getId, PagedQueryUtil.longComparator(false));
     }
 
     @GetMapping("/{id}")
@@ -103,6 +205,7 @@ public class DeviseController {
         return new DeviseResponse(
                 d.getId(),
                 d.getTitle(),
+                d.getCreatedAt(),
                 d.getTotalAmount(),
                 itemResponses
         );

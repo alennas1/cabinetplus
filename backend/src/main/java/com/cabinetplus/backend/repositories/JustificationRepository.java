@@ -3,6 +3,7 @@ package com.cabinetplus.backend.repositories;
 import com.cabinetplus.backend.models.Justification;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.enums.RecordStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -11,8 +12,10 @@ import java.util.Optional;
 public interface JustificationRepository extends JpaRepository<Justification, Long> {
 
     List<Justification> findByPractitioner(User practitioner);
+    List<Justification> findByPractitionerAndRecordStatus(User practitioner, RecordStatus recordStatus);
 
     Optional<Justification> findByIdAndPractitioner(Long id, User practitioner);
 
     List<Justification> findByPatientAndPractitioner(Patient patient, User practitioner);
+    List<Justification> findByPatientAndPractitionerAndRecordStatus(Patient patient, User practitioner, RecordStatus recordStatus);
 }

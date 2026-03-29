@@ -370,6 +370,217 @@
   animation: popup-fade 0.25s ease;
 }
 
+/* Devis modal: fixed footer + split scroll panes */
+.modal-content.devis-modal {
+  overflow: hidden; /* disable container scrolling */
+  display: flex;
+  flex-direction: column;
+}
+
+.devis-modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.devis-modal-body {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* only the selected-items pane scrolls */
+}
+
+.devis-modal-left {
+  flex: 1;
+  border-right: 1px solid #eee;
+  padding-right: 15px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.devis-modal-left-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.devis-modal-left-scroll {
+  overflow: visible;
+}
+
+.devis-modal-right {
+  flex: 1.2;
+  padding-left: 5px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.devis-modal-right-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.devis-modal-right-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 6px;
+}
+
+.devis-modal-title-block input {
+  width: 100%;
+}
+
+.devis-modal-title-error {
+  margin-top: 2px;
+  min-height: 0;
+}
+
+.devis-modal-title-error.placeholder {
+  display: none;
+}
+
+.devis-modal-selected-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.devis-modal-selected-block .cp-field-error {
+  margin-top: 0;
+  min-height: 0;
+}
+
+.devis-modal-selected-block .cp-field-error.placeholder {
+  display: none;
+}
+
+.devis-selected-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.devis-selected-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  padding-top: 8px; /* align with inputs */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.devis-item-col {
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+}
+
+.devis-item-col-qty {
+  width: 90px;
+}
+
+.devis-item-input {
+  width: 100%;
+}
+
+.devis-item-error {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 14px;
+  min-height: 0;
+}
+
+.devis-item-error.placeholder {
+  display: none;
+}
+
+.devis-item-remove {
+  flex-shrink: 0;
+  color: #ef4444;
+  padding: 6px;
+  border-radius: 10px;
+  line-height: 0;
+}
+
+.devis-item-remove:hover {
+  background: #fee2e2;
+}
+
+.devis-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* keep total + actions on one line to the right */
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #eef2f7;
+  background: #fff;
+  flex-wrap: nowrap;
+}
+
+/* Must override the generic `.total-box` rule (defined later in this file) */
+.total-box.devis-total-box {
+  margin-top: 0;
+  height: 40px; /* match action buttons for perfect alignment */
+  padding: 0 14px;
+  flex-shrink: 0;
+  min-width: 190px; /* keep it from pushing too far left */
+  display: flex;
+  align-items: center;
+}
+
+.devis-total-box .total-row {
+  width: 100%;
+  align-items: center;
+  line-height: 20px;
+}
+
+.devis-modal-footer .btn-primary2,
+.devis-modal-footer .btn-cancel {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.devis-modal-footer .modal-actions {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+.devis-suggestion-slots {
+  display: flex;
+  flex-direction: column;
+}
+
+.devis-suggestion-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* Optional: smooth scrollbar style (modern browsers) */
 .modal-content::-webkit-scrollbar {
   width: 6px;
@@ -708,6 +919,44 @@
   color: #1e293b;                /* darker icon */
 }
 
+.action-btn.cancel {
+  border-color: #f87171;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.action-btn.cancel:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.context-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.context-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #bae6fd;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.context-badge.cancelled {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .prothesis-select-checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -853,6 +1102,66 @@
 .dropdown-menu li:active {
   font-weight: 600;
   color: #3498db;
+}
+
+/* Journal-style filter row (AuditLogs / Devis) */
+.date-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 15px;
+  margin-bottom: 15px;
+}
+
+.date-selector button {
+  padding: 8px 14px;
+  border-radius: var(--cp-input-radius);
+  border: 1px solid #ccc;
+  background: #f3f4f6;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.date-selector button:hover {
+  background: #e5e7eb;
+}
+
+.date-selector button.active {
+  background: #3498db;
+  color: #fff;
+  border-color: #3498db;
+}
+
+.custom-range-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.custom-range-label {
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.custom-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cp-number-compact {
+  width: 150px;
+  display: inline-block;
+}
+
+.cp-number-field--filter {
+  border-width: 1px !important;
+  padding: 6px 14px !important;
+  font-size: 14px;
 }
 .pagination {
   display: flex;

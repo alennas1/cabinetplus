@@ -2,6 +2,7 @@ package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
 
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -12,6 +13,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -47,4 +50,10 @@ public class LaboratoryPayment {
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime cancelledAt;
 }

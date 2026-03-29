@@ -9,6 +9,7 @@ import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
+import com.cabinetplus.backend.services.SubscriptionService;
 import com.cabinetplus.backend.services.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -44,6 +46,7 @@ class UserControllerTest {
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         planService = mock(PlanService.class);
         planLimitService = mock(PlanLimitService.class);
+        SubscriptionService subscriptionService = mock(SubscriptionService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
         AuditService auditService = mock(AuditService.class);
         RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
@@ -53,6 +56,7 @@ class UserControllerTest {
                 passwordEncoder,
                 planService,
                 planLimitService,
+                subscriptionService,
                 auditService,
                 refreshTokenRepository,
                 publicIdResolutionService
@@ -119,6 +123,28 @@ class UserControllerTest {
         mockMvc.perform(put("/api/users/admin/activate-plan/9")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.planStatus").value(UserPlanStatus.ACTIVE.name()));
+                .andExpect(jsonPath("$.planStatus").value(UserPlanStatus.ACTIVE.name()))
+                .andExpect(jsonPath("$.planStartDate").exists());
+    }
+
+    @Test
+    void activatePlanWhenUsageExceedsReturns400Contract() throws Exception {
+        Plan plan = new Plan();
+        plan.setDurationDays(30);
+
+        User user = new User();
+        user.setId(9L);
+        user.setPlan(plan);
+        when(userService.findById(9L)).thenReturn(Optional.of(user));
+
+        doThrow(new IllegalArgumentException("Impossible de changer de plan: limite de patients actifs depassee"))
+                .when(planLimitService)
+                .assertUsageFitsPlan(user, plan);
+
+        mockMvc.perform(put("/api/users/admin/activate-plan/9")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors._").value("Impossible de changer de plan: limite de patients actifs depassee"));
     }
 }

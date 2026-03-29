@@ -3,6 +3,7 @@ package com.cabinetplus.backend.models;
 import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.enums.JustificationType;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.security.EncryptionConverter;
 
 import jakarta.persistence.Column;
@@ -50,6 +51,12 @@ public class Justification {
     @ManyToOne
     @JoinColumn(name = "practitioner_id", nullable = false)
     private User practitioner;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime cancelledAt;
 
     @PrePersist
     protected void onCreate() {

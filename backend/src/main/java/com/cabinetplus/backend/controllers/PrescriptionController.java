@@ -1,9 +1,13 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,8 +16,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
 import com.cabinetplus.backend.dto.PrescriptionResponseDTO;
 import com.cabinetplus.backend.dto.PrescriptionSummaryDTO;
@@ -25,6 +31,8 @@ import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PrescriptionService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PagedQueryUtil;
+import com.cabinetplus.backend.util.PaginationUtil;
 import com.lowagie.text.Chunk;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
@@ -79,6 +87,68 @@ public class PrescriptionController {
         return ResponseEntity.ok(prescriptionService.getPrescriptionsByPatientId(internalPatientId, practitioner));
     }
 
+    @GetMapping("/patient/{patientId}/paged")
+    public PageResponse<PrescriptionSummaryDTO> getPrescriptionsByPatientPaged(
+            @PathVariable String patientId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "field", required = false) String field,
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(name = "sortKey", required = false) String sortKey,
+            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+            Principal principal
+    ) {
+        User practitioner = getPractitioner(principal);
+        User ownerDentist = userService.resolveClinicOwner(practitioner);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+
+        final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
+        final String fieldKey = fieldNorm.isBlank() ? "rxid" : fieldNorm;
+        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
+        boolean desc = "desc".equalsIgnoreCase(sortDirection);
+
+        Comparator<PrescriptionSummaryDTO> comparator = buildPrescriptionSortComparator(sortKeyNorm, desc);
+
+        List<PrescriptionSummaryDTO> filtered = prescriptionService.getPrescriptionsByPatientId(internalPatientId, practitioner).stream()
+                .filter(rx -> {
+                    if (rx == null) return false;
+                    if (!PagedQueryUtil.isInDateRange(rx.getDate(), from, to)) return false;
+
+                    if (q != null && !q.isBlank()) {
+                        String hay = switch (fieldKey) {
+                            case "date" -> rx.getDate() != null ? rx.getDate().toString() : null;
+                            case "rxid", "rx_id" -> rx.getRxId();
+                            default -> {
+                                String id = rx.getRxId() != null ? rx.getRxId() : "";
+                                String dt = rx.getDate() != null ? rx.getDate().toString() : "";
+                                yield id + " " + dt;
+                            }
+                        };
+                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
+                    }
+                    return true;
+                })
+                .sorted(comparator)
+                .toList();
+
+        return PaginationUtil.toPageResponse(filtered, page, size);
+    }
+
+    private static Comparator<PrescriptionSummaryDTO> buildPrescriptionSortComparator(String sortKeyNorm, boolean desc) {
+        Comparator<String> stringComparator = PagedQueryUtil.stringComparator(desc);
+        var dateTimeComparator = PagedQueryUtil.dateTimeComparator(desc);
+
+        Comparator<PrescriptionSummaryDTO> comparator = switch (sortKeyNorm) {
+            case "rxid", "rx_id" -> Comparator.comparing(PrescriptionSummaryDTO::getRxId, stringComparator);
+            case "date" -> Comparator.comparing(PrescriptionSummaryDTO::getDate, dateTimeComparator);
+            default -> Comparator.comparing(PrescriptionSummaryDTO::getDate, PagedQueryUtil.dateTimeComparator(true));
+        };
+
+        return comparator.thenComparing(PrescriptionSummaryDTO::getId, PagedQueryUtil.longComparator(false));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PrescriptionResponseDTO> getPrescriptionById(@PathVariable String id, Principal principal) {
         User practitioner = getPractitioner(principal);
@@ -108,16 +178,20 @@ public class PrescriptionController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deletePrescription(@PathVariable String id, Principal principal) {
+        if (id != null) {
+            // Strict no-delete policy: prescriptions are immutable history.
+            return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body("Suppression non autorisÃ©e");
+        }
         User practitioner = getPractitioner(principal);
         Prescription existing = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);
         prescriptionService.deletePrescription(existing.getId(), practitioner);
         auditService.logSuccess(
-                AuditEventType.PRESCRIPTION_DELETE,
+                AuditEventType.PRESCRIPTION_CANCEL,
                 "PATIENT",
                 existing != null && existing.getPatient() != null ? String.valueOf(existing.getPatient().getId()) : null,
-                "Ordonnance supprimée"
+                "Ordonnance annulée"
         );
-        return ResponseEntity.ok("Prescription deleted successfully");
+        return ResponseEntity.ok("Prescription cancelled successfully");
     }
 
     /* ===================== CLEAN & PROFESSIONAL PDF ===================== */

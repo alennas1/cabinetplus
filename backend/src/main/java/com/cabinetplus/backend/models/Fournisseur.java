@@ -2,12 +2,17 @@ package com.cabinetplus.backend.models;
 
 import java.util.UUID;
 
+import java.time.LocalDateTime;
+
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -54,6 +59,12 @@ public class Fournisseur {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime archivedAt;
+
     @PrePersist
     private void ensurePublicId() {
         if (publicId == null) {
@@ -61,4 +72,3 @@ public class Fournisseur {
         }
     }
 }
-

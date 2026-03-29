@@ -5,6 +5,23 @@ export const getDocumentsByPatient = async (patientId) => {
   return response.data;
 };
 
+export const getDocumentsByPatientPage = async ({
+  patientId,
+  page = 0,
+  size = 10,
+  q,
+  field,
+  from,
+  to,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`/api/documents/patient/${patientId}/paged`, {
+    params: { page, size, q, field, from, to, sortKey, sortDirection },
+  });
+  return response.data;
+};
+
 export const uploadPatientDocument = async ({ patientId, title, file }) => {
   const formData = new FormData();
   formData.append("patientId", patientId);
@@ -18,10 +35,6 @@ export const uploadPatientDocument = async ({ patientId, title, file }) => {
   });
 
   return response.data;
-};
-
-export const deleteDocument = async (documentId) => {
-  await api.delete(`/api/documents/${documentId}`);
 };
 
 export const getDocumentBlobUrl = async (documentId) => {

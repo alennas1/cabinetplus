@@ -1,10 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import PageHeader from '../components/PageHeader';
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import {
   Plus,
   Edit2,
@@ -15,7 +15,7 @@ import {
   Search
 } from 'react-feather';
 import {
-  getAllPlansAdmin,
+  getAllPlansAdminPage,
   createPlanAdmin,
   updatePlanAdmin,
   deactivatePlanAdmin,
@@ -27,6 +27,7 @@ import { getCurrencyLabelPreference } from '../utils/workingHours';
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import FieldError from "../components/FieldError";
 import { FIELD_LIMITS, validateNumber, validateText } from "../utils/validation";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
 import './Patients.css'; 
 
@@ -161,11 +162,11 @@ const PlanFormModal = ({
         <FieldError message={fieldErrors?.maxEmployees} />
         <small className='form-small-text'>Assistants et réceptionnistes inclus.</small>
 
-        <span className="field-label">Maximum patients</span>
+        <span className="field-label">Maximum patients actifs</span>
         <input
           type="number"
           name="maxPatients"
-          placeholder="Entrez le nombre maximum de patients..."
+          placeholder="Entrez le nombre maximum de patients actifs..."
           value={currentPlan.maxPatients}
           onChange={handleInputChange}
           required
@@ -219,44 +220,63 @@ const PlanFormModal = ({
 );
 
 const ManagePlans = () => {
-  const token = useSelector((state) => state.auth.token);
-
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false); 
   const [modalMode, setModalMode] = useState('create'); 
   const [currentPlan, setCurrentPlan] = useState(initialPlanState);
   const [fieldErrors, setFieldErrors] = useState({});
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [filterBy, setFilterBy] = useState("name");
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
   const [currentPage, setCurrentPage] = useState(1);
-  const plansPerPage = 10;
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
   const [updatingRecommendedId, setUpdatingRecommendedId] = useState(null);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const fetchPlans = async () => {
-    setLoading(true);
     try {
-      const data = await getAllPlansAdmin(token);
-      setPlans(data);
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getAllPlansAdminPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        field: filterBy || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setPlans(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
+      setError(null);
     } catch (err) {
       setError('Erreur lors du chargement des plans.');
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des plans."));
+      setPlans([]);
+      setTotalPages(1);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
-    if (token) fetchPlans();
-  }, [token]);
+    fetchPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch, filterBy]);
 
-  const filteredPlans = plans.filter((plan) => {
-    const value = (plan[filterBy] || "").toString().toLowerCase();
-    if (search && !value.includes(search.toLowerCase())) return false;
-    return true;
-  });
+  // Server-side search/filter: the backend returns a filtered page already.
+  const filteredPlans = plans;
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -304,12 +324,10 @@ const ManagePlans = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterBy, sortConfig.key, sortConfig.direction]);
+  }, [debouncedSearch, filterBy, sortConfig.key, sortConfig.direction]);
 
-  const indexOfLastPlan = currentPage * plansPerPage;
-  const indexOfFirstPlan = indexOfLastPlan - plansPerPage;
-  const currentPlans = sortedPlans.slice(indexOfFirstPlan, indexOfLastPlan);
-  const totalPages = Math.ceil(sortedPlans.length / plansPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentPlans = sortedPlans;
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -416,7 +434,7 @@ const ManagePlans = () => {
     if (maxEmployeesError) nextErrors.maxEmployees = maxEmployeesError;
 
     const maxPatientsError = validateNumber(currentPlan.maxPatients, {
-      label: "Maximum patients",
+      label: "Maximum patients actifs",
       required: true,
       min: 0,
       integer: true,
@@ -452,10 +470,10 @@ const ManagePlans = () => {
         active: currentPlan.active,
       };
       if (modalMode === 'create') {
-        await createPlanAdmin(payload, token);
+        await createPlanAdmin(payload);
         toast.success("Plan créé avec succès !");
       } else {
-        await updatePlanAdmin(currentPlan.id, payload, token);
+        await updatePlanAdmin(currentPlan.id, payload);
         toast.success("Plan mis à jour avec succès !");
       }
       closeModal();
@@ -468,7 +486,7 @@ const ManagePlans = () => {
   const handleDeactivate = async (id) => {
     if (window.confirm("Désactiver ce plan ?")) {
       try {
-        await deactivatePlanAdmin(id, token);
+        await deactivatePlanAdmin(id);
         toast.success("Plan désactivé.");
         fetchPlans();
       } catch (err) {
@@ -488,7 +506,7 @@ const ManagePlans = () => {
     const nextRecommended = !Boolean(plan.recommended);
     setUpdatingRecommendedId(plan.id);
     try {
-      await setRecommendedPlanAdmin(plan.id, nextRecommended, token);
+      await setRecommendedPlanAdmin(plan.id, nextRecommended);
       toast.success(nextRecommended ? "Plan défini comme recommandé." : "Recommandation retirée.");
       fetchPlans();
     } catch (err) {
@@ -540,7 +558,7 @@ const ManagePlans = () => {
               <SortableTh label="Durée" sortKey="durationDays" sortConfig={sortConfig} onSort={handleSort} />
               <SortableTh label="Dentistes max" sortKey="maxDentists" sortConfig={sortConfig} onSort={handleSort} />
               <SortableTh label="Employés max" sortKey="maxEmployees" sortConfig={sortConfig} onSort={handleSort} />
-              <SortableTh label="Patients max" sortKey="maxPatients" sortConfig={sortConfig} onSort={handleSort} />
+              <SortableTh label="Patients actifs max" sortKey="maxPatients" sortConfig={sortConfig} onSort={handleSort} />
               <SortableTh label="Stockage max" sortKey="maxStorageGb" sortConfig={sortConfig} onSort={handleSort} />
               <SortableTh label="Statut" sortKey="active" sortConfig={sortConfig} onSort={handleSort} />
               <th style={{ textAlign: "center" }}>Recommandé</th>
@@ -585,25 +603,7 @@ const ManagePlans = () => {
       )}
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-            ← Précédent
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
 
       {showModal && (

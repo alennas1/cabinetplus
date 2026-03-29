@@ -39,6 +39,14 @@ export const updateTreatment = async (id, treatment) => {
 };
 
 /**
+ * Cancel treatment by ID (kept for audit/logging and read-only history)
+ */
+export const cancelTreatment = async (id) => {
+  const response = await api.put(`${BASE_URL}/${id}/cancel`);
+  return response.data;
+};
+
+/**
  * Delete treatment by ID
  */
 export const deleteTreatment = async (id) => {
@@ -51,6 +59,24 @@ export const deleteTreatment = async (id) => {
  */
 export const getTreatmentsByPatient = async (patientId) => {
   const response = await api.get(`${BASE_URL}/patient/${patientId}`);
+  return response.data;
+};
+
+export const getTreatmentsByPatientPage = async ({
+  patientId,
+  page = 0,
+  size = 10,
+  q,
+  field,
+  status,
+  from,
+  to,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`${BASE_URL}/patient/${patientId}/paged`, {
+    params: { page, size, q, field, status, from, to, sortKey, sortDirection },
+  });
   return response.data;
 };
 

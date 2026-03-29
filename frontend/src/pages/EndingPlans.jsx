@@ -5,12 +5,14 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import SortableTh from "../components/SortableTh";
-import { getUsersExpiringInDays } from "../services/userService";
+import Pagination from "../components/Pagination";
+import { getUsersExpiringInDaysPage } from "../services/userService";
 import { Eye, ChevronDown, Search } from "react-feather";
 import { formatDateByPreference } from "../utils/dateFormat";
 import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const statusMap = {
@@ -24,11 +26,17 @@ const EndingPlans = () => {
   const token = useSelector((state) => state.auth.token);
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const usersPerPage = 10;
   const [sortConfig, setSortConfig] = useState({ key: "expirationDate", direction: SORT_DIRECTIONS.ASC });
 
   // Close dropdown when clicking outside
@@ -44,17 +52,42 @@ const EndingPlans = () => {
 
   const loadUsers = async () => {
     try {
-      const data = await getUsersExpiringInDays(3, token); // 3 days left
-      setUsers(data);
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getUsersExpiringInDaysPage(3, {
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        status: filterStatus !== "ALL" ? filterStatus : undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setUsers(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
     } catch (err) {
       console.error("Error fetching users:", err);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des utilisateurs avec fin de plan proche"));
+      setUsers([]);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
     loadUsers();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, currentPage, debouncedSearch, filterStatus]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterStatus]);
 
   const handleView = (id) => {
     toast.info(`Viewing user with ID: ${id}`);
@@ -74,18 +107,8 @@ const EndingPlans = () => {
     });
   };
 
-  const filteredUsers = users.filter((u) => {
-      if (filterStatus !== "ALL" && (u.planStatus || "PENDING") !== filterStatus) {
-        return false;
-      }
-      if (!search) return true;
-      const searchDigits = normalizePhoneInput(search);
-      return (
-        u.firstname.toLowerCase().includes(search.toLowerCase()) ||
-        u.lastname.toLowerCase().includes(search.toLowerCase()) ||
-        (searchDigits && normalizePhoneInput(u.phoneNumber).includes(searchDigits))
-      );
-    });
+  // Server-side search/filter: the backend returns a filtered page already.
+  const filteredUsers = users;
 
   const sortedUsers = React.useMemo(() => {
     const getValue = (u) => {
@@ -108,10 +131,8 @@ const EndingPlans = () => {
     return sortRowsBy(filteredUsers, getValue, sortConfig.direction);
   }, [filteredUsers, sortConfig.direction, sortConfig.key]);
 
-  const indexOfLast = currentPage * usersPerPage;
-  const indexOfFirst = indexOfLast - usersPerPage;
-  const currentUsers = sortedUsers.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedUsers.length / usersPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentUsers = sortedUsers;
 
   return (
     <div className="patients-container">
@@ -211,23 +232,12 @@ const EndingPlans = () => {
 
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-            ← Précédent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+        />
       )}
 
       <ToastContainer

@@ -3,6 +3,8 @@ package com.cabinetplus.backend.services;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.CreateItemDTO;
@@ -31,6 +33,11 @@ public class ItemService {
     // Get all items for a specific dentist
     public List<Item> getItemsForDentist(User dentist) {
         return itemRepository.findByCreatedBy(dentist);
+    }
+
+    public Page<Item> searchItemsForDentist(User dentist, String q, Pageable pageable) {
+        String safeQ = q != null ? q.trim() : "";
+        return itemRepository.searchByCreatedBy(dentist, safeQ, pageable);
     }
 
     // Get item by id for a specific dentist

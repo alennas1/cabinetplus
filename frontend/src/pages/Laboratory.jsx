@@ -1,40 +1,49 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit2, Trash2, Search, X, Eye } from "react-feather";
+import { Plus, Edit2, Search, X, Eye, Archive, RotateCcw } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import FieldError from "../components/FieldError";
 import {
-  getAllLaboratories,
+  getLaboratoriesPage,
+  getArchivedLaboratoriesPage,
   createLaboratory,
   updateLaboratory,
-  deleteLaboratory,
+  archiveLaboratory,
+  unarchiveLaboratory,
 } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import "./Patients.css";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
-const Laboratories = () => {
+const Laboratories = ({ view = "active" }) => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
   const [laboratories, setLaboratories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
   const [formData, setFormData] = useState({
     id: null,
     name: "",
@@ -46,27 +55,45 @@ const Laboratories = () => {
   const [labIdToDelete, setLabIdToDelete] = useState(null);
   const [isDeletingLab, setIsDeletingLab] = useState(false);
 
+  const fetchLabs = async () => {
+    try {
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const getter = view === "archived" ? getArchivedLaboratoriesPage : getLaboratoriesPage;
+      const data = await getter({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        sortKey: sortConfig?.key || undefined,
+        direction: sortConfig?.direction || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setLaboratories(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
+      setLaboratories([]);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchLabs = async () => {
-      try {
-        setLoading(true);
-        const data = await getAllLaboratories();
-        setLaboratories(data);
-      } catch (err) {
-        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchLabs();
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, view, currentPage, debouncedSearch, sortConfig.key, sortConfig.direction]);
 
-  const filteredLabs = laboratories.filter((lab) =>
-    `${lab.name} ${lab.contactPerson} ${lab.phoneNumber} ${lab.address}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [view, debouncedSearch, sortConfig.key, sortConfig.direction]);
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -80,28 +107,11 @@ const Laboratories = () => {
           : SORT_DIRECTIONS.ASC);
       return { key, direction: nextDirection };
     });
+    setCurrentPage((p) => (p === 1 ? p : 1));
   };
 
-  const sortedLabs = useMemo(() => {
-    const getValue = (lab) => {
-      switch (sortConfig.key) {
-        case "name":
-          return lab.name;
-        case "contactPerson":
-          return lab.contactPerson;
-        case "phoneNumber":
-          return lab.phoneNumber;
-        case "address":
-          return lab.address;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filteredLabs, getValue, sortConfig.direction);
-  }, [filteredLabs, sortConfig.direction, sortConfig.key]);
-
-  const currentLabs = sortedLabs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(sortedLabs.length / itemsPerPage);
+  // Server-side pagination/search/sort: the backend already returns a single page.
+  const currentLabs = laboratories || [];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -155,12 +165,13 @@ const Laboratories = () => {
         address: String(formData.address ?? "").trim() || null,
       };
       if (isEditing) {
-        const updated = await updateLaboratory(formData.id, payload);
-        setLaboratories(laboratories.map((lab) => (lab.id === updated.id ? updated : lab)));
+        await updateLaboratory(formData.id, payload);
+        await fetchLabs();
         toast.success("Laboratoire mis à jour");
       } else {
-        const created = await createLaboratory(payload);
-        setLaboratories([...laboratories, created]);
+        await createLaboratory(payload);
+        setCurrentPage(1);
+        await fetchLabs();
         toast.success("Laboratoire ajouté");
       }
       setShowModal(false);
@@ -189,18 +200,28 @@ const Laboratories = () => {
     setShowConfirm(true);
   };
 
+  const handleRestore = async (id) => {
+    try {
+      await unarchiveLaboratory(id);
+      await fetchLabs();
+      toast.success("Laboratoire restauré");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de la restauration"));
+    }
+  };
+
   const confirmDelete = async () => {
     if (isDeletingLab) return;
     try {
       setIsDeletingLab(true);
-      await deleteLaboratory(labIdToDelete);
-      setLaboratories(laboratories.filter((lab) => lab.id !== labIdToDelete));
-      toast.success("Laboratoire supprimé");
+      await archiveLaboratory(labIdToDelete);
+      await fetchLabs();
+      toast.success("Laboratoire archivé");
     } catch (err) {
       const message =
         err?.response?.status === 409
-          ? "Impossible de supprimer un laboratoire lié à des paiements ou prothèses"
-          : "Erreur lors de la suppression";
+          ? "Impossible d'archiver un laboratoire lié à des paiements ou prothèses"
+          : "Erreur lors de l'archivage";
       toast.error(getApiErrorMessage(err, message));
     } finally {
       setIsDeletingLab(false);
@@ -212,8 +233,8 @@ const Laboratories = () => {
   if (loading) {
     return (
       <DentistPageSkeleton
-        title="Laboratoires"
-        subtitle="Chargement des partenaires du laboratoire"
+        title={view === "archived" ? "Laboratoires archivés" : "Laboratoires"}
+        subtitle={view === "archived" ? "Chargement des laboratoires archivés" : "Chargement des partenaires du laboratoire"}
         variant="table"
       />
     );
@@ -221,8 +242,12 @@ const Laboratories = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/gestion-cabinet" />
-      <PageHeader title="Laboratoires" subtitle="Gestion des partenaires prothésistes" align="left" />
+      <BackButton fallbackTo={view === "archived" ? "/gestion-cabinet/laboratories" : "/gestion-cabinet"} />
+      <PageHeader
+        title={view === "archived" ? "Laboratoires archivés" : "Laboratoires"}
+        subtitle={view === "archived" ? "Liste des laboratoires archivés" : "Gestion des partenaires prothésistes"}
+        align="left"
+      />
 
       <div className="patients-controls">
         <div className="controls-left">
@@ -237,15 +262,28 @@ const Laboratories = () => {
           </div>
         </div>
         <div className="controls-right">
-          <button
-            className="btn-primary"
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-          >
-            <Plus size={16} /> Ajouter un laboratoire
-          </button>
+          {view === "archived" ? null : (
+            <>
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => navigate("/gestion-cabinet/laboratories/archived")}
+                title="Laboratoires archivés"
+                aria-label="Laboratoires archivés"
+              >
+                <Archive size={16} />
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  resetForm();
+                  setShowModal(true);
+                }}
+              >
+                <Plus size={16} /> Ajouter un laboratoire
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -269,7 +307,7 @@ const Laboratories = () => {
           ) : currentLabs.length === 0 ? (
             <tr>
               <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "#888" }}>
-                Aucun laboratoire trouvé
+                {view === "archived" ? "Aucun laboratoire archivé" : "Aucun laboratoire trouvé"}
               </td>
             </tr>
           ) : (
@@ -290,18 +328,42 @@ const Laboratories = () => {
                   >
                     <Eye size={16} />
                   </button>
-                  <button className="action-btn edit" onClick={(e) => {
-                    e.stopPropagation();
-                    handleEdit(lab);
-                  }} title="Modifier">
-                    <Edit2 size={16} />
-                  </button>
-                  <button className="action-btn delete" onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(lab.id);
-                  }} title="Supprimer">
-                    <Trash2 size={16} />
-                  </button>
+                  {view !== "archived" && (
+                    <>
+                      <button
+                        className="action-btn edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(lab);
+                        }}
+                        title="Modifier"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        className="action-btn delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(lab.id);
+                        }}
+                        title="Archiver"
+                      >
+                        <Archive size={16} />
+                      </button>
+                    </>
+                  )}
+                  {view === "archived" && (
+                    <button
+                      className="action-btn edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRestore(lab.id);
+                      }}
+                      title="Restaurer"
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))
@@ -310,19 +372,12 @@ const Laboratories = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-            ← Précédent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+        />
       )}
 
       {showModal && (
@@ -427,9 +482,9 @@ const Laboratories = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Supprimer le laboratoire ?</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Archiver le laboratoire ?</h2>
             <p className="text-gray-600 mb-6">
-              Voulez-vous vraiment supprimer ce partenaire ? Cette action est irréversible.
+              Voulez-vous vraiment archiver ce partenaire ? Il sera déplacé vers la liste des laboratoires archivés (lecture seule).
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -440,9 +495,9 @@ const Laboratories = () => {
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors" disabled={isDeletingLab}
+                className="px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition-colors" disabled={isDeletingLab}
               >
-                Supprimer
+                Archiver
               </button>
             </div>
           </div>

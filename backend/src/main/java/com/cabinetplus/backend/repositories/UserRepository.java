@@ -8,7 +8,9 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.User;
@@ -28,5 +30,21 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findUsersWithExpiringPlans(LocalDateTime start, LocalDateTime end);
 
     Optional<User> findByPublicId(UUID publicId);
+
+    @Query("""
+            select count(u) from User u
+            where u.ownerDentist = :ownerDentist
+              and u.clinicAccessRole = :role
+            """)
+    long countByOwnerDentistAndClinicAccessRole(@Param("ownerDentist") User ownerDentist,
+                                                @Param("role") ClinicAccessRole role);
+
+    @Query("""
+            select count(u) from User u
+            where u.ownerDentist = :ownerDentist
+              and (u.clinicAccessRole is null or u.clinicAccessRole <> :excludedRole)
+            """)
+    long countByOwnerDentistAndClinicAccessRoleNot(@Param("ownerDentist") User ownerDentist,
+                                                   @Param("excludedRole") ClinicAccessRole excludedRole);
 
 }

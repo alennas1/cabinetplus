@@ -8,6 +8,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.AppointmentRequest;
+import com.cabinetplus.backend.enums.AppointmentStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.ConflictException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
@@ -59,6 +60,9 @@ public class AppointmentService {
 
         Patient patient = patientRepository.findByIdAndCreatedBy(request.patientId(), practitioner)
                 .orElseThrow(() -> new NotFoundException("Patient introuvable"));
+        if (patient.getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
 
         Appointment appointment = new Appointment();
         appointment.setDateTimeStart(request.dateTimeStart());
@@ -76,9 +80,15 @@ public class AppointmentService {
         assertNoOverlap(practitioner, request.dateTimeStart(), request.dateTimeEnd(), id);
 
         Appointment existing = requireByIdForPractitioner(id, practitioner);
+        if (existing.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new BadRequestException(java.util.Map.of("_", "Rendez-vous annulÃ© : lecture seule."));
+        }
 
         Patient patient = patientRepository.findByIdAndCreatedBy(request.patientId(), practitioner)
                 .orElseThrow(() -> new NotFoundException("Patient introuvable"));
+        if (patient.getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
 
         existing.setDateTimeStart(request.dateTimeStart());
         existing.setDateTimeEnd(request.dateTimeEnd());
@@ -90,9 +100,15 @@ public class AppointmentService {
         return appointmentRepository.save(existing);
     }
 
-    public Appointment deleteAppointment(Long id, User practitioner) {
+    public Appointment cancelAppointment(Long id, User practitioner) {
         Appointment existing = requireByIdForPractitioner(id, practitioner);
-        appointmentRepository.delete(existing);
+        if (existing.getPatient() != null && existing.getPatient().getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
+        if (existing.getStatus() != AppointmentStatus.CANCELLED) {
+            existing.setStatus(AppointmentStatus.CANCELLED);
+            appointmentRepository.save(existing);
+        }
         return existing;
     }
 
@@ -146,6 +162,9 @@ public class AppointmentService {
 
         // Apply updates.
         appointments.forEach(appt -> {
+            if (appt.getPatient() != null && appt.getPatient().getArchivedAt() != null) {
+                throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+            }
             RescheduleItem u = updateById.get(appt.getId());
             appt.setDateTimeStart(u.start());
             appt.setDateTimeEnd(u.end());

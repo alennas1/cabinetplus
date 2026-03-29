@@ -1,14 +1,22 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.JustificationDTO;
 import com.cabinetplus.backend.dto.JustificationRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Justification;
 import com.cabinetplus.backend.models.Patient;
@@ -18,6 +26,8 @@ import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.JustificationService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PagedQueryUtil;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
@@ -29,6 +39,8 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/justifications")
 public class JustificationController {
+
+    private static final String ARCHIVED_PATIENT_READONLY_MESSAGE = "Patient archivé : lecture seule.";
 
     private final JustificationService justificationService;
     private final UserService userService;
@@ -111,6 +123,87 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
     return ResponseEntity.ok(dtos);
 }
 
+    @GetMapping("/patient/{patientId}/paged")
+    public PageResponse<JustificationDTO> getByPatientPaged(
+            @PathVariable String patientId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "field", required = false) String field,
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(name = "sortKey", required = false) String sortKey,
+            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+            Principal principal
+    ) {
+        User currentUser = getCurrentUser(principal);
+        User ownerDentist = userService.resolveClinicOwner(currentUser);
+
+        Patient patient = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist);
+
+        final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
+        final String fieldKey = fieldNorm.isBlank() ? "title" : fieldNorm;
+        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
+        boolean desc = "desc".equalsIgnoreCase(sortDirection);
+
+        Comparator<JustificationDTO> comparator = buildJustificationSortComparator(sortKeyNorm, desc);
+
+        List<JustificationDTO> filtered = justificationService.findByPatientAndPractitioner(patient, currentUser).stream()
+                .map(JustificationController::mapToDTO)
+                .filter(dto -> {
+                    if (dto == null) return false;
+
+                    LocalDateTime dtoDate = parseJustificationDate(dto.getDate());
+                    if (!PagedQueryUtil.isInDateRange(dtoDate, from, to)) return false;
+
+                    if (q != null && !q.isBlank()) {
+                        String hay = switch (fieldKey) {
+                            case "date" -> dto.getDate();
+                            case "title" -> dto.getTitle();
+                            default -> {
+                                String title = dto.getTitle() != null ? dto.getTitle() : "";
+                                String date = dto.getDate() != null ? dto.getDate() : "";
+                                yield title + " " + date;
+                            }
+                        };
+                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
+                    }
+
+                    return true;
+                })
+                .sorted(comparator)
+                .toList();
+
+        return PaginationUtil.toPageResponse(filtered, page, size);
+    }
+
+    private static LocalDateTime parseJustificationDate(String yyyyMmDd) {
+        if (yyyyMmDd == null || yyyyMmDd.isBlank()) return null;
+        try {
+            return LocalDate.parse(yyyyMmDd.trim()).atStartOfDay();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static Comparator<JustificationDTO> buildJustificationSortComparator(String sortKeyNorm, boolean desc) {
+        Comparator<String> stringComparator = PagedQueryUtil.stringComparator(desc);
+
+        Comparator<JustificationDTO> comparator = switch (sortKeyNorm) {
+            case "title" -> Comparator.comparing(JustificationDTO::getTitle, stringComparator);
+            case "date" -> Comparator.comparing(
+                    dto -> parseJustificationDate(dto != null ? dto.getDate() : null),
+                    PagedQueryUtil.dateTimeComparator(desc)
+            );
+            default -> Comparator.comparing(
+                    dto -> parseJustificationDate(dto != null ? dto.getDate() : null),
+                    PagedQueryUtil.dateTimeComparator(true)
+            );
+        };
+
+        return comparator.thenComparing(JustificationDTO::getId, PagedQueryUtil.longComparator(false));
+    }
+
     @PostMapping
     public ResponseEntity<JustificationDTO> create(
             @Valid @RequestBody JustificationRequest request,
@@ -120,6 +213,9 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
         User ownerDentist = userService.resolveClinicOwner(currentUser);
         Patient patient = patientRepository.findByIdAndCreatedBy(request.getPatientId(), ownerDentist)
                 .orElseThrow(() -> new NotFoundException("Patient introuvable"));
+        if (patient.getArchivedAt() != null) {
+            throw new BadRequestException(Map.of("_", ARCHIVED_PATIENT_READONLY_MESSAGE));
+        }
 
         Justification justification = new Justification();
         justification.setPatient(patient);
@@ -147,6 +243,9 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
 
         return justificationService.findByIdAndPractitioner(id, currentUser)
                 .map(existing -> {
+                    if (existing.getPatient() != null && existing.getPatient().getArchivedAt() != null) {
+                        throw new BadRequestException(Map.of("_", ARCHIVED_PATIENT_READONLY_MESSAGE));
+                    }
                     existing.setTitle(request.getTitle());
                     existing.setFinalContent(request.getContent());
                     Justification saved = justificationService.save(existing);
@@ -161,21 +260,28 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
                 .orElseThrow(() -> new NotFoundException("Justificatif introuvable"));
     }
 @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(
-            @PathVariable Long id,
-            Principal principal) {
-
-        User currentUser = getCurrentUser(principal);
-
-        // Uses the same security check as your update method
-        return justificationService.findByIdAndPractitioner(id, currentUser)
-                .map(justification -> {
-                    justificationService.deleteByPractitioner(justification.getId(), currentUser);
-                    auditService.logSuccess(
-                            AuditEventType.JUSTIFICATION_DELETE,
-                            "PATIENT",
-                            justification.getPatient() != null ? String.valueOf(justification.getPatient().getId()) : null,
-                            "Justificatif supprimé"
+     public ResponseEntity<Void> delete(
+             @PathVariable Long id,
+             Principal principal) {
+        if (id != null) {
+            // Strict no-delete policy: justifications are immutable history.
+            return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).build();
+        }
+ 
+         User currentUser = getCurrentUser(principal);
+ 
+         // Uses the same security check as your update method
+         return justificationService.findByIdAndPractitioner(id, currentUser)
+                 .map(justification -> {
+                     if (justification.getPatient() != null && justification.getPatient().getArchivedAt() != null) {
+                         throw new BadRequestException(Map.of("_", ARCHIVED_PATIENT_READONLY_MESSAGE));
+                     }
+                     justificationService.deleteByPractitioner(justification.getId(), currentUser);
+                     auditService.logSuccess(
+                             AuditEventType.JUSTIFICATION_CANCEL,
+                             "PATIENT",
+                             justification.getPatient() != null ? String.valueOf(justification.getPatient().getId()) : null,
+                            "Justificatif annulé"
                     );
                     return ResponseEntity.noContent().<Void>build(); 
                 })

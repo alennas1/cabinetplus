@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -18,6 +19,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import com.cabinetplus.backend.enums.RecordStatus;
 
 @Entity
 @Table(name = "payments")
@@ -49,4 +52,18 @@ public class Payment {
     @ManyToOne
     @JoinColumn(name = "received_by")
     private User receivedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime cancelledAt;
+
+    @PrePersist
+    private void ensureRecordStatus() {
+        if (recordStatus == null) {
+            recordStatus = RecordStatus.ACTIVE;
+        }
+    }
 }

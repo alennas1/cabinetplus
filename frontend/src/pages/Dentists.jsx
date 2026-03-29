@@ -6,12 +6,14 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import SortableTh from "../components/SortableTh";
-import { getAllDentists } from "../services/userService";
+import Pagination from "../components/Pagination";
+import { getDentistsPage } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { Eye, ChevronDown, Search } from "react-feather";
 import { formatPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const statusMap = {
@@ -26,12 +28,19 @@ const Dentists = () => {
   const navigate = useNavigate();
   const [dentists, setDentists] = useState([]);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const dentistsPerPage = 10;
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [sortConfig, setSortConfig] = useState({ key: "lastname", direction: SORT_DIRECTIONS.ASC });
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -45,35 +54,51 @@ const Dentists = () => {
 
   const loadDentists = async () => {
     try {
-      const data = await getAllDentists(token);
-      setDentists(data);
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getDentistsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        status: filterStatus !== "ALL" ? filterStatus : undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setDentists(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      setTotalElements(Number(data?.totalElements || 0));
+      hasLoadedRef.current = true;
     } catch (err) {
       console.error("Error fetching dentists:", err);
+      setDentists([]);
+      setTotalPages(1);
+      setTotalElements(0);
       toast.error(getApiErrorMessage(err, "Erreur lors du chargement des dentistes"));
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
     loadDentists();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, currentPage, debouncedSearch, filterStatus]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterStatus]);
 
   const handleView = (dentist) => {
     const urlId = dentist?.publicId || dentist?.id;
     navigate(`/dentists/${urlId}`);
   };
 
-  const filteredDentists = dentists.filter((d) => {
-    if (filterStatus !== "ALL" && (d.planStatus || "PENDING") !== filterStatus) {
-      return false;
-    }
-    if (!search) return true;
-    const searchDigits = normalizePhoneInput(search);
-    return (
-      d.firstname.toLowerCase().includes(search.toLowerCase()) ||
-      d.lastname.toLowerCase().includes(search.toLowerCase()) ||
-      (searchDigits && normalizePhoneInput(d.phoneNumber).includes(searchDigits))
-    );
-  });
+  const filteredDentists = dentists;
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -112,10 +137,9 @@ const Dentists = () => {
     return sortRowsBy(filteredDentists, getValue, sortConfig.direction);
   }, [filteredDentists, sortConfig.direction, sortConfig.key]);
 
-  const indexOfLast = currentPage * dentistsPerPage;
-  const indexOfFirst = indexOfLast - dentistsPerPage;
-  const currentDentists = sortedDentists.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedDentists.length / dentistsPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const indexOfLast = currentPage * pageSize;
+  const currentDentists = sortedDentists;
 
   return (
     <div className="patients-container">
@@ -233,29 +257,7 @@ const Dentists = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-          >
-            ← Précédent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-          >
-            Suivant →
-          </button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
 
       <ToastContainer

@@ -6,23 +6,37 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ToothGraph from "./ToothGraph";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { downloadPatientFiche, getPublicPatientFicheLink } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
 import { QRCodeCanvas } from "qrcode.react";
 import { DownloadCloud, Send, X, Smartphone } from "react-feather";
-import { Grid, Maximize, Layers } from "react-feather";
+import { Maximize, Layers } from "react-feather";
 import { 
-  getTreatmentsByPatient, createTreatment, updateTreatment, deleteTreatment 
+  getTreatmentsByPatient,
+  getTreatmentsByPatientPage,
+  createTreatment,
+  updateTreatment,
+  cancelTreatment,
 } from "../services/treatmentService";
 import { 
-  getPaymentsByPatient, createPayment, deletePayment 
+  getPaymentsByPatient,
+  getPaymentsByPatientPage,
+  createPayment,
+  cancelPayment,
 } from "../services/paymentService";
 import { 
-  getAppointmentsByPatient, createAppointment, updateAppointment, deleteAppointment 
+  getAppointmentsByPatient,
+  getAppointmentsByPatientPage,
+  createAppointment,
+  updateAppointment,
+  cancelAppointment,
 } from "../services/appointmentService";
 import { getTreatments as getTreatmentCatalog, createTreatment as createTreatmentCatalogItem } from "../services/treatmentCatalogueService";
+import { getAllDiseaseCatalog, createDiseaseCatalogItem } from "../services/diseaseCatalogService";
+import { getAllAllergyCatalog, createAllergyCatalogItem } from "../services/allergyCatalogService";
 import {
   TIME_FORMATS,
   formatHour,
@@ -30,31 +44,37 @@ import {
   getTimeFormatPreference,
   getWorkingHoursWindow,
 } from "../utils/workingHours";
-import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
-import { formatMoneyWithLabel, formatMoney } from "../utils/format";
-import { parseMoneyInput } from "../utils/moneyInput";
-
-import { getPrescriptionsByPatient,deletePrescription } from "../services/prescriptionService"; // make sure you have this
+	import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+	import { formatMoneyWithLabel, formatMoney } from "../utils/format";
+	import { parseMoneyInput } from "../utils/moneyInput";
+	import useDebouncedValue from "../hooks/useDebouncedValue";
+	
+	import { getPrescriptionsByPatient, getPrescriptionsByPatientPage } from "../services/prescriptionService"; // make sure you have this
 
 import { getJustificationTemplates } from "../services/justificationContentService";
 import { 
-  getJustificationsByPatient, 
-  deleteJustification,
+  getJustificationsByPatient,
+  getJustificationsByPatientPage,
   openJustificationPdfInNewTab,
   generateDraftJustification, 
   createJustification
 } from "../services/justificationService";
 import {
-  getProtheticsByPatient, createProthetics, updateProthetics, deleteProthetics, updateProtheticsStatus
+  getProtheticsByPatient,
+  getProtheticsByPatientPage,
+  createProthetics,
+  updateProthetics,
+  updateProtheticsStatus,
+  assignProtheticsToLab,
+  cancelProthetics,
 } from "../services/prostheticsService";
-import { assignProtheticsToLab } from "../services/prostheticsService";
 import { getAllProstheticsCatalogue, createProstheticCatalogue } from "../services/prostheticsCatalogueService";
 import { createMaterial, getAllMaterials } from "../services/materialService";
 import { getAllLaboratories } from "../services/laboratoryService";
 import {
-  deleteDocument,
   getDocumentBlobUrl,
   getDocumentsByPatient,
+  getDocumentsByPatientPage,
   uploadPatientDocument,
 } from "../services/documentService";
 import { getApiErrorMessage } from "../utils/error";
@@ -72,22 +92,300 @@ import { FaMale, FaFemale, FaTooth } from "react-icons/fa";
 import PatientDangerIcon from "../components/PatientDangerIcon";
 import PatientActivityLogTab from "../components/PatientActivityLogTab";
 
-const QUARTER_MINUTES = ["00", "15", "30", "45"];
+	const QUARTER_MINUTES = ["00", "15", "30", "45"];
+	const FILTER_DEBOUNCE_MS = 300;
+	const DEFAULT_CUSTOM_RANGE = { start: "", end: "" };
+	
+	const useDebouncedTabFilters = (filters, delayMs = FILTER_DEBOUNCE_MS) => {
+	  const debouncedSearch = useDebouncedValue(filters?.search ?? "", delayMs);
+	  const debouncedCustomRange = useDebouncedValue(filters?.customRange ?? DEFAULT_CUSTOM_RANGE, delayMs);
+	
+	  return useMemo(
+	    () => ({
+	      ...(filters || {}),
+	      search: debouncedSearch,
+	      customRange: debouncedCustomRange,
+	    }),
+	    [filters, debouncedSearch, debouncedCustomRange]
+	  );
+	};
+	
+	const useResetTablePageOnFilterChange = (tableId, filters, setTablePage) => {
+	  useEffect(() => {
+	    setTablePage((prev) => (prev[tableId] === 1 ? prev : { ...prev, [tableId]: 1 }));
+	  }, [
+	    tableId,
+	    setTablePage,
+	    filters?.search,
+	    filters?.filterBy,
+	    filters?.status,
+	    filters?.selectedFilter,
+	    filters?.selectedMonth,
+	    filters?.customRange?.start,
+	    filters?.customRange?.end,
+	  ]);
+	};
+	
+	const PatientTabToolbar = React.memo(function PatientTabToolbar({
+	  tabKey,
+	  filters,
+	  config,
+	  monthsList,
+	  updateTabFilter,
+	  onAdd,
+	  addLabel = "Ajouter",
+	}) {
+	  const hasStatus = !!config?.getStatus && Array.isArray(config?.statusOptions) && config.statusOptions.length > 0;
+	  const hasFilterBy = Array.isArray(config?.filterByOptions) && config.filterByOptions.length > 0;
 
-const Patient = () => {
+	  const [filterOpen, setFilterOpen] = useState(false);
+	  const [statusOpen, setStatusOpen] = useState(false);
+	  const [monthOpen, setMonthOpen] = useState(false);
+
+	  const filterRef = useRef(null);
+	  const statusRef = useRef(null);
+	  const monthRef = useRef(null);
+
+	  useEffect(() => {
+	    const onDocClick = (e) => {
+	      const target = e.target;
+	      if (filterOpen && filterRef.current && !filterRef.current.contains(target)) setFilterOpen(false);
+	      if (statusOpen && statusRef.current && !statusRef.current.contains(target)) setStatusOpen(false);
+	      if (monthOpen && monthRef.current && !monthRef.current.contains(target)) setMonthOpen(false);
+	    };
+	    document.addEventListener("mousedown", onDocClick);
+	    return () => document.removeEventListener("mousedown", onDocClick);
+	  }, [filterOpen, statusOpen, monthOpen]);
+
+	  const filterByLabel =
+	    config?.filterByOptions?.find((opt) => opt.value === filters?.filterBy)?.label ||
+	    config?.filterByOptions?.[0]?.label ||
+	    "Filtrer";
+
+	  const statusLabel =
+	    config?.statusOptions?.find((opt) => opt.value === filters?.status)?.label || (config?.statusLabel ? `Tous` : "Tous");
+
+	  const monthLabel = filters?.selectedMonth
+	    ? monthsList?.find((m) => m.value === filters.selectedMonth)?.label
+	    : "Choisir un mois";
+
+	  return (
+	    <>
+	      <div className="controls-card">
+	        <div className="patients-controls">
+	          <div className="controls-left" style={{ flexWrap: "wrap" }}>
+	            <div className="search-group">
+	              <Search className="search-icon" size={16} />
+	              <input
+	                type="text"
+	                placeholder="Rechercher..."
+	                value={filters?.search || ""}
+	                onChange={(e) => updateTabFilter(tabKey, { search: e.target.value })}
+	              />
+	            </div>
+
+	            {hasFilterBy && (
+	              <div className="modern-dropdown" ref={filterRef}>
+	                <button
+	                  type="button"
+	                  className={`dropdown-trigger ${filterOpen ? "open" : ""}`}
+	                  onClick={() => setFilterOpen((v) => !v)}
+	                >
+	                  <span>{filterByLabel}</span>
+	                  <ChevronDown size={18} className={`chevron ${filterOpen ? "rotated" : ""}`} />
+	                </button>
+	                {filterOpen && (
+	                  <ul className="dropdown-menu">
+	                    {config.filterByOptions.map((opt) => (
+	                      <li
+	                        key={opt.value}
+	                        onClick={() => {
+	                          updateTabFilter(tabKey, { filterBy: opt.value });
+	                          setFilterOpen(false);
+	                        }}
+	                      >
+	                        {opt.label}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                )}
+	              </div>
+	            )}
+
+	            {hasStatus && (
+	              <div className="modern-dropdown" ref={statusRef}>
+	                <button
+	                  type="button"
+	                  className={`dropdown-trigger ${statusOpen ? "open" : ""}`}
+	                  onClick={() => setStatusOpen((v) => !v)}
+	                >
+	                  <span>{filters?.status ? statusLabel : "Tous les statuts"}</span>
+	                  <ChevronDown size={18} className={`chevron ${statusOpen ? "rotated" : ""}`} />
+	                </button>
+	                {statusOpen && (
+	                  <ul className="dropdown-menu">
+	                    <li
+	                      onClick={() => {
+	                        updateTabFilter(tabKey, { status: "" });
+	                        setStatusOpen(false);
+	                      }}
+	                    >
+	                      Tous
+	                    </li>
+	                    {config.statusOptions.map((opt) => (
+	                      <li
+	                        key={opt.value}
+	                        onClick={() => {
+	                          updateTabFilter(tabKey, { status: opt.value });
+	                          setStatusOpen(false);
+	                        }}
+	                      >
+	                        {opt.label}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                )}
+	              </div>
+	            )}
+
+	            {onAdd && (
+	              <button className="btn-primary" onClick={onAdd} style={{ marginLeft: "auto" }}>
+	                <Plus size={16} /> {addLabel}
+	              </button>
+	            )}
+	          </div>
+	        </div>
+
+	        {config?.getDate && (
+	          <div
+	            className="date-selector"
+	            style={{
+	              marginTop: "12px",
+	              display: "flex",
+	              flexWrap: "wrap",
+	              gap: "10px",
+	              alignItems: "center",
+	            }}
+	          >
+	            <button
+	              type="button"
+	              className={filters?.selectedFilter === "all" ? "active" : ""}
+	              onClick={() =>
+	                updateTabFilter(tabKey, {
+	                  selectedFilter: "all",
+	                  selectedMonth: "",
+	                  customRange: { start: "", end: "" },
+	                })
+	              }
+	            >
+	              Tout
+	            </button>
+
+	            <button
+	              type="button"
+	              className={filters?.selectedFilter === "today" ? "active" : ""}
+	              onClick={() =>
+	                updateTabFilter(tabKey, {
+	                  selectedFilter: "today",
+	                  selectedMonth: "",
+	                  customRange: { start: "", end: "" },
+	                })
+	              }
+	            >
+	              Aujourd&apos;hui
+	            </button>
+
+	            <div className="month-selector">
+	              <div className="modern-dropdown" ref={monthRef} style={{ minWidth: "180px" }}>
+	                <button
+	                  type="button"
+	                  className={`dropdown-trigger ${monthOpen ? "open" : ""}`}
+	                  onClick={() => setMonthOpen((v) => !v)}
+	                >
+	                  <span>{monthLabel}</span>
+	                  <ChevronDown size={18} className={`chevron ${monthOpen ? "rotated" : ""}`} />
+	                </button>
+	                {monthOpen && (
+	                  <ul className="dropdown-menu">
+	                    {(monthsList || []).map((m) => (
+	                      <li
+	                        key={m.value}
+	                        onClick={() => {
+	                          updateTabFilter(tabKey, {
+	                            selectedMonth: m.value,
+	                            selectedFilter: "custom",
+	                            customRange: { start: "", end: "" },
+	                          });
+	                          setMonthOpen(false);
+	                        }}
+	                      >
+	                        {m.label}
+	                      </li>
+	                    ))}
+	                  </ul>
+	                )}
+	              </div>
+	            </div>
+
+	            <div className="custom-range-container">
+	              <span className="custom-range-label">Plage personnalisée :</span>
+	              <div className="custom-range">
+	                <DateInput
+	                  value={filters?.customRange?.start || ""}
+	                  onChange={(e) =>
+	                    updateTabFilter(tabKey, (current) => ({
+	                      selectedFilter: "custom",
+	                      selectedMonth: "",
+	                      customRange: { ...current.customRange, start: e.target.value },
+	                    }))
+	                  }
+	                  className="cp-date-compact cp-date-field--filter"
+	                />
+	                <DateInput
+	                  value={filters?.customRange?.end || ""}
+	                  onChange={(e) =>
+	                    updateTabFilter(tabKey, (current) => ({
+	                      selectedFilter: "custom",
+	                      selectedMonth: "",
+	                      customRange: { ...current.customRange, end: e.target.value },
+	                    }))
+	                  }
+	                  className="cp-date-compact cp-date-field--filter"
+	                />
+	              </div>
+	            </div>
+	          </div>
+	        )}
+	      </div>
+	    </>
+	  );
+	});
+	
+	const Patient = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
   // --- STATES ---
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  const isArchived = !!patient?.archivedAt;
+  const assertPatientEditable = () => {
+    if (isArchived) {
+      toast.info("Patient archivé : lecture seule.");
+      return false;
+    }
+    return true;
+  };
 const prothesisStatusLabels = {
   PENDING: "En attente",
   SENT_TO_LAB: "Au labo",
   RECEIVED: "Recu",
   FITTED: "Posee",
+  CANCELLED: "Annulé",
 };
 const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"];
+const isProthesisCancelled = (p) => String(p?.status || "").toUpperCase() === "CANCELLED";
+const isPaymentCancelled = (p) => String(p?.recordStatus || "").toUpperCase() === "CANCELLED";
   const statusLabels = {
   SCHEDULED: "Planifié",
   COMPLETED: "Terminé",
@@ -97,7 +395,9 @@ const treatmentStatusLabels = {
   PLANNED: "Planifié",
   IN_PROGRESS: "En cours",
   DONE: "Terminé",
+  CANCELLED: "Annulé",
 };
+const isTreatmentCancelled = (t) => String(t?.status || "").toUpperCase() === "CANCELLED";
 const [showPatientModal, setShowPatientModal] = useState(false); // for Add/Edit Patient
 const [showJustificationModal, setShowJustificationModal] = useState(false); // for Justification modal
 const [justificationTypes, setJustificationTypes] = useState([]); // list of justification templates
@@ -115,35 +415,103 @@ const allowedDocumentExtensions = [".pdf", ".jpg", ".jpeg", ".png", ".dcm", ".ti
 const blockedDocumentExtensions = [".exe", ".js", ".php", ".sh", ".bat", ".msi"];
 const maxDocumentFileSizeBytes = 25 * 1024 * 1024;
 
-  const [activeTab, setActiveTab] = useState("treatments"); // default tab
-
-  const [tableSort, setTableSort] = useState(() => ({
-    plannedTreatments: { key: null, direction: SORT_DIRECTIONS.ASC },
-    completedTreatments: { key: null, direction: SORT_DIRECTIONS.ASC },
-    protheses: { key: null, direction: SORT_DIRECTIONS.ASC },
-    payments: { key: null, direction: SORT_DIRECTIONS.ASC },
-    appointments: { key: null, direction: SORT_DIRECTIONS.ASC },
-    justifications: { key: null, direction: SORT_DIRECTIONS.ASC },
+	  const [activeTab, setActiveTab] = useState("treatments"); // default tab
+	
+	  const [tableSort, setTableSort] = useState(() => ({
+	    treatments: { key: null, direction: SORT_DIRECTIONS.ASC },
+	    protheses: { key: null, direction: SORT_DIRECTIONS.ASC },
+	    payments: { key: null, direction: SORT_DIRECTIONS.ASC },
+	    appointments: { key: null, direction: SORT_DIRECTIONS.ASC },
+	    justifications: { key: null, direction: SORT_DIRECTIONS.ASC },
     documents: { key: null, direction: SORT_DIRECTIONS.ASC },
     prescriptions: { key: null, direction: SORT_DIRECTIONS.ASC },
   }));
 
-  const [tablePage, setTablePage] = useState(() => ({
-    plannedTreatments: 1,
-    completedTreatments: 1,
-    protheses: 1,
-    payments: 1,
-    appointments: 1,
-    justifications: 1,
-    documents: 1,
+	  const [tablePage, setTablePage] = useState(() => ({
+	    treatments: 1,
+	    protheses: 1,
+	    payments: 1,
+	    appointments: 1,
+	    justifications: 1,
+	    documents: 1,
     prescriptions: 1,
   }));
 
-  const rowsPerPage = 10;
+	  const rowsPerPage = 10;
 
-  const handleTableSort = (tableId, key, explicitDirection) => {
-    if (!tableId || !key) return;
-    setTableSort((prev) => {
+	  const [tabServerPage, setTabServerPage] = useState(() => ({
+	    treatments: { items: [], totalPages: 0, totalElements: 0, loading: false, refreshing: false },
+	    protheses: { items: [], totalPages: 0, totalElements: 0, loading: false, refreshing: false },
+	    payments: { items: [], totalPages: 0, totalElements: 0, loading: false, refreshing: false },
+	    appointments: { items: [], totalPages: 0, totalElements: 0, loading: false, refreshing: false },
+	    prescriptions: { items: [], totalPages: 0, totalElements: 0, loading: false, refreshing: false },
+	    justifications: { items: [], totalPages: 0, totalElements: 0, loading: false, refreshing: false },
+	    documents: { items: [], totalPages: 0, totalElements: 0, loading: false, refreshing: false },
+	  }));
+
+	  const [tabReloadToken, setTabReloadToken] = useState(() => ({
+	    treatments: 0,
+	    protheses: 0,
+	    payments: 0,
+	    appointments: 0,
+	    prescriptions: 0,
+	    justifications: 0,
+	    documents: 0,
+	  }));
+
+	  const bumpTabReload = (tabKey) => {
+	    setTabReloadToken((prev) => ({ ...prev, [tabKey]: (prev[tabKey] || 0) + 1 }));
+	  };
+
+	  const updateTabServerPage = (tabKey, patch) => {
+	    setTabServerPage((prev) => ({
+	      ...prev,
+	      [tabKey]: { ...(prev[tabKey] || {}), ...(typeof patch === "function" ? patch(prev[tabKey]) : patch) },
+	    }));
+	  };
+
+	  const toYmd = (dateObj) => {
+	    if (!dateObj) return "";
+	    const pad2 = (n) => String(n).padStart(2, "0");
+	    return `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`;
+	  };
+
+	  const resolveDateRangeParams = (filters) => {
+	    const selectedFilter = filters?.selectedFilter || "all";
+	    const selectedMonth = filters?.selectedMonth || "";
+	    const customStart = filters?.customRange?.start || "";
+	    const customEnd = filters?.customRange?.end || "";
+
+	    if (selectedFilter === "today") {
+	      const today = new Date();
+	      const ymd = toYmd(today);
+	      return { from: ymd, to: ymd };
+	    }
+
+	    if (selectedFilter === "custom") {
+	      const monthMatch = selectedMonth.match(/^(\d{4})-(\d{2})$/);
+	      if (monthMatch) {
+	        const year = Number(monthMatch[1]);
+	        const monthIndex = Number(monthMatch[2]) - 1;
+	        if (!Number.isNaN(year) && !Number.isNaN(monthIndex) && monthIndex >= 0 && monthIndex <= 11) {
+	          const start = new Date(year, monthIndex, 1);
+	          const end = new Date(year, monthIndex + 1, 0);
+	          return { from: toYmd(start), to: toYmd(end) };
+	        }
+	      }
+
+	      return {
+	        from: customStart || "",
+	        to: customEnd || "",
+	      };
+	    }
+
+	    return { from: "", to: "" };
+	  };
+	
+	  const handleTableSort = (tableId, key, explicitDirection) => {
+	    if (!tableId || !key) return;
+	    setTableSort((prev) => {
       const current = prev[tableId] || { key: null, direction: SORT_DIRECTIONS.ASC };
       const nextDirection =
         explicitDirection ||
@@ -152,10 +520,11 @@ const maxDocumentFileSizeBytes = 25 * 1024 * 1024;
             ? SORT_DIRECTIONS.DESC
             : SORT_DIRECTIONS.ASC
           : SORT_DIRECTIONS.ASC);
-
-      return { ...prev, [tableId]: { key, direction: nextDirection } };
-    });
-  };
+	
+	      return { ...prev, [tableId]: { key, direction: nextDirection } };
+	    });
+	    setTablePageValue(tableId, 1);
+	  };
 
   const setTablePageValue = (tableId, nextPage) => {
     setTablePage((prev) => ({ ...prev, [tableId]: nextPage }));
@@ -326,6 +695,11 @@ const handleProthesisChange = (e) => {
   }
 };
 const handleEditProthesis = (p) => {
+  if (!assertPatientEditable()) return;
+  if (isProthesisCancelled(p)) {
+    toast.info("Prothèse annulée : lecture seule.");
+    return;
+  }
   const selected = prothesisCatalog.find((c) => c.id === Number(p.catalogId || ""));
   setProthesisQuery(selected?.name || "");
   setShowProthesisSuggestions(false);
@@ -344,24 +718,17 @@ const handleEditProthesis = (p) => {
 };
 const handleCancelAppointment = async (a) => {
   if (busyAppointmentStatusId === a.id) return;
+  if (!assertPatientEditable()) return;
   // Optionnel : Ajouter une confirmation simple
   if (!window.confirm("Voulez-vous vraiment annuler ce rendez-vous ?")) return;
 
   try {
     setBusyAppointmentStatusId(a.id);
-    // Backend expects AppointmentRequest shape; avoid spreading `a` (contains extra fields).
-    const payload = {
-      dateTimeStart: a.dateTimeStart,
-      dateTimeEnd: a.dateTimeEnd,
-      status: "CANCELLED",
-      notes: a.notes ?? null,
-      patientId: a.patient?.id ?? a.patientId,
-    };
-    const updatedAppointment = await updateAppointment(a.id, payload);
-
-    setAppointments(appointments.map(ap => 
-      ap.id === updatedAppointment.id ? updatedAppointment : ap
-    ));
+    await cancelAppointment(a.id);
+    setAppointments((prev) =>
+      prev.map((ap) => (ap.id === a.id ? { ...ap, status: "CANCELLED" } : ap))
+    );
+    bumpTabReload("appointments");
     toast.info("Rendez-vous annulé");
   } catch (err) {
     console.error(err);
@@ -372,6 +739,7 @@ const handleCancelAppointment = async (a) => {
 };
 const handleCompleteAppointment = async (a) => {
   if (busyAppointmentStatusId === a.id) return;
+  if (!assertPatientEditable()) return;
   try {
     setBusyAppointmentStatusId(a.id);
     // Backend expects AppointmentRequest shape; avoid spreading `a` (contains extra fields).
@@ -387,6 +755,7 @@ const handleCompleteAppointment = async (a) => {
     setAppointments(appointments.map(ap => 
       ap.id === updatedAppointment.id ? updatedAppointment : ap
     ));
+    bumpTabReload("appointments");
     toast.success("Rendez-vous terminé !");
   } catch (err) {
     console.error(err);
@@ -397,6 +766,11 @@ const handleCompleteAppointment = async (a) => {
 };
 const handleCompleteTreatment = async (t) => {
   if (busyTreatmentStatusId === t.id) return;
+  if (!assertPatientEditable()) return;
+  if (isTreatmentCancelled(t)) {
+    toast.info("Traitement annulé : lecture seule.");
+    return;
+  }
   try {
     setBusyTreatmentStatusId(t.id);
     // Backend expects TreatmentUpdateRequest fields only; avoid spreading `t` (contains extra fields).
@@ -410,6 +784,7 @@ const handleCompleteTreatment = async (t) => {
     setTreatments((prev) =>
       prev.map((item) => (item.id === updatedTreatment.id ? updatedTreatment : item))
     );
+    bumpTabReload("treatments");
     toast.success("Traitement terminé !");
   } catch (err) {
     console.error(err);
@@ -421,6 +796,11 @@ const handleCompleteTreatment = async (t) => {
 
 const handleStartTreatment = async (t) => {
   if (busyTreatmentStatusId === t.id) return;
+  if (!assertPatientEditable()) return;
+  if (isTreatmentCancelled(t)) {
+    toast.info("Traitement annulé : lecture seule.");
+    return;
+  }
   try {
     setBusyTreatmentStatusId(t.id);
     // Backend expects TreatmentUpdateRequest fields only; avoid spreading `t` (contains extra fields).
@@ -434,6 +814,7 @@ const handleStartTreatment = async (t) => {
     setTreatments((prev) =>
       prev.map((item) => (item.id === updatedTreatment.id ? updatedTreatment : item))
     );
+    bumpTabReload("treatments");
     toast.info("Traitement mis en cours");
   } catch (err) {
     console.error(err);
@@ -443,6 +824,7 @@ const handleStartTreatment = async (t) => {
   }
 };
 const handleQuickPrintJustification = async (template) => {
+  if (!assertPatientEditable()) return;
   try {
     toast.info("Génération automatique du document...");
     
@@ -460,6 +842,7 @@ const handleQuickPrintJustification = async (template) => {
     
     // 3. Update the list in the UI so the new justif appears in the tab
     setJustifications([saved, ...justifications]);
+    bumpTabReload("justifications");
     
     // 4. Download/Print the PDF
     await openJustificationPdfInNewTab(saved.id);
@@ -474,8 +857,8 @@ const handleQuickPrintJustification = async (template) => {
 
 const [showQrModal, setShowQrModal] = useState(false);
 const [qrLoading, setQrLoading] = useState(false);
-const [qrTtlSeconds, setQrTtlSeconds] = useState(null);
 const [publicDownloadUrl, setPublicDownloadUrl] = useState("");
+const [qrModalSize, setQrModalSize] = useState(300);
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 const [isDownloading, setIsDownloading] = useState(false);
 
@@ -490,27 +873,53 @@ const handleDownloadPdf = async () => {
   }
 };
 
+const closeQrModal = () => {
+  setShowQrModal(false);
+};
+
 const handleOpenQrModal = async () => {
+  if (!id) return;
   setShowQrModal(true);
   setQrLoading(true);
   setPublicDownloadUrl("");
+
   try {
     const data = await getPublicPatientFicheLink(id);
-    setQrTtlSeconds(data?.ttlSeconds ?? null);
     const patientPublicId = data?.patientPublicId ?? id;
     const token = data?.token;
-    if (!token) {
-      throw new Error("Missing token");
-    }
+    if (!token) throw new Error("Missing token");
     const url = `${API_URL}/api/public/patients/${patientPublicId}/fiche-pdf?token=${encodeURIComponent(token)}`;
     setPublicDownloadUrl(url);
   } catch (err) {
     console.error(err);
+    setPublicDownloadUrl("");
     toast.error(getApiErrorMessage(err, "Erreur lors de la génération du lien QR"));
   } finally {
     setQrLoading(false);
   }
 };
+
+useEffect(() => {
+  if (!showQrModal) return;
+
+  const compute = () => {
+    const safe = Math.max(180, Math.min(260, (window?.innerWidth ?? 380) - 220));
+    setQrModalSize(Math.floor(safe));
+  };
+
+  compute();
+  window.addEventListener("resize", compute);
+  return () => window.removeEventListener("resize", compute);
+}, [showQrModal]);
+
+useEffect(() => {
+  if (!showQrModal) return;
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") closeQrModal();
+  };
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
+}, [showQrModal]);
 const handlePrintJustification = async (justificationId, title) => {
   try {
     toast.info("Génération du PDF...");
@@ -671,6 +1080,7 @@ const handleDocumentDrop = (e) => {
 
 const handleSaveDocument = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
 
   const nextErrors = {};
   const titleError = validateText(documentForm.title, {
@@ -698,6 +1108,7 @@ const handleSaveDocument = async (e) => {
     });
 
     setDocuments((prev) => [savedDocument, ...prev]);
+    bumpTabReload("documents");
     setShowDocumentModal(false);
     resetDocumentForm();
     toast.success("Pièce jointe ajoutée");
@@ -728,35 +1139,7 @@ const handleOpenDocument = async (documentItem) => {
   }
 };
 
-const handleDeleteDocument = (documentItem) => {
-  setConfirmMessage("Voulez-vous supprimer cette pièce jointe ?");
-  setOnConfirmAction(() => async () => {
-    try {
-      await deleteDocument(documentItem.id);
-      setDocuments((prev) => prev.filter((item) => item.id !== documentItem.id));
-      toast.success("Pièce jointe supprimée");
-    } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
-    }
-  });
-  setShowConfirm(true);
-};
 
-const handleDeleteJustification = (j) => {
-  setConfirmMessage("Voulez-vous supprimer ce justificatif ?");
-  setOnConfirmAction(() => async () => {
-    try {
-      await deleteJustification(j.id);
-      setJustifications(justifications.filter(item => item.id !== j.id));
-      toast.success("Justificatif supprimé !");
-    } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
-    }
-  });
-  setShowConfirm(true);
-};
 
   const [treatments, setTreatments] = useState([]);
   const [treatmentCatalog, setTreatmentCatalog] = useState([]);
@@ -786,23 +1169,14 @@ const handleDeleteJustification = (j) => {
  });
  const [treatmentFieldErrors, setTreatmentFieldErrors] = useState({});
 
-const completedTreatments = useMemo(
-  () =>
-    treatments.filter((t) => {
-      const status = (t.status || "PLANNED").toUpperCase();
-      return status === "DONE" || status === "IN_PROGRESS";
-    }),
-  [treatments]
-);
-
-const plannedTreatments = useMemo(
-  () =>
-    treatments.filter((t) => {
-      const status = (t.status || "PLANNED").toUpperCase();
-      return status !== "DONE" && status !== "IN_PROGRESS";
-    }),
-  [treatments]
-);
+	const completedTreatments = useMemo(
+	  () =>
+	    treatments.filter((t) => {
+	      const status = (t.status || "PLANNED").toUpperCase();
+	      return status === "DONE" || status === "IN_PROGRESS";
+	    }),
+	  [treatments]
+	);
 
 useEffect(() => {
   if (treatmentForm.treatmentCatalogId) {
@@ -821,6 +1195,7 @@ useEffect(() => {
  
  const handleSaveProthesis = async (e) => {
    e.preventDefault();
+   if (!assertPatientEditable()) return;
    const nextErrors = {};
    if (!prothesisForm.catalogId) nextErrors.catalogId = "Veuillez sélectionner une prothèse dans le catalogue.";
    if (!Array.isArray(prothesisForm.teeth) || prothesisForm.teeth.length === 0) {
@@ -918,12 +1293,14 @@ useEffect(() => {
       // Refresh payments list
       const updatedPayments = await getPaymentsByPatient(id);
       setPayments(updatedPayments);
+      bumpTabReload("payments");
       toast.success("Versement auto ajouté !");
     }
 
      // 3. Refresh and Close
      const updatedProtheses = await getProtheticsByPatient(id);
      setProtheses(normalizeProtheses(updatedProtheses));
+     bumpTabReload("protheses");
      setShowProthesisModal(false);
   } catch (err) {
     toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
@@ -935,13 +1312,19 @@ useEffect(() => {
 
 
 const getNextProthesisStatus = (currentStatus) => {
+  if (String(currentStatus || "").toUpperCase() === "CANCELLED") return null;
   const currentIndex = prothesisStatusOrder.indexOf(currentStatus);
   if (currentIndex < 0) return prothesisStatusOrder[0] || null;
   if (currentIndex >= prothesisStatusOrder.length - 1) return null;
   return prothesisStatusOrder[currentIndex + 1] || null;
 };
 
- const handleDeleteProthetics = (prothesis) => {
+ const handleCancelProthetics = (prothesis) => {
+  if (!assertPatientEditable()) return;
+  if (isProthesisCancelled(prothesis)) {
+    toast.info("Prothèse déjà annulée.");
+    return;
+  }
   // Check if prothesis exists and has an id
   if (!prothesis || !prothesis.id) {
     toast.error("Erreur: ID de prothèse introuvable");
@@ -949,23 +1332,19 @@ const getNextProthesisStatus = (currentStatus) => {
   }
 
   // Use a local constant to "lock" the ID for the async call
-  const idToDelete = prothesis.id;
+  const idToCancel = prothesis.id;
 
-  setConfirmMessage(`Voulez-vous supprimer la prothèse : ${prothesis.prothesisName} ?`);
+  setConfirmMessage(`Voulez-vous vraiment annuler la prothèse : ${prothesis.prothesisName} ?`);
   
   setOnConfirmAction(() => async () => {
     try {
-      // Use the locked ID here
-      await deleteProthetics(idToDelete);
-      
-      // Update the UI
-      setProtheses(prev => prev.filter((p) => p.id !== idToDelete));
-      
-      toast.success("Prothèse supprimée");
-      setShowConfirm(false); 
+      const cancelled = await cancelProthetics(idToCancel);
+      setProtheses((prev) => prev.map((p) => (p.id === cancelled.id ? cancelled : p)));
+      bumpTabReload("protheses");
+      toast.info("Prothèse annulée");
     } catch (err) {
-      console.error("Delete Error:", err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
+      console.error("Cancel Error:", err);
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
     }
   });
 
@@ -975,6 +1354,11 @@ const getNextProthesisStatus = (currentStatus) => {
 
  const handleCycleProthesisStatus = async (p, explicitNextStatus) => {
    if (busyProthesisStatusId === p.id) return;
+   if (!assertPatientEditable()) return;
+   if (isProthesisCancelled(p)) {
+     toast.info("Prothèse annulée : lecture seule.");
+     return;
+   }
   const nextStatus = explicitNextStatus || getNextProthesisStatus(p.status || prothesisStatusOrder[0]);
   if (!nextStatus) return;
  
@@ -982,6 +1366,7 @@ const getNextProthesisStatus = (currentStatus) => {
      setBusyProthesisStatusId(p.id);
      const updated = await updateProtheticsStatus(p.id, nextStatus);
      setProtheses((prev) => prev.map((item) => (item.id === p.id ? updated : item)));
+     bumpTabReload("protheses");
     toast.success(`Statut mis a jour: ${prothesisStatusLabels[nextStatus] || nextStatus}`);
   } catch (err) {
     console.error(err);
@@ -999,6 +1384,7 @@ const getNextProthesisStatus = (currentStatus) => {
 
 const handleAssignProthesisToLab = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
   if (!prothesisSendToLabTarget?.id) return;
   if (isSendingProthesisToLab) return;
 
@@ -1027,6 +1413,7 @@ const handleAssignProthesisToLab = async (e) => {
     setProtheses((prev) =>
       prev.map((item) => (item.id === prothesisSendToLabTarget.id ? updated : item))
     );
+    bumpTabReload("protheses");
     toast.success("Envoye au laboratoire avec succes");
     closeProthesisSendToLabModal();
   } catch (err) {
@@ -1096,6 +1483,29 @@ const [formData, setFormData] = useState({
   phone: "",
 });
 const [patientFieldErrors, setPatientFieldErrors] = useState({});
+
+// --- MEDICAL CATALOG PICKERS (Maladies/Allergies) ---
+const [showDiseasePicker, setShowDiseasePicker] = useState(false);
+const [showAllergyPicker, setShowAllergyPicker] = useState(false);
+const [diseaseCatalog, setDiseaseCatalog] = useState([]);
+const [allergyCatalog, setAllergyCatalog] = useState([]);
+const [diseaseSearch, setDiseaseSearch] = useState("");
+const [allergySearch, setAllergySearch] = useState("");
+const [isLoadingDiseaseCatalog, setIsLoadingDiseaseCatalog] = useState(false);
+const [isLoadingAllergyCatalog, setIsLoadingAllergyCatalog] = useState(false);
+const [isSavingMedical, setIsSavingMedical] = useState(false);
+const [isCreatingMedicalCatalog, setIsCreatingMedicalCatalog] = useState(false);
+const [showDiseaseSuggestions, setShowDiseaseSuggestions] = useState(false);
+const [showAllergySuggestions, setShowAllergySuggestions] = useState(false);
+
+const bestDiseaseSuggestions = useMemo(
+  () => getBestMedicalMatches(diseaseCatalog, diseaseSearch, 2),
+  [diseaseCatalog, diseaseSearch]
+);
+const bestAllergySuggestions = useMemo(
+  () => getBestMedicalMatches(allergyCatalog, allergySearch, 2),
+  [allergyCatalog, allergySearch]
+);
 
 
 const openJustificationModal = async () => {
@@ -1179,78 +1589,6 @@ const openProthesisSendToLabModal = (p) => {
    return Number.isNaN(date.getTime()) ? null : date;
  };
 
- const normalizeText = (value) =>
-   String(value ?? "")
-     .toLowerCase()
-     .normalize("NFD")
-     .replace(/[\u0300-\u036f]/g, "")
-     .trim();
-
- const isSameLocalDay = (a, b) =>
-   a &&
-   b &&
-   a.getFullYear() === b.getFullYear() &&
-   a.getMonth() === b.getMonth() &&
-   a.getDate() === b.getDate();
-
- const applyListFilters = (items, config, filters) => {
-   const list = Array.isArray(items) ? items : [];
-   const search = normalizeText(filters?.search);
-   const selectedFilter = filters?.selectedFilter || "all";
-   const selectedMonth = filters?.selectedMonth || "";
-   const customStart = filters?.customRange?.start || "";
-   const customEnd = filters?.customRange?.end || "";
-   const statusValue = String(filters?.status || "");
-   const filterBy = filters?.filterBy || (config?.defaultFilterBy ?? "");
-
-   const today = new Date();
-   const todayKey = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-   let rangeStart = null;
-   let rangeEnd = null;
-   if (customStart) rangeStart = parseDateValue(customStart);
-   if (customEnd) {
-     const endDate = parseDateValue(customEnd);
-     if (endDate) rangeEnd = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
-   }
-
-   const monthMatch = selectedMonth.match(/^(\d{4})-(\d{2})$/);
-   const monthYear = monthMatch ? Number(monthMatch[1]) : null;
-   const monthIndex = monthMatch ? Number(monthMatch[2]) - 1 : null;
-
-   return list.filter((item) => {
-     if (statusValue && config?.getStatus) {
-       const itemStatus = String(config.getStatus(item) || "");
-       if (itemStatus !== statusValue) return false;
-     }
-
-     if (search) {
-       const getter =
-         (config?.searchGetters && config.searchGetters[filterBy]) ||
-         (config?.searchGetters && config.searchGetters[config.defaultFilterBy]);
-       const hay = normalizeText(getter ? getter(item) : "");
-       if (!hay.includes(search)) return false;
-     }
-
-     if (selectedFilter !== "all" && config?.getDate) {
-       const d = parseDateValue(config.getDate(item));
-       if (!d) return false;
-
-       if (selectedFilter === "today") {
-         if (!isSameLocalDay(d, todayKey)) return false;
-       } else if (selectedFilter === "custom") {
-         if (monthYear != null && monthIndex != null) {
-           if (d.getFullYear() !== monthYear || d.getMonth() !== monthIndex) return false;
-         } else {
-           if (rangeStart && d < rangeStart) return false;
-           if (rangeEnd && d > rangeEnd) return false;
-         }
-       }
-     }
-
-     return true;
-   });
- };
   const hourBounds24 = useMemo(() => {
     const earliest = Math.floor(workingHours.startMinutes / 60);
     const latest = Math.floor((workingHours.endMinutes - 1) / 60);
@@ -1348,6 +1686,212 @@ const paymentMethodLabels = {
   CHECK: "Chèque",
   OTHER: "Autre"
 };
+
+const splitMedicalList = (value) => {
+  const entries = String(value ?? "")
+    .split(/[\n,;]+/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  const unique = [];
+  for (const entry of entries) {
+    const key = entry.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(entry);
+  }
+  return unique;
+};
+
+const normalizeMedicalField = (value) => String(value ?? "").trim();
+const joinMedicalList = (entries) => {
+  const cleaned = (Array.isArray(entries) ? entries : [])
+    .map((e) => String(e ?? "").trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  const unique = [];
+  for (const entry of cleaned) {
+    const key = entry.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(entry);
+  }
+
+  return unique.join("\n");
+};
+
+function getBestMedicalMatches(catalog, query, limit = 2) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return [];
+
+  const items = Array.isArray(catalog) ? catalog : [];
+  const scored = items
+    .map((item) => {
+      const name = String(item?.name || "").trim();
+      const lower = name.toLowerCase();
+      const idx = lower.indexOf(q);
+      if (!name || idx < 0) return null;
+      const starts = idx === 0;
+      return { item, name, starts, idx };
+    })
+    .filter(Boolean);
+
+  scored.sort((a, b) => {
+    if (a.starts !== b.starts) return a.starts ? -1 : 1;
+    if (a.idx !== b.idx) return a.idx - b.idx;
+    return a.name.localeCompare(b.name, "fr", { sensitivity: "base" });
+  });
+
+  return scored.slice(0, Math.max(1, limit)).map((s) => s.item);
+}
+
+const loadDiseaseCatalog = async () => {
+  if (isLoadingDiseaseCatalog) return;
+  try {
+    setIsLoadingDiseaseCatalog(true);
+    const data = await getAllDiseaseCatalog();
+    setDiseaseCatalog(Array.isArray(data) ? data : []);
+  } catch (err) {
+    toast.error(getApiErrorMessage(err, "Erreur lors du chargement du catalogue des maladies"));
+  } finally {
+    setIsLoadingDiseaseCatalog(false);
+  }
+};
+
+const loadAllergyCatalog = async () => {
+  if (isLoadingAllergyCatalog) return;
+  try {
+    setIsLoadingAllergyCatalog(true);
+    const data = await getAllAllergyCatalog();
+    setAllergyCatalog(Array.isArray(data) ? data : []);
+  } catch (err) {
+    toast.error(getApiErrorMessage(err, "Erreur lors du chargement du catalogue des allergies"));
+  } finally {
+    setIsLoadingAllergyCatalog(false);
+  }
+};
+
+const openDiseasePicker = async () => {
+  if (!assertPatientEditable()) return;
+  setDiseaseSearch("");
+  setShowDiseaseSuggestions(false);
+  setShowDiseasePicker(true);
+  await loadDiseaseCatalog();
+};
+
+const openAllergyPicker = async () => {
+  if (!assertPatientEditable()) return;
+  setAllergySearch("");
+  setShowAllergySuggestions(false);
+  setShowAllergyPicker(true);
+  await loadAllergyCatalog();
+};
+
+const closeDiseasePicker = () => {
+  setShowDiseasePicker(false);
+  setDiseaseSearch("");
+  setShowDiseaseSuggestions(false);
+};
+
+const closeAllergyPicker = () => {
+  setShowAllergyPicker(false);
+  setAllergySearch("");
+  setShowAllergySuggestions(false);
+};
+
+const addMedicalEntry = async (field, entry) => {
+  if (!assertPatientEditable()) return;
+  if (!patient?.id) return;
+  const value = String(entry ?? "").trim();
+  if (!value) return;
+
+  const currentEntries = splitMedicalList(patient[field]);
+  const exists = currentEntries.some((e) => e.toLowerCase() === value.toLowerCase());
+  if (exists) {
+    toast.info("Déjà ajouté");
+    return;
+  }
+
+  try {
+    setIsSavingMedical(true);
+    const next = joinMedicalList([...currentEntries, value]);
+    const updated = await updatePatient(patient.id, { [field]: next });
+    setPatient(updated);
+    toast.success("Ajouté");
+  } catch (err) {
+    toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du patient"));
+  } finally {
+    setIsSavingMedical(false);
+  }
+};
+
+const removeMedicalEntry = async (field, entry) => {
+  if (!assertPatientEditable()) return;
+  if (!patient?.id) return;
+  const value = String(entry ?? "").trim();
+  if (!value) return;
+
+  const currentEntries = splitMedicalList(patient[field]);
+  const remaining = currentEntries.filter((e) => e.toLowerCase() !== value.toLowerCase());
+
+  try {
+    setIsSavingMedical(true);
+    const next = joinMedicalList(remaining);
+    const updated = await updatePatient(patient.id, { [field]: next });
+    setPatient(updated);
+    toast.success("Supprimé");
+  } catch (err) {
+    toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du patient"));
+  } finally {
+    setIsSavingMedical(false);
+  }
+};
+
+const handleCreateDiseaseFromSearch = async () => {
+  if (!assertPatientEditable()) return;
+  const name = String(diseaseSearch || "").trim();
+  if (!name) return;
+  if (isCreatingMedicalCatalog) return;
+  let created = false;
+  try {
+    setIsCreatingMedicalCatalog(true);
+    const saved = await createDiseaseCatalogItem({ name });
+    setDiseaseCatalog((prev) => [...(Array.isArray(prev) ? prev : []), saved]);
+    created = true;
+  } catch (err) {
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout au catalogue"));
+  } finally {
+    setIsCreatingMedicalCatalog(false);
+  }
+
+  if (!created) return;
+  await addMedicalEntry("diseases", name);
+  closeDiseasePicker();
+};
+
+const handleCreateAllergyFromSearch = async () => {
+  if (!assertPatientEditable()) return;
+  const name = String(allergySearch || "").trim();
+  if (!name) return;
+  if (isCreatingMedicalCatalog) return;
+  let created = false;
+  try {
+    setIsCreatingMedicalCatalog(true);
+    const saved = await createAllergyCatalogItem({ name });
+    setAllergyCatalog((prev) => [...(Array.isArray(prev) ? prev : []), saved]);
+    created = true;
+  } catch (err) {
+    toast.error(getApiErrorMessage(err, "Erreur lors de l'ajout au catalogue"));
+  } finally {
+    setIsCreatingMedicalCatalog(false);
+  }
+
+  if (!created) return;
+  await addMedicalEntry("allergies", name);
+  closeAllergyPicker();
+};
 // --- FORM HANDLERS ---
 const handleChange = (e) => {
   const { name, value } = e.target;
@@ -1357,6 +1901,7 @@ const handleChange = (e) => {
 
 const handleSubmit = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
 
   const nextErrors = {};
 
@@ -1379,8 +1924,9 @@ const handleSubmit = async (e) => {
   const ageError = validateAge(formData.age);
   if (ageError) nextErrors.age = ageError;
 
-  if (!String(formData.phone || "").trim()) nextErrors.phone = "Le numéro de téléphone est obligatoire.";
-  else if (!isValidPhoneNumber(formData.phone)) nextErrors.phone = "Numéro de téléphone invalide.";
+  if (String(formData.phone || "").trim() && !isValidPhoneNumber(formData.phone)) {
+    nextErrors.phone = "Numéro de téléphone invalide.";
+  }
 
   if (!String(formData.sex || "").trim()) nextErrors.sex = "Le sexe est obligatoire.";
 
@@ -1400,6 +1946,7 @@ const handleSubmit = async (e) => {
         sex: String(formData.sex ?? "").trim() || null,
         phone: normalizePhoneInput(formData.phone),
       };
+
       const updated = await updatePatient(patient.id, payload);
       setPatient(updated);
       toast.success("Patient mis à jour !");
@@ -1456,46 +2003,40 @@ const handleSubmit = async (e) => {
  const totalTreatment = completedTreatments?.reduce((sum, t) => sum + Number(t.price || 0), 0);
 
 // Sum of prothesis finalPrice
- const totalProthesis = protheses?.reduce((sum, p) => sum + Number(p.finalPrice || 0), 0);
+ const totalProthesis = protheses?.reduce((sum, p) => {
+  if (isProthesisCancelled(p)) return sum;
+  return sum + Number(p.finalPrice || 0);
+ }, 0);
 
 // Total facture = treatments + prothesis
 const totalFacture = totalTreatment + totalProthesis;
 
 // Sum of payments
-const totalPaiement = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+const totalPaiement = payments?.reduce((sum, p) => (isPaymentCancelled(p) ? sum : sum + Number(p.amount || 0)), 0);
 
 // Remaining balance
 const totalReste = totalFacture - totalPaiement;
 const hasCredit = totalReste < 0;
 const displayReste = Math.abs(totalReste);
 
-const sortedPayments = useMemo(
-  () => [...payments].sort((a, b) => new Date(b.date || b.paymentDate || 0) - new Date(a.date || a.paymentDate || 0)),
-  [payments]
-);
+	 const monthsList = useMemo(
+	   () =>
+	     Array.from({ length: 12 }).map((_, i) => {
+	       const date = new Date();
+	       date.setMonth(date.getMonth() - i);
+	       const monthStr = String(date.getMonth() + 1).padStart(2, "0");
+	       const label = formatMonthYearByPreference(date);
+	       return {
+	         label: label ? label.charAt(0).toUpperCase() + label.slice(1) : "",
+	         value: `${date.getFullYear()}-${monthStr}`,
+	       };
+	     }),
+	   []
+	 );
 
- const sortedAppointments = useMemo(
-   () =>
-     [...appointments].sort(
-       (a, b) => new Date(b.dateTimeStart || 0) - new Date(a.dateTimeStart || 0)
-     ),
-   [appointments]
- );
-
- const monthsList = Array.from({ length: 12 }).map((_, i) => {
-   const date = new Date();
-   date.setMonth(date.getMonth() - i);
-   const monthStr = String(date.getMonth() + 1).padStart(2, "0");
-   const label = formatMonthYearByPreference(date);
-   return {
-     label: label ? label.charAt(0).toUpperCase() + label.slice(1) : "",
-     value: `${date.getFullYear()}-${monthStr}`,
-   };
- });
-
- const tabFilterConfig = {
-   treatments: {
-     defaultFilterBy: "name",
+	 const tabFilterConfig = {
+	   treatments: {
+	     defaultFilterBy: "name",
      filterByOptions: [
        { value: "name", label: "Par Nom" },
        { value: "notes", label: "Par Notes" },
@@ -1590,535 +2131,342 @@ const sortedPayments = useMemo(
      },
      getDate: (d) => d?.uploadedAt || d?.createdAt,
    },
- };
+		 };
 
- const filteredPlannedTreatments = useMemo(
-   () => applyListFilters(plannedTreatments, tabFilterConfig.treatments, tabFilters.treatments),
-   [plannedTreatments, tabFilters.treatments]
- );
+			 const debouncedTreatmentsFilters = useDebouncedTabFilters(tabFilters.treatments);
+			 useResetTablePageOnFilterChange("treatments", tabFilters.treatments, setTablePage);
 
- const filteredCompletedTreatments = useMemo(
-   () => applyListFilters(completedTreatments, tabFilterConfig.treatments, tabFilters.treatments),
-   [completedTreatments, tabFilters.treatments]
- );
+	 const debouncedProthesesFilters = useDebouncedTabFilters(tabFilters.protheses);
+	 useResetTablePageOnFilterChange("protheses", tabFilters.protheses, setTablePage);
+	
+	 const debouncedPaymentsFilters = useDebouncedTabFilters(tabFilters.payments);
+	 useResetTablePageOnFilterChange("payments", tabFilters.payments, setTablePage);
 
- const filteredProtheses = useMemo(
-   () => applyListFilters(protheses, tabFilterConfig.protheses, tabFilters.protheses),
-   [protheses, tabFilters.protheses]
- );
+	 const debouncedAppointmentsFilters = useDebouncedTabFilters(tabFilters.appointments);
+	 useResetTablePageOnFilterChange("appointments", tabFilters.appointments, setTablePage);
 
- const filteredPayments = useMemo(
-   () => applyListFilters(sortedPayments, tabFilterConfig.payments, tabFilters.payments),
-   [sortedPayments, tabFilters.payments]
- );
+	 const debouncedPrescriptionsFilters = useDebouncedTabFilters(tabFilters.prescriptions);
+	 useResetTablePageOnFilterChange("prescriptions", tabFilters.prescriptions, setTablePage);
 
- const filteredAppointments = useMemo(
-   () => applyListFilters(sortedAppointments, tabFilterConfig.appointments, tabFilters.appointments),
-   [sortedAppointments, tabFilters.appointments]
- );
+	 const debouncedJustificationsFilters = useDebouncedTabFilters(tabFilters.justifications);
+	 useResetTablePageOnFilterChange("justifications", tabFilters.justifications, setTablePage);
 
- const filteredOrdonnances = useMemo(
-   () => applyListFilters(ordonnances, tabFilterConfig.prescriptions, tabFilters.prescriptions),
-   [ordonnances, tabFilters.prescriptions]
- );
+	 const debouncedDocumentsFilters = useDebouncedTabFilters(tabFilters.documents);
+	 useResetTablePageOnFilterChange("documents", tabFilters.documents, setTablePage);
 
- const filteredJustifications = useMemo(
-   () => applyListFilters(justifications, tabFilterConfig.justifications, tabFilters.justifications),
-   [justifications, tabFilters.justifications]
- );
+	 const loadTabPage = async (tabKey, fetchFn, filters, sortCfg, currentPage1Based, isCancelled) => {
+	   const priorItems = tabServerPage?.[tabKey]?.items || [];
+	   updateTabServerPage(tabKey, {
+	     loading: priorItems.length === 0,
+	     refreshing: priorItems.length > 0,
+	   });
 
- const filteredDocuments = useMemo(
-   () => applyListFilters(documents, tabFilterConfig.documents, tabFilters.documents),
-   [documents, tabFilters.documents]
- );
+	   const { from, to } = resolveDateRangeParams(filters);
+	   const sortKey = sortCfg?.key || undefined;
+	   const sortDirection = sortKey ? sortCfg?.direction : undefined;
 
- const sortedPlannedTreatments = useMemo(() => {
-   const cfg = tableSort.plannedTreatments;
-   if (!cfg?.key) return filteredPlannedTreatments;
-   return sortRowsBy(
-     filteredPlannedTreatments,
-     (t) => {
-       switch (cfg.key) {
-         case "name":
-           return t?.treatmentCatalog?.name || "";
-         case "teeth":
-           return t?.teeth?.length ? t.teeth.join(",") : null;
-         case "date":
-           return t?.date || null;
-         case "notes":
-           return t?.notes || "";
-         default:
-           return null;
-       }
-     },
-     cfg.direction
-   );
- }, [filteredPlannedTreatments, tableSort.plannedTreatments]);
+	   const pageResp = await fetchFn({
+	     patientId: id,
+	     page: Math.max(0, (currentPage1Based || 1) - 1),
+	     size: rowsPerPage,
+	     q: filters?.search || undefined,
+	     field: filters?.filterBy || undefined,
+	     status: filters?.status || undefined,
+	     from: from || undefined,
+	     to: to || undefined,
+	     sortKey,
+	     sortDirection,
+	   });
 
- const sortedCompletedTreatments = useMemo(() => {
-   const cfg = tableSort.completedTreatments;
-   if (!cfg?.key) return filteredCompletedTreatments;
-   return sortRowsBy(
-     filteredCompletedTreatments,
-     (t) => {
-       switch (cfg.key) {
-         case "name":
-           return t?.treatmentCatalog?.name || "";
-         case "teeth":
-           return t?.teeth?.length ? t.teeth.join(",") : null;
-          case "date":
-            return t?.date || null;
-          case "price":
-            return Number(t?.price || 0);
-          case "notes":
-            return t?.notes || "";
-          case "status":
-            return treatmentStatusLabels[t?.status] || t?.status || "";
-         case "updatedAt":
-           return t?.updatedAt || t?.date || null;
-         default:
-           return null;
-       }
-     },
-     cfg.direction
-   );
- }, [filteredCompletedTreatments, tableSort.completedTreatments]);
+	   if (isCancelled()) return;
 
- const sortedProtheses = useMemo(() => {
-   const cfg = tableSort.protheses;
-   if (!cfg?.key) return filteredProtheses;
-   return sortRowsBy(
-     filteredProtheses,
-     (p) => {
-       switch (cfg.key) {
-         case "type":
-           return p?.prothesisName || "";
-         case "teeth":
-           return p?.teeth?.length ? p.teeth.join(",") : null;
-         case "material":
-           return p?.materialName || "";
-          case "date":
-            return p?.dateCreated || p?.createdAt || p?.updatedAt || null;
-          case "price":
-            return Number(p?.finalPrice || 0);
-          case "status":
-            return prothesisStatusLabels[p?.status] || p?.status || "";
-          default:
-            return null;
-        }
-      },
-      cfg.direction
-    );
-  }, [filteredProtheses, tableSort.protheses]);
+	   const nextTotalPages = Number(pageResp?.totalPages || 0);
+	   const nextItems = Array.isArray(pageResp?.items) ? pageResp.items : [];
 
- const sortedPaymentsTable = useMemo(() => {
-   const cfg = tableSort.payments;
-   if (!cfg?.key) return filteredPayments;
-   return sortRowsBy(
-     filteredPayments,
-     (p) => {
-       switch (cfg.key) {
-         case "amount":
-           return Number(p?.amount || 0);
-         case "method":
-           return paymentMethodLabels[p?.method] || p?.method || "";
-         case "date":
-           return p?.date || p?.paymentDate || p?.createdAt || null;
-         default:
-           return null;
-       }
-     },
-     cfg.direction
-   );
- }, [filteredPayments, tableSort.payments]);
+	   updateTabServerPage(tabKey, {
+	     items: nextItems,
+	     totalPages: nextTotalPages,
+	     totalElements: Number(pageResp?.totalElements || 0),
+	     loading: false,
+	     refreshing: false,
+	   });
 
- const sortedAppointmentsTable = useMemo(() => {
-   const cfg = tableSort.appointments;
-   if (!cfg?.key) return filteredAppointments;
-   return sortRowsBy(
-     filteredAppointments,
-     (a) => {
-       switch (cfg.key) {
-         case "date":
-           return a?.dateTimeStart || null;
-         case "time": {
-           if (!a?.dateTimeStart) return null;
-           const dt = new Date(a.dateTimeStart);
-           return Number.isNaN(dt.getTime()) ? null : dt.getHours() * 60 + dt.getMinutes();
-         }
-         case "notes":
-           return a?.notes || "";
-         case "status":
-           return statusLabels[a?.status] || a?.status || "";
-         default:
-           return null;
-       }
-     },
-     cfg.direction
-   );
- }, [filteredAppointments, tableSort.appointments]);
+	   const maxPage = nextTotalPages > 0 ? nextTotalPages : 1;
+	   if ((currentPage1Based || 1) > maxPage) {
+	     setTablePageValue(tabKey, maxPage);
+	   }
+	 };
 
- const sortedJustifications = useMemo(() => {
-   const cfg = tableSort.justifications;
-   if (!cfg?.key) return filteredJustifications;
-   return sortRowsBy(
-     filteredJustifications,
-     (j) => {
-       switch (cfg.key) {
-         case "title":
-           return j?.title || "";
-         case "date":
-           return j?.createdAt || j?.date || null;
-         default:
-           return null;
-       }
-     },
-     cfg.direction
-   );
- }, [filteredJustifications, tableSort.justifications]);
+	 useEffect(() => {
+	   if (!id) return;
+	   if (activeTab !== "treatments") return;
+	   let cancelled = false;
+	   loadTabPage(
+	     "treatments",
+	     getTreatmentsByPatientPage,
+	     debouncedTreatmentsFilters,
+	     tableSort.treatments,
+	     tablePage.treatments,
+	     () => cancelled
+	   ).catch((err) => {
+	     console.error(err);
+	     if (cancelled) return;
+	     updateTabServerPage("treatments", { loading: false, refreshing: false });
+	     toast.error(getApiErrorMessage(err, "Erreur lors du chargement des traitements"));
+	   });
+	   return () => {
+	     cancelled = true;
+	   };
+	 }, [
+	   activeTab,
+	   id,
+	   rowsPerPage,
+	   tablePage.treatments,
+	   tableSort.treatments?.key,
+	   tableSort.treatments?.direction,
+	   debouncedTreatmentsFilters,
+	   tabReloadToken.treatments,
+	 ]);
 
- const sortedDocuments = useMemo(() => {
-   const cfg = tableSort.documents;
-   if (!cfg?.key) return filteredDocuments;
-   return sortRowsBy(
-     filteredDocuments,
-     (d) => {
-       switch (cfg.key) {
-         case "title":
-           return d?.title || d?.filename || "";
-         case "date":
-           return d?.uploadedAt || d?.createdAt || null;
-         default:
-           return null;
-       }
-     },
-     cfg.direction
-   );
- }, [filteredDocuments, tableSort.documents]);
+	 useEffect(() => {
+	   if (!id) return;
+	   if (activeTab !== "protheses") return;
+	   let cancelled = false;
+	   loadTabPage(
+	     "protheses",
+	     getProtheticsByPatientPage,
+	     debouncedProthesesFilters,
+	     tableSort.protheses,
+	     tablePage.protheses,
+	     () => cancelled
+	   ).catch((err) => {
+	     console.error(err);
+	     if (cancelled) return;
+	     updateTabServerPage("protheses", { loading: false, refreshing: false });
+	     toast.error(getApiErrorMessage(err, "Erreur lors du chargement des prothèses"));
+	   });
+	   return () => {
+	     cancelled = true;
+	   };
+	 }, [
+	   activeTab,
+	   id,
+	   rowsPerPage,
+	   tablePage.protheses,
+	   tableSort.protheses?.key,
+	   tableSort.protheses?.direction,
+	   debouncedProthesesFilters,
+	   tabReloadToken.protheses,
+	 ]);
 
- const sortedOrdonnances = useMemo(() => {
-   const cfg = tableSort.prescriptions;
-   if (!cfg?.key) return filteredOrdonnances;
-   return sortRowsBy(
-     filteredOrdonnances,
-     (o) => {
-       switch (cfg.key) {
-         case "rxId":
-           return o?.rxId || "";
-         case "date":
-           return o?.date || null;
-         default:
-           return null;
-       }
-     },
-     cfg.direction
-   );
- }, [filteredOrdonnances, tableSort.prescriptions]);
+	 useEffect(() => {
+	   if (!id) return;
+	   if (activeTab !== "payments") return;
+	   let cancelled = false;
+	   loadTabPage(
+	     "payments",
+	     getPaymentsByPatientPage,
+	     debouncedPaymentsFilters,
+	     tableSort.payments,
+	     tablePage.payments,
+	     () => cancelled
+	   ).catch((err) => {
+	     console.error(err);
+	     if (cancelled) return;
+	     updateTabServerPage("payments", { loading: false, refreshing: false });
+	     toast.error(getApiErrorMessage(err, "Erreur lors du chargement des versements"));
+	   });
+	   return () => {
+	     cancelled = true;
+	   };
+	 }, [
+	   activeTab,
+	   id,
+	   rowsPerPage,
+	   tablePage.payments,
+	   tableSort.payments?.key,
+	   tableSort.payments?.direction,
+	   debouncedPaymentsFilters,
+	   tabReloadToken.payments,
+	 ]);
 
- const plannedTotalPages = Math.ceil(sortedPlannedTreatments.length / rowsPerPage);
- const plannedPage = Math.min(tablePage.plannedTreatments, plannedTotalPages || 1);
- const pagedPlannedTreatments = sortedPlannedTreatments.slice(
-   (plannedPage - 1) * rowsPerPage,
-   plannedPage * rowsPerPage
- );
+	 useEffect(() => {
+	   if (!id) return;
+	   if (activeTab !== "appointments") return;
+	   let cancelled = false;
+	   loadTabPage(
+	     "appointments",
+	     getAppointmentsByPatientPage,
+	     debouncedAppointmentsFilters,
+	     tableSort.appointments,
+	     tablePage.appointments,
+	     () => cancelled
+	   ).catch((err) => {
+	     console.error(err);
+	     if (cancelled) return;
+	     updateTabServerPage("appointments", { loading: false, refreshing: false });
+	     toast.error(getApiErrorMessage(err, "Erreur lors du chargement des rendez-vous"));
+	   });
+	   return () => {
+	     cancelled = true;
+	   };
+	 }, [
+	   activeTab,
+	   id,
+	   rowsPerPage,
+	   tablePage.appointments,
+	   tableSort.appointments?.key,
+	   tableSort.appointments?.direction,
+	   debouncedAppointmentsFilters,
+	   tabReloadToken.appointments,
+	 ]);
 
- const completedTotalPages = Math.ceil(sortedCompletedTreatments.length / rowsPerPage);
- const completedPage = Math.min(tablePage.completedTreatments, completedTotalPages || 1);
- const pagedCompletedTreatments = sortedCompletedTreatments.slice(
-   (completedPage - 1) * rowsPerPage,
-   completedPage * rowsPerPage
- );
+	 useEffect(() => {
+	   if (!id) return;
+	   if (activeTab !== "prescriptions") return;
+	   let cancelled = false;
+	   loadTabPage(
+	     "prescriptions",
+	     getPrescriptionsByPatientPage,
+	     debouncedPrescriptionsFilters,
+	     tableSort.prescriptions,
+	     tablePage.prescriptions,
+	     () => cancelled
+	   ).catch((err) => {
+	     console.error(err);
+	     if (cancelled) return;
+	     updateTabServerPage("prescriptions", { loading: false, refreshing: false });
+	     toast.error(getApiErrorMessage(err, "Erreur lors du chargement des ordonnances"));
+	   });
+	   return () => {
+	     cancelled = true;
+	   };
+	 }, [
+	   activeTab,
+	   id,
+	   rowsPerPage,
+	   tablePage.prescriptions,
+	   tableSort.prescriptions?.key,
+	   tableSort.prescriptions?.direction,
+	   debouncedPrescriptionsFilters,
+	   tabReloadToken.prescriptions,
+	 ]);
 
- const prothesesTotalPages = Math.ceil(sortedProtheses.length / rowsPerPage);
- const prothesesPage = Math.min(tablePage.protheses, prothesesTotalPages || 1);
- const pagedProtheses = sortedProtheses.slice((prothesesPage - 1) * rowsPerPage, prothesesPage * rowsPerPage);
+	 useEffect(() => {
+	   if (!id) return;
+	   if (activeTab !== "justifications") return;
+	   let cancelled = false;
+	   loadTabPage(
+	     "justifications",
+	     getJustificationsByPatientPage,
+	     debouncedJustificationsFilters,
+	     tableSort.justifications,
+	     tablePage.justifications,
+	     () => cancelled
+	   ).catch((err) => {
+	     console.error(err);
+	     if (cancelled) return;
+	     updateTabServerPage("justifications", { loading: false, refreshing: false });
+	     toast.error(getApiErrorMessage(err, "Erreur lors du chargement des justificatifs"));
+	   });
+	   return () => {
+	     cancelled = true;
+	   };
+	 }, [
+	   activeTab,
+	   id,
+	   rowsPerPage,
+	   tablePage.justifications,
+	   tableSort.justifications?.key,
+	   tableSort.justifications?.direction,
+	   debouncedJustificationsFilters,
+	   tabReloadToken.justifications,
+	 ]);
 
- const paymentsTotalPages = Math.ceil(sortedPaymentsTable.length / rowsPerPage);
- const paymentsPage = Math.min(tablePage.payments, paymentsTotalPages || 1);
- const pagedPayments = sortedPaymentsTable.slice((paymentsPage - 1) * rowsPerPage, paymentsPage * rowsPerPage);
+	 useEffect(() => {
+	   if (!id) return;
+	   if (activeTab !== "documents") return;
+	   let cancelled = false;
+	   loadTabPage(
+	     "documents",
+	     getDocumentsByPatientPage,
+	     debouncedDocumentsFilters,
+	     tableSort.documents,
+	     tablePage.documents,
+	     () => cancelled
+	   ).catch((err) => {
+	     console.error(err);
+	     if (cancelled) return;
+	     updateTabServerPage("documents", { loading: false, refreshing: false });
+	     toast.error(getApiErrorMessage(err, "Erreur lors du chargement des pièces jointes"));
+	   });
+	   return () => {
+	     cancelled = true;
+	   };
+	 }, [
+	   activeTab,
+	   id,
+	   rowsPerPage,
+	   tablePage.documents,
+	   tableSort.documents?.key,
+	   tableSort.documents?.direction,
+	   debouncedDocumentsFilters,
+	   tabReloadToken.documents,
+	 ]);
 
- const appointmentsTotalPages = Math.ceil(sortedAppointmentsTable.length / rowsPerPage);
- const appointmentsPage = Math.min(tablePage.appointments, appointmentsTotalPages || 1);
- const pagedAppointments = sortedAppointmentsTable.slice(
-   (appointmentsPage - 1) * rowsPerPage,
-   appointmentsPage * rowsPerPage
- );
+	 const treatmentsTotalPages = tabServerPage.treatments?.totalPages || 0;
+	 const treatmentsPage = Math.min(tablePage.treatments, treatmentsTotalPages || 1);
+	 const pagedTreatments = tabServerPage.treatments?.items || [];
 
- const justificationsTotalPages = Math.ceil(sortedJustifications.length / rowsPerPage);
- const justificationsPage = Math.min(tablePage.justifications, justificationsTotalPages || 1);
- const pagedJustifications = sortedJustifications.slice(
-   (justificationsPage - 1) * rowsPerPage,
-   justificationsPage * rowsPerPage
- );
+	 const prothesesTotalPages = tabServerPage.protheses?.totalPages || 0;
+	 const prothesesPage = Math.min(tablePage.protheses, prothesesTotalPages || 1);
+	 const pagedProtheses = tabServerPage.protheses?.items || [];
 
- const documentsTotalPages = Math.ceil(sortedDocuments.length / rowsPerPage);
- const documentsPage = Math.min(tablePage.documents, documentsTotalPages || 1);
- const pagedDocuments = sortedDocuments.slice((documentsPage - 1) * rowsPerPage, documentsPage * rowsPerPage);
+	 const paymentsTotalPages = tabServerPage.payments?.totalPages || 0;
+	 const paymentsPage = Math.min(tablePage.payments, paymentsTotalPages || 1);
+	 const pagedPayments = tabServerPage.payments?.items || [];
 
- const prescriptionsTotalPages = Math.ceil(sortedOrdonnances.length / rowsPerPage);
- const prescriptionsPage = Math.min(tablePage.prescriptions, prescriptionsTotalPages || 1);
- const pagedOrdonnances = sortedOrdonnances.slice(
-   (prescriptionsPage - 1) * rowsPerPage,
-   prescriptionsPage * rowsPerPage
- );
+	 const appointmentsTotalPages = tabServerPage.appointments?.totalPages || 0;
+	 const appointmentsPage = Math.min(tablePage.appointments, appointmentsTotalPages || 1);
+	 const pagedAppointments = tabServerPage.appointments?.items || [];
+
+	 const justificationsTotalPages = tabServerPage.justifications?.totalPages || 0;
+	 const justificationsPage = Math.min(tablePage.justifications, justificationsTotalPages || 1);
+	 const pagedJustifications = tabServerPage.justifications?.items || [];
+
+	 const documentsTotalPages = tabServerPage.documents?.totalPages || 0;
+	 const documentsPage = Math.min(tablePage.documents, documentsTotalPages || 1);
+	 const pagedDocuments = tabServerPage.documents?.items || [];
+
+	 const prescriptionsTotalPages = tabServerPage.prescriptions?.totalPages || 0;
+	 const prescriptionsPage = Math.min(tablePage.prescriptions, prescriptionsTotalPages || 1);
+	 const pagedOrdonnances = tabServerPage.prescriptions?.items || [];
 
  const renderPagination = (tableId, currentPage, totalPages) => {
    if (!totalPages || totalPages <= 1) return null;
    return (
-     <div className="pagination">
-       <button disabled={currentPage === 1} onClick={() => setTablePageValue(tableId, currentPage - 1)}>
-         ← Précédent
-       </button>
-
-       {[...Array(totalPages)].map((_, i) => (
-         <button
-           key={`${tableId}-page-${i}`}
-           className={currentPage === i + 1 ? "active" : ""}
-           onClick={() => setTablePageValue(tableId, i + 1)}
-         >
-           {i + 1}
-         </button>
-       ))}
-
-       <button disabled={currentPage === totalPages} onClick={() => setTablePageValue(tableId, currentPage + 1)}>
-         Suivant →
-       </button>
-     </div>
+     <Pagination
+       currentPage={currentPage}
+       totalPages={totalPages}
+       onPageChange={(page) => setTablePageValue(tableId, page)}
+     />
    );
  };
 
- const TabToolbar = ({ tabKey, onAdd, addLabel = "Ajouter" }) => {
-   const filters = tabFilters[tabKey] || tabFilters.treatments;
-   const config = tabFilterConfig[tabKey] || tabFilterConfig.treatments;
-   const hasStatus = !!config.getStatus && Array.isArray(config.statusOptions) && config.statusOptions.length > 0;
-   const hasFilterBy = Array.isArray(config.filterByOptions) && config.filterByOptions.length > 0;
-
-   const [filterOpen, setFilterOpen] = useState(false);
-   const [statusOpen, setStatusOpen] = useState(false);
-   const [monthOpen, setMonthOpen] = useState(false);
-
-   const filterRef = useRef(null);
-   const statusRef = useRef(null);
-   const monthRef = useRef(null);
-
-   useEffect(() => {
-     const onDocClick = (e) => {
-       const target = e.target;
-       if (filterOpen && filterRef.current && !filterRef.current.contains(target)) setFilterOpen(false);
-       if (statusOpen && statusRef.current && !statusRef.current.contains(target)) setStatusOpen(false);
-       if (monthOpen && monthRef.current && !monthRef.current.contains(target)) setMonthOpen(false);
-     };
-     document.addEventListener("mousedown", onDocClick);
-     return () => document.removeEventListener("mousedown", onDocClick);
-   }, [filterOpen, statusOpen, monthOpen]);
-
-   const filterByLabel =
-     config.filterByOptions?.find((opt) => opt.value === filters.filterBy)?.label ||
-     config.filterByOptions?.[0]?.label ||
-     "Filtrer";
-
-   const statusLabel =
-     config.statusOptions?.find((opt) => opt.value === filters.status)?.label ||
-     (config.statusLabel ? `Tous` : "Tous");
-
-   const monthLabel =
-     filters.selectedMonth
-       ? monthsList.find((m) => m.value === filters.selectedMonth)?.label
-       : "Choisir un mois";
-
-    return (
-      <>
-        <div className="controls-card">
-          <div className="patients-controls">
-            <div className="controls-left" style={{ flexWrap: "wrap" }}>
-              <div className="search-group">
-                <Search className="search-icon" size={16} />
-                <input
-                  type="text"
-                  placeholder="Rechercher..."
-                  value={filters.search}
-                  onChange={(e) => updateTabFilter(tabKey, { search: e.target.value })}
-                />
-              </div>
-
-              {hasFilterBy && (
-                <div className="modern-dropdown" ref={filterRef}>
-                  <button
-                    type="button"
-                    className={`dropdown-trigger ${filterOpen ? "open" : ""}`}
-                    onClick={() => setFilterOpen((v) => !v)}
-                  >
-                    <span>{filterByLabel}</span>
-                    <ChevronDown size={18} className={`chevron ${filterOpen ? "rotated" : ""}`} />
-                  </button>
-                  {filterOpen && (
-                    <ul className="dropdown-menu">
-                      {config.filterByOptions.map((opt) => (
-                        <li
-                          key={opt.value}
-                          onClick={() => {
-                            updateTabFilter(tabKey, { filterBy: opt.value });
-                            setFilterOpen(false);
-                          }}
-                        >
-                          {opt.label}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {hasStatus && (
-                <div className="modern-dropdown" ref={statusRef}>
-                  <button
-                    type="button"
-                    className={`dropdown-trigger ${statusOpen ? "open" : ""}`}
-                    onClick={() => setStatusOpen((v) => !v)}
-                  >
-                    <span>{filters.status ? statusLabel : "Tous les statuts"}</span>
-                    <ChevronDown size={18} className={`chevron ${statusOpen ? "rotated" : ""}`} />
-                  </button>
-                  {statusOpen && (
-                    <ul className="dropdown-menu">
-                      <li
-                        onClick={() => {
-                          updateTabFilter(tabKey, { status: "" });
-                          setStatusOpen(false);
-                        }}
-                      >
-                        Tous
-                      </li>
-                      {config.statusOptions.map((opt) => (
-                        <li
-                          key={opt.value}
-                          onClick={() => {
-                            updateTabFilter(tabKey, { status: opt.value });
-                            setStatusOpen(false);
-                          }}
-                        >
-                          {opt.label}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {onAdd && (
-                <button className="btn-primary" onClick={onAdd} style={{ marginLeft: "auto" }}>
-                  <Plus size={16} /> {addLabel}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {config.getDate && (
-            <div
-              className="date-selector"
-              style={{
-                marginTop: "12px",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "10px",
-                alignItems: "center",
-              }}
-            >
-           <button
-             type="button"
-             className={filters.selectedFilter === "all" ? "active" : ""}
-             onClick={() =>
-               updateTabFilter(tabKey, {
-                 selectedFilter: "all",
-                 selectedMonth: "",
-                 customRange: { start: "", end: "" },
-               })
-             }
-           >
-             Tout
-           </button>
-
-           <button
-             type="button"
-             className={filters.selectedFilter === "today" ? "active" : ""}
-             onClick={() =>
-               updateTabFilter(tabKey, {
-                 selectedFilter: "today",
-                 selectedMonth: "",
-                 customRange: { start: "", end: "" },
-               })
-             }
-           >
-             Aujourd&apos;hui
-           </button>
-
-           <div className="month-selector">
-             <div className="modern-dropdown" ref={monthRef} style={{ minWidth: "180px" }}>
-               <button
-                 type="button"
-                 className={`dropdown-trigger ${monthOpen ? "open" : ""}`}
-                 onClick={() => setMonthOpen((v) => !v)}
-               >
-                 <span>{monthLabel}</span>
-                 <ChevronDown size={18} className={`chevron ${monthOpen ? "rotated" : ""}`} />
-               </button>
-               {monthOpen && (
-                 <ul className="dropdown-menu">
-                   {monthsList.map((m) => (
-                     <li
-                       key={m.value}
-                       onClick={() => {
-                         updateTabFilter(tabKey, {
-                           selectedMonth: m.value,
-                           selectedFilter: "custom",
-                           customRange: { start: "", end: "" },
-                         });
-                         setMonthOpen(false);
-                       }}
-                     >
-                       {m.label}
-                     </li>
-                   ))}
-                 </ul>
-               )}
-             </div>
-           </div>
-
-            <div className="custom-range-container">
-              <span className="custom-range-label">Plage personnalisée :</span>
-              <div className="custom-range">
-                <DateInput
-                  value={filters.customRange?.start || ""}
-                  onChange={(e) =>
-                    updateTabFilter(tabKey, (current) => ({
-                      selectedFilter: "custom",
-                      selectedMonth: "",
-                      customRange: { ...current.customRange, start: e.target.value },
-                    }))
-                  }
-                  className="cp-date-compact cp-date-field--filter"
-                />
-                <DateInput
-                  value={filters.customRange?.end || ""}
-                  onChange={(e) =>
-                    updateTabFilter(tabKey, (current) => ({
-                      selectedFilter: "custom",
-                      selectedMonth: "",
-                      customRange: { ...current.customRange, end: e.target.value },
-                    }))
-                  }
-                  className="cp-date-compact cp-date-field--filter"
-                />
-              </div>
-            </div>
-           </div>
-         )}
-        </div>
-      </>
-    );
-  };
-
- const renderTabToolbar = (tabKey, props) => <TabToolbar tabKey={tabKey} {...props} />;
+	 const renderTabToolbar = (tabKey, props) => {
+	   const filters = tabFilters[tabKey] || tabFilters.treatments;
+	   const config = tabFilterConfig[tabKey] || tabFilterConfig.treatments;
+	   return (
+	     <PatientTabToolbar
+	       tabKey={tabKey}
+	       filters={filters}
+	       config={config}
+	       monthsList={monthsList}
+	       updateTabFilter={updateTabFilter}
+	       {...props}
+	     />
+	   );
+	 };
 
  const handleTreatmentChange = (e) => {
    const { name, value, type, checked } = e.target;
@@ -2143,6 +2491,7 @@ const sortedPayments = useMemo(
 
 const handleCreateTreatmentCatalogInline = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
   if (isCreatingTreatmentCatalog) return;
 
   const nextErrors = {};
@@ -2219,6 +2568,7 @@ const handleCreateTreatmentCatalogInline = async (e) => {
 
 const handleCreateProthesisCatalogInline = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
   if (isCreatingProthesisCatalog) return;
 
   const nextErrors = {};
@@ -2304,6 +2654,7 @@ const handleCreateProthesisCatalogInline = async (e) => {
 
 const handleCreateMaterialInline = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
   if (isCreatingMaterial) return;
 
   const name = (newMaterialName || "").trim();
@@ -2346,6 +2697,7 @@ const normalizeMaterialName = (value) =>
     .toLowerCase();
 
 const handleQuickAddMaterialFromQuery = async () => {
+  if (!assertPatientEditable()) return;
   if (isCreatingMaterial) return;
 
   const name = (materialQuery || "").trim();
@@ -2410,6 +2762,7 @@ const handleQuickAddMaterialFromQuery = async () => {
 
 const handleCreateOrUpdateTreatment = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
   const nextErrors = {};
   if (!treatmentForm.treatmentCatalogId) {
     nextErrors.treatmentCatalogId = "Veuillez sélectionner un traitement dans le catalogue.";
@@ -2488,6 +2841,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
        setTreatments(
          treatments.map((t) => (t.id === savedTreatment.id ? savedTreatment : t))
        );
+       bumpTabReload("treatments");
        toast.success("Traitement mis à jour !");
      } else {
        const createdDate = formatLocalDateTime(new Date());
@@ -2515,6 +2869,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
          }));
 
          setTreatments((prev) => [...normalizedCreated, ...prev]);
+         bumpTabReload("treatments");
          toast.success("Traitements ajoutés !");
        } else {
          const payload = buildTreatmentPayload({ date: createdDate });
@@ -2526,6 +2881,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
          savedTreatment.treatmentCatalog = catalogObj;
 
          setTreatments((prev) => [savedTreatment, ...prev]);
+         bumpTabReload("treatments");
          toast.success("Traitement ajouté !");
        }
      }
@@ -2544,6 +2900,7 @@ const handleCreateOrUpdateTreatment = async (e) => {
       
 
       setPayments([newPayment, ...payments]);
+      bumpTabReload("payments");
       toast.success("Versement automatique ajouté !");
     }
 
@@ -2570,6 +2927,11 @@ const handleCreateOrUpdateTreatment = async (e) => {
 
 
 const handleEditTreatment = (t) => {
+  if (!assertPatientEditable()) return;
+  if (isTreatmentCancelled(t)) {
+    toast.info("Traitement annulé : lecture seule.");
+    return;
+  }
        // <--- add this
 
     const selected = treatmentCatalog.find((c) => c.id === Number(t.treatmentCatalog?.id || ""));
@@ -2589,22 +2951,35 @@ const handleEditTreatment = (t) => {
     setShowTreatmentModal(true);
   };
 
-const handleDeleteTreatment = (t) => {
-  setConfirmMessage("Voulez-vous supprimer ce traitement ?");
+const handleCancelTreatment = (t) => {
+  if (!assertPatientEditable()) return;
+  setConfirmMessage("Voulez-vous vraiment annuler ce traitement ?");
   setOnConfirmAction(() => async () => {
     try {
-      await deleteTreatment(t.id);
-      setTreatments(treatments.filter(tr => tr.id !== t.id));
-      toast.success("Traitement supprimé !");
+      const status = String(t?.status || "PLANNED").toUpperCase();
+      if (status === "CANCELLED") {
+        toast.info("Traitement déjà annulé.");
+        return;
+      }
+
+      const cancelled = await cancelTreatment(t.id);
+
+      const catalogObj = treatmentCatalog.find((tc) => tc.id === cancelled?.treatmentCatalog?.id);
+      cancelled.treatmentCatalog = catalogObj || cancelled.treatmentCatalog;
+
+      setTreatments((prev) => prev.map((tr) => (tr.id === cancelled.id ? cancelled : tr)));
+      bumpTabReload("treatments");
+      toast.info("Traitement annulé");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression du traitement"));
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du traitement"));
     }
   });
   setShowConfirm(true);
 };
 
   const handleAddTreatment = () => {
+if (!assertPatientEditable()) return;
 setTreatmentForm({ 
   id: null, 
   treatmentCatalogId: null, 
@@ -2630,6 +3005,7 @@ setTreatmentForm({
 
   const handleCreatePayment = async (e) => {
     e.preventDefault();
+    if (!assertPatientEditable()) return;
     if (isSavingPayment) return;
 
     const nextErrors = {};
@@ -2654,6 +3030,7 @@ setTreatmentForm({
       });
 
 setPayments([newPayment, ...payments]);
+      bumpTabReload("payments");
       toast.success("Versement ajouté !");
       setShowPaymentModal(false);
       setPaymentFieldErrors({});
@@ -2666,16 +3043,23 @@ setPayments([newPayment, ...payments]);
     }
   };
 
-const handleDeletePayment = (p) => {
-  setConfirmMessage("Voulez-vous supprimer ce versement ?");
+const handleCancelPayment = (p) => {
+  if (!assertPatientEditable()) return;
+  if (isPaymentCancelled(p)) return;
+  setConfirmMessage("Voulez-vous annuler ce versement ?");
   setOnConfirmAction(() => async () => {
     try {
-      await deletePayment(p.id);
-      setPayments(payments.filter(pay => pay.id !== p.id));
-      toast.success("Versement supprimé !");
+      await cancelPayment(p.id);
+      setPayments((prev) =>
+        prev.map((pay) =>
+          pay.id === p.id ? { ...pay, recordStatus: "CANCELLED", cancelledAt: new Date().toISOString() } : pay
+        )
+      );
+      bumpTabReload("payments");
+      toast.success("Versement annulé !");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression du versement"));
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du versement"));
     }
   });
   setShowConfirm(true);
@@ -2690,6 +3074,11 @@ const handleDeletePayment = (p) => {
   };
 
 	 const handleEditAppointment = (a) => {
+    if (!assertPatientEditable()) return;
+    if (String(a?.status || "").toUpperCase() === "CANCELLED") {
+      toast.info("Rendez-vous annulé : lecture seule.");
+      return;
+    }
 	  const start = new Date(a.dateTimeStart);
     const end = new Date(a.dateTimeEnd);
     const duration =
@@ -2726,6 +3115,7 @@ const handleDeletePayment = (p) => {
 
 const handleCreateOrUpdateAppointment = async (e) => {
   e.preventDefault();
+  if (!assertPatientEditable()) return;
   if (isSavingAppointment) return;
 
   const nextErrors = {};
@@ -2816,6 +3206,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
       setAppointments(
         appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a)
       );
+      bumpTabReload("appointments");
       toast.success("Rendez-vous mis à jour avec succès !");
     } else {
       payload = {
@@ -2828,6 +3219,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
 
       savedAppointment = await createAppointment(payload);
       setAppointments([savedAppointment, ...appointments]);
+      bumpTabReload("appointments");
       toast.success("Rendez-vous ajouté avec succès !");
     }
 
@@ -2869,35 +3261,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
 
 
 
-const handleDeletePrescription = (o) => {
-  setConfirmMessage("Voulez-vous supprimer cette ordonnance ?");
-  setOnConfirmAction(() => async () => {
-    try {
-      await deletePrescription(o.id); // uses the correct backend URL
-      setOrdonnances(ordonnances.filter(p => p.id !== o.id));
-      toast.success("Ordonnance supprimée !");
-    } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression de l'ordonnance"));
-    }
-  });
-  setShowConfirm(true);
-};
 
-const handleDeleteAppointment = (a) => {
-  setConfirmMessage("Voulez-vous supprimer ce rendez-vous ?");
-  setOnConfirmAction(() => async () => {
-    try {
-      await deleteAppointment(a.id);
-      setAppointments(appointments.filter(ap => ap.id !== a.id));
-      toast.success("Rendez-vous supprimé !");
-    } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression du rendez-vous"));
-    }
-  });
-  setShowConfirm(true);
-};
 
   if (loading) {
     return (
@@ -2914,138 +3278,221 @@ const handleDeleteAppointment = (a) => {
     <div className="patient-container">
       <BackButton fallbackTo="/patients" />
        {/* --- PATIENT INFO --- */}
- <div className="patient-top">
-  <div className="patient-info-left">
-   <div className="patient-name">
-     <div className="patient-name-row">
-       <span className="patient-name-text">
-         {patient.firstname} {patient.lastname}
-       </span>
+   <div className="patient-top">
+    <div className="patient-info-left">
+    <div className="patient-name">
+	      <div className="patient-name-row">
+	        <span className="patient-name-text">
+	          {patient.firstname} {patient.lastname}
+	        </span>
+	        <span className="context-badge">Patient</span>
+	      </div>
 
-       <span className="context-badge">Patient</span>
-
-       <PatientDangerIcon
-         show={!!patient.danger}
-         big
-         dangerCancelled={patient.dangerCancelled}
-         dangerOwed={patient.dangerOwed}
-       />
-     </div>
-
-     <div className="patient-sex-row">
-       {patient.sex === "Homme" ? (
-         <span className="sex-icon-square male" title="Homme" aria-label="Homme">
-           <FaMale aria-hidden="true" focusable="false" />
-         </span>
-       ) : patient.sex === "Femme" ? (
-         <span className="sex-icon-square female" title="Femme" aria-label="Femme">
-           <FaFemale aria-hidden="true" focusable="false" />
-         </span>
-       ) : (
-         <span className="patient-sex-empty">—</span>
-       )}
-     </div>
-   </div>
-
-    <div className="patient-details">
-<div>
-  {patient.age ?? "N/A"} ans
-  
-</div>      <div>{formatPhone(patient.phone)}</div>
-      <div>Créé le {formatDate(patient.createdAt)}</div>
-    </div>
-  </div>
-
-  <div className="patient-right">
-    <div className="patient-stats">
-      <div className="stat-box stat-facture">
-        Facturé: {formatMoneyWithLabel(totalFacture)}
-      </div>
-      <div className="stat-box stat-paiement">
-        Versement: {formatMoneyWithLabel(totalPaiement)}
-      </div>
-      <div className="stat-box stat-reste">
-        {hasCredit ? "Crédit" : "Reste"}: {formatMoneyWithLabel(displayReste)}
+	      <div className="patient-name-meta">
+	        {patient.sex === "Homme" ? (
+	          <span className="sex-icon-square male" title="Homme" aria-label="Homme">
+	            <FaMale aria-hidden="true" focusable="false" />
+	          </span>
+	        ) : patient.sex === "Femme" ? (
+	          <span className="sex-icon-square female" title="Femme" aria-label="Femme">
+	            <FaFemale aria-hidden="true" focusable="false" />
+	          </span>
+	        ) : null}
+	        {isArchived && <span className="context-badge">Archivé</span>}
+	        <PatientDangerIcon
+	          show={!!patient.danger}
+	          big
+          dangerCancelled={patient.dangerCancelled}
+          dangerOwed={patient.dangerOwed}
+        />
       </div>
     </div>
 
-   <div className="patient-actions">
-   <button 
-  className="action-btn view" 
-  onClick={() => setShowTeethHistoryModal(true)}
-  title="Voir le schéma complet"
-  style={{ 
-    backgroundColor: '#eff6ff', 
-    color: '#1d4ed8', 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    padding: '8px',
-    borderRadius: '8px',
-    border: '1px solid #dbeafe',
-    marginLeft: '5px'
-  }}
->
-  <Maximize size={20} strokeWidth={2.5} />
-</button>
-  <button
-    className="btn-secondary-app"
-    onClick={() => {
-      setFormData({
-        firstname: patient.firstname || "",
-        lastname: patient.lastname || "",
-        age: patient.age || "",
-        sex: patient.sex || "",
-        phone: patient.phone || "",
-      });
-      setIsEditing(true);
-      setShowModal(true);
-    }}
-  >
-    <Edit2 size={16} />
-    Modifier le patient
-  </button>
+      <div className="patient-details">
+        <div>{patient.age ?? "N/A"} ans</div>
+        <div>{formatPhone(patient.phone)}</div>
+        <div>Créé le {formatDate(patient.createdAt)}</div>
+      </div>
 
-  <button
-    className="btn-primary-app"
-    onClick={() => navigate(`/patients/${id}/ordonnance/create`)}
-  >
-    <FileText size={16} />
-    Créer une ordonnance
-  </button>
+    </div>
 
-  <button 
-    className="btn-secondary-app" 
-    onClick={handleDownloadPdf}
-    disabled={isDownloading}
-  >
-    <Download size={16} />
-    {isDownloading ? "Téléchargement..." : "Fiche Patient PDF"}
-  </button>
- <button 
-  className="action-btn view" 
-  onClick={() => {
-    handleOpenQrModal();
-  }}
-  title="Générer QR Code"
-  style={{ 
-    backgroundColor: '#3b82f6', 
-    color: 'white', 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    padding: '8px',
-    borderRadius: '8px',
-    marginLeft: '5px'
-  }}
->
-  <Grid size={18} strokeWidth={3} />
-</button>
-</div>
+   <div className="patient-middle">
+     <div className="patient-stats">
+       <div className="stat-box stat-facture">
+         Facturé: {formatMoneyWithLabel(totalFacture)}
+       </div>
+       <div className="stat-box stat-paiement">
+         Versement: {formatMoneyWithLabel(totalPaiement)}
+       </div>
+       <div className="stat-box stat-reste">
+         {hasCredit ? "Crédit" : "Reste"}: {formatMoneyWithLabel(displayReste)}
+       </div>
+     </div>
 
+      <div className="patient-medical-inline">
+        <div className="patient-medical-inline-row">
+         <span className="patient-medical-inline-label">Maladies:</span>
+         <div className="patient-medical-inline-text" aria-label="Liste des maladies">
+           {splitMedicalList(patient.diseases).length ? (
+             <div className="patient-medical-chips">
+               {splitMedicalList(patient.diseases).map((d) => (
+                 <span key={d} className="patient-chip patient-chip-disease" title={d}>
+                   <span className="patient-chip-text">{d}</span>
+                   <button
+                     type="button"
+                     className="patient-chip-remove"
+                     onClick={() => removeMedicalEntry("diseases", d)}
+                     aria-label={`Supprimer maladie: ${d}`}
+                     disabled={isSavingMedical || isCreatingMedicalCatalog}
+                   >
+                     <X size={12} />
+                   </button>
+                 </span>
+               ))}
+             </div>
+           ) : (
+             <span className="patient-medical-empty">—</span>
+           )}
+         </div>
+         <button
+           type="button"
+           className="patient-medical-add"
+           onClick={openDiseasePicker}
+           title="Ajouter une maladie"
+           aria-label="Ajouter une maladie"
+           disabled={isSavingMedical || isCreatingMedicalCatalog}
+         >
+           <Plus size={16} />
+         </button>
+        </div>
 
+        <div className="patient-medical-inline-row">
+         <span className="patient-medical-inline-label">Allergies:</span>
+         <div className="patient-medical-inline-text" aria-label="Liste des allergies">
+           {splitMedicalList(patient.allergies).length ? (
+             <div className="patient-medical-chips">
+               {splitMedicalList(patient.allergies).map((a) => (
+                 <span key={a} className="patient-chip patient-chip-allergy" title={a}>
+                   <span className="patient-chip-text">{a}</span>
+                   <button
+                     type="button"
+                     className="patient-chip-remove"
+                     onClick={() => removeMedicalEntry("allergies", a)}
+                     aria-label={`Supprimer allergie: ${a}`}
+                     disabled={isSavingMedical || isCreatingMedicalCatalog}
+                   >
+                     <X size={12} />
+                   </button>
+                 </span>
+               ))}
+             </div>
+           ) : (
+             <span className="patient-medical-empty">—</span>
+           )}
+         </div>
+       <button
+           type="button"
+           className="patient-medical-add"
+           onClick={openAllergyPicker}
+           title="Ajouter une allergie"
+           aria-label="Ajouter une allergie"
+           disabled={isSavingMedical || isCreatingMedicalCatalog}
+         >
+           <Plus size={16} />
+        </button>
+       </div>
+      </div>
+
+      <div className="patient-actions patient-actions-under-medical" aria-label="Actions patient">
+        <button
+          type="button"
+          className="action-btn view"
+          onClick={() => setShowTeethHistoryModal(true)}
+          title="Voir le schéma dentaire"
+          aria-label="Voir le schéma dentaire"
+        >
+          <FaTooth size={16} />
+        </button>
+
+        <button
+          type="button"
+          className="action-btn edit"
+          onClick={() => {
+            setFormData({
+              firstname: patient.firstname || "",
+              lastname: patient.lastname || "",
+              age: patient.age || "",
+              sex: patient.sex || "",
+              phone: formatPhoneNumber(patient.phone) || "",
+            });
+            setIsEditing(true);
+            setShowModal(true);
+          }}
+          title="Modifier le patient"
+          aria-label="Modifier le patient"
+        >
+          <Edit2 size={18} />
+        </button>
+
+        <button
+          type="button"
+          className="action-btn"
+          onClick={handleOpenQrModal}
+          title="QR Code"
+          aria-label="QR Code"
+        >
+          <Smartphone size={18} />
+        </button>
+
+        <button
+          type="button"
+          className="action-btn progress"
+          onClick={handleDownloadPdf}
+          disabled={isDownloading}
+          title="Fiche Patient PDF"
+          aria-label="Fiche Patient PDF"
+        >
+          <Download size={18} />
+        </button>
+      </div>
+
+    </div>
   </div>
-</div>
+
+  {showQrModal && (
+    <div className="modal-overlay" onClick={closeQrModal}>
+      <div
+        className="modal-content qr-modal-content"
+        onClick={(e) => e.stopPropagation()}
+        aria-label="QR Code"
+      >
+        <button
+          type="button"
+          className="action-btn qr-modal-close"
+          onClick={closeQrModal}
+          aria-label="Fermer"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="qr-modal-header">
+          <div className="qr-modal-name">
+            {patient.firstname} {patient.lastname}
+          </div>
+        </div>
+
+        <div className="qr-modal-qr-wrap">
+          <div className="qr-modal-qr-card" aria-label="QR code fiche patient">
+            {!qrLoading && publicDownloadUrl ? (
+              <QRCodeCanvas value={publicDownloadUrl} size={qrModalSize} marginSize={0} />
+            ) : (
+              <div className="qr-modal-skeleton" aria-hidden="true" style={{ width: qrModalSize, height: qrModalSize }} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
 
     <div className="tab-buttons">
 
@@ -3105,209 +3552,157 @@ const handleDeleteAppointment = (a) => {
 </div>
 
 
-    {activeTab === "treatments" && (
-  <>
-    {renderTabToolbar("treatments", { onAdd: handleAddTreatment })}
-    {sortedPlannedTreatments.length > 0 && (
-      <>
-        <h4>Traitements planifiés (non comptés)</h4>
-        <table className="treatment-table">
-          <thead>
-            <tr>
-              <SortableTh
-                label="Nom"
-                sortKey="name"
-                sortConfig={tableSort.plannedTreatments}
-                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
-              />
-              <SortableTh
-                label="Dents"
-                sortKey="teeth"
-                sortConfig={tableSort.plannedTreatments}
-                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
-              />
-              <SortableTh
-                label="Date"
-                sortKey="date"
-                sortConfig={tableSort.plannedTreatments}
-                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
-              />
-              <SortableTh
-                label="Notes"
-                sortKey="notes"
-                sortConfig={tableSort.plannedTreatments}
-                onSort={(key, dir) => handleTableSort("plannedTreatments", key, dir)}
-              />
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-  {pagedPlannedTreatments.map((t) => (
-              <tr key={t.id}>
-                <td>{t.treatmentCatalog?.name}</td>
-                <td>
-                  {t.teeth && t.teeth.length > 0 ? (
-                    <button
-                      type="button"
-                      className="action-btn view"
-                      onClick={() =>
-                        openTeethPreview(t.teeth, `Traitement planifié: ${t.treatmentCatalog?.name || ""}`)
-                      }
-                      title={t.teeth.join(", ")}
-                      aria-label="Voir le schéma dentaire"
-                    >
-                      <FaTooth size={16} />
-                    </button>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td>{formatDate(t.date)}</td>
-                <td>{t.notes || "—"}</td>
-                <td className="actions-cell">
-                  <button
-                    className="action-btn progress"
-                    onClick={() => handleStartTreatment(t)}
-                    title="Mettre en cours"
-                  >
-                    <Activity size={16} />
-                  </button>
-                  <button
-                    className="action-btn complete"
-                    onClick={() => handleCompleteTreatment(t)}
-                    title="Terminer"
-                  >
-                    <Check size={16} />
-                  </button>
-                  <button
-                    className="action-btn edit"
-                    onClick={() => handleEditTreatment(t)}
-                    title="Modifier"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    className="action-btn delete"
-                    onClick={() => handleDeleteTreatment(t)}
-                    title="Supprimer"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {renderPagination("plannedTreatments", plannedPage, plannedTotalPages)}
-      </>
-    )}
-    <table className="treatment-table">
-      <thead>
-        <tr>
-          <SortableTh
-            label="Nom"
-            sortKey="name"
-            sortConfig={tableSort.completedTreatments}
-            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
-          />
-           <SortableTh
-            label="Dents"
-            sortKey="teeth"
-            sortConfig={tableSort.completedTreatments}
-            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
-          />
-          <SortableTh
-            label="Date"
-            sortKey="date"
-            sortConfig={tableSort.completedTreatments}
-            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
-          />
-          <SortableTh
-            label="Prix"
-            sortKey="price"
-            sortConfig={tableSort.completedTreatments}
-            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
-          />
-          <SortableTh
-            label="Notes"
-            sortKey="notes"
-            sortConfig={tableSort.completedTreatments}
-            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
-          />
-          <SortableTh
-            label="Statut"
-            sortKey="status"
-            sortConfig={tableSort.completedTreatments}
-            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
-          />
-          <SortableTh
-            label="Modifié le"
-            sortKey="updatedAt"
-            sortConfig={tableSort.completedTreatments}
-            onSort={(key, dir) => handleTableSort("completedTreatments", key, dir)}
-          />
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {pagedCompletedTreatments.map(t => (
-          <tr key={t.id}>
-            <td>{t.treatmentCatalog?.name}</td>
-            <td>
-          {t.teeth && t.teeth.length > 0 ? (
-            <button
-              type="button"
-              className="action-btn view"
-              onClick={() => openTeethPreview(t.teeth, `Traitement: ${t.treatmentCatalog?.name || ""}`)}
-              title={t.teeth.join(", ")}
-              aria-label="Voir le schéma dentaire"
-            >
-              <FaTooth size={16} />
-            </button>
-          ) : (
-            "—"
-             )}
-         </td>
-             <td>{formatDate(t.date)}</td>
-             <td>{formatMoneyWithLabel(t.price)}</td>
-             <td>{t.notes || "—"}</td>
-             <td>
-               <span className={`status-chip ${(t.status || "PLANNED").toLowerCase()}`}>
-                 {treatmentStatusLabels[t.status] || t.status || "Planifié"}
-              </span>
-            </td>
-            <td>{formatDate(t.updatedAt || t.date)}</td>
-            <td className="actions-cell">
-
-  <button
-    className="action-btn edit"
-    onClick={() => handleEditTreatment(t)}
-    title="Modifier"
-  >
-    <Edit2 size={16} />
-  </button>
-
-  <button
-    className="action-btn delete"
-    onClick={() => handleDeleteTreatment(t)}
-    title="Supprimer"
-  >
-    <Trash2 size={16} />
-  </button>
-</td>
-
-          </tr>
-        ))}
-        {sortedCompletedTreatments.length === 0 && (
-          <tr>
-            <td colSpan="8" style={{ textAlign: "center" }}>Aucun traitement terminé</td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-    {renderPagination("completedTreatments", completedPage, completedTotalPages)}
-  </>
-)}
+	    {activeTab === "treatments" && (
+	  <>
+	    {renderTabToolbar("treatments", { onAdd: handleAddTreatment })}
+	    <table className="treatment-table">
+	      <thead>
+	        <tr>
+	          <SortableTh
+	            label="Nom"
+	            sortKey="name"
+	            sortConfig={tableSort.treatments}
+	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
+	          />
+	           <SortableTh
+	            label="Dents"
+	            sortKey="teeth"
+	            sortConfig={tableSort.treatments}
+	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
+	          />
+	          <SortableTh
+	            label="Date"
+	            sortKey="date"
+	            sortConfig={tableSort.treatments}
+	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
+	          />
+	          <SortableTh
+	            label="Prix"
+	            sortKey="price"
+	            sortConfig={tableSort.treatments}
+	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
+	          />
+	          <SortableTh
+	            label="Notes"
+	            sortKey="notes"
+	            sortConfig={tableSort.treatments}
+	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
+	          />
+	          <SortableTh
+	            label="Statut"
+	            sortKey="status"
+	            sortConfig={tableSort.treatments}
+	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
+	          />
+	          <SortableTh
+	            label="Modifié le"
+	            sortKey="updatedAt"
+	            sortConfig={tableSort.treatments}
+	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
+	          />
+	          <th>Actions</th>
+	        </tr>
+	      </thead>
+	      <tbody>
+	        {pagedTreatments.map((t) => (
+	          <tr key={t.id}>
+	            <td>{t.treatmentCatalog?.name}</td>
+	            <td>
+	          {t.teeth && t.teeth.length > 0 ? (
+	            <button
+	              type="button"
+	              className="action-btn view"
+	              onClick={() => openTeethPreview(t.teeth, `Traitement: ${t.treatmentCatalog?.name || ""}`)}
+	              title={t.teeth.join(", ")}
+	              aria-label="Voir le schéma dentaire"
+	            >
+	              <FaTooth size={16} />
+	            </button>
+	          ) : (
+	            "—"
+	             )}
+	         </td>
+	             <td>{formatDate(t.date)}</td>
+	             <td>{formatMoneyWithLabel(t.price)}</td>
+	             <td>{t.notes || "—"}</td>
+	             <td>
+	               <span className={`status-chip ${(t.status || "PLANNED").toLowerCase()}`}>
+	                 {treatmentStatusLabels[t.status] || t.status || "Planifié"}
+	              </span>
+	            </td>
+	            <td>{formatDate(t.updatedAt || t.date)}</td>
+	            <td className="actions-cell">
+	              {isTreatmentCancelled(t) ? (
+	                "—"
+	              ) : String(t?.status || "PLANNED").toUpperCase() === "PLANNED" ? (
+	                <>
+	                  <button
+	                    className="action-btn progress"
+	                    onClick={() => handleStartTreatment(t)}
+	                    title="Mettre en cours"
+	                  >
+	                    <Activity size={16} />
+	                  </button>
+	                  <button
+	                    className="action-btn complete"
+	                    onClick={() => handleCompleteTreatment(t)}
+	                    title="Terminer"
+	                  >
+	                    <Check size={16} />
+	                  </button>
+	                  <button
+	                    className="action-btn edit"
+	                    onClick={() => handleEditTreatment(t)}
+	                    title="Modifier"
+	                  >
+	                    <Edit2 size={16} />
+	                  </button>
+	                  <button
+	                    className="action-btn cancel"
+	                    onClick={() => handleCancelTreatment(t)}
+	                    title="Annuler"
+	                  >
+	                    <X size={16} />
+	                  </button>
+	                </>
+	              ) : (
+	                <>
+	                  <button
+	                    className="action-btn edit"
+	                    onClick={() => handleEditTreatment(t)}
+	                    title="Modifier"
+	                  >
+	                    <Edit2 size={16} />
+	                  </button>
+	
+	                  <button
+	                    className="action-btn cancel"
+	                    onClick={() => handleCancelTreatment(t)}
+	                    title="Annuler"
+	                  >
+	                    <X size={16} />
+	                  </button>
+	                </>
+	              )}
+	</td>
+	
+	          </tr>
+	        ))}
+	        {tabServerPage.treatments?.loading && pagedTreatments.length === 0 && (
+	          <tr>
+	            <td colSpan="8" style={{ textAlign: "center" }}>Chargement...</td>
+	          </tr>
+	        )}
+	        {!tabServerPage.treatments?.loading && pagedTreatments.length === 0 && (
+	          <tr>
+	            <td colSpan="8" style={{ textAlign: "center" }}>Aucun traitement</td>
+	          </tr>
+	        )}
+	      </tbody>
+	    </table>
+	    {renderPagination("treatments", treatmentsPage, treatmentsTotalPages)}
+	  </>
+	)}
 
 {activeTab === "protheses" && (
   <>
@@ -3367,6 +3762,7 @@ const handleDeleteAppointment = (a) => {
 <tbody>
   {pagedProtheses.map((p) => {
     const currentStatus = p.status || prothesisStatusOrder[0];
+    const cancelled = isProthesisCancelled(p);
     const nextStatus = getNextProthesisStatus(currentStatus);
     const nextActionLabel =
       nextStatus === "SENT_TO_LAB"
@@ -3437,55 +3833,70 @@ const handleDeleteAppointment = (a) => {
 
       {/* Actions */}
       <td className="actions-cell">
-        {nextStatus && NextStatusIcon ? (
-          <button
-            type="button"
-            className="action-btn progress"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (nextStatus === "SENT_TO_LAB") {
-                openProthesisSendToLabModal(p);
-                return;
-              }
-              handleConfirmProthesisStatusChange(p, nextStatus);
-            }}
-            disabled={busyProthesisStatusId === p.id}
-            title={nextActionLabel}
-            aria-label={nextActionLabel}
-            style={{
-              opacity: busyProthesisStatusId === p.id ? 0.6 : 1,
-              cursor: busyProthesisStatusId === p.id ? "not-allowed" : "pointer",
-            }}
-          >
-            <NextStatusIcon size={16} />
-          </button>
-        ) : null}
-        <button
-          className="action-btn edit"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleEditProthesis(p);
-          }}
-          title="Modifier"
-        >
-          <Edit2 size={16} />
-        </button>
-        <button
-          className="action-btn delete"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteProthetics(p);
-          }}
-          title="Supprimer"
-        >
-          <Trash2 size={16} />
-        </button>
+        {cancelled ? (
+          "—"
+        ) : (
+          <>
+            {nextStatus && NextStatusIcon ? (
+              <button
+                type="button"
+                className="action-btn progress"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isProthesisCancelled(p)) {
+                    toast.info("Prothèse annulée : lecture seule.");
+                    return;
+                  }
+                  if (nextStatus === "SENT_TO_LAB") {
+                    openProthesisSendToLabModal(p);
+                    return;
+                  }
+                  handleConfirmProthesisStatusChange(p, nextStatus);
+                }}
+                disabled={busyProthesisStatusId === p.id}
+                title={nextActionLabel}
+                aria-label={nextActionLabel}
+                style={{
+                  opacity: busyProthesisStatusId === p.id ? 0.6 : 1,
+                  cursor: busyProthesisStatusId === p.id ? "not-allowed" : "pointer",
+                }}
+              >
+                <NextStatusIcon size={16} />
+              </button>
+            ) : null}
+            <button
+              className="action-btn edit"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditProthesis(p);
+              }}
+              title="Modifier"
+            >
+              <Edit2 size={16} />
+            </button>
+            <button
+              className="action-btn cancel"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCancelProthetics(p);
+              }}
+              title="Annuler"
+            >
+              <X size={16} />
+            </button>
+          </>
+        )}
       </td>
 
     </tr>
     );
   })}
-  {sortedProtheses.length === 0 && (
+  {tabServerPage.protheses?.loading && pagedProtheses.length === 0 && (
+    <tr>
+      <td colSpan="7" style={{ textAlign: "center" }}>Chargement...</td>
+    </tr>
+  )}
+  {!tabServerPage.protheses?.loading && pagedProtheses.length === 0 && (
     <tr>
       <td colSpan="7" style={{ textAlign: "center" }}>Aucune prothèse</td>
     </tr>
@@ -3537,17 +3948,26 @@ const handleDeleteAppointment = (a) => {
       <td>{paymentMethodLabels[p.method] || p.method}</td>
       <td>{formatDate(p.date || p.paymentDate || p.createdAt)}</td>
       <td className="actions-cell">
-        <button
-          className="action-btn delete"
-          onClick={() => handleDeletePayment(p)}
-          title="Supprimer"
-        >
-          <Trash2 size={16} />
-        </button>
+        {isPaymentCancelled(p) ? (
+          <span className="context-badge cancelled">Annulé</span>
+        ) : (
+          <button
+            className="action-btn cancel"
+            onClick={() => handleCancelPayment(p)}
+            title="Annuler"
+          >
+            <X size={16} />
+          </button>
+        )}
       </td>
     </tr>
   ))}
-  {sortedPaymentsTable.length === 0 && (
+  {tabServerPage.payments?.loading && pagedPayments.length === 0 && (
+    <tr>
+      <td colSpan="4" style={{ textAlign: "center" }}>Chargement...</td>
+    </tr>
+  )}
+  {!tabServerPage.payments?.loading && pagedPayments.length === 0 && (
     <tr>
       <td colSpan="4" style={{ textAlign: "center" }}>Aucun versement</td>
     </tr>
@@ -3619,21 +4039,17 @@ const handleDeleteAppointment = (a) => {
               </span>
             </td>
      <td className="actions-cell">
-  <button
-    className="action-btn edit"
-    onClick={() => handleEditAppointment(a)}
-    title="Modifier"
-  >
-    <Edit2 size={16} />
-  </button>
-
-  <button
-    className="action-btn delete"
-    onClick={() => handleDeleteAppointment(a)}
-    title="Supprimer"
-  >
-    <Trash2 size={16} />
-  </button>
+  {a.status === "CANCELLED" ? (
+    <span className="context-badge cancelled">Annulé</span>
+  ) : (
+    <button
+      className="action-btn edit"
+      onClick={() => handleEditAppointment(a)}
+      title="Modifier"
+    >
+      <Edit2 size={16} />
+    </button>
+  )}
 
   {a.status !== "COMPLETED" && a.status !== "CANCELLED" && (
     <>
@@ -3658,7 +4074,12 @@ const handleDeleteAppointment = (a) => {
 
           </tr>
         ))}
-        {sortedAppointmentsTable.length === 0 && (
+        {tabServerPage.appointments?.loading && pagedAppointments.length === 0 && (
+          <tr>
+            <td colSpan="5" style={{ textAlign: "center" }}>Chargement...</td>
+          </tr>
+        )}
+        {!tabServerPage.appointments?.loading && pagedAppointments.length === 0 && (
           <tr>
             <td colSpan="5" style={{ textAlign: "center" }}>Aucun rendez-vous</td>
           </tr>
@@ -3703,17 +4124,15 @@ const handleDeleteAppointment = (a) => {
               >
                 <Printer size={16} />
               </button>
-              <button
-                className="action-btn delete"
-                onClick={() => handleDeleteJustification(j)}
-                title="Supprimer"
-              >
-                <Trash2 size={16} />
-              </button>
             </td>
           </tr>
         ))}
-        {sortedJustifications.length === 0 && (
+        {tabServerPage.justifications?.loading && pagedJustifications.length === 0 && (
+          <tr>
+            <td colSpan="3" style={{ textAlign: "center" }}>Chargement...</td>
+          </tr>
+        )}
+        {!tabServerPage.justifications?.loading && pagedJustifications.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>Aucun justificatif généré</td>
           </tr>
@@ -3763,17 +4182,15 @@ const handleDeleteAppointment = (a) => {
               >
                 <Eye size={16} />
               </button>
-              <button
-                className="action-btn delete"
-                onClick={() => handleDeleteDocument(documentItem)}
-                title="Supprimer"
-              >
-                <Trash2 size={16} />
-              </button>
             </td>
           </tr>
         ))}
-        {sortedDocuments.length === 0 && (
+        {tabServerPage.documents?.loading && pagedDocuments.length === 0 && (
+          <tr>
+            <td colSpan="3" style={{ textAlign: "center" }}>Chargement...</td>
+          </tr>
+        )}
+        {!tabServerPage.documents?.loading && pagedDocuments.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>Aucune pièce jointe</td>
           </tr>
@@ -3790,35 +4207,6 @@ const handleDeleteAppointment = (a) => {
   </>
 )}
 
-{showQrModal && (
-        <div className="modal-overlay" onClick={() => setShowQrModal(false)}>
-          <div className="modal-content" style={{textAlign: 'center'}} onClick={e => e.stopPropagation()}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <h3>Scanner pour Télécharger</h3>
-              <X size={20} onClick={() => setShowQrModal(false)} style={{cursor:'pointer'}}/>
-            </div>
-            
-            <p style={{fontSize: '14px', color: '#666', margin: '15px 0'}}>
-              Le patient peut scanner ce code pour télécharger son dossier PDF. Ce lien est temporaire
-              {qrTtlSeconds ? ` (≈ ${Math.round(qrTtlSeconds / 60)} min).` : "."}
-            </p>
-
-            <div style={{ background: 'white', padding: '15px', display: 'inline-block', borderRadius: '10px', border: '1px solid #eee' }}>
-              {qrLoading ? (
-                <p style={{ margin: 0 }}>Génération du lien...</p>
-              ) : publicDownloadUrl ? (
-                <QRCodeCanvas value={publicDownloadUrl} size={250} />
-              ) : (
-                <p style={{ margin: 0, color: "#b91c1c" }}>Lien indisponible</p>
-              )}
-            </div>
-
-            <p style={{ marginTop: '15px', fontWeight: 'bold', color: '#3b82f6' }}>
-              {patient.firstname} {patient.lastname}
-            </p>
-          </div>
-        </div>
-      )}
 {showDocumentModal && (
   <div className="modal-overlay" onClick={() => {
     setShowDocumentModal(false);
@@ -4036,6 +4424,10 @@ const handleDeleteAppointment = (a) => {
             </label>
           </div>
           <FieldError message={patientFieldErrors.sex} />
+        </div>
+
+        <div className="text-[12px] text-gray-500">
+          Maladies et allergies se gèrent dans la fiche patient via les boutons "+".
         </div>
 
         <div className="modal-actions">
@@ -5467,18 +5859,17 @@ const handleDeleteAppointment = (a) => {
               >
                 <Eye size={16} />
               </button>
-
-              <button
-                className="action-btn delete"
-                onClick={() => handleDeletePrescription(o)}
-                title="Supprimer"
-              >
-                <Trash2 size={16} />
-              </button>
             </td>
           </tr>
         ))}
-        {sortedOrdonnances.length === 0 && (
+        {tabServerPage.prescriptions?.loading && pagedOrdonnances.length === 0 && (
+          <tr>
+            <td colSpan="3" style={{ textAlign: "center" }}>
+              Chargement...
+            </td>
+          </tr>
+        )}
+        {!tabServerPage.prescriptions?.loading && pagedOrdonnances.length === 0 && (
           <tr>
             <td colSpan="3" style={{ textAlign: "center" }}>
               Aucune ordonnance
@@ -5539,6 +5930,156 @@ const handleDeleteAppointment = (a) => {
 
       <div className="modal-actions" style={{ marginTop: '20px' }}>
         <button className="btn-cancel" onClick={() => setShowTeethHistoryModal(false)}>
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showDiseasePicker && (
+  <div className="modal-overlay" onClick={closeDiseasePicker}>
+    <div className="modal-content medical-picker-modal" style={{ maxWidth: "560px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="medical-picker-header">
+        <h2 style={{ margin: 0 }}>Ajouter une maladie</h2>
+        <X size={20} className="medical-picker-close" onClick={closeDiseasePicker} />
+      </div>
+
+      <div>
+        <label className="text-xs text-gray-600 font-bold uppercase">Rechercher maladie</label>
+        <div className="relative mt-1">
+        <input
+          type="text"
+          className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          placeholder="Rechercher une maladie (ou tapez puis +)"
+          value={diseaseSearch}
+          onChange={(e) => {
+            const val = e.target.value;
+            setDiseaseSearch(val);
+            if (val && bestDiseaseSuggestions.length) setShowDiseaseSuggestions(true);
+            else setShowDiseaseSuggestions(false);
+          }}
+          onFocus={() => {
+            if (String(diseaseSearch || "").trim() && bestDiseaseSuggestions.length) {
+              setShowDiseaseSuggestions(true);
+            }
+          }}
+          onBlur={() => setTimeout(() => setShowDiseaseSuggestions(false), 120)}
+        />
+
+        {showDiseaseSuggestions && bestDiseaseSuggestions.length > 0 && (
+          <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
+            {bestDiseaseSuggestions.map((c) => (
+              <li
+                key={c.id}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={async () => {
+                  await addMedicalEntry("diseases", c?.name);
+                  closeDiseasePicker();
+                }}
+                className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
+              >
+                <div className="text-sm font-bold text-gray-800">{c.name}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <button
+          type="button"
+          className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-9 w-9 inline-flex items-center justify-center rounded-md bg-white text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 opacity-100"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleCreateDiseaseFromSearch}
+          disabled={!String(diseaseSearch || "").trim() || isCreatingMedicalCatalog}
+          title="Ajouter au catalogue"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      <div className="text-[11px] text-gray-500" style={{ marginTop: 4 }}>
+        Le bouton + ajoute une maladie au <span className="font-medium">catalogue</span>.
+      </div>
+      </div>
+
+      {/* Autocomplete dropdown handles results; no inline list needed */}
+
+      <div className="modal-actions">
+        <button type="button" className="btn-cancel" onClick={closeDiseasePicker}>
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showAllergyPicker && (
+  <div className="modal-overlay" onClick={closeAllergyPicker}>
+    <div className="modal-content medical-picker-modal" style={{ maxWidth: "560px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="medical-picker-header">
+        <h2 style={{ margin: 0 }}>Ajouter une allergie</h2>
+        <X size={20} className="medical-picker-close" onClick={closeAllergyPicker} />
+      </div>
+
+      <div>
+        <label className="text-xs text-gray-600 font-bold uppercase">Rechercher allergie</label>
+        <div className="relative mt-1">
+        <input
+          type="text"
+          className="block w-full rounded-md border border-gray-200 p-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          placeholder="Rechercher une allergie (ou tapez puis +)"
+          value={allergySearch}
+          onChange={(e) => {
+            const val = e.target.value;
+            setAllergySearch(val);
+            if (val && bestAllergySuggestions.length) setShowAllergySuggestions(true);
+            else setShowAllergySuggestions(false);
+          }}
+          onFocus={() => {
+            if (String(allergySearch || "").trim() && bestAllergySuggestions.length) {
+              setShowAllergySuggestions(true);
+            }
+          }}
+          onBlur={() => setTimeout(() => setShowAllergySuggestions(false), 120)}
+        />
+
+        {showAllergySuggestions && bestAllergySuggestions.length > 0 && (
+          <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
+            {bestAllergySuggestions.map((c) => (
+              <li
+                key={c.id}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={async () => {
+                  await addMedicalEntry("allergies", c?.name);
+                  closeAllergyPicker();
+                }}
+                className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0"
+              >
+                <div className="text-sm font-bold text-gray-800">{c.name}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <button
+          type="button"
+          className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-9 w-9 inline-flex items-center justify-center rounded-md bg-white text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 opacity-100"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleCreateAllergyFromSearch}
+          disabled={!String(allergySearch || "").trim() || isCreatingMedicalCatalog}
+          title="Ajouter au catalogue"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      <div className="text-[11px] text-gray-500" style={{ marginTop: 4 }}>
+        Le bouton + ajoute une allergie au <span className="font-medium">catalogue</span>.
+      </div>
+      </div>
+
+      {/* Autocomplete dropdown handles results; no inline list needed */}
+
+      <div className="modal-actions">
+        <button type="button" className="btn-cancel" onClick={closeAllergyPicker}>
           Fermer
         </button>
       </div>

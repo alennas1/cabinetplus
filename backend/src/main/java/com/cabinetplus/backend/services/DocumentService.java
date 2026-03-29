@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.services;
 
 import com.cabinetplus.backend.dto.DocumentResponseDTO;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Document;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
@@ -63,7 +64,7 @@ public class DocumentService {
         Patient patient = patientRepository.findByIdAndCreatedBy(patientId, ownerDentist)
                 .orElseThrow(() -> new RuntimeException("Patient introuvable"));
 
-        return documentRepository.findByPatientOrderByUploadedAtDesc(patient)
+        return documentRepository.findByPatientAndRecordStatusOrderByUploadedAtDesc(patient, RecordStatus.ACTIVE)
                 .stream()
                 .map(this::toDto)
                 .toList();
@@ -87,6 +88,9 @@ public class DocumentService {
 
         Patient patient = patientRepository.findByIdAndCreatedBy(patientId, ownerDentist)
                 .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        if (patient.getArchivedAt() != null) {
+            throw new IllegalArgumentException("Patient archivé : lecture seule.");
+        }
 
         String originalFilename = file.getOriginalFilename();
         String extension = extractExtension(originalFilename);
@@ -164,15 +168,13 @@ public class DocumentService {
 
     public void delete(Long documentId, User ownerDentist) {
         Document document = getOwnedDocument(documentId, ownerDentist);
-        Path path = resolvePath(document.getPathOrUrl());
-        documentRepository.delete(document);
-
-        if (path != null) {
-            try {
-                Files.deleteIfExists(path);
-            } catch (IOException ex) {
-                throw new RuntimeException("Impossible de supprimer le fichier du document", ex);
-            }
+        if (document.getPatient() != null && document.getPatient().getArchivedAt() != null) {
+            throw new IllegalArgumentException("Patient archivé : lecture seule.");
+        }
+        if (document.getRecordStatus() != RecordStatus.CANCELLED) {
+            document.setRecordStatus(RecordStatus.CANCELLED);
+            document.setCancelledAt(LocalDateTime.now());
+            documentRepository.save(document);
         }
     }
 

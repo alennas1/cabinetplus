@@ -37,16 +37,28 @@ export const updateJustification = async (id, justificationData) => {
 /**
  * Delete justification by ID
  */
-export const deleteJustification = async (id) => {
-  const response = await api.delete(`${BASE_URL}/${id}`);
-  return response.data;
-};
-
 /**
  * Get justifications by patient ID
  */
 export const getJustificationsByPatient = async (patientId) => {
   const response = await api.get(`${BASE_URL}/patient/${patientId}`);
+  return response.data;
+};
+
+export const getJustificationsByPatientPage = async ({
+  patientId,
+  page = 0,
+  size = 10,
+  q,
+  field,
+  from,
+  to,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`${BASE_URL}/patient/${patientId}/paged`, {
+    params: { page, size, q, field, from, to, sortKey, sortDirection },
+  });
   return response.data;
 };
 

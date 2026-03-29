@@ -10,6 +10,7 @@ import com.cabinetplus.backend.dto.PaymentResponse;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Payment;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.repositories.PatientRepository;
@@ -32,6 +33,9 @@ public class PaymentService {
         User clinicOwner = resolveClinicOwner(actor);
         Patient patient = patientRepository.findByIdAndCreatedBy(request.patientId(), clinicOwner)
                 .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
+        if (patient.getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
 
         User receivedBy = resolveReceivedBy(request.receivedByUserId(), clinicOwner, actor);
 
@@ -45,6 +49,7 @@ public class PaymentService {
                         .method(request.method())
                         .date(when)
                         .receivedBy(receivedBy)
+                        .recordStatus(RecordStatus.ACTIVE)
                         .build()
         );
 
@@ -64,13 +69,18 @@ public class PaymentService {
         if (!owned) {
             throw new NotFoundException("Patient introuvable");
         }
-        return paymentRepository.findByPatientIdOrderByDateDesc(patientId);
+        return paymentRepository.findByPatientIdOrderByDateDesc(patientId).stream()
+                .filter(p -> p != null && p.getRecordStatus() != RecordStatus.ARCHIVED)
+                .toList();
     }
 
     public void delete(Long paymentId, User actor) {
         User clinicOwner = resolveClinicOwner(actor);
         Payment existing = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new NotFoundException("Paiement introuvable"));
+        if (existing.getPatient() != null && existing.getPatient().getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
 
         Long ownerId = existing.getPatient() != null && existing.getPatient().getCreatedBy() != null
                 ? existing.getPatient().getCreatedBy().getId()
@@ -79,7 +89,11 @@ public class PaymentService {
             throw new NotFoundException("Paiement introuvable");
         }
 
-        paymentRepository.delete(existing);
+        if (existing.getRecordStatus() != RecordStatus.CANCELLED) {
+            existing.setRecordStatus(RecordStatus.CANCELLED);
+            existing.setCancelledAt(LocalDateTime.now());
+            paymentRepository.save(existing);
+        }
     }
 
     private User resolveClinicOwner(User user) {

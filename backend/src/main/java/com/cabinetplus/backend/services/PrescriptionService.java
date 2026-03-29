@@ -14,6 +14,7 @@ import com.cabinetplus.backend.dto.PrescriptionMedicationDTO;
 import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
 import com.cabinetplus.backend.dto.PrescriptionResponseDTO;
 import com.cabinetplus.backend.dto.PrescriptionSummaryDTO;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Medication;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Prescription;
@@ -46,6 +47,9 @@ public class PrescriptionService {
         User clinicOwner = resolveClinicOwner(practitioner);
         Patient patient = patientRepository.findByIdAndCreatedBy(dto.getPatientId(), clinicOwner)
                 .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
+        if (patient.getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
 
         Prescription prescription = new Prescription();
         prescription.setDate(LocalDateTime.now());
@@ -127,12 +131,18 @@ public class PrescriptionService {
 public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User practitioner) {
     // 1. Fetch the existing prescription and check ownership
     Prescription prescription = getPrescriptionEntity(id, practitioner);
+    if (prescription.getRecordStatus() == RecordStatus.CANCELLED) {
+        throw new BadRequestException(java.util.Map.of("_", "Ordonnance annulée : lecture seule."));
+    }
     
     // 2. Update basic fields
     prescription.setNotes(dto.getNotes());
     User clinicOwner = resolveClinicOwner(practitioner);
     Patient patient = patientRepository.findByIdAndCreatedBy(dto.getPatientId(), clinicOwner)
             .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
+    if (patient.getArchivedAt() != null) {
+        throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+    }
     prescription.setPatient(patient);
 
     // 3. Identify which items to KEEP vs. which to DELETE
@@ -184,7 +194,7 @@ public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User
         allowed.add(clinicOwner);
         allowed.addAll(practitioners);
 
-        return prescriptionRepository.findByPatientIdAndPractitionerInOrderByDateDesc(patientId, allowed).stream()
+        return prescriptionRepository.findByPatientIdAndPractitionerInAndRecordStatusOrderByDateDesc(patientId, allowed, RecordStatus.ACTIVE).stream()
                 .map(p -> new PrescriptionSummaryDTO(p.getId(), p.getPublicId(), p.getRxId(), p.getDate()))
                 .collect(Collectors.toList());
     }
@@ -193,12 +203,19 @@ public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User
         User clinicOwner = resolveClinicOwner(requester);
         Prescription existing = prescriptionRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Ordonnance introuvable"));
+        if (existing.getPatient() != null && existing.getPatient().getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
 
         if (!isUserInClinic(existing.getPractitioner(), clinicOwner)) {
             throw new NotFoundException("Ordonnance introuvable");
         }
 
-        prescriptionRepository.delete(existing);
+        if (existing.getRecordStatus() != RecordStatus.CANCELLED) {
+            existing.setRecordStatus(RecordStatus.CANCELLED);
+            existing.setCancelledAt(LocalDateTime.now());
+            prescriptionRepository.save(existing);
+        }
     }
 
     private User resolveClinicOwner(User user) {

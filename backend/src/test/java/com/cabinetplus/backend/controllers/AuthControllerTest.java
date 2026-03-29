@@ -124,6 +124,7 @@ class AuthControllerTest {
         User user = new User();
         user.setId(1L);
         user.setPhoneNumber("0550000000");
+        user.setPhoneVerified(true);
         user.setRole(UserRole.DENTIST);
         user.setLoginTwoFactorEnabled(true);
 

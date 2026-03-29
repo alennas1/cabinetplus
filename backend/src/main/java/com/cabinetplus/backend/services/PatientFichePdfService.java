@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Payment;
@@ -65,8 +66,12 @@ public class PatientFichePdfService {
                 .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(t.getStatus()))
                 .collect(Collectors.toList());
         List<Appointment> appointments = appointmentRepository.findByPatientId(patientId);
-        List<Payment> payments = paymentRepository.findByPatientId(patientId);
-        List<Prothesis> protheses = prothesisRepository.findByPatient(patient);
+        // Exclude cancelled payments from the PDF and balance calculations.
+        List<Payment> payments = paymentRepository.findByPatientIdAndRecordStatusOrderByDateDesc(patientId, RecordStatus.ACTIVE);
+        List<Prothesis> protheses = prothesisRepository.findByPatient(patient).stream()
+                .filter(p -> p != null && p.getRecordStatus() == RecordStatus.ACTIVE)
+                .filter(p -> p.getStatus() == null || !"CANCELLED".equalsIgnoreCase(p.getStatus()))
+                .collect(Collectors.toList());
 
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "attachment; filename=\"" + (fileName != null ? fileName : "fiche_patient.pdf") + "\"");
@@ -282,4 +287,3 @@ public class PatientFichePdfService {
         return value != null ? value : "";
     }
 }
-

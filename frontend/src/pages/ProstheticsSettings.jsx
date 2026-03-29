@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Plus, Trash2, Search, X, Edit2 } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -6,9 +6,10 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 
 import {
-  getAllProstheticsCatalogue,
+  getProstheticsCataloguePage,
   createProstheticCatalogue,
   updateProstheticCatalogue,
   deleteProstheticCatalogue,
@@ -19,17 +20,20 @@ import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import { getCurrencyLabelPreference } from "../utils/workingHours";
 import MoneyInput from "../components/MoneyInput";
 import { parseMoneyInput } from "../utils/moneyInput";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import FieldError from "../components/FieldError";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
 import "./Patients.css";
 
 const ProstheticsSettings = () => {
   const [prosthetics, setProsthetics] = useState([]);
   const [materials, setMaterials] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 250);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -42,8 +46,12 @@ const ProstheticsSettings = () => {
   const [filteredMaterialOptions, setFilteredMaterialOptions] = useState([]);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
+  const materialsLoadedRef = useRef(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -62,21 +70,50 @@ const ProstheticsSettings = () => {
 
   useEffect(() => {
     loadInitialData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearchTerm, sortConfig.key, sortConfig.direction]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm]);
 
   const loadInitialData = async () => {
-    setLoading(true);
+    const requestId = ++requestIdRef.current;
+    const isInitial = !hasLoadedRef.current;
+
+    if (isInitial) setLoading(true);
+    else setIsFetching(true);
+
     try {
-      const [prosData, matsData] = await Promise.all([
-        getAllProstheticsCatalogue(),
-        getAllMaterials(),
-      ]);
-      setProsthetics(prosData);
-      setMaterials(matsData);
+      const prostheticsPromise = getProstheticsCataloguePage({
+        page: Math.max(0, currentPage - 1),
+        size: pageSize,
+        q: debouncedSearchTerm,
+        sortKey: sortConfig.key,
+        direction: sortConfig.direction,
+      });
+
+      const matsPromise = materialsLoadedRef.current ? Promise.resolve(null) : getAllMaterials();
+
+      const [prosData, matsData] = await Promise.all([prostheticsPromise, matsPromise]);
+      if (requestId !== requestIdRef.current) return;
+
+      setProsthetics(Array.isArray(prosData?.items) ? prosData.items : []);
+      setTotalPages(Number(prosData?.totalPages || 1));
+
+      if (matsData != null) {
+        setMaterials(Array.isArray(matsData) ? matsData : []);
+        materialsLoadedRef.current = true;
+      }
+
+      hasLoadedRef.current = true;
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
     } finally {
+      if (requestId !== requestIdRef.current) return;
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
@@ -279,13 +316,18 @@ const ProstheticsSettings = () => {
       };
 
       if (isEditing && editingId) {
-        const updatedItem = await updateProstheticCatalogue(editingId, payload);
-        setProsthetics((prev) => prev.map((p) => (p.id === editingId ? updatedItem : p)));
+        await updateProstheticCatalogue(editingId, payload);
         toast.success("Prothese mise a jour");
       } else {
-        const newItem = await createProstheticCatalogue(payload);
-        setProsthetics((prev) => [...prev, newItem]);
+        await createProstheticCatalogue(payload);
         toast.success("Prothese ajoutee au catalogue");
+      }
+
+      const shouldJumpToFirstPage = !isEditing && currentPage !== 1;
+      if (shouldJumpToFirstPage) {
+        setCurrentPage(1);
+      } else {
+        await loadInitialData();
       }
 
       setIsModalOpen(false);
@@ -306,9 +348,14 @@ const ProstheticsSettings = () => {
     if (isDeletingItem) return;
     try {
       setIsDeletingItem(true);
+      const shouldGoBack = (prosthetics || []).length <= 1 && currentPage > 1;
       await deleteProstheticCatalogue(itemIdToDelete);
-      setProsthetics((prev) => prev.filter((p) => p.id !== itemIdToDelete));
       toast.success("Prothese supprimee");
+      if (shouldGoBack) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        await loadInitialData();
+      }
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
     } finally {
@@ -317,12 +364,6 @@ const ProstheticsSettings = () => {
       setItemIdToDelete(null);
     }
   };
-
-  const filteredProsthetics = prosthetics.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.materialName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -336,32 +377,8 @@ const ProstheticsSettings = () => {
           : SORT_DIRECTIONS.ASC);
       return { key, direction: nextDirection };
     });
+    setCurrentPage(1);
   };
-
-  const sortedProsthetics = useMemo(() => {
-    const getValue = (p) => {
-      switch (sortConfig.key) {
-        case "name":
-          return p.name;
-        case "materialName":
-          return p.materialName;
-        case "defaultPrice":
-          return p.defaultPrice;
-        case "defaultLabCost":
-          return p.defaultLabCost;
-        case "type":
-          return p.isFlatFee ? "Forfait" : p.isMultiUnit ? "Multi-unité" : "Unitaire";
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filteredProsthetics, getValue, sortConfig.direction);
-  }, [filteredProsthetics, sortConfig.direction, sortConfig.key]);
-
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentItems = sortedProsthetics.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedProsthetics.length / itemsPerPage);
 
   if (loading) {
     return (
@@ -413,7 +430,7 @@ const ProstheticsSettings = () => {
           </tr>
         </thead>
         <tbody>
-          {currentItems.map((p) => (
+          {prosthetics.map((p) => (
               <tr key={p.id}>
                 <td style={{ fontWeight: "500" }}>{p.name}</td>
                 <td>
@@ -440,23 +457,14 @@ const ProstheticsSettings = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
-            Precedent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
-            Suivant
-          </button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={isFetching}
+          previousLabel="Precedent"
+          nextLabel="Suivant"
+        />
       )}
 
       {isModalOpen && (

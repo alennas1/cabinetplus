@@ -2,23 +2,28 @@ package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDate;
+	import java.time.format.DateTimeFormatter;
+	import java.util.Comparator;
+	import java.util.List;
+	import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+	import org.springframework.format.annotation.DateTimeFormat;
+	import org.springframework.beans.factory.annotation.Value;
+	import org.springframework.web.bind.annotation.DeleteMapping;
+	import org.springframework.web.bind.annotation.GetMapping;
+	import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.PatientCreateRequest;
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.dto.PatientUpdateRequest;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
@@ -92,6 +97,24 @@ public class PatientController {
                 .toList();
     }
 
+	    @GetMapping("/paged")
+	    public PageResponse<PatientDto> getAllPatientsPaged(
+	            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @RequestParam(name = "from", required = false) LocalDate from,
+	            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @RequestParam(name = "to", required = false) LocalDate to,
+	            @RequestParam(name = "page", defaultValue = "0") int page,
+	            @RequestParam(name = "size", defaultValue = "20") int size,
+	            @RequestParam(name = "q", required = false) String q,
+	            @RequestParam(name = "field", required = false) String field,
+	            @RequestParam(name = "sortKey", required = false) String sortKey,
+	            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+	            @RequestParam(name = "sex", required = false) String sex,
+	            @RequestParam(name = "ageFrom", required = false) Integer ageFrom,
+	            @RequestParam(name = "ageTo", required = false) Integer ageTo,
+	            Principal principal
+	    ) {
+	        return listPatientsPaged(false, page, size, q, field, sortKey, sortDirection, sex, ageFrom, ageTo, from, to, principal);
+	    }
+
     @GetMapping("/archived")
     public List<PatientDto> getArchivedPatients(Principal principal) {
         User currentUser = getClinicUser(principal);
@@ -113,6 +136,174 @@ public class PatientController {
                 .map(p -> toDtoWithMetrics(p, metricsById.get(p.getId()), cancelledThreshold, owedThreshold))
                 .toList();
     }
+
+	    @GetMapping("/archived/paged")
+	    public PageResponse<PatientDto> getArchivedPatientsPaged(
+	            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @RequestParam(name = "from", required = false) LocalDate from,
+	            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @RequestParam(name = "to", required = false) LocalDate to,
+	            @RequestParam(name = "page", defaultValue = "0") int page,
+	            @RequestParam(name = "size", defaultValue = "20") int size,
+	            @RequestParam(name = "q", required = false) String q,
+	            @RequestParam(name = "field", required = false) String field,
+	            @RequestParam(name = "sortKey", required = false) String sortKey,
+	            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+	            @RequestParam(name = "sex", required = false) String sex,
+	            @RequestParam(name = "ageFrom", required = false) Integer ageFrom,
+	            @RequestParam(name = "ageTo", required = false) Integer ageTo,
+	            Principal principal
+	    ) {
+	        return listPatientsPaged(true, page, size, q, field, sortKey, sortDirection, sex, ageFrom, ageTo, from, to, principal);
+	    }
+	
+	    private PageResponse<PatientDto> listPatientsPaged(
+	            boolean archived,
+	            int page,
+	            int size,
+	            String q,
+	            String field,
+	            String sortKey,
+	            String sortDirection,
+	            String sex,
+	            Integer ageFrom,
+	            Integer ageTo,
+	            LocalDate from,
+	            LocalDate to,
+            Principal principal
+    ) {
+        User currentUser = getClinicUser(principal);
+        auditService.logSuccess(
+                AuditEventType.PATIENT_READ,
+                "PATIENT",
+                null,
+                archived ? "Patients archives consultes (page)" : "Patients consultes (page)"
+        );
+	
+	        int safePage = Math.max(page, 0);
+	        int safeSize = Math.min(Math.max(size, 1), 100);
+
+	        // Avoid null timestamp query parameters on PostgreSQL (can cause "could not determine data type" errors).
+	        boolean fromEnabled = from != null;
+	        boolean toEnabled = to != null;
+	        LocalDateTime fromCreatedAt = fromEnabled ? from.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+        LocalDateTime toCreatedAtExclusive = toEnabled ? to.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
+
+        List<Patient> base = patientRepository.searchPatientsList(
+                currentUser,
+                archived,
+                ageFrom,
+                ageTo,
+                fromEnabled,
+                fromCreatedAt,
+                toEnabled,
+                toCreatedAtExclusive
+        );
+
+	        String qNorm = q != null ? q.trim().toLowerCase() : "";
+	        String sexNorm = sex != null ? sex.trim().toLowerCase() : "";
+	        String fieldNorm = field != null ? field.trim().toLowerCase() : "";
+	        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
+	        String sortDirNorm = sortDirection != null ? sortDirection.trim().toLowerCase() : "";
+	        Comparator<Patient> sortComparator = buildPatientSortComparator(sortKeyNorm, sortDirNorm);
+
+	        List<Patient> filtered = (base == null ? List.<Patient>of() : base).stream()
+	                .filter(p -> {
+	                    if (sexNorm.isBlank()) return true;
+	                    String pSex = p.getSex() != null ? p.getSex().trim().toLowerCase() : "";
+	                    return pSex.equals(sexNorm);
+	                })
+	                .filter(p -> matchesPatientQuery(p, qNorm, fieldNorm))
+	                .sorted(sortComparator)
+	                .toList();
+
+        int fromIndex = safePage * safeSize;
+        int toIndex = Math.min(fromIndex + safeSize, filtered.size());
+        List<Patient> pageItems = fromIndex >= filtered.size() ? List.of() : filtered.subList(fromIndex, toIndex);
+
+        List<Long> patientIds = pageItems.stream().map(Patient::getId).toList();
+        var metricsById = patientRiskService.getMetricsByPatientIds(patientIds);
+
+        Integer cancelledThreshold = currentUser.getPatientCancelledAppointmentsThreshold();
+        Double owedThreshold = currentUser.getPatientMoneyOwedThreshold();
+
+        var items = pageItems.stream()
+                .map(p -> toDtoWithMetrics(p, metricsById.get(p.getId()), cancelledThreshold, owedThreshold))
+                .toList();
+
+        long totalElements = filtered.size();
+        int totalPages = safeSize == 0 ? 0 : (int) Math.ceil(totalElements / (double) safeSize);
+
+        return new PageResponse<>(items, safePage, safeSize, totalElements, totalPages);
+    }
+
+	    private static boolean matchesPatientQuery(Patient patient, String qNorm, String fieldNorm) {
+	        if (patient == null) return false;
+	        if (qNorm == null || qNorm.isBlank()) return true;
+
+        String first = patient.getFirstname() != null ? patient.getFirstname().trim().toLowerCase() : "";
+        String last = patient.getLastname() != null ? patient.getLastname().trim().toLowerCase() : "";
+        String phone = patient.getPhone() != null ? patient.getPhone().trim().toLowerCase() : "";
+        String age = patient.getAge() != null ? String.valueOf(patient.getAge()) : "";
+
+	        return switch (fieldNorm) {
+	            case "firstname" -> first.contains(qNorm);
+	            case "lastname" -> last.contains(qNorm);
+	            case "phone" -> phone.contains(qNorm);
+	            case "age" -> age.contains(qNorm);
+	            default -> first.contains(qNorm) || last.contains(qNorm) || phone.contains(qNorm) || age.contains(qNorm);
+	        };
+	    }
+
+	    private static Comparator<Patient> buildPatientSortComparator(String sortKeyNorm, String sortDirNorm) {
+	        boolean desc = "desc".equalsIgnoreCase(sortDirNorm);
+
+	        Comparator<String> baseString = String.CASE_INSENSITIVE_ORDER;
+	        if (desc) {
+	            baseString = baseString.reversed();
+	        }
+	        Comparator<String> stringComparator = Comparator.nullsLast(baseString);
+
+	        Comparator<Integer> baseInteger = Comparator.naturalOrder();
+	        if (desc) {
+	            baseInteger = Comparator.<Integer>reverseOrder();
+	        }
+	        Comparator<Integer> integerComparator = Comparator.nullsLast(baseInteger);
+
+	        Comparator<LocalDateTime> baseDateTime = Comparator.naturalOrder();
+	        if (desc) {
+	            baseDateTime = Comparator.<LocalDateTime>reverseOrder();
+	        }
+	        Comparator<LocalDateTime> dateTimeComparator = Comparator.nullsLast(baseDateTime);
+
+	        Comparator<Patient> comparator = switch (sortKeyNorm) {
+	            case "firstname" -> Comparator.comparing(
+	                    p -> normalizeTextForSort(p == null ? null : p.getFirstname()),
+	                    stringComparator
+	            );
+	            case "lastname" -> Comparator.comparing(
+	                    p -> normalizeTextForSort(p == null ? null : p.getLastname()),
+	                    stringComparator
+	            );
+	            case "age" -> Comparator.comparing(Patient::getAge, integerComparator);
+	            case "sex" -> Comparator.comparing(
+	                    p -> normalizeTextForSort(p == null ? null : p.getSex()),
+	                    stringComparator
+	            );
+	            case "phone" -> Comparator.comparing(
+	                    p -> normalizeTextForSort(p == null ? null : p.getPhone()),
+	                    stringComparator
+	            );
+	            case "createdat", "created_at", "created" -> Comparator.comparing(Patient::getCreatedAt, dateTimeComparator);
+	            default -> Comparator.comparing(Patient::getCreatedAt, Comparator.nullsLast(Comparator.<LocalDateTime>reverseOrder()));
+	        };
+
+	        return comparator.thenComparing(Patient::getId, Comparator.nullsLast(Comparator.<Long>naturalOrder()));
+	    }
+
+	    private static String normalizeTextForSort(String value) {
+	        if (value == null) return null;
+	        String trimmed = value.trim();
+	        return trimmed.isBlank() ? null : trimmed;
+	    }
 
     @GetMapping("/{id}")
     public PatientDto getPatientById(@PathVariable String id, Principal principal) {
@@ -182,6 +373,8 @@ public class PatientController {
         patient.setAge(request.age());
         patient.setSex(request.sex() != null ? request.sex().trim() : null);
         patient.setPhone(request.phone() != null ? request.phone().trim() : null);
+        patient.setDiseases(request.diseases() != null ? request.diseases().trim() : null);
+        patient.setAllergies(request.allergies() != null ? request.allergies().trim() : null);
         patient.setCreatedBy(currentUser);
         patient.setCreatedAt(LocalDateTime.now());
 
@@ -206,6 +399,8 @@ public class PatientController {
         patient.setAge(request.age());
         patient.setSex(request.sex() != null ? request.sex().trim() : null);
         patient.setPhone(request.phone() != null ? request.phone().trim() : null);
+        patient.setDiseases(request.diseases() != null ? request.diseases().trim() : null);
+        patient.setAllergies(request.allergies() != null ? request.allergies().trim() : null);
 
         PatientDto updated = patientService.update(existing.getId(), patient, currentUser);
         auditService.logSuccess(
@@ -223,7 +418,7 @@ public class PatientController {
         Patient existing = publicIdResolutionService.requirePatientOwnedBy(id, currentUser);
         patientService.delete(existing.getId(), currentUser);
         auditService.logSuccess(
-                AuditEventType.PATIENT_DELETE,
+                AuditEventType.PATIENT_ARCHIVE,
                 "PATIENT",
                 String.valueOf(existing.getId()),
                 "Patient supprimé"
@@ -304,12 +499,15 @@ public class PatientController {
                 patient.getAge(),
                 patient.getSex(),
                 patient.getPhone(),
+                patient.getDiseases(),
+                patient.getAllergies(),
                 patient.getCreatedAt(),
                 cancelledCount,
                 moneyOwed,
                 danger,
                 dangerCancelled,
-                dangerOwed
+                dangerOwed,
+                patient.getArchivedAt()
         );
     }
 }

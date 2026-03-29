@@ -1,33 +1,40 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit2, Trash2, Search, X } from "react-feather";
+import { Plus, Edit2, Search, X, Archive, Eye, RotateCcw } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import FieldError from "../components/FieldError";
 import PhoneInput from "../components/PhoneInput";
 import {
-  getAllFournisseurs,
+  getFournisseursPage,
+  getArchivedFournisseursPage,
   createFournisseur,
   updateFournisseur,
-  deleteFournisseur,
+  archiveFournisseur,
+  unarchiveFournisseur,
 } from "../services/fournisseurService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import "./Patients.css";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
-const Fournisseurs = () => {
+const Fournisseurs = ({ view = "active" }) => {
   const navigate = useNavigate();
   const [fournisseurs, setFournisseurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const pageSize = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: SORT_DIRECTIONS.ASC });
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -44,25 +51,38 @@ const Fournisseurs = () => {
   const [fournisseurIdToDelete, setFournisseurIdToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const getter = view === "archived" ? getArchivedFournisseursPage : getFournisseursPage;
+      const data = await getter({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        sortKey: sortConfig?.key || undefined,
+        direction: sortConfig?.direction || undefined,
+      });
+      setFournisseurs(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      setTotalElements(Number(data?.totalElements || 0));
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
+      setFournisseurs([]);
+      setTotalPages(1);
+      setTotalElements(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const data = await getAllFournisseurs();
-        setFournisseurs(Array.isArray(data) ? data : []);
-      } catch (err) {
-        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, view, debouncedSearch, sortConfig.key, sortConfig.direction]);
 
-  const filtered = fournisseurs.filter((f) =>
-    `${f.name} ${f.contactPerson} ${f.phoneNumber} ${f.address}`.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [view, search, sortConfig.key, sortConfig.direction]);
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -76,28 +96,11 @@ const Fournisseurs = () => {
           : SORT_DIRECTIONS.ASC);
       return { key, direction: nextDirection };
     });
+    setCurrentPage((p) => (p === 1 ? p : 1));
   };
 
-  const sorted = useMemo(() => {
-    const getValue = (f) => {
-      switch (sortConfig.key) {
-        case "name":
-          return f.name;
-        case "contactPerson":
-          return f.contactPerson;
-        case "phoneNumber":
-          return f.phoneNumber;
-        case "address":
-          return f.address;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filtered, getValue, sortConfig.direction);
-  }, [filtered, sortConfig.direction, sortConfig.key]);
-
-  const current = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(sorted.length / itemsPerPage);
+  // Server-side pagination/search/sort: backend already returns a single page.
+  const current = fournisseurs || [];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -152,12 +155,13 @@ const Fournisseurs = () => {
         address: String(formData.address ?? "").trim() || null,
       };
       if (isEditing) {
-        const updated = await updateFournisseur(formData.id, payload);
-        setFournisseurs((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+        await updateFournisseur(formData.id, payload);
+        await fetchData();
         toast.success("Fournisseur mis à jour");
       } else {
-        const created = await createFournisseur(payload);
-        setFournisseurs((prev) => [...prev, created]);
+        await createFournisseur(payload);
+        setCurrentPage(1);
+        await fetchData();
         toast.success("Fournisseur ajouté");
       }
       setShowModal(false);
@@ -190,14 +194,14 @@ const Fournisseurs = () => {
     if (isDeleting) return;
     try {
       setIsDeleting(true);
-      await deleteFournisseur(fournisseurIdToDelete);
-      setFournisseurs((prev) => prev.filter((f) => f.id !== fournisseurIdToDelete));
-      toast.success("Fournisseur supprimé");
+      await archiveFournisseur(fournisseurIdToDelete);
+      await fetchData();
+      toast.success("Fournisseur archivé");
     } catch (err) {
       const message =
         err?.response?.status === 409
-          ? "Impossible de supprimer un fournisseur lié à des achats"
-          : "Erreur lors de la suppression";
+          ? "Impossible d'archiver un fournisseur lié à des achats"
+          : "Erreur lors de l'archivage";
       toast.error(getApiErrorMessage(err, message));
     } finally {
       setIsDeleting(false);
@@ -206,11 +210,21 @@ const Fournisseurs = () => {
     }
   };
 
+  const handleRestore = async (id) => {
+    try {
+      await unarchiveFournisseur(id);
+      await fetchData();
+      toast.success("Fournisseur restauré");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de la restauration"));
+    }
+  };
+
   if (loading) {
     return (
       <DentistPageSkeleton
-        title="Fournisseurs"
-        subtitle="Chargement des fournisseurs"
+        title={view === "archived" ? "Fournisseurs archivés" : "Fournisseurs"}
+        subtitle={view === "archived" ? "Chargement des fournisseurs archivés" : "Chargement des fournisseurs"}
         variant="table"
       />
     );
@@ -218,8 +232,12 @@ const Fournisseurs = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/gestion-cabinet" />
-      <PageHeader title="Fournisseurs" subtitle="Gestion des fournisseurs pour les achats" align="left" />
+      <BackButton fallbackTo={view === "archived" ? "/gestion-cabinet/fournisseurs" : "/gestion-cabinet"} />
+      <PageHeader
+        title={view === "archived" ? "Fournisseurs archivés" : "Fournisseurs"}
+        subtitle={view === "archived" ? "Liste des fournisseurs archivés" : "Gestion des fournisseurs pour les achats"}
+        align="left"
+      />
 
       <div className="patients-controls">
         <div className="controls-left">
@@ -234,15 +252,28 @@ const Fournisseurs = () => {
           </div>
         </div>
         <div className="controls-right">
-          <button
-            className="btn-primary"
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-          >
-            <Plus size={16} /> Ajouter un fournisseur
-          </button>
+          {view === "archived" ? null : (
+            <>
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => navigate("/gestion-cabinet/fournisseurs/archived")}
+                title="Fournisseurs archivés"
+                aria-label="Fournisseurs archivés"
+              >
+                <Archive size={16} />
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  resetForm();
+                  setShowModal(true);
+                }}
+              >
+                <Plus size={16} /> Ajouter un fournisseur
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -269,33 +300,61 @@ const Fournisseurs = () => {
               <td>{f.address || "—"}</td>
               <td style={{ textAlign: "right" }}>
                 <button
-                  className="action-btn edit"
+                  className="action-btn view"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleEdit(f);
+                    navigate(`/gestion-cabinet/fournisseurs/${f.publicId || f.id}`);
                   }}
-                  title="Modifier"
+                  title="Voir"
                 >
-                  <Edit2 size={16} />
+                  <Eye size={16} />
                 </button>
-                <button
-                  className="action-btn delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(f.id);
-                  }}
-                  title="Supprimer"
-                >
-                  <Trash2 size={16} />
-                </button>
+
+                {view !== "archived" && (
+                  <>
+                    <button
+                      className="action-btn edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(f);
+                      }}
+                      title="Modifier"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      className="action-btn delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(f.id);
+                      }}
+                      title="Archiver"
+                    >
+                      <Archive size={16} />
+                    </button>
+                  </>
+                )}
+
+                {view === "archived" && (
+                  <button
+                    className="action-btn edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRestore(f.id);
+                    }}
+                    title="Restaurer"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                )}
               </td>
             </tr>
           ))}
 
-          {sorted.length === 0 && (
+          {current.length === 0 && (
             <tr>
               <td colSpan={5} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
-                Aucun fournisseur trouvé
+                {view === "archived" ? "Aucun fournisseur archivé" : "Aucun fournisseur trouvé"}
               </td>
             </tr>
           )}
@@ -303,23 +362,7 @@ const Fournisseurs = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
-            ← Précédent
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
 
       {showModal && (
@@ -396,16 +439,16 @@ const Fournisseurs = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">Supprimer le fournisseur ?</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Archiver le fournisseur ?</h2>
               <X className="cursor-pointer" onClick={() => setShowConfirm(false)} />
             </div>
-            <p className="text-gray-600 mb-6">Êtes-vous sûr ? Cette action est irréversible.</p>
+            <p className="text-gray-600 mb-6">Êtes-vous sûr ? Le fournisseur sera déplacé vers la liste des archives (lecture seule).</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100" disabled={isDeleting}>
                 Annuler
               </button>
-              <button onClick={confirmDelete} className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600" disabled={isDeleting}>
-                {isDeleting ? "Suppression..." : "Supprimer"}
+              <button onClick={confirmDelete} className="px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600" disabled={isDeleting}>
+                {isDeleting ? "Archivage..." : "Archiver"}
               </button>
             </div>
           </div>

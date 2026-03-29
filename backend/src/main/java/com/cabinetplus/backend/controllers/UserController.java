@@ -37,9 +37,12 @@ import com.cabinetplus.backend.dto.PatientManagementSettingsResponse;
 import com.cabinetplus.backend.dto.UserPreferencesRequest;
 import com.cabinetplus.backend.dto.UserPreferencesResponse;
 import com.cabinetplus.backend.dto.PlanUsageDto;
+import com.cabinetplus.backend.dto.SubscriptionSummaryDto;
+import com.cabinetplus.backend.enums.BillingCycle;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.RefreshToken;
@@ -48,12 +51,15 @@ import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.security.RefreshTokenHash;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.PlanLimitService;
+import com.cabinetplus.backend.services.SubscriptionService;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/users")
@@ -63,6 +69,7 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
     private final PlanService planService;
     private final PlanLimitService planLimitService;
+    private final SubscriptionService subscriptionService;
     private final AuditService auditService;
     private final PublicIdResolutionService publicIdResolutionService;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -78,6 +85,7 @@ public class UserController {
             PasswordEncoder passwordEncoder,
             PlanService planService,
             PlanLimitService planLimitService,
+            SubscriptionService subscriptionService,
             AuditService auditService,
             RefreshTokenRepository refreshTokenRepository,
             PublicIdResolutionService publicIdResolutionService
@@ -86,6 +94,7 @@ public class UserController {
         this.passwordEncoder = passwordEncoder;
         this.planService = planService;
         this.planLimitService = planLimitService;
+        this.subscriptionService = subscriptionService;
         this.auditService = auditService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.publicIdResolutionService = publicIdResolutionService;
@@ -108,6 +117,47 @@ public class UserController {
         return userService.getAllDentists();
     }
 
+    @GetMapping("/dentists/paged")
+    @PreAuthorize("hasRole('ADMIN')")
+    public PageResponse<User> getDentistsPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status
+    ) {
+        final UserPlanStatus statusFilter = parsePlanStatusFilter(status);
+
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+
+        List<User> dentists = userService.getAllDentists();
+        List<User> filtered = dentists.stream()
+                .filter(u -> statusFilter == null || u.getPlanStatus() == statusFilter)
+                .filter(u -> {
+                    if (qNorm.isBlank()) return true;
+                    String first = safeLower(u.getFirstname());
+                    String last = safeLower(u.getLastname());
+                    String phone = safeLower(u.getPhoneNumber());
+                    String planName = u.getPlan() != null ? safeLower(u.getPlan().getName()) : "";
+                    return first.contains(qNorm) || last.contains(qNorm) || phone.contains(qNorm) || planName.contains(qNorm);
+                })
+                .sorted((a, b) -> {
+                    int byLast = safeLower(a.getLastname()).compareToIgnoreCase(safeLower(b.getLastname()));
+                    if (byLast != 0) return byLast;
+                    int byFirst = safeLower(a.getFirstname()).compareToIgnoreCase(safeLower(b.getFirstname()));
+                    if (byFirst != 0) return byFirst;
+                    Long aId = a.getId();
+                    Long bId = b.getId();
+                    if (aId == null && bId == null) return 0;
+                    if (aId == null) return 1;
+                    if (bId == null) return -1;
+                    return aId.compareTo(bId);
+                })
+                .toList();
+
+        auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Liste dentistes consultee (page)");
+        return PaginationUtil.toPageResponse(filtered, page, size);
+    }
+
     @GetMapping("/admins")
     public List<User> getAllAdmins(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current) {
         User currentUser = userService.findByPhoneNumber(current.getUsername())
@@ -116,10 +166,91 @@ public class UserController {
         return userService.getAllAdmins(currentUser);
     }
 
+    @GetMapping("/admins/paged")
+    public PageResponse<User> getAllAdminsPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails current
+    ) {
+        User currentUser = userService.findByPhoneNumber(current.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
+
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        List<User> admins = userService.getAllAdmins(currentUser);
+
+        List<User> filtered = admins.stream()
+                .filter(u -> {
+                    if (qNorm.isBlank()) return true;
+                    String first = safeLower(u.getFirstname());
+                    String last = safeLower(u.getLastname());
+                    String phone = safeLower(u.getPhoneNumber());
+                    return first.contains(qNorm) || last.contains(qNorm) || phone.contains(qNorm);
+                })
+                .sorted((a, b) -> {
+                    int byLast = safeLower(a.getLastname()).compareToIgnoreCase(safeLower(b.getLastname()));
+                    if (byLast != 0) return byLast;
+                    int byFirst = safeLower(a.getFirstname()).compareToIgnoreCase(safeLower(b.getFirstname()));
+                    if (byFirst != 0) return byFirst;
+                    Long aId = a.getId();
+                    Long bId = b.getId();
+                    if (aId == null && bId == null) return 0;
+                    if (aId == null) return 1;
+                    if (bId == null) return -1;
+                    return aId.compareTo(bId);
+                })
+                .toList();
+
+        auditService.logSuccessAsUser(currentUser, AuditEventType.USER_READ, "USER", null, "Liste admins consultee (page)");
+        return PaginationUtil.toPageResponse(filtered, page, size);
+    }
+
     @GetMapping("/expiring-in/{days}")
     public List<User> getUsersExpiringIn(@PathVariable int days) {
         auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Utilisateurs expirant bientot consultes");
         return userService.getUsersExpiringInDays(days);
+    }
+
+    @GetMapping("/expiring-in/{days}/paged")
+    public PageResponse<User> getUsersExpiringInPaged(
+            @PathVariable int days,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status
+    ) {
+        final UserPlanStatus statusFilter = parsePlanStatusFilter(status);
+
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        List<User> users = userService.getUsersExpiringInDays(days);
+
+        List<User> filtered = users.stream()
+                .filter(u -> statusFilter == null || u.getPlanStatus() == statusFilter)
+                .filter(u -> {
+                    if (qNorm.isBlank()) return true;
+                    String first = safeLower(u.getFirstname());
+                    String last = safeLower(u.getLastname());
+                    String phone = safeLower(u.getPhoneNumber());
+                    String planName = u.getPlan() != null ? safeLower(u.getPlan().getName()) : "";
+                    return first.contains(qNorm) || last.contains(qNorm) || phone.contains(qNorm) || planName.contains(qNorm);
+                })
+                .sorted((a, b) -> {
+                    if (a.getExpirationDate() == null && b.getExpirationDate() == null) return 0;
+                    if (a.getExpirationDate() == null) return 1;
+                    if (b.getExpirationDate() == null) return -1;
+                    int byExpiry = a.getExpirationDate().compareTo(b.getExpirationDate());
+                    if (byExpiry != 0) return byExpiry;
+                    Long aId = a.getId();
+                    Long bId = b.getId();
+                    if (aId == null && bId == null) return 0;
+                    if (aId == null) return 1;
+                    if (bId == null) return -1;
+                    return aId.compareTo(bId);
+                })
+                .toList();
+
+        auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Utilisateurs expirant bientot consultes (page)");
+        return PaginationUtil.toPageResponse(filtered, page, size);
     }
 
     @GetMapping("/{id}")
@@ -209,6 +340,11 @@ public class UserController {
     public User getCurrentUser(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        // Keeps scheduled plan changes and expiration status up-to-date on read.
+        User owner = userService.resolveClinicOwner(user);
+        subscriptionService.refreshSubscription(owner);
+
         auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(user.getId()), "Profil consulte");
         return user;
     }
@@ -296,6 +432,87 @@ public class UserController {
         User owner = userService.resolveClinicOwner(user);
         auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(owner.getId()), "Usage plan consulte");
         return planLimitService.getPlanUsage(owner);
+    }
+
+    @GetMapping("/me/subscription-summary")
+    public SubscriptionSummaryDto getCurrentSubscriptionSummary(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
+    ) {
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        User owner = userService.resolveClinicOwner(user);
+
+        subscriptionService.refreshSubscription(owner);
+
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(owner.getId()), "Abonnement consulte");
+
+        return new SubscriptionSummaryDto(
+                owner.getPlan() != null,
+                owner.getPlanStatus() != null ? owner.getPlanStatus().name() : null,
+                owner.getPlan() != null ? owner.getPlan().getName() : null,
+                owner.getExpirationDate(),
+                owner.getNextPlan() != null,
+                owner.getNextPlan() != null ? owner.getNextPlan().getName() : null,
+                owner.getNextPlanStartDate(),
+                owner.getNextPlanExpirationDate()
+        );
+    }
+
+    @PostMapping("/me/activate-next-plan-now")
+    public User activateNextPlanNow(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
+    ) {
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
+            throw new AccessDeniedException("Les comptes employes heritent le plan du proprietaire");
+        }
+
+        User owner = userService.resolveClinicOwner(user);
+        subscriptionService.refreshSubscription(owner);
+
+        if (owner.getNextPlan() == null) {
+            throw new BadRequestException(Map.of("_", "Aucun abonnement prochain a activer."));
+        }
+
+        // Re-check limits at activation time (usage may have changed since scheduling).
+        planLimitService.assertUsageFitsPlan(owner, owner.getNextPlan());
+
+        LocalDateTime now = LocalDateTime.now();
+        BillingCycle cycle = owner.getNextPlanBillingCycle() != null ? owner.getNextPlanBillingCycle() : BillingCycle.MONTHLY;
+
+        owner.setPlan(owner.getNextPlan());
+        owner.setPlanBillingCycle(cycle);
+        owner.setPlanStartDate(now);
+        owner.setExpirationDate(computeExpiration(now, owner.getPlan(), cycle));
+
+        owner.setNextPlan(null);
+        owner.setNextPlanBillingCycle(null);
+        owner.setNextPlanStartDate(null);
+        owner.setNextPlanExpirationDate(null);
+
+        owner.setPlanStatus(UserPlanStatus.ACTIVE);
+
+        User saved = userService.save(owner);
+        auditService.logSuccessAsUser(
+                saved,
+                AuditEventType.USER_PLAN_SELECT,
+                "USER",
+                String.valueOf(saved.getId()),
+                "Abonnement prochain active immediatement"
+        );
+        return saved;
+    }
+
+    private static LocalDateTime computeExpiration(LocalDateTime startDate, Plan plan, BillingCycle cycle) {
+        if (startDate == null || plan == null) return null;
+        Integer monthlyPrice = plan.getMonthlyPrice();
+        boolean isFree = monthlyPrice != null && monthlyPrice == 0;
+        if (isFree) {
+            return startDate.plusDays(7);
+        }
+        return (cycle == BillingCycle.YEARLY) ? startDate.plusYears(1) : startDate.plusMonths(1);
     }
 
     @PutMapping("/me")
@@ -524,8 +741,12 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         Plan plan = planService.findById(planData.planId())
                 .orElseThrow(() -> new BadRequestException(Map.of("planId", "Plan introuvable")));
 
+        User owner = userService.resolveClinicOwner(user);
+        planLimitService.assertUsageFitsPlan(owner, plan);
+
         user.setPlan(plan);
         user.setPlanStatus(UserPlanStatus.WAITING);
+        user.setPlanStartDate(null);
         user.setExpirationDate(null);
 
         User saved = userService.save(user);
@@ -557,8 +778,11 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
             throw new IllegalArgumentException("Cet utilisateur n'a pas choisi de plan");
         }
 
+        planLimitService.assertUsageFitsPlan(user, user.getPlan());
+
         user.setPlanStatus(UserPlanStatus.ACTIVE);
         int durationDays = user.getPlan().getDurationDays() != null ? user.getPlan().getDurationDays() : 30;
+        user.setPlanStartDate(LocalDateTime.now());
         user.setExpirationDate(LocalDateTime.now().plusDays(durationDays));
 
         User saved = userService.save(user);
@@ -577,6 +801,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         user.setPlanStatus(UserPlanStatus.INACTIVE);
+        user.setPlanStartDate(null);
         user.setExpirationDate(null);
         User saved = userService.save(user);
         auditService.logSuccess(
@@ -674,6 +899,21 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                 user.getMoneyFormat(),
                 user.getCurrencyLabel()
         );
+    }
+
+    private static String safeLower(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private static UserPlanStatus parsePlanStatusFilter(String status) {
+        if (status == null) return null;
+        String v = status.trim();
+        if (v.isBlank() || "ALL".equalsIgnoreCase(v)) return null;
+        try {
+            return UserPlanStatus.valueOf(v.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException(Map.of("status", "Statut invalide"));
+        }
     }
 
     private PatientManagementSettingsResponse mapPatientManagement(User user) {

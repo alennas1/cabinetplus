@@ -3,6 +3,7 @@ package com.cabinetplus.backend.services;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.time.LocalDateTime;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.TreatmentCatalog;
@@ -38,7 +39,11 @@ public class TreatmentService {
 
     // All treatments of a practitioner
     public List<Treatment> findByPractitioner(User practitioner) {
-        return treatmentRepository.findByPractitioner(practitioner);
+        return treatmentRepository.findByPractitionerAndRecordStatus(practitioner, RecordStatus.ACTIVE)
+                .stream()
+                // Cancelled treatments are only meant to be viewed from within the patient dossier.
+                .filter(t -> !isCancelled(t))
+                .toList();
     }
 
     // Treatment by ID scoped to practitioner
@@ -49,6 +54,9 @@ public class TreatmentService {
     public Treatment createTreatment(TreatmentCreateRequest request, User practitioner) {
         Patient patient = patientRepository.findByIdAndCreatedBy(request.getPatientId(), practitioner)
                 .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
+        if (patient.getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
 
         TreatmentCatalog catalog = treatmentCatalogRepository.findByIdAndCreatedBy(request.getTreatmentCatalogId(), practitioner)
                 .orElseThrow(() -> new BadRequestException(java.util.Map.of("treatmentCatalogId", "Element du catalogue introuvable")));
@@ -61,7 +69,9 @@ public class TreatmentService {
         treatment.setDate(LocalDateTime.now());
         treatment.setPrice(request.getPrice());
         treatment.setNotes(trimToNull(request.getNotes()));
-        treatment.setStatus(defaultStatus(request.getStatus()));
+        String status = defaultStatus(request.getStatus());
+        // Disallow creating already-cancelled treatments.
+        treatment.setStatus("CANCELLED".equalsIgnoreCase(status) ? "PLANNED" : status);
         List<Integer> teeth = normalizeTeeth(request.getTeeth());
         treatment.setTeeth(teeth);
 
@@ -72,10 +82,32 @@ public class TreatmentService {
     public Treatment updateTreatment(Long id, TreatmentUpdateRequest request, User practitioner) {
         Treatment existing = treatmentRepository.findByIdAndPractitioner(id, practitioner)
                 .orElseThrow(() -> new NotFoundException("Traitement introuvable"));
+        if (existing.getPatient() != null && existing.getPatient().getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+        }
+
+        if (isCancelled(existing)) {
+            throw new BadRequestException(java.util.Map.of("_", "Traitement annule : lecture seule."));
+        }
+
+        if (request.getStatus() != null && "CANCELLED".equalsIgnoreCase(defaultStatus(request.getStatus()))) {
+            // Treat "update status to CANCELLED" as a cancel operation, and keep it idempotent.
+            if (request.getPatientId() != null
+                    || request.getTreatmentCatalogId() != null
+                    || request.getPrice() != null
+                    || request.getNotes() != null
+                    || request.getTeeth() != null) {
+                throw new BadRequestException(java.util.Map.of("_", "Annulation invalide : seul le champ status est autorise."));
+            }
+            return cancelTreatment(id, practitioner);
+        }
 
         if (request.getPatientId() != null) {
             Patient patient = patientRepository.findByIdAndCreatedBy(request.getPatientId(), practitioner)
                     .orElseThrow(() -> new BadRequestException(java.util.Map.of("patientId", "Patient introuvable")));
+            if (patient.getArchivedAt() != null) {
+                throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+            }
             existing.setPatient(patient);
         }
 
@@ -110,15 +142,36 @@ public class TreatmentService {
     public boolean deleteByPractitioner(Long id, User practitioner) {
         return treatmentRepository.findByIdAndPractitioner(id, practitioner)
                 .map(treatment -> {
-                    treatmentRepository.delete(treatment);
+                    if (treatment.getPatient() != null && treatment.getPatient().getArchivedAt() != null) {
+                        throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
+                    }
+                    cancelTreatment(treatment.getId(), practitioner);
                     return true;
                 })
                 .orElse(false);
     }
 
+    public Treatment cancelTreatment(Long id, User practitioner) {
+        Treatment treatment = treatmentRepository.findByIdAndPractitioner(id, practitioner)
+                .orElseThrow(() -> new NotFoundException("Traitement introuvable"));
+        if (treatment.getPatient() != null && treatment.getPatient().getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archive : lecture seule."));
+        }
+
+        if (!isCancelled(treatment)) {
+            treatment.setStatus("CANCELLED");
+            treatment.setCancelledAt(LocalDateTime.now());
+            // Keep recordStatus ACTIVE so cancelled treatments remain visible in the patient dossier.
+            treatment.setRecordStatus(RecordStatus.ACTIVE);
+            treatmentRepository.save(treatment);
+        }
+
+        return treatment;
+    }
+
     // Treatments of a patient scoped to practitioner
     public List<Treatment> findByPatientAndPractitioner(Patient patient, User practitioner) {
-        return treatmentRepository.findByPatientAndPractitioner(patient, practitioner);
+        return treatmentRepository.findByPatientAndPractitionerAndRecordStatus(patient, practitioner, RecordStatus.ACTIVE);
     }
 
     private void assertCatalogRules(Treatment treatment) {
@@ -146,6 +199,13 @@ public class TreatmentService {
             return "PLANNED";
         }
         return status.trim().toUpperCase();
+    }
+
+    private boolean isCancelled(Treatment treatment) {
+        if (treatment == null) return false;
+        if (treatment.getCancelledAt() != null) return true;
+        String status = treatment.getStatus();
+        return status != null && "CANCELLED".equalsIgnoreCase(status.trim());
     }
 
     private String trimToNull(String value) {

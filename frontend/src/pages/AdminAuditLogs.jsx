@@ -4,10 +4,12 @@ import { toast } from "react-toastify";
 import PageHeader from "../components/PageHeader";
 import SortableTh from "../components/SortableTh";
 import ModernDropdown from "../components/ModernDropdown";
-import { getSecurityAuditLogs } from "../services/auditService";
+import Pagination from "../components/Pagination";
+import { getSecurityAuditLogsPage } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const EVENT_LABELS = {
@@ -33,50 +35,50 @@ const STATUS_LABELS = {
 const AdminAuditLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 250);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortConfig, setSortConfig] = useState({ key: "occurredAt", direction: SORT_DIRECTIONS.DESC });
   const [currentPage, setCurrentPage] = useState(1);
-  const logsPerPage = 10;
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
 
   const loadLogs = async (showToast = false) => {
     try {
-      setLoading(true);
-      const data = await getSecurityAuditLogs();
-      setLogs(Array.isArray(data) ? data : []);
+      const isInitial = loading && logs.length === 0;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getSecurityAuditLogsPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedQuery?.trim() || undefined,
+        status: statusFilter !== "ALL" ? statusFilter : undefined,
+      });
+      setLogs(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      setTotalElements(Number(data?.totalElements || 0));
       if (showToast) toast.success("Journal admin mis a jour");
     } catch (err) {
       console.error("Erreur chargement audit admin:", err);
       toast.error(getApiErrorMessage(err, "Impossible de charger le journal admin"));
+      setLogs([]);
+      setTotalPages(1);
+      setTotalElements(0);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
   useEffect(() => {
     loadLogs(false);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedQuery, statusFilter]);
 
-  const filteredLogs = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return logs
-      .filter((log) => {
-        if (statusFilter !== "ALL" && log.status !== statusFilter) return false;
-        if (!normalizedQuery) return true;
-
-        const eventLabel = (EVENT_LABELS[log.eventType] || log.eventType || "").toLowerCase();
-        const message = (log.message || "").toLowerCase();
-        const ipAddress = (log.ipAddress || "").toLowerCase();
-        const location = (log.location || "").toLowerCase();
-
-        return (
-          eventLabel.includes(normalizedQuery) ||
-          message.includes(normalizedQuery) ||
-          ipAddress.includes(normalizedQuery) ||
-          location.includes(normalizedQuery)
-        );
-      });
-  }, [logs, query, statusFilter]);
+  const filteredLogs = logs;
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -117,12 +119,9 @@ const AdminAuditLogs = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, statusFilter, sortConfig.key, sortConfig.direction]);
+  }, [debouncedQuery, statusFilter]);
 
-  const indexOfLastLog = currentPage * logsPerPage;
-  const indexOfFirstLog = indexOfLastLog - logsPerPage;
-  const currentLogs = sortedLogs.slice(indexOfFirstLog, indexOfLastLog);
-  const totalPages = Math.ceil(sortedLogs.length / logsPerPage);
+  const currentLogs = sortedLogs;
 
   return (
     <div className="patients-container">
@@ -204,7 +203,7 @@ const AdminAuditLogs = () => {
               );
             })}
 
-          {!loading && sortedLogs.length === 0 && (
+          {!loading && totalElements === 0 && (
             <tr>
               <td colSpan="6" style={{ textAlign: "center", color: "#888" }}>
                 Aucun log correspondant
@@ -215,25 +214,7 @@ const AdminAuditLogs = () => {
       </table>
 
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => prev - 1)}>
-            ← Précédent
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              className={currentPage === i + 1 ? "active" : ""}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => prev + 1)}>
-            Suivant →
-          </button>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       )}
     </div>
   );

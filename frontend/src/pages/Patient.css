@@ -38,6 +38,12 @@
   background: #e0f2fe;
   color: #0369a1;
 }
+
+.context-badge.cancelled {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+}
 .btn-secondary-app {
   display: flex;
   align-items: center;
@@ -65,24 +71,47 @@
 
 /* --- PATIENT TOP SECTION --- */
 .patient-top {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
   padding: 20px;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   margin-bottom: 20px;
-  min-height: 150px;
+}
+
+.patient-qr-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.patient-qr-inline-box {
+  width: clamp(170px, 18vw, 220px);
+  height: clamp(170px, 18vw, 220px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.patient-qr-inline-box canvas {
+  display: block;
 }
 
 .patient-info-left {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .patient-name {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 26px;
+  font-weight: 700;
   margin-bottom: 6px;
 }
 
@@ -95,6 +124,24 @@
 .patient-name-text {
   min-width: 0;
 }
+
+.patient-name-row .sex-icon-square {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+
+.patient-name-meta {
+	  margin-top: 8px;
+	  display: flex;
+	  align-items: center;
+	  gap: 10px;
+	  flex-wrap: wrap;
+	}
+
+	.patient-name-meta .sex-icon-square {
+	  margin-left: 0;
+	}
+
 
 .patient-sex-row {
   margin-top: 10px;
@@ -121,9 +168,255 @@
 }
 
 .patient-details div {
-  font-size: 14px;
-  color: #6b7280;
+  font-size: 16px;
+  font-weight: 500;
+  color: #475569;
   margin-bottom: 4px;
+}
+
+.patient-medical-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.patient-medical-inline-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.patient-medical-inline-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.patient-medical-inline-label {
+  font-weight: 600;
+  color: #475569;
+}
+
+.patient-medical {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.patient-medical-right {
+  margin-top: 12px;
+  flex-direction: column;
+}
+
+.patient-medical-right .patient-medical-card {
+  flex: 0 0 auto;
+}
+
+.patient-medical-card {
+  flex: 1 1 260px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.patient-medical-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  margin-bottom: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.patient-medical-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.patient-medical-add {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.patient-medical-add:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #1d4ed8;
+}
+
+.patient-medical-add:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.patient-medical-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.patient-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-chip-remove {
+  margin-left: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0.7;
+  flex: 0 0 auto;
+}
+
+.patient-chip-remove:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.patient-chip-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.patient-chip-disease {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.patient-chip-allergy {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+.patient-medical-empty {
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.medical-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.medical-picker-modal {
+  min-height: 300px;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+.medical-picker-modal .modal-actions {
+  margin-top: auto;
+}
+
+.medical-picker-close {
+  cursor: pointer;
+  color: #64748b;
+}
+
+.medical-picker-close:hover {
+  color: #0f172a;
+}
+
+.medical-picker-search {
+  margin-bottom: 8px;
+}
+
+.medical-picker-list {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+
+.medical-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: #f9fafb;
+  margin-bottom: 8px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.medical-picker-item:last-child {
+  margin-bottom: 0;
+}
+
+.medical-picker-item:hover {
+  background: #f0f7fd;
+  border-color: #bfdbfe;
+}
+
+.medical-picker-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.medical-picker-item-plus {
+  color: #2563eb;
+}
+
+.medical-picker-empty {
+  padding: 18px 10px;
+  text-align: center;
+  color: #94a3b8;
+  font-weight: 700;
 }
 
 .patients-controls {
@@ -320,12 +613,56 @@
   background: #fff;
 }
 
-.patient-right {
+.patient-middle {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-end;
-  min-height: 100%;
+  justify-self: end;
+  align-self: stretch;
+}
+
+.patient-middle .patient-medical-inline {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.patient-middle .patient-medical-inline-row {
+  justify-content: flex-end;
+}
+
+.patient-middle .patient-medical-chips {
+  justify-content: flex-end;
+}
+
+.patient-qr-right {
+  justify-self: stretch;
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+}
+
+.patient-qr-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+}
+
+.patient-actions.patient-actions-qr-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.patient-actions.patient-actions-under-medical {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
 .patient-stats {
@@ -337,7 +674,7 @@
 .stat-box {
   padding: 8px 16px;
   border-radius: 12px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   min-width: 100px;
   text-align: center;
@@ -360,6 +697,7 @@
   border: 1px solid #fca5a5;
   color: #b91c1c;
 }
+
 
 /* --- TAB BUTTONS (slightly bigger) --- */
 .tab-buttons {
@@ -451,6 +789,67 @@
   overflow-y: auto;
   box-shadow: 0 8px 20px rgba(0,0,0,0.15);
   animation: popup-fade 0.25s ease;
+}
+
+.qr-modal-content {
+  width: min(420px, 95vw);
+  min-height: min(420px, 92vh);
+  padding: 18px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.qr-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.qr-modal-header {
+  text-align: center;
+  padding: 2px 44px 12px;
+}
+
+.qr-modal-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.qr-modal-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.qr-modal-meta {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.qr-modal-qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 6px 10px 2px;
+  flex: 1 1 auto;
+  align-items: center;
+}
+
+.qr-modal-qr-card {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.qr-modal-skeleton {
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
 }
 
 /* --- TREATMENT MODAL ONLY --- */
@@ -858,8 +1257,14 @@
     flex-direction: column;
   }
   .patient-top {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     gap: 12px;
+  }
+  .patient-qr-right {
+    justify-content: center;
+  }
+  .patient-qr-actions-row {
+    justify-content: center;
   }
   .tab-buttons {
     flex-wrap: wrap;
@@ -1377,3 +1782,4 @@
   font-weight: 700;
   letter-spacing: 0.04em;
 }
+

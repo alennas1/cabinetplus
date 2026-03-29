@@ -3,6 +3,7 @@ package com.cabinetplus.backend.services;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.repositories.*;
 import com.cabinetplus.backend.dto.*;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
@@ -28,9 +29,13 @@ public class ProthesisService {
 
     public List<Prothesis> findAllByUser(User user) {
         if (user.getRole() == UserRole.ADMIN) {
-            return repository.findAll();
+            return repository.findAll().stream()
+                    .filter(p -> p != null && p.getRecordStatus() == RecordStatus.ACTIVE)
+                    .toList();
         }
-        return repository.findByPractitioner(user);
+        return repository.findByPractitioner(user).stream()
+                .filter(p -> p != null && p.getRecordStatus() == RecordStatus.ACTIVE)
+                .toList();
     }
 
     @Transactional
@@ -70,6 +75,9 @@ public class ProthesisService {
     @Transactional
     public Prothesis update(Long id, ProthesisRequest dto, User user) {
         Prothesis p = requireProthesisOwnedBy(id, user);
+        if (p.getRecordStatus() == RecordStatus.CANCELLED) {
+            throw new BadRequestException(java.util.Map.of("_", "Prothèse annulée : lecture seule."));
+        }
 
         Patient patient = requirePatientOwnedBy(dto.patientId(), user);
         ProthesisCatalog catalog = requireCatalogOwnedBy(dto.catalogId(), user);
@@ -105,6 +113,9 @@ public class ProthesisService {
     @Transactional
     public Prothesis assignToLab(Long id, LabAssignmentRequest dto, User user) {
         Prothesis p = requireProthesisOwnedBy(id, user);
+        if (p.getRecordStatus() == RecordStatus.CANCELLED) {
+            throw new BadRequestException(java.util.Map.of("_", "Prothèse annulée : lecture seule."));
+        }
         String currentStatus = normalizeStatus(p.getStatus());
         if (!"PENDING".equals(currentStatus)) {
             throw new BadRequestException(java.util.Map.of("status", "Envoi au laboratoire autorise uniquement depuis le statut PENDING"));
@@ -131,6 +142,9 @@ public class ProthesisService {
     @Transactional
     public Prothesis updateStatus(Long id, String newStatus, User user) {
         Prothesis p = requireProthesisOwnedBy(id, user);
+        if (p.getRecordStatus() == RecordStatus.CANCELLED) {
+            throw new BadRequestException(java.util.Map.of("_", "Prothèse annulée : lecture seule."));
+        }
 
         String statusUpper = normalizeStatus(newStatus);
         if (!ALLOWED_STATUSES.contains(statusUpper)) {
@@ -162,22 +176,48 @@ public class ProthesisService {
 
     public List<Prothesis> findByPractitionerAndStatus(User user, String status) {
         if (user.getRole() == UserRole.ADMIN) {
-            return repository.findByStatus(status);
+            return repository.findByStatus(status).stream()
+                    .filter(p -> p != null && p.getRecordStatus() == RecordStatus.ACTIVE)
+                    .toList();
         }
-        return repository.findByPractitionerAndStatus(user, status);
+        return repository.findByPractitionerAndStatus(user, status).stream()
+                .filter(p -> p != null && p.getRecordStatus() == RecordStatus.ACTIVE)
+                .toList();
 }
 
 public List<Prothesis> findByPatientAndPractitioner(Long patientId, User user) {
     if (user.getRole() == UserRole.ADMIN) {
-        return repository.findByPatientId(patientId);
+        return repository.findByPatientId(patientId).stream()
+                .filter(p -> p != null && p.getRecordStatus() == RecordStatus.ACTIVE)
+                .toList();
     }
-    return repository.findByPatientIdAndPractitioner(patientId, user);
+    return repository.findByPatientIdAndPractitioner(patientId, user).stream()
+            .filter(p -> p != null && p.getRecordStatus() == RecordStatus.ACTIVE)
+            .toList();
+}
+
+public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patientId, User user) {
+    if (user.getRole() == UserRole.ADMIN) {
+        return repository.findByPatientId(patientId).stream()
+                .filter(p -> p != null && p.getRecordStatus() != RecordStatus.ARCHIVED)
+                .toList();
+    }
+    return repository.findByPatientIdAndPractitioner(patientId, user).stream()
+            .filter(p -> p != null && p.getRecordStatus() != RecordStatus.ARCHIVED)
+            .toList();
 }
 
     @Transactional
     public void delete(Long id, User user) {
         Prothesis p = requireProthesisOwnedBy(id, user);
-        repository.delete(p);
+        if (p.getPatient() != null && p.getPatient().getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivÃ© : lecture seule."));
+        }
+        if (p.getRecordStatus() != RecordStatus.CANCELLED) {
+            p.setRecordStatus(RecordStatus.CANCELLED);
+            p.setCancelledAt(LocalDateTime.now());
+            repository.save(p);
+        }
     }
 
     private Double resolveCatalogAmount(Double defaultAmount, boolean isFlatFee, List<Integer> teeth) {
@@ -201,6 +241,9 @@ public List<Prothesis> findByPatientAndPractitioner(Long patientId, User user) {
                 : patientRepository.findByIdAndCreatedBy(patientId, user).orElse(null);
         if (patient == null) {
             throw new BadRequestException(java.util.Map.of("patientId", "Patient introuvable"));
+        }
+        if (patient.getArchivedAt() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
         }
         return patient;
     }

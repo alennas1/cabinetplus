@@ -11,12 +11,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Comparator;
+import java.util.List;
+
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.PlanRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PlanService;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 
@@ -40,6 +45,69 @@ public class PlanController {
         return ResponseEntity.ok(planService.getAllPlansForAdmin());
     }   
     
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<Plan>> getAllPlansPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "field", required = false) String field
+    ) {
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        String fieldNorm = field != null ? field.trim() : "";
+        List<Plan> all = planService.getAllPlansForAdmin();
+        List<Plan> filtered = (all == null ? List.<Plan>of() : all).stream()
+                .filter(p -> matchesPlan(p, qNorm, fieldNorm))
+                .sorted(Comparator.comparing(p -> p.getId() != null ? p.getId() : Long.MAX_VALUE))
+                .toList();
+
+        auditService.logSuccess(AuditEventType.PLAN_READ, "PLAN", null, "Plans consultes (admin, page)");
+        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+    }
+
+    private static boolean matchesPlan(Plan plan, String qNorm, String field) {
+        if (plan == null) return false;
+        if (qNorm == null || qNorm.isBlank()) return true;
+
+        String safeField = field != null ? field.trim() : "";
+
+        String code = plan.getCode() != null ? plan.getCode().trim().toLowerCase() : "";
+        String name = plan.getName() != null ? plan.getName().trim().toLowerCase() : "";
+        String monthlyPrice = String.valueOf(plan.getMonthlyPrice());
+        String yearlyMonthlyPrice = String.valueOf(plan.getYearlyMonthlyPrice());
+        String durationDays = String.valueOf(plan.getDurationDays());
+        String maxDentists = String.valueOf(plan.getMaxDentists());
+        String maxEmployees = String.valueOf(plan.getMaxEmployees());
+        String maxPatients = String.valueOf(plan.getMaxPatients());
+        String maxStorageGb = String.valueOf(plan.getMaxStorageGb());
+        String active = String.valueOf(plan.isActive()).toLowerCase();
+        String recommended = String.valueOf(plan.isRecommended()).toLowerCase();
+
+        return switch (safeField) {
+            case "code" -> code.contains(qNorm);
+            case "name" -> name.contains(qNorm);
+            case "monthlyPrice" -> monthlyPrice.contains(qNorm);
+            case "yearlyMonthlyPrice" -> yearlyMonthlyPrice.contains(qNorm);
+            case "durationDays" -> durationDays.contains(qNorm);
+            case "maxDentists" -> maxDentists.contains(qNorm);
+            case "maxEmployees" -> maxEmployees.contains(qNorm);
+            case "maxPatients" -> maxPatients.contains(qNorm);
+            case "maxStorageGb" -> maxStorageGb.contains(qNorm);
+            case "active" -> active.contains(qNorm);
+            case "recommended" -> recommended.contains(qNorm);
+            default -> code.contains(qNorm)
+                    || name.contains(qNorm)
+                    || monthlyPrice.contains(qNorm)
+                    || yearlyMonthlyPrice.contains(qNorm)
+                    || durationDays.contains(qNorm)
+                    || maxDentists.contains(qNorm)
+                    || maxEmployees.contains(qNorm)
+                    || maxPatients.contains(qNorm)
+                    || maxStorageGb.contains(qNorm)
+                    || active.contains(qNorm)
+                    || recommended.contains(qNorm);
+        };
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<Plan> getPlanById(@PathVariable Long id) {

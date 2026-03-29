@@ -74,6 +74,12 @@ public class AuditService {
         this.patientRepository = patientRepository;
     }
 
+    private static boolean isNonActionEventType(String eventType) {
+        if (eventType == null || eventType.isBlank()) return false;
+        String t = eventType.trim();
+        return t.endsWith("_READ") || t.endsWith("_PDF_DOWNLOAD");
+    }
+
     public void logSuccess(AuditEventType eventType, String targetType, String targetId, String message) {
         createLog(eventType, AuditStatus.SUCCESS, targetType, targetId, message, null);
     }
@@ -97,7 +103,10 @@ public class AuditService {
 
         User clinicOwner = currentUser.getOwnerDentist() != null ? currentUser.getOwnerDentist() : currentUser;
         List<Long> actorUserIds = resolveVisibleActorIds(clinicOwner);
-        List<AuditLog> logs = auditLogRepository.findTop200ByActorUserIdInOrderByOccurredAtDesc(actorUserIds);
+        List<AuditLog> logs = auditLogRepository.findTop200ByActorUserIdInOrderByOccurredAtDesc(actorUserIds)
+                .stream()
+                .filter(log -> log != null && !isNonActionEventType(log.getEventType()))
+                .toList();
 
         var patientNames = resolvePatientNames(logs, clinicOwner);
 
@@ -106,17 +115,8 @@ public class AuditService {
                 .toList();
     }
 
-    public List<AuditLogResponse> getSecurityLogsForAdmin() {
-        return auditLogRepository.findTop200ByActorRoleInOrderByOccurredAtDesc(List.of("ADMIN", "SYSTEM"))
-                .stream()
-                .filter(log -> ADMIN_SECURITY_EVENT_TYPES.contains(log.getEventType()))
-                .map(log -> toResponse(log, java.util.Map.of()))
-                .toList();
-    }
-
-    public AuditLogPageResponse getPatientLogs(
+    public AuditLogPageResponse getMyLogsPaged(
             User currentUser,
-            Long patientId,
             int page,
             int size,
             String q,
@@ -126,32 +126,30 @@ public class AuditService {
             LocalDate from,
             LocalDate to
     ) {
-        if (currentUser == null || patientId == null) {
+        if (currentUser == null) {
             return new AuditLogPageResponse(List.of(), 0, 0, 0L, 0);
         }
 
         User clinicOwner = currentUser.getOwnerDentist() != null ? currentUser.getOwnerDentist() : currentUser;
-        patientRepository.findByIdAndCreatedBy(patientId, clinicOwner)
-                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+        List<Long> actorUserIds = resolveVisibleActorIds(clinicOwner);
 
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-
-        List<Long> actorUserIds = resolveVisibleActorIds(clinicOwner);
         var pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt"));
 
-        // Avoid passing NULL optional filters to PostgreSQL (can fail to infer parameter types in generated SQL).
         String safeQ = q != null ? q : "";
         String safeStatus = status != null ? status : "";
         String safeEntity = entity != null ? entity : "";
         String safeAction = action != null ? action : "";
+        if ("READ".equalsIgnoreCase(safeAction)) {
+            safeAction = "ALL";
+        }
 
         LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : LocalDateTime.of(1970, 1, 1, 0, 0);
         LocalDateTime toExclusive = to != null ? to.plusDays(1).atStartOfDay() : LocalDateTime.of(10000, 1, 1, 0, 0);
 
-        var logsPage = auditLogRepository.searchPatientLogs(
+        var logsPage = auditLogRepository.searchMyLogs(
                 actorUserIds,
-                String.valueOf(patientId),
                 safeQ,
                 safeStatus,
                 safeEntity,
@@ -175,6 +173,151 @@ public class AuditService {
         );
     }
 
+    public List<AuditLogResponse> getSecurityLogsForAdmin() {
+        return auditLogRepository.findTop200ByActorRoleInOrderByOccurredAtDesc(List.of("ADMIN", "SYSTEM"))
+                .stream()
+                .filter(log -> log != null && !isNonActionEventType(log.getEventType()))
+                .filter(log -> ADMIN_SECURITY_EVENT_TYPES.contains(log.getEventType()))
+                .map(log -> toResponse(log, java.util.Map.of()))
+                .toList();
+    }
+
+    public AuditLogPageResponse getSecurityLogsForAdminPaged(
+            User adminUser,
+            int page,
+            int size,
+            String q,
+            String status,
+            LocalDate from,
+            LocalDate to
+    ) {
+        if (adminUser == null) {
+            return new AuditLogPageResponse(List.of(), 0, 0, 0L, 0);
+        }
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt"));
+
+        String safeQ = q != null ? q : "";
+        String safeStatus = status != null ? status : "";
+
+        LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime toExclusive = to != null ? to.plusDays(1).atStartOfDay() : LocalDateTime.of(10000, 1, 1, 0, 0);
+
+        var logsPage = auditLogRepository.searchAdminSecurityLogs(
+                List.of("ADMIN", "SYSTEM"),
+                ADMIN_SECURITY_EVENT_TYPES,
+                safeQ,
+                safeStatus,
+                fromDateTime,
+                toExclusive,
+                pageable
+        );
+
+        var items = logsPage.getContent().stream()
+                .map(log -> toResponse(log, java.util.Map.of()))
+                .toList();
+
+        return new AuditLogPageResponse(
+                items,
+                logsPage.getNumber(),
+                logsPage.getSize(),
+                logsPage.getTotalElements(),
+                logsPage.getTotalPages()
+        );
+    }
+
+	    public AuditLogPageResponse getPatientLogs(
+	            User currentUser,
+	            Long patientId,
+	            int page,
+	            int size,
+	            String q,
+	            String status,
+	            String entity,
+	            String action,
+	            String sortKey,
+	            String sortDirection,
+	            LocalDate from,
+	            LocalDate to
+	    ) {
+        if (currentUser == null || patientId == null) {
+            return new AuditLogPageResponse(List.of(), 0, 0, 0L, 0);
+        }
+
+        User clinicOwner = currentUser.getOwnerDentist() != null ? currentUser.getOwnerDentist() : currentUser;
+        patientRepository.findByIdAndCreatedBy(patientId, clinicOwner)
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+
+	        int safePage = Math.max(page, 0);
+	        int safeSize = Math.min(Math.max(size, 1), 100);
+
+	        List<Long> actorUserIds = resolveVisibleActorIds(clinicOwner);
+	        var pageable = PageRequest.of(safePage, safeSize, resolveAuditSort(sortKey, sortDirection));
+
+        // Avoid passing NULL optional filters to PostgreSQL (can fail to infer parameter types in generated SQL).
+        String safeQ = q != null ? q : "";
+        String safeStatus = status != null ? status : "";
+        String safeEntity = entity != null ? entity : "";
+        String safeAction = action != null ? action : "";
+        if ("READ".equalsIgnoreCase(safeAction)) {
+            safeAction = "ALL";
+        }
+
+        LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime toExclusive = to != null ? to.plusDays(1).atStartOfDay() : LocalDateTime.of(10000, 1, 1, 0, 0);
+
+        var logsPage = auditLogRepository.searchPatientLogs(
+                actorUserIds,
+                String.valueOf(patientId),
+                safeQ,
+                safeStatus,
+                safeEntity,
+                safeAction,
+                fromDateTime,
+                toExclusive,
+                pageable
+        );
+
+        var patientNames = resolvePatientNames(logsPage.getContent(), clinicOwner);
+        var items = logsPage.getContent().stream()
+                .map(log -> toResponse(log, patientNames))
+                .toList();
+
+	        return new AuditLogPageResponse(
+	                items,
+	                logsPage.getNumber(),
+	                logsPage.getSize(),
+	                logsPage.getTotalElements(),
+	                logsPage.getTotalPages()
+	        );
+	    }
+
+	    private static Sort resolveAuditSort(String sortKey, String sortDirection) {
+	        String key = sortKey != null ? sortKey.trim() : "";
+	        String dir = sortDirection != null ? sortDirection.trim() : "";
+
+	        Sort.Direction direction = "asc".equalsIgnoreCase(dir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+
+	        String property = switch (key) {
+	            case "occurredAt", "date", "datetime" -> "occurredAt";
+	            case "status" -> "status";
+	            case "eventType", "action", "entity" -> "eventType";
+	            case "message", "details" -> "message";
+	            case "actor", "actorUsername", "user" -> "actorUsername";
+	            case "ip", "ipAddress" -> "ipAddress";
+	            case "location" -> "location";
+	            default -> "occurredAt";
+	        };
+
+	        // Secondary sort keeps results stable when values are equal.
+	        if (!"occurredAt".equals(property)) {
+	            return Sort.by(direction, property).and(Sort.by(Sort.Direction.DESC, "occurredAt"));
+	        }
+	        return Sort.by(direction, property);
+	    }
+
     private void createLog(
             AuditEventType eventType,
             AuditStatus status,
@@ -183,6 +326,12 @@ public class AuditService {
             String message,
             User explicitActor
     ) {
+        if (eventType == null) return;
+        if (isNonActionEventType(eventType.name())) {
+            // Read/PDF download events are intentionally not persisted (journal d'activité: actions only).
+            return;
+        }
+
         AuditLog log = new AuditLog();
         log.setOccurredAt(LocalDateTime.now());
         log.setRequestId(trim(MDC.get(REQUEST_ID_KEY), 64));

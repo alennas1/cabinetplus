@@ -10,19 +10,21 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.AppointmentRequest;
 import com.cabinetplus.backend.dto.AppointmentResponse;
 import com.cabinetplus.backend.dto.AppointmentShiftRequest;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Appointment;
@@ -33,6 +35,8 @@ import com.cabinetplus.backend.services.AppointmentService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.util.PagedQueryUtil;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 
@@ -114,11 +118,12 @@ public class AppointmentController {
 
         Appointment saved = appointmentService.updateAppointment(id, request, currentUser);
         PatientDto patientDto = patientService.findByIdAndUser(request.patientId(), currentUser);
+        boolean cancelled = isCancelled(saved);
         auditService.logSuccess(
-                AuditEventType.APPOINTMENT_UPDATE,
+                cancelled ? AuditEventType.APPOINTMENT_CANCEL : AuditEventType.APPOINTMENT_UPDATE,
                 "PATIENT",
                 String.valueOf(patientDto.id()),
-                "Rendez-vous modifie"
+                cancelled ? "Rendez-vous annule" : "Rendez-vous modifie"
         );
         return new AppointmentResponse(
                 saved.getId(),
@@ -250,19 +255,19 @@ public class AppointmentController {
         );
     }
 
-    @DeleteMapping("/{id:\\d+}")
-    public void deleteAppointment(@PathVariable Long id, Principal principal) {
+    @PutMapping("/{id:\\d+}/cancel")
+    public void cancelAppointment(@PathVariable Long id, Principal principal) {
         User currentUser = getClinicUser(principal);
-        Appointment existing = appointmentService.deleteAppointment(id, currentUser);
+        Appointment existing = appointmentService.cancelAppointment(id, currentUser);
         auditService.logSuccess(
-                AuditEventType.APPOINTMENT_DELETE,
+                AuditEventType.APPOINTMENT_CANCEL,
                 "PATIENT",
                 existing != null && existing.getPatient() != null
                         ? String.valueOf(existing.getPatient().getId())
                         : null,
                 existing != null
-                        ? "Rendez-vous supprime"
-                        : "Rendez-vous supprime: #" + id
+                        ? "Rendez-vous annulÃ©"
+                        : "Rendez-vous annulÃ©: #" + id
         );
     }
 
@@ -279,6 +284,67 @@ public class AppointmentController {
         Patient patient = new Patient();
         patient.setId(internalPatientId);
         return appointmentService.findByPatient(patient);
+    }
+
+    @GetMapping("/patient/{patientId}/paged")
+    public PageResponse<Appointment> getAppointmentsByPatientPaged(
+            @PathVariable String patientId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "field", required = false) String field,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(name = "sortKey", required = false) String sortKey,
+            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+            Principal principal
+    ) {
+        User ownerDentist = getClinicUser(principal);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
+
+        Patient patient = new Patient();
+        patient.setId(internalPatientId);
+
+        String fieldNorm = field != null ? field.trim().toLowerCase() : "";
+        fieldNorm = fieldNorm.isBlank() ? "notes" : fieldNorm;
+        final String fieldKey = fieldNorm;
+        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
+        boolean desc = "desc".equalsIgnoreCase(sortDirection);
+        String statusNorm = status != null ? status.trim().toUpperCase() : "";
+
+        var comparator = buildAppointmentSortComparator(sortKeyNorm, desc);
+
+        List<Appointment> filtered = appointmentService.findByPatient(patient).stream()
+                .filter(a -> {
+                    if (a == null) return false;
+
+                    if (!statusNorm.isBlank()) {
+                        String s = a.getStatus() != null ? a.getStatus().name() : "";
+                        if (!s.equalsIgnoreCase(statusNorm)) return false;
+                    }
+
+                    if (!PagedQueryUtil.isInDateRange(a.getDateTimeStart(), from, to)) return false;
+
+                    if (q != null && !q.isBlank()) {
+                        String hay = switch (fieldKey) {
+                            case "date" -> a.getDateTimeStart() != null ? a.getDateTimeStart().toString() : null;
+                            case "notes" -> a.getNotes();
+                            default -> {
+                                String notes = a.getNotes() != null ? a.getNotes() : "";
+                                String dateStr = a.getDateTimeStart() != null ? a.getDateTimeStart().toString() : "";
+                                yield dateStr + " " + notes;
+                            }
+                        };
+                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
+                    }
+
+                    return true;
+                })
+                .sorted(comparator)
+                .toList();
+
+        return PaginationUtil.toPageResponse(filtered, page, size);
     }
 
     @GetMapping("/practitioner/{practitionerId}")
@@ -370,6 +436,29 @@ public Map<String, Object> getComparisonStats(Principal principal) {
         String last = lastname != null ? lastname.trim() : "";
         String fullName = (first + " " + last).trim();
         return fullName.isEmpty() ? "patient inconnu" : fullName;
+    }
+
+    private static java.util.Comparator<Appointment> buildAppointmentSortComparator(String sortKeyNorm, boolean desc) {
+        var stringComparator = PagedQueryUtil.stringComparator(desc);
+        var dateTimeComparator = PagedQueryUtil.dateTimeComparator(desc);
+
+        java.util.Comparator<Appointment> comparator = switch (sortKeyNorm) {
+            case "date", "time" -> java.util.Comparator.comparing(
+                    a -> a != null ? a.getDateTimeStart() : null,
+                    dateTimeComparator
+            );
+            case "notes" -> java.util.Comparator.comparing(a -> a != null ? a.getNotes() : null, stringComparator);
+            case "status" -> java.util.Comparator.comparing(
+                    a -> a != null && a.getStatus() != null ? a.getStatus().name() : null,
+                    stringComparator
+            );
+            default -> java.util.Comparator.comparing(
+                    a -> a != null ? a.getDateTimeStart() : null,
+                    PagedQueryUtil.dateTimeComparator(true)
+            );
+        };
+
+        return comparator.thenComparing(a -> a != null ? a.getId() : null, PagedQueryUtil.longComparator(false));
     }
 
 }

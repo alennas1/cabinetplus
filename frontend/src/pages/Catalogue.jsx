@@ -7,6 +7,8 @@ import {
   FileText,
   Layers,
   Tool,
+  AlertTriangle,
+  Activity,
 } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
@@ -53,6 +55,18 @@ const Catalogue = () => {
           desc: "Gérer les matériaux utilisés (Zircone, Céramique, Résine)",
           icon: <Tool />,
           path: "/catalogue/materials",
+        },
+        {
+          title: "Maladies",
+          desc: "GÃ©rer le catalogue des maladies (liste globale)",
+          icon: <Activity />,
+          path: "/catalogue/diseases",
+        },
+        {
+          title: "Allergies",
+          desc: "GÃ©rer le catalogue des allergies (liste globale)",
+          icon: <AlertTriangle />,
+          path: "/catalogue/allergies",
         },
       ],
     },

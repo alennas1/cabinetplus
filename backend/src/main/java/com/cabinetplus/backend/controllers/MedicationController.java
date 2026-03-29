@@ -4,6 +4,8 @@ import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,12 +13,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.dto.MedicationRequest;
 import com.cabinetplus.backend.dto.MedicationResponse;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.models.Medication;
 import com.cabinetplus.backend.models.User;
@@ -58,6 +62,40 @@ public class MedicationController {
 
         auditService.logSuccess(AuditEventType.MEDICATION_READ, "MEDICATION", null, "Médicaments consultés");
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<MedicationResponse>> getAllMedicationsPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            Principal principal) {
+
+        User currentUser = getCurrentUser(principal);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.ASC, "name"));
+
+        var medsPage = medicationService.searchByUser(currentUser, q, pageable);
+        var items = medsPage.getContent().stream()
+                .map(m -> new MedicationResponse(
+                        m.getId(),
+                        m.getName(),
+                        m.getGenericName(),
+                        m.getDosageForm(),
+                        m.getStrength(),
+                        m.getDescription()
+                ))
+                .toList();
+
+        auditService.logSuccess(AuditEventType.MEDICATION_READ, "MEDICATION", null, "MÃ©dicaments consultÃ©s (page)");
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                medsPage.getNumber(),
+                medsPage.getSize(),
+                medsPage.getTotalElements(),
+                medsPage.getTotalPages()
+        ));
     }
 
     @GetMapping("/{id}")

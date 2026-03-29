@@ -3,12 +3,13 @@ package com.cabinetplus.backend.repositories;
 import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
-import com.cabinetplus.backend.dto.LaboratoryBillingEntryResponse;
 import com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -41,6 +42,7 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
         SELECT p.patient.id, COALESCE(SUM(p.finalPrice), 0)
         FROM Prothesis p
         WHERE p.patient.id IN :patientIds
+          AND p.recordStatus = 'ACTIVE'
         GROUP BY p.patient.id
     """)
     List<Object[]> sumFinalPriceByPatientIds(@Param("patientIds") List<Long> patientIds);
@@ -49,11 +51,36 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
         select coalesce(sum(p.labCost), 0)
         from Prothesis p
         where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
           and p.labCost is not null
     """)
     Double sumLabCostByPractitionerAndLaboratory(@Param("practitioner") User practitioner,
                                                  @Param("laboratoryId") Long laboratoryId);
+
+    @Query("""
+        select coalesce(sum(p.finalPrice), 0)
+        from Prothesis p
+        where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
+          and p.dateCreated between :start and :end
+          and upper(coalesce(p.status, 'PENDING')) <> 'CANCELLED'
+    """)
+    Double sumFinalPriceByPractitionerAndDateCreatedBetween(@Param("practitioner") User practitioner,
+                                                            @Param("start") LocalDateTime start,
+                                                            @Param("end") LocalDateTime end);
+
+    @Query("""
+        select coalesce(sum(p.labCost), 0)
+        from Prothesis p
+        where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
+          and p.dateCreated between :start and :end
+          and upper(coalesce(p.status, 'PENDING')) <> 'CANCELLED'
+    """)
+    Double sumLabCostByPractitionerAndDateCreatedBetween(@Param("practitioner") User practitioner,
+                                                         @Param("start") LocalDateTime start,
+                                                         @Param("end") LocalDateTime end);
 
     long countByLaboratoryIdAndPractitioner(Long laboratoryId, User practitioner);
 
@@ -67,6 +94,7 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
         )
         from Prothesis p
         where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
           and p.labCost is not null
         group by year(coalesce(p.sentToLabDate, p.dateCreated)), month(coalesce(p.sentToLabDate, p.dateCreated))
@@ -78,20 +106,17 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     );
 
     @Query("""
-        select new com.cabinetplus.backend.dto.LaboratoryBillingEntryResponse(
-            p.id,
-            concat(p.patient.firstname, ' ', p.patient.lastname),
-            p.prothesisCatalog.name,
-            p.labCost,
-            coalesce(p.sentToLabDate, p.dateCreated)
-        )
+        select p
         from Prothesis p
+        left join fetch p.patient patient
+        left join fetch p.prothesisCatalog catalog
         where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
           and p.labCost is not null
         order by coalesce(p.sentToLabDate, p.dateCreated) desc
     """)
-    List<LaboratoryBillingEntryResponse> getBillingEntriesByPractitionerAndLaboratory(
+    List<Prothesis> findBillingProthesesByPractitionerAndLaboratory(
         @Param("practitioner") User practitioner,
         @Param("laboratoryId") Long laboratoryId
     );

@@ -48,6 +48,37 @@ const PlanPage = () => {
   const [planUsage, setPlanUsage] = useState(null);
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
+  const canSelectPlan = (usage, plan) => {
+    if (!usage || !plan) return true;
+
+    const checks = [
+      { used: Number(usage.dentistsUsed || 0), max: plan?.maxDentists },
+      { used: Number(usage.employeesUsed || 0), max: plan?.maxEmployees },
+      { used: Number(usage.patientsUsed || 0), max: plan?.maxPatients },
+    ];
+
+    for (const c of checks) {
+      const maxValue = c.max;
+      if (maxValue == null) continue;
+      const maxNum = Number(maxValue);
+      if (Number.isNaN(maxNum)) continue;
+      if (maxNum < 0) continue;
+      if (c.used > maxNum) return false;
+    }
+
+    const maxStorageGb = plan?.maxStorageGb;
+    if (maxStorageGb != null) {
+      const maxGb = Number(maxStorageGb);
+      if (!Number.isNaN(maxGb) && maxGb >= 0) {
+        const usedBytes = Number(usage.storageUsedBytes || 0);
+        const limitBytes = Math.round(maxGb * 1024 * 1024 * 1024);
+        if (usedBytes > limitBytes) return false;
+      }
+    }
+
+    return true;
+  };
+
   const sortedPlans = useMemo(() => {
     const getSortPrice = (plan) => {
       const monthly = Number(plan?.monthlyPrice || 0);
@@ -188,7 +219,7 @@ const PlanPage = () => {
               <strong>{planUsage.employeesUsed} / {planUsage.employeesMax ?? 0}</strong>
             </div>
             <div className="plan-usage-card">
-              <span>Patients</span>
+              <span>Patients actifs</span>
               <strong>{planUsage.patientsUsed} / {planUsage.patientsMax ?? 0}</strong>
             </div>
             <div className="plan-usage-card">
@@ -211,6 +242,7 @@ const PlanPage = () => {
                 isYearly={isYearly}
                 featured={Boolean(plan.recommended)}
                 headerBadge={plan.recommended ? "Recommandé" : undefined}
+                disabled={planUsage?.planAssigned ? !canSelectPlan(planUsage, plan) : false}
                 onSelect={() => {
                   setSelectedPlan(plan);
                   setShowPopup(true);

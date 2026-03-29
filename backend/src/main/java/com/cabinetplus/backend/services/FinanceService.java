@@ -15,17 +15,14 @@ import org.springframework.stereotype.Service;
 import com.cabinetplus.backend.dto.FinanceCardsResponseDTO;
 import com.cabinetplus.backend.dto.FinanceCardsResponseDTO.ValueComparisonDTO;
 import com.cabinetplus.backend.dto.FinanceGraphResponseDTO;
-import com.cabinetplus.backend.models.Expense;
-import com.cabinetplus.backend.models.Item;
-import com.cabinetplus.backend.models.Prothesis;
-import com.cabinetplus.backend.models.Treatment;
+import com.cabinetplus.backend.enums.ExpenseCategory;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.ExpenseRepository;
 import com.cabinetplus.backend.repositories.ItemRepository;
 import com.cabinetplus.backend.repositories.LaboratoryPaymentRepository;
 import com.cabinetplus.backend.repositories.PaymentRepository;
-import com.cabinetplus.backend.repositories.TreatmentRepository;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
+import com.cabinetplus.backend.repositories.TreatmentRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -276,14 +273,17 @@ double revenueduPrev = treatmentRepository.sumPriceByDentist(dentist, prevStart,
             throw new IllegalArgumentException("Periode invalide: " + timeframe);
     }
 
-    // Existing treatment totals
-    List<Treatment> treatments = treatmentRepository.findByDentistAndDateBetween(dentist, start, end);
-    Map<String, Double> totalsByCatalog = treatments.stream()
-            .filter(t -> "DONE".equalsIgnoreCase(t.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(t.getStatus()))
-            .collect(Collectors.groupingBy(
-                    t -> t.getTreatmentCatalog().getName(),
-                    Collectors.summingDouble(Treatment::getPrice)
-            ));
+    Map<String, Double> totalsByCatalog = new HashMap<>();
+
+    // Treatment totals grouped by catalog (DB aggregation)
+    List<Object[]> treatmentTotals = treatmentRepository.sumPriceByCatalogForDentistBetween(dentist, start, end);
+    for (Object[] row : (treatmentTotals == null ? List.<Object[]>of() : treatmentTotals)) {
+        if (row == null || row.length < 2) continue;
+        String name = row[0] != null ? row[0].toString() : null;
+        double amount = row[1] instanceof Number ? ((Number) row[1]).doubleValue() : 0.0;
+        if (name == null || name.isBlank()) continue;
+        totalsByCatalog.put(name, amount);
+    }
 
     // Add Prothesis totals
     double prothesisTotal = getProthesisRevenue(dentist, start, end);
@@ -323,9 +323,8 @@ double revenueduPrev = treatmentRepository.sumPriceByDentist(dentist, prevStart,
 
         Map<String, Double> totals = new HashMap<>();
 
-        // Items = Inventaire
-        List<Item> items = itemRepository.findByCreatedByAndCreatedAtBetween(dentist, start, end);
-        double totalItems = items.stream().mapToDouble(Item::getPrice).sum();
+        // Items = Inventaire (DB aggregation)
+        double totalItems = itemRepository.sumPriceByDentist(dentist, start, end).orElse(0.0);
         totals.put("Inventaire", totalItems);
 
         // Laboratory payments
@@ -335,11 +334,17 @@ double revenueduPrev = treatmentRepository.sumPriceByDentist(dentist, prevStart,
             totals.put("Laboratoire", totalLabPayments);
         }
 
-        // Other expenses
-        List<Expense> expenses = expenseRepository.findByCreatedByAndDateBetween(
+        // Other expenses (DB aggregation grouped by category)
+        List<Object[]> byCategory = expenseRepository.sumAmountByDentistGroupByCategory(
                 dentist, start.toLocalDate(), end.toLocalDate()
         );
-        expenses.forEach(exp -> totals.merge(exp.getCategory().name(), exp.getAmount(), Double::sum));
+        for (Object[] row : (byCategory == null ? List.<Object[]>of() : byCategory)) {
+            if (row == null || row.length < 2) continue;
+            ExpenseCategory category = (row[0] instanceof ExpenseCategory) ? (ExpenseCategory) row[0] : null;
+            double amount = row[1] instanceof Number ? ((Number) row[1]).doubleValue() : 0.0;
+            if (category == null) continue;
+            totals.merge(category.name(), amount, Double::sum);
+        }
 
         double total = totals.values().stream().mapToDouble(Double::doubleValue).sum();
 
@@ -351,30 +356,14 @@ double revenueduPrev = treatmentRepository.sumPriceByDentist(dentist, prevStart,
     }
     // Total revenue from protheses (finalPrice)
 private double getProthesisRevenue(User dentist, LocalDateTime start, LocalDateTime end) {
-    List<Prothesis> protheses = prothesisRepository.findByPractitioner(dentist)
-        .stream()
-        .filter(p -> p.getDateCreated() != null 
-                     && !p.getDateCreated().isBefore(start) 
-                     && !p.getDateCreated().isAfter(end))
-        .toList();
-
-    return protheses.stream()
-        .mapToDouble(p -> p.getFinalPrice() != null ? p.getFinalPrice() : 0.0)
-        .sum();
+    Double total = prothesisRepository.sumFinalPriceByPractitionerAndDateCreatedBetween(dentist, start, end);
+    return total != null ? total : 0.0;
 }
 
 // Total lab costs (expenses)
 private double getProthesisLabCosts(User dentist, LocalDateTime start, LocalDateTime end) {
-    List<Prothesis> protheses = prothesisRepository.findByPractitioner(dentist)
-        .stream()
-        .filter(p -> p.getDateCreated() != null 
-                     && !p.getDateCreated().isBefore(start) 
-                     && !p.getDateCreated().isAfter(end))
-        .toList();
-
-    return protheses.stream()
-        .mapToDouble(p -> p.getLabCost() != null ? p.getLabCost() : 0.0)
-        .sum();
+    Double total = prothesisRepository.sumLabCostByPractitionerAndDateCreatedBetween(dentist, start, end);
+    return total != null ? total : 0.0;
 }
 
     

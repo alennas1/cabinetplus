@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.cabinetplus.backend.enums.ClinicAccessRole;
+import com.cabinetplus.backend.enums.RecordStatus;
 
 import lombok.Builder;
 import lombok.Data;
@@ -38,6 +39,9 @@ public class EmployeeResponseDTO {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private RecordStatus recordStatus;
+    private LocalDateTime archivedAt;
 
     private Long userId;
     private ClinicAccessRole accessRole;

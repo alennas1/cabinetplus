@@ -21,12 +21,24 @@ export const getPrescriptionsByPatient = async (patientId) => {
   return response.data;
 };
 
-// 🔹 Delete prescription by id
-export const deletePrescription = async (id) => {
-  const response = await api.delete(`${BASE_URL}/${id}`);
+export const getPrescriptionsByPatientPage = async ({
+  patientId,
+  page = 0,
+  size = 10,
+  q,
+  field,
+  from,
+  to,
+  sortKey,
+  sortDirection,
+} = {}) => {
+  const response = await api.get(`${BASE_URL}/patient/${patientId}/paged`, {
+    params: { page, size, q, field, from, to, sortKey, sortDirection },
+  });
   return response.data;
 };
 
+// 🔹 Delete prescription by id
 // 🔹 Get prescription by id
 export const getPrescriptionById = async (id) => {
   const response = await api.get(`${BASE_URL}/${id}`);

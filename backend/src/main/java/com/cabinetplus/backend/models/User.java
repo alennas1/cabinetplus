@@ -4,10 +4,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.cabinetplus.backend.enums.ClinicAccessRole;
+import com.cabinetplus.backend.enums.BillingCycle;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -39,6 +41,7 @@ public class User {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
+    @JsonIgnore
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -61,6 +64,19 @@ public class User {
     @JoinColumn(name = "plan_id")
     private Plan plan;
 
+    @Enumerated(EnumType.STRING)
+    private BillingCycle planBillingCycle;
+
+    @ManyToOne
+    @JoinColumn(name = "next_plan_id")
+    private Plan nextPlan;
+
+    @Enumerated(EnumType.STRING)
+    private BillingCycle nextPlanBillingCycle;
+
+    private LocalDateTime nextPlanStartDate;
+    private LocalDateTime nextPlanExpirationDate;
+
     @ManyToOne
     @JoinColumn(name = "owner_dentist_id")
     private User ownerDentist;
@@ -72,6 +88,7 @@ public class User {
     private String phoneNumber;
 
     private LocalDateTime createdAt;
+    private LocalDateTime planStartDate;
     private LocalDateTime expirationDate;
 
     private boolean canDeleteAdmin = false; // super-admin flag
@@ -88,6 +105,7 @@ public class User {
     // --- Gestion Cabinet PIN (optional) ---
     private boolean gestionCabinetPinEnabled = false;
 
+    @JsonIgnore
     @Column(length = 100)
     private String gestionCabinetPinHash;
 

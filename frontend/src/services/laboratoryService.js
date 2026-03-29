@@ -10,6 +10,25 @@ export const getAllLaboratories = async () => {
   return response.data;
 };
 
+export const getLaboratoriesPage = async ({ page = 0, size = 20, q, sortKey, direction } = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q, sortKey, direction },
+  });
+  return response.data;
+};
+
+export const getArchivedLaboratories = async () => {
+  const response = await api.get(`${BASE_URL}/archived`);
+  return response.data;
+};
+
+export const getArchivedLaboratoriesPage = async ({ page = 0, size = 20, q, sortKey, direction } = {}) => {
+  const response = await api.get(`${BASE_URL}/archived/paged`, {
+    params: { page, size, q, sortKey, direction },
+  });
+  return response.data;
+};
+
 export const getLaboratoryById = async (id) => {
   const response = await api.get(`${BASE_URL}/${id}`);
   return response.data;
@@ -34,12 +53,21 @@ export const updateLaboratory = async (id, lab) => {
   return response.data;
 };
 
+export const archiveLaboratory = async (id) => {
+  const response = await api.put(`${BASE_URL}/${id}/archive`);
+  return response.data;
+};
+
+export const unarchiveLaboratory = async (id) => {
+  const response = await api.put(`${BASE_URL}/${id}/unarchive`);
+  return response.data;
+};
+
 /**
  * Delete a laboratory by ID
  */
 export const deleteLaboratory = async (id) => {
-  const response = await api.delete(`${BASE_URL}/${id}`);
-  return response.data;
+  await api.delete(`${BASE_URL}/${id}`);
 };
 
 export const addLaboratoryPayment = async (id, payment) => {
@@ -48,7 +76,35 @@ export const addLaboratoryPayment = async (id, payment) => {
   return response.data;
 };
 
-export const deleteLaboratoryPayment = async (labId, paymentId) => {
-  const response = await api.delete(`${BASE_URL}/${labId}/payments/${paymentId}`);
+export const cancelLaboratoryPayment = async (labId, paymentId) => {
+  const response = await api.put(`${BASE_URL}/${labId}/payments/${paymentId}/cancel`);
+  return response.data;
+};
+
+export const getLaboratoryPaymentsPage = async (id, { page = 0, size = 20, from, to, sortKey, direction } = {}) => {
+  const response = await api.get(`${BASE_URL}/${id}/payments/paged`, {
+    params: { page, size, from, to, sortKey, direction },
+  });
+  return response.data;
+};
+
+export const getLaboratoryPaymentsSummary = async (id, { from, to } = {}) => {
+  const response = await api.get(`${BASE_URL}/${id}/payments/summary`, {
+    params: { from, to },
+  });
+  return response.data;
+};
+
+export const getLaboratoryBillingEntriesPage = async (id, { page = 0, size = 20, from, to, sortKey, direction } = {}) => {
+  const response = await api.get(`${BASE_URL}/${id}/billing-entries/paged`, {
+    params: { page, size, from, to, sortKey, direction },
+  });
+  return response.data;
+};
+
+export const getLaboratoryBillingEntriesSummary = async (id, { from, to } = {}) => {
+  const response = await api.get(`${BASE_URL}/${id}/billing-entries/summary`, {
+    params: { from, to },
+  });
   return response.data;
 };

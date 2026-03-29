@@ -23,6 +23,17 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
                                         @Param("start") LocalDate start,
                                         @Param("end") LocalDate end);
 
+    @Query("""
+        SELECT e.category, COALESCE(SUM(e.amount), 0)
+        FROM Expense e
+        WHERE e.createdBy = :dentist
+          AND e.date BETWEEN :start AND :end
+        GROUP BY e.category
+    """)
+    List<Object[]> sumAmountByDentistGroupByCategory(@Param("dentist") User dentist,
+                                                     @Param("start") LocalDate start,
+                                                     @Param("end") LocalDate end);
+
     List<Expense> findByCreatedByAndDateBetween(User dentist, LocalDate start, LocalDate end);
 
     List<Expense> findByEmployeeAndCreatedBy(Employee employee, User dentist);

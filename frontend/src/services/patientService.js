@@ -6,8 +6,22 @@ export const getPatients = async () => {
   return response.data;
 };
 
+export const getPatientsPage = async ({ page = 0, size = 20, q, field, sex, ageFrom, ageTo, from, to, sortKey, sortDirection } = {}) => {
+  const response = await api.get("/api/patients/paged", {
+    params: { page, size, q, field, sex, ageFrom, ageTo, from, to, sortKey, sortDirection },
+  });
+  return response.data;
+};
+
 export const getArchivedPatients = async () => {
   const response = await api.get("/api/patients/archived");
+  return response.data;
+};
+
+export const getArchivedPatientsPage = async ({ page = 0, size = 20, q, field, sex, ageFrom, ageTo, from, to, sortKey, sortDirection } = {}) => {
+  const response = await api.get("/api/patients/archived/paged", {
+    params: { page, size, q, field, sex, ageFrom, ageTo, from, to, sortKey, sortDirection },
+  });
   return response.data;
 };
 

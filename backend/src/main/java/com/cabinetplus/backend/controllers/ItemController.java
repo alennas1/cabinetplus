@@ -3,6 +3,8 @@ package com.cabinetplus.backend.controllers;
 import java.security.Principal;
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,11 +12,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.CreateItemDTO;
 import com.cabinetplus.backend.dto.ItemDTO;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.UpdateItemDTO;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
@@ -45,6 +49,32 @@ public class ItemController {
                 .toList();
         auditService.logSuccess(AuditEventType.ITEM_READ, "ITEM", null, "Articles consultés");
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<ItemDTO>> getAllPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            Principal principal) {
+
+        User dentist = getClinicUser(principal);
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        var itemsPage = itemService.searchItemsForDentist(dentist, q, pageable);
+        var items = itemsPage.getContent().stream().map(itemService::toDTO).toList();
+
+        auditService.logSuccess(AuditEventType.ITEM_READ, "ITEM", null, "Articles consultÃ©s (page)");
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                itemsPage.getNumber(),
+                itemsPage.getSize(),
+                itemsPage.getTotalElements(),
+                itemsPage.getTotalPages()
+        ));
     }
 
     @GetMapping("/{id}")
@@ -79,6 +109,11 @@ public ResponseEntity<ItemDTO> update(@PathVariable Long id,
     @DeleteMapping("/{id}")
 public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
     User dentist = getClinicUser(principal);
+
+    if (id != null) {
+        // Strict no-delete policy: inventory items are immutable history.
+        return ResponseEntity.status(org.springframework.http.HttpStatus.METHOD_NOT_ALLOWED).build();
+    }
 
     // Option 1: hard delete
     itemService.getItemByIdForDentist(id, dentist)

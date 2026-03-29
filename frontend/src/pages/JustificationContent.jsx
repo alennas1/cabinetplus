@@ -6,9 +6,10 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import FieldError from "../components/FieldError";
 import {
-  getJustificationTemplates,
+  getJustificationTemplatesPage,
   createJustificationTemplate,
   updateJustificationTemplate,
   deleteJustificationTemplate,
@@ -16,6 +17,7 @@ import {
 import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { FIELD_LIMITS, trimText, validateText } from "../utils/validation";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
 
 const PLACEHOLDERS = [
@@ -36,10 +38,15 @@ const JustificationContentPage = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const [isFetching, setIsFetching] = useState(false);
   
   const [currentPage, setCurrentPage] = useState(1);
-  const templatesPerPage = 10;
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: "title", direction: SORT_DIRECTIONS.ASC });
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -62,28 +69,45 @@ const JustificationContentPage = () => {
   // =========================
   // FETCH DATA
   // =========================
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const data = await getJustificationTemplates();
-        setTemplates(Array.isArray(data) ? data : []);
-      } catch (err) {
-        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des modèles"));
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const loadTemplates = async () => {
+    try {
+      const requestId = ++requestIdRef.current;
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
 
-  // =========================
-  // FILTER BY TITLE ONLY
-  // =========================
-  const filteredTemplates = templates.filter((t) => {
-    if (!search) return true;
-    return t.title?.toLowerCase().includes(search.toLowerCase());
-  });
+      const data = await getJustificationTemplatesPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      setTemplates(Array.isArray(data?.items) ? data.items : []);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des modèles"));
+      setTemplates([]);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  // Server-side search: the backend returns a filtered page already.
+  const filteredTemplates = templates;
 
   const handleSort = (key, explicitDirection) => {
     if (!key) return;
@@ -104,10 +128,8 @@ const JustificationContentPage = () => {
     return sortRowsBy(filteredTemplates, getValue, sortConfig.direction);
   }, [filteredTemplates, sortConfig.direction, sortConfig.key]);
 
-  const indexOfLast = currentPage * templatesPerPage;
-  const indexOfFirst = indexOfLast - templatesPerPage;
-  const currentTemplates = sortedTemplates.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(sortedTemplates.length / templatesPerPage);
+  // Server-side pagination: the backend already returns a single page.
+  const currentTemplates = sortedTemplates;
 
   // =========================
   // PLACEHOLDER INSERT
@@ -174,12 +196,13 @@ const JustificationContentPage = () => {
     try {
       setIsSubmitting(true);
       if (isEditing) {
-        const updated = await updateJustificationTemplate(formData.id, payload);
-        setTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
+        await updateJustificationTemplate(formData.id, payload);
+        await loadTemplates();
         toast.success("Modèle mis à  jour");
       } else {
-        const created = await createJustificationTemplate(payload);
-        setTemplates([...templates, created]);
+        await createJustificationTemplate(payload);
+        if (currentPage !== 1) setCurrentPage(1);
+        else await loadTemplates();
         toast.success("Modèle ajouté");
       }
       setShowModal(false);
@@ -222,7 +245,8 @@ const JustificationContentPage = () => {
     try {
       setIsDeletingTemplate(true);
       await deleteJustificationTemplate(confirmDelete);
-      setTemplates((prev) => prev.filter((t) => t.id !== confirmDelete));
+      if (templates.length <= 1 && currentPage > 1) setCurrentPage((p) => Math.max(1, p - 1));
+      else await loadTemplates();
       toast.success("Modèle supprimé");
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
@@ -300,13 +324,14 @@ const JustificationContentPage = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>←</button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
-          ))}
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>→</button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={loading || isFetching}
+          previousLabel="←"
+          nextLabel="→"
+        />
       )}
 
       {/* Modal & Details Logic (Same as before but cleaned up) */}

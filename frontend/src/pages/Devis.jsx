@@ -1,494 +1,818 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { useSelector } from "react-redux";
-import { Plus, Trash2, Download, X, Search, FileText } from 'react-feather';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Trash2, Download, X, Search, ChevronDown } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { formatMoneyWithLabel } from "../utils/format";
-import { getCurrencyLabelPreference } from "../utils/workingHours";
+
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import FieldError from "../components/FieldError";
+import DateInput from "../components/DateInput";
+
 import { getApiErrorMessage } from "../utils/error";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { FIELD_LIMITS, trimText, validateNumber, validateText } from "../utils/validation";
+import { formatDateTimeByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
+import useDebouncedValue from "../hooks/useDebouncedValue";
 
-import { getDevises, createDevise, deleteDevise, downloadDevisePdf } from '../services/deviseService';
-import { getTreatments } from '../services/treatmentCatalogueService';
-import { getAllProstheticsCatalogue } from '../services/prostheticsCatalogueService';
+import {
+  getDevisesPage,
+  createDevise,
+  deleteDevise,
+  downloadDevisePdf,
+} from "../services/deviseService";
+import { getTreatments } from "../services/treatmentCatalogueService";
+import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
 
-import "./Patients.css"; // Reusing your shared CSS
+import "./Patients.css";
+
+const pad2 = (value) => String(value).padStart(2, "0");
+
+const toIsoDateOnly = (date) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+const monthsList = Array.from({ length: 12 }).map((_, i) => {
+  const date = new Date();
+  date.setMonth(date.getMonth() - i);
+  const monthStr = pad2(date.getMonth() + 1);
+  const label = formatMonthYearByPreference(date);
+
+  return {
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+    value: `${date.getFullYear()}-${monthStr}`,
+  };
+});
 
 const Devise = () => {
-    const [treatmentSearch, setTreatmentSearch] = useState('');
-    const [prostheticSearch, setProstheticSearch] = useState('');
+  const [devises, setDevises] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const requestIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
-    const [devises, setDevises] = useState([]);
-    const [treatments, setTreatments] = useState([]);
-    const [prosthetics, setProsthetics] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
 
-    // Pagination (consistent with your Employees component)
-    const [currentPage, setCurrentPage] = useState(1);
-    const devisesPerPage = 10;
-    const [sortConfig, setSortConfig] = useState({ key: "title", direction: SORT_DIRECTIONS.ASC });
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const [totalPages, setTotalPages] = useState(1);
 
-    // Form State
-    const [title, setTitle] = useState('');
-    const [selectedItems, setSelectedItems] = useState([]);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [fieldErrors, setFieldErrors] = useState({});
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [downloadingId, setDownloadingId] = useState(null);
+  const [sortConfig, setSortConfig] = useState({
+    key: "createdAt",
+    direction: SORT_DIRECTIONS.DESC,
+  });
 
-    // Delete Confirmation State
-    const [showConfirm, setShowConfirm] = useState(false);
-    const [deviseIdToDelete, setDeviseIdToDelete] = useState(null);
+  // Filters (server-side)
+  // Date filters (UI aligned with Journal d'activité)
+  const [selectedDateFilter, setSelectedDateFilter] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
+  const [customRange, setCustomRange] = useState({ start: "", end: "" });
 
-    useEffect(() => {
-        loadData();
-    }, []);
+  // Create devis modal + catalogs
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [treatments, setTreatments] = useState([]);
+  const [prosthetics, setProsthetics] = useState([]);
+  const [treatmentSearch, setTreatmentSearch] = useState("");
+  const [prostheticSearch, setProstheticSearch] = useState("");
 
-    const loadData = async () => {
-        try {
-            setLoading(true);
-            const [devisesData, treatmentsData, prostheticsData] = await Promise.all([
-                getDevises(),
-                getTreatments(),
-                getAllProstheticsCatalogue()
-            ]);
-            setDevises(devisesData);
-            setTreatments(treatmentsData);
-            setProsthetics(prostheticsData);
-        } catch (err) {
-            console.error("Error loading data", err);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const [title, setTitle] = useState("");
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
-    const addItem = (item, type) => {
-        const newItem = {
-            treatmentCatalogId: type === 'TREATMENT' ? item.id : null,
-            prothesisCatalogId: type === 'PROTHESIS' ? item.id : null,
-            name: type === 'PROTHESIS' ? `${item.name} (${item.materialName})` : item.name,
-            unitPrice: item.defaultPrice || 0,
-            quantity: 1
-        };
-        setSelectedItems([...selectedItems, newItem]);
-        if (fieldErrors.items) setFieldErrors((prev) => ({ ...prev, items: "" }));
-        toast.info(`${item.name} ajouté`);
-    };
+  const treatmentSuggestions = useMemo(() => {
+    const q = treatmentSearch?.trim().toLowerCase();
+    if (!q) return [];
+    return (Array.isArray(treatments) ? treatments : [])
+      .filter((t) => (t?.name || "").toLowerCase().includes(q))
+      .slice(0, 2);
+  }, [treatmentSearch, treatments]);
 
-    const removeItem = (index) => {
-        setSelectedItems(selectedItems.filter((_, i) => i !== index));
-    };
+  const prostheticSuggestions = useMemo(() => {
+    const q = prostheticSearch?.trim().toLowerCase();
+    if (!q) return [];
+    return (Array.isArray(prosthetics) ? prosthetics : [])
+      .filter((p) => (p?.name || "").toLowerCase().includes(q))
+      .slice(0, 2);
+  }, [prostheticSearch, prosthetics]);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (isSubmitting) return;
+  // Delete confirmation
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deviseIdToDelete, setDeviseIdToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
-        const nextErrors = {};
-        nextErrors.title = validateText(title, {
-            label: "Titre du devis",
-            required: true,
-            minLength: FIELD_LIMITS.TITLE_MIN,
-            maxLength: FIELD_LIMITS.TITLE_MAX,
-        });
-        if (selectedItems.length === 0) nextErrors.items = "Ajoutez au moins un élément.";
+  const { fromParam, toParam } = useMemo(() => {
+    const from = customRange?.start || "";
+    const to = customRange?.end || "";
 
-        selectedItems.forEach((item, idx) => {
-            const priceErr = validateNumber(item.unitPrice, {
-                label: "Prix unitaire",
-                required: true,
-                min: 0.01,
-            });
-            if (priceErr) nextErrors[`unitPrice_${idx}`] = priceErr;
-
-            const qtyErr = validateNumber(item.quantity, {
-                label: "Quantité",
-                required: true,
-                min: 1,
-                max: 999,
-                integer: true,
-            });
-            if (qtyErr) nextErrors[`quantity_${idx}`] = qtyErr;
-        });
-
-        if (Object.values(nextErrors).some(Boolean)) {
-            setFieldErrors(nextErrors);
-            return;
-        }
-
-        const payload = {
-            title: trimText(title),
-            items: selectedItems.map(({ name, unitPrice, quantity, ...rest }) => ({
-                ...rest,
-                unitPrice: parseFloat(unitPrice),
-                quantity: parseInt(quantity, 10),
-            }))
-        };
-
-        try {
-            setIsSubmitting(true);
-            await createDevise(payload);
-            toast.success("Devis enregistré avec succès");
-            setIsModalOpen(false);
-            setTitle('');
-            setSelectedItems([]);
-            setFieldErrors({});
-            await loadData();
-        } catch (err) {
-            toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    // Internal Delete Logic
-    const handleDeleteClick = (id) => {
-        setDeviseIdToDelete(id);
-        setShowConfirm(true);
-    };
-
-    const confirmDelete = async () => {
-        if (isDeleting) return;
-        try {
-            setIsDeleting(true);
-            await deleteDevise(deviseIdToDelete);
-            setDevises(devises.filter(d => d.id !== deviseIdToDelete));
-            toast.success("Devis supprimé");
-        } catch (err) {
-            toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
-        } finally {
-            setIsDeleting(false);
-            setShowConfirm(false);
-            setDeviseIdToDelete(null);
-        }
-    };
-
-    const handleDownloadPdf = async (id, deviseTitle) => {
-        if (downloadingId === id) return;
-        try {
-            setDownloadingId(id);
-            await downloadDevisePdf(id, deviseTitle);
-        } finally {
-            setDownloadingId(null);
-        }
-    };
-
-    const calculateTotal = () => selectedItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-
-    // Filtering & Pagination
-    const filteredDevises = devises.filter((d) => d.title.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const handleSort = (key, explicitDirection) => {
-        if (!key) return;
-        setSortConfig((prev) => {
-            const nextDirection =
-                explicitDirection ||
-                (prev.key === key
-                    ? prev.direction === SORT_DIRECTIONS.ASC
-                        ? SORT_DIRECTIONS.DESC
-                        : SORT_DIRECTIONS.ASC
-                    : SORT_DIRECTIONS.ASC);
-            return { key, direction: nextDirection };
-        });
-    };
-
-    const sortedDevises = useMemo(() => {
-        const getValue = (d) => {
-            switch (sortConfig.key) {
-                case "title":
-                    return d.title;
-                case "totalAmount":
-                    return d.totalAmount || 0;
-                default:
-                    return "";
-            }
-        };
-        return sortRowsBy(filteredDevises, getValue, sortConfig.direction);
-    }, [filteredDevises, sortConfig.direction, sortConfig.key]);
-
-    const indexOfLast = currentPage * devisesPerPage;
-    const indexOfFirst = indexOfLast - devisesPerPage;
-    const currentDevises = sortedDevises.slice(indexOfFirst, indexOfLast);
-    const totalPages = Math.ceil(sortedDevises.length / devisesPerPage);
-
-    if (loading) {
-        return (
-            <DentistPageSkeleton
-                title="Devis"
-                subtitle="Chargement des devis et catalogues"
-                variant="table"
-            />
-        );
+    if (selectedDateFilter === "today") {
+      const iso = toIsoDateOnly(new Date());
+      return { fromParam: iso, toParam: iso };
     }
 
-    return (
-        <div className="patients-container">
-            <PageHeader
-                title="Devis"
-                subtitle="Gestion des estimations et propositions tarifaires"
-                align="left"
-            />
+    if (selectedDateFilter === "yesterday") {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const iso = toIsoDateOnly(d);
+      return { fromParam: iso, toParam: iso };
+    }
 
-            {/* Controls */}
-            <div className="patients-controls">
-                <div className="controls-left">
-                    <div className="search-group">
-                        <Search className="search-icon" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Rechercher un devis..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-                <div className="controls-right">
-                    <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
-                        <Plus size={16} /> Nouveau Devis
-                    </button>
-                </div>
+    if (selectedMonth) {
+      const [yStr, mStr] = String(selectedMonth).split("-");
+      const year = Number(yStr);
+      const month = Number(mStr); // 1-12
+      if (Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12) {
+        const start = `${year}-${pad2(month)}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const end = `${year}-${pad2(month)}-${pad2(lastDay)}`;
+        return { fromParam: start, toParam: end };
+      }
+    }
+
+    if (selectedDateFilter === "custom" || from || to) {
+      return { fromParam: from || undefined, toParam: to || undefined };
+    }
+
+    return { fromParam: undefined, toParam: undefined };
+  }, [customRange?.end, customRange?.start, selectedDateFilter, selectedMonth]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, fromParam, toParam, sortConfig.key, sortConfig.direction]);
+
+  const fetchDevises = async () => {
+    const requestId = ++requestIdRef.current;
+    const isInitial = !hasLoadedRef.current;
+
+    try {
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+
+      const data = await getDevisesPage({
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearchTerm?.trim() || undefined,
+        from: fromParam || undefined,
+        to: toParam || undefined,
+        sortKey: sortConfig?.key || undefined,
+        sortDirection: sortConfig?.direction || undefined,
+      });
+
+      if (requestId !== requestIdRef.current) return;
+
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setDevises(items);
+      setTotalPages(Number(data?.totalPages || 1));
+      hasLoadedRef.current = true;
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des devis"));
+      setDevises([]);
+      setTotalPages(1);
+      hasLoadedRef.current = true;
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  const loadCatalogs = async () => {
+    try {
+      const [treatmentsData, prostheticsData] = await Promise.all([
+        getTreatments(),
+        getAllProstheticsCatalogue(),
+      ]);
+      setTreatments(Array.isArray(treatmentsData) ? treatmentsData : []);
+      setProsthetics(Array.isArray(prostheticsData) ? prostheticsData : []);
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des catalogues"));
+    }
+  };
+
+  useEffect(() => {
+    loadCatalogs();
+  }, []);
+
+  useEffect(() => {
+    fetchDevises();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentPage,
+    debouncedSearchTerm,
+    fromParam,
+    toParam,
+    sortConfig.key,
+    sortConfig.direction,
+  ]);
+
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
+        (prev.key === key
+          ? prev.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC
+          : SORT_DIRECTIONS.ASC);
+      return { key, direction: nextDirection };
+    });
+    setCurrentPage((p) => (p === 1 ? p : 1));
+  };
+
+  const handleDeleteClick = (id) => {
+    setDeviseIdToDelete(id);
+    setShowConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deviseIdToDelete || isDeleting) return;
+    try {
+      setIsDeleting(true);
+      await deleteDevise(deviseIdToDelete);
+      toast.success("Devis supprimé");
+
+      // If we deleted the last item of the page, go back a page when possible.
+      if (devises.length <= 1 && currentPage > 1) {
+        setCurrentPage((p) => Math.max(1, p - 1));
+      } else {
+        await fetchDevises();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
+    } finally {
+      setIsDeleting(false);
+      setShowConfirm(false);
+      setDeviseIdToDelete(null);
+    }
+  };
+
+  const handleDownloadPdf = async (id, deviseTitle) => {
+    if (downloadingId === id) return;
+    try {
+      setDownloadingId(id);
+      await downloadDevisePdf(id, deviseTitle);
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du téléchargement"));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const addItem = (item, type) => {
+    if (!item) return;
+    const unitPrice = Number(item.defaultPrice || 0);
+    const newItem = {
+      treatmentCatalogId: type === "TREATMENT" ? item.id : null,
+      prothesisCatalogId: type === "PROTHESIS" ? item.id : null,
+      name: type === "PROTHESIS" ? `${item.name} (${item.materialName || "-"})` : item.name,
+      unitPrice,
+      quantity: 1,
+    };
+    setSelectedItems((prev) => [...prev, newItem]);
+    if (fieldErrors.items) setFieldErrors((prev) => ({ ...prev, items: "" }));
+  };
+
+  const removeItem = (index) => {
+    setSelectedItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const calculateTotal = () =>
+    selectedItems.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * Number(item.quantity || 0)), 0);
+
+  const resetForm = () => {
+    setTitle("");
+    setSelectedItems([]);
+    setTreatmentSearch("");
+    setProstheticSearch("");
+    setFieldErrors({});
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    const nextErrors = {};
+    nextErrors.title = validateText(title, {
+      label: "Titre du devis",
+      required: true,
+      minLength: FIELD_LIMITS.TITLE_MIN,
+      maxLength: FIELD_LIMITS.TITLE_MAX,
+    });
+
+    if (selectedItems.length === 0) nextErrors.items = "Ajoutez au moins un élément.";
+
+    selectedItems.forEach((item, idx) => {
+      const priceErr = validateNumber(item.unitPrice, {
+        label: "Prix unitaire",
+        required: true,
+        min: 0.01,
+      });
+      if (priceErr) nextErrors[`unitPrice_${idx}`] = priceErr;
+
+      const qtyErr = validateNumber(item.quantity, {
+        label: "Quantité",
+        required: true,
+        min: 1,
+        max: 999,
+        integer: true,
+      });
+      if (qtyErr) nextErrors[`quantity_${idx}`] = qtyErr;
+    });
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors(nextErrors);
+      return;
+    }
+
+    const payload = {
+      title: trimText(title),
+      items: selectedItems.map(({ name, unitPrice, quantity, ...rest }) => ({
+        ...rest,
+        unitPrice: Number(unitPrice),
+        quantity: parseInt(quantity, 10),
+      })),
+    };
+
+    try {
+      setIsSubmitting(true);
+      await createDevise(payload);
+      toast.success("Devis enregistré");
+      setIsModalOpen(false);
+      resetForm();
+      await fetchDevises();
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const currentDevises = useMemo(() => devises || [], [devises]);
+
+  if (loading && !hasLoadedRef.current) {
+    return (
+      <DentistPageSkeleton
+        title="Devis"
+        subtitle="Chargement des devis et catalogues"
+        variant="table"
+      />
+    );
+  }
+
+  return (
+    <div className="patients-container">
+      <PageHeader
+        title="Devis"
+        subtitle="Gestion des estimations et propositions tarifaires"
+        align="left"
+      />
+
+      {/* Controls */}
+      <div className="patients-controls">
+        <div className="controls-left">
+          <div className="search-group">
+            <Search className="search-icon" size={16} />
+            <input
+              type="text"
+              placeholder="Rechercher un devis..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage((p) => (p === 1 ? p : 1));
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="controls-right">
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setFieldErrors({});
+              setIsModalOpen(true);
+            }}
+          >
+            <Plus size={16} /> Nouveau devis
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="date-selector"
+        style={{
+          marginTop: "15px",
+          marginBottom: "15px",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "10px",
+          alignItems: "center",
+        }}
+      >
+        <button
+          className={
+            selectedDateFilter === "all" && !selectedMonth && !customRange.start && !customRange.end
+              ? "active"
+              : ""
+          }
+          onClick={() => {
+            setSelectedDateFilter("all");
+            setSelectedMonth("");
+            setCustomRange({ start: "", end: "" });
+            setMonthDropdownOpen(false);
+          }}
+        >
+          Tout
+        </button>
+        <button
+          className={selectedDateFilter === "today" ? "active" : ""}
+          onClick={() => {
+            setSelectedDateFilter("today");
+            setSelectedMonth("");
+            setCustomRange({ start: "", end: "" });
+            setMonthDropdownOpen(false);
+          }}
+        >
+          Aujourd'hui
+        </button>
+        <button
+          className={selectedDateFilter === "yesterday" ? "active" : ""}
+          onClick={() => {
+            setSelectedDateFilter("yesterday");
+            setSelectedMonth("");
+            setCustomRange({ start: "", end: "" });
+            setMonthDropdownOpen(false);
+          }}
+        >
+          Hier
+        </button>
+
+        <div className="month-selector">
+          <div className="modern-dropdown" style={{ minWidth: "180px" }}>
+            <button
+              className={`dropdown-trigger ${monthDropdownOpen ? "open" : ""}`}
+              onClick={() => setMonthDropdownOpen(!monthDropdownOpen)}
+              type="button"
+            >
+              <span>
+                {selectedMonth
+                  ? monthsList.find((m) => m.value === selectedMonth)?.label
+                  : "Choisir un mois"}
+              </span>
+              <ChevronDown size={18} className={`chevron ${monthDropdownOpen ? "rotated" : ""}`} />
+            </button>
+            {monthDropdownOpen && (
+              <ul className="dropdown-menu">
+                {monthsList.map((month) => (
+                  <li
+                    key={month.value}
+                    onClick={() => {
+                      setSelectedMonth(month.value);
+                      setSelectedDateFilter("custom");
+                      setMonthDropdownOpen(false);
+                      setCustomRange({ start: "", end: "" });
+                    }}
+                  >
+                    {month.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="custom-range-container">
+          <span className="custom-range-label">Plage personnalisée :</span>
+          <div className="custom-range">
+            <DateInput
+              value={customRange.start}
+              onChange={(e) => {
+                setCustomRange((current) => ({ ...current, start: e.target.value }));
+                setSelectedDateFilter("custom");
+                setSelectedMonth("");
+                setMonthDropdownOpen(false);
+              }}
+              className="cp-date-compact cp-date-field--filter"
+            />
+            <DateInput
+              value={customRange.end}
+              onChange={(e) => {
+                setCustomRange((current) => ({ ...current, end: e.target.value }));
+                setSelectedDateFilter("custom");
+                setSelectedMonth("");
+                setMonthDropdownOpen(false);
+              }}
+              className="cp-date-compact cp-date-field--filter"
+            />
+          </div>
+        </div>
+
+      </div>
+
+      {/* Table */}
+      <table className="patients-table">
+        <thead>
+          <tr>
+            <SortableTh label="Titre du devis" sortKey="title" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Montant total" sortKey="totalAmount" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Créé le" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {currentDevises.map((d) => (
+            <tr key={d.id}>
+              <td style={{ fontWeight: 500 }}>{d.title}</td>
+              <td>{formatMoneyWithLabel(d.totalAmount || 0)}</td>
+              <td>{formatDateTimeByPreference(d.createdAt) || "-"}</td>
+              <td className="actions-cell">
+                <button
+                  className="action-btn view"
+                  onClick={() => handleDownloadPdf(d.id, d.title)}
+                  title="Télécharger PDF"
+                  disabled={downloadingId === d.id}
+                >
+                  <Download size={16} />
+                </button>
+                <button className="action-btn delete" onClick={() => handleDeleteClick(d.id)} title="Supprimer">
+                  <Trash2 size={16} />
+                </button>
+              </td>
+            </tr>
+          ))}
+
+          {currentDevises.length === 0 && (
+            <tr>
+              <td colSpan={4} style={{ textAlign: "center", color: "#888", padding: "20px" }}>
+                {isFetching ? "Chargement..." : "Aucun devis trouvé"}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          disabled={isFetching}
+        />
+      )}
+
+      {/* Create devis modal */}
+      {isModalOpen && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setFieldErrors({});
+            setIsModalOpen(false);
+          }}
+        >
+          <div
+            className="modal-content devis-modal"
+            style={{ maxWidth: "900px", width: "95%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2>Créer un nouveau devis</h2>
+              <X
+                className="cursor-pointer"
+                onClick={() => {
+                  setFieldErrors({});
+                  setIsModalOpen(false);
+                }}
+              />
             </div>
 
-            {/* Table */}
-            <table className="patients-table">
-                <thead>
-                    <tr>
-                        <SortableTh label="Titre du Devis" sortKey="title" sortConfig={sortConfig} onSort={handleSort} />
-                        <SortableTh label="Montant Total" sortKey="totalAmount" sortConfig={sortConfig} onSort={handleSort} />
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {currentDevises.map((d) => (
-                        <tr key={d.id}>
-                            <td style={{ fontWeight: "500" }}>{d.title}</td>
-                            <td>{formatMoneyWithLabel(d.totalAmount || 0)}</td>
-                            <td className="actions-cell">
-                                <button className="action-btn view" onClick={() => handleDownloadPdf(d.id, d.title)} title="Télécharger PDF" disabled={downloadingId === d.id}>
-                                    <Download size={16} />
-                                </button>
-                                <button className="action-btn delete" onClick={() => handleDeleteClick(d.id)} title="Supprimer">
-                                    <Trash2 size={16} />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                    {sortedDevises.length === 0 && (
-                        <tr>
-                            <td colSpan={3} style={{ textAlign: "center", color: "#888", padding: "20px" }}>
-                                Aucun devis trouvé
-                            </td>
-                        </tr>
+            <p className="text-sm text-gray-600 mb-4">
+              Sélectionnez des éléments du catalogue, puis enregistrez le devis.
+            </p>
+
+            <form onSubmit={handleSubmit} className="devis-modal-form">
+              <div className="devis-modal-body">
+                <div className="devis-modal-left">
+                  <div className="devis-modal-left-scroll">
+                    <span className="field-label">SOINS & TRAITEMENTS</span>
+                    <input
+                      type="text"
+                      placeholder="Rechercher un soin..."
+                      value={treatmentSearch}
+                      onChange={(e) => setTreatmentSearch(e.target.value)}
+                      className="catalog-search"
+                    />
+                    <div className="devis-suggestion-slots">
+                      {treatmentSuggestions.map((t) => (
+                        <div
+                          key={`t_${t.id}`}
+                          className="catalog-item"
+                          onClick={() => {
+                            addItem(t, "TREATMENT");
+                            setTreatmentSearch("");
+                          }}
+                        >
+                          <span style={{ fontSize: "0.85rem" }}>{t.name}</span>
+                          <Plus size={14} className="catalog-plus" />
+                        </div>
+                      ))}
+                      {Array.from({ length: Math.max(0, 2 - treatmentSuggestions.length) }).map((_, i) => (
+                        <div
+                          key={`t_placeholder_${i}`}
+                          className="catalog-item devis-suggestion-placeholder"
+                          aria-hidden="true"
+                        >
+                          <span>&nbsp;</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ height: 16 }} />
+
+                    <span className="field-label">PROTHÈSES</span>
+                    <input
+                      type="text"
+                      placeholder="Rechercher une prothèse..."
+                      value={prostheticSearch}
+                      onChange={(e) => setProstheticSearch(e.target.value)}
+                      className="catalog-search"
+                    />
+                    <div className="devis-suggestion-slots">
+                      {prostheticSuggestions.map((p) => (
+                        <div
+                          key={`p_${p.id}`}
+                          className="catalog-item"
+                          onClick={() => {
+                            addItem(p, "PROTHESIS");
+                            setProstheticSearch("");
+                          }}
+                        >
+                          <span style={{ fontSize: "0.85rem" }}>{p.name}</span>
+                          <Plus size={14} className="catalog-plus" />
+                        </div>
+                      ))}
+                      {Array.from({ length: Math.max(0, 2 - prostheticSuggestions.length) }).map((_, i) => (
+                        <div
+                          key={`p_placeholder_${i}`}
+                          className="catalog-item devis-suggestion-placeholder"
+                          aria-hidden="true"
+                        >
+                          <span>&nbsp;</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="devis-modal-right">
+                  <div className="devis-modal-right-header">
+                    <div className="devis-modal-title-block">
+                      <span className="field-label">Titre du devis</span>
+                      <input
+                        type="text"
+                        value={title}
+                        maxLength={FIELD_LIMITS.TITLE_MAX}
+                        onChange={(e) => {
+                          setTitle(e.target.value);
+                          if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: "" }));
+                        }}
+                        placeholder="Ex: Devis implant..."
+                      />
+                      <FieldError message={fieldErrors.title} className="devis-modal-title-error" />
+                    </div>
+
+                    <div className="devis-modal-selected-block">
+                      <span className="field-label">ÉLÉMENTS SÉLECTIONNÉS</span>
+                      <FieldError message={fieldErrors.items} />
+                    </div>
+                  </div>
+
+                  <div className="devis-modal-right-scroll">
+                    {selectedItems.length === 0 && (
+                      <div style={{ color: "#888", fontSize: "13px", padding: "10px 0" }}>
+                        Aucun élément sélectionné.
+                      </div>
                     )}
-                </tbody>
-            </table>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="pagination">
-                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>← Précédent</button>
-                    {[...Array(totalPages)].map((_, i) => (
-                        <button key={i} className={currentPage === i + 1 ? "active" : ""} onClick={() => setCurrentPage(i + 1)}>
-                            {i + 1}
+                    {selectedItems.map((it, idx) => (
+                      <div key={idx} className="devis-selected-item">
+                        <div className="devis-selected-name" title={it.name}>
+                          {it.name}
+                        </div>
+
+                        <div className="devis-item-col">
+                          <input
+                            type="number"
+                            placeholder="Prix"
+                            value={it.unitPrice}
+                            className={fieldErrors[`unitPrice_${idx}`] ? "invalid devis-item-input" : "devis-item-input"}
+                            onChange={(e) => {
+                              const updated = [...selectedItems];
+                              updated[idx].unitPrice = e.target.value;
+                              setSelectedItems(updated);
+                              const k = `unitPrice_${idx}`;
+                              if (fieldErrors[k]) setFieldErrors((prev) => ({ ...prev, [k]: "" }));
+                            }}
+                          />
+                          <FieldError message={fieldErrors[`unitPrice_${idx}`]} className="devis-item-error" />
+                        </div>
+
+                        <div className="devis-item-col devis-item-col-qty">
+                          <input
+                            type="number"
+                            placeholder="Qté"
+                            value={it.quantity}
+                            className={fieldErrors[`quantity_${idx}`] ? "invalid devis-item-input" : "devis-item-input"}
+                            onChange={(e) => {
+                              const updated = [...selectedItems];
+                              updated[idx].quantity = e.target.value;
+                              setSelectedItems(updated);
+                              const k = `quantity_${idx}`;
+                              if (fieldErrors[k]) setFieldErrors((prev) => ({ ...prev, [k]: "" }));
+                            }}
+                          />
+                          <FieldError message={fieldErrors[`quantity_${idx}`]} className="devis-item-error" />
+                        </div>
+
+                        <button type="button" onClick={() => removeItem(idx)} className="devis-item-remove" title="Retirer">
+                          <X size={14} />
                         </button>
+                      </div>
                     ))}
-                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>Suivant →</button>
+                  </div>
                 </div>
-            )}
+              </div>
 
-            {/* Modal for Creating Devis */}
-            {isModalOpen && (
-                <div className="modal-overlay" onClick={() => { setFieldErrors({}); setIsModalOpen(false); }}>
-                    <div className="modal-content" style={{ maxWidth: '900px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h2>Créer un Nouveau Devis</h2>
-                            <X className="cursor-pointer" onClick={() => { setFieldErrors({}); setIsModalOpen(false); }} />
-                        </div>
-
-                        <p className="text-sm text-gray-600 mb-4">
-                          Sélectionnez des éléments du catalogue, puis enregistrez le devis.
-                        </p>
-
-                        <div style={{ display: 'flex', gap: '20px', height: 'min(420px, 62vh)' }}>
-                            {/* Catalog Selection Pane */}
-                            <div style={{ flex: 1, borderRight: '1px solid #eee', paddingRight: '15px', overflowY: 'auto' }}>
-
-                                {/* Treatments Autocomplete */}
-                                <span className="field-label">SOINS & TRAITEMENTS</span>
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher un soin..."
-                                    value={treatmentSearch}
-                                    onChange={(e) => setTreatmentSearch(e.target.value)}
-                                    className="catalog-search"
-                                />
-                                {treatmentSearch && treatments
-                                    .filter(t => t.name.toLowerCase().includes(treatmentSearch.toLowerCase()))
-                                    .slice(0, 2)
-                                    .map(t => (
-                                        <div
-                                            key={t.id}
-                                            className="catalog-item"
-                                            onClick={() => { addItem(t, 'TREATMENT'); setTreatmentSearch(''); }}
-                                        >
-                                            <span style={{ fontSize: '0.85rem' }}>{t.name}</span>
-                                            <Plus size={14} className="catalog-plus" />
-                                        </div>
-                                    ))}
-
-                                {/* Prosthetics Autocomplete */}
-                                <span className="field-label">PROTHÈSES</span>
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher une prothèse..."
-                                    value={prostheticSearch}
-                                    onChange={(e) => setProstheticSearch(e.target.value)}
-                                    className="catalog-search"
-                                />
-                                {prostheticSearch && prosthetics
-                                    .filter(p => p.name.toLowerCase().includes(prostheticSearch.toLowerCase()))
-                                    .slice(0, 2)
-                                    .map(p => (
-                                        <div
-                                            key={p.id}
-                                            className="catalog-item"
-                                            onClick={() => { addItem(p, 'PROTHESIS'); setProstheticSearch(''); }}
-                                        >
-                                            <div>
-                                                <span style={{ fontSize: '0.9rem', display: 'block' }}>{p.name}</span>
-                                                <small style={{ fontSize: '13px', color: '#888' }}>{p.materialName}</small>
-                                            </div>
-                                            <Plus size={14} className="catalog-plus" />
-                                        </div>
-                                    ))}
-                            </div>
-
-                            {/* Build Pane */}
-                            <form noValidate onSubmit={handleSubmit} style={{ flex: 1.2, display: 'flex', flexDirection: 'column' }}>
-                                 <span className="field-label">Titre du Devis</span>
-                                 <input
-                                     type="text"
-                                     value={title}
-                                     onChange={(e) => {
-                                         setTitle(e.target.value);
-                                         if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: "" }));
-                                     }}
-                                     placeholder="ex: Devis Implantologie"
-                                     className={fieldErrors.title ? "invalid" : ""}
-                                 />
-                                 <FieldError message={fieldErrors.title} />
-
-                                {/* Build Pane List */}
-                                <div style={{ flex: 1, overflowY: 'auto', marginTop: '8px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-                                     {selectedItems.map((item, idx) => (
-                                         <div key={idx} className="flex justify-between items-center bg-white p-2 mb-2 rounded shadow-sm border border-gray-100">
-                                            <span style={{ fontSize: '0.8rem', flex: 1.5 }} className="truncate">
-                                                {item.name}
-                                            </span>
-
-                                             {/* Editable Unit Price */}
-                                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                 <span style={{ fontSize: '0.7rem' }}>{getCurrencyLabelPreference()}</span>
-                                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                                                     <input
-                                                         type="number"
-                                                         style={{ width: '80px', padding: '2px', fontSize: '0.8rem' }}
-                                                         value={item.unitPrice}
-                                                         placeholder="0"
-                                                         className={fieldErrors[`unitPrice_${idx}`] ? "invalid" : ""}
-                                                         onChange={(e) => {
-                                                             const updated = [...selectedItems];
-                                                             updated[idx].unitPrice = e.target.value;
-                                                             setSelectedItems(updated);
-                                                             const k = `unitPrice_${idx}`;
-                                                             if (fieldErrors[k]) setFieldErrors((prev) => ({ ...prev, [k]: "" }));
-                                                         }}
-                                                     />
-                                                     <FieldError message={fieldErrors[`unitPrice_${idx}`]} />
-                                                 </div>
-                                             </div>
-
-                                             {/* Quantity */}
-                                             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", marginLeft: '10px' }}>
-                                                 <input
-                                                     type="number"
-                                                     style={{ width: '45px', padding: '2px' }}
-                                                     value={item.quantity}
-                                                     placeholder="1"
-                                                     className={fieldErrors[`quantity_${idx}`] ? "invalid" : ""}
-                                                     onChange={(e) => {
-                                                         const updated = [...selectedItems];
-                                                         updated[idx].quantity = e.target.value;
-                                                         setSelectedItems(updated);
-                                                         const k = `quantity_${idx}`;
-                                                         if (fieldErrors[k]) setFieldErrors((prev) => ({ ...prev, [k]: "" }));
-                                                     }}
-                                                 />
-                                                 <FieldError message={fieldErrors[`quantity_${idx}`]} />
-                                             </div>
-
-                                            <button type="button" onClick={() => removeItem(idx)} className="text-red-500 ml-2">
-                                                <X size={14} />
-                                            </button>
-                                         </div>
-                                     ))}
-                                 </div>
-                                 <FieldError message={fieldErrors.items} />
-
-                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginTop: "16px" }}>
-                                    <div className="total-box" style={{ marginTop: 0, padding: "10px 12px", flexShrink: 0, minWidth: "220px" }}>
-                                        <div className="total-row" style={{ fontSize: "14px" }}>
-                                            <span>Total:</span>
-                                            <span>{formatMoneyWithLabel(calculateTotal())}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="modal-actions" style={{ marginTop: 0, flexShrink: 0 }}>
-                                        <button type="submit" className="btn-primary2" disabled={isSubmitting}>{isSubmitting ? "Enregistrement..." : "Enregistrer"}</button>
-                                        <button type="button" className="btn-cancel" onClick={() => { setFieldErrors({}); setIsModalOpen(false); }} disabled={isSubmitting}>Annuler</button>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+              <div className="devis-modal-footer">
+                <div className="total-box devis-total-box">
+                  <div className="total-row" style={{ fontSize: "14px" }}>
+                    <span>Total:</span>
+                    <span>{formatMoneyWithLabel(calculateTotal())}</span>
+                  </div>
                 </div>
-            )}
 
-            {/* Internal Delete Confirmation Modal */}
-            {showConfirm && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
-                    <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
-                        <h2 className="text-lg font-semibold text-gray-800 mb-2">Supprimer le devis ?</h2>
-                        <p className="text-gray-600 mb-6">Voulez-vous vraiment supprimer ce devis ? Cette action est irréversible.</p>
-                        <div className="flex justify-end gap-3">
-                            <button
-                                onClick={() => setShowConfirm(false)}
-                                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors" disabled={isDeleting}
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                onClick={confirmDelete}
-                                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
-                                disabled={isDeleting}
-                            >
-                                {isDeleting ? "Suppression..." : "Supprimer"}
-                            </button>
-                        </div>
-                    </div>
+                <div className="modal-actions" style={{ marginTop: 0, flexShrink: 0 }}>
+                  <button type="submit" className="btn-primary2" disabled={isSubmitting}>
+                    {isSubmitting ? "Enregistrement..." : "Enregistrer"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => {
+                      setFieldErrors({});
+                      setIsModalOpen(false);
+                      resetForm();
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    Annuler
+                  </button>
                 </div>
-            )}
-
-            <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
+              </div>
+            </form>
+          </div>
         </div>
-    );
+      )}
+
+      {/* Delete confirmation modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
+          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Supprimer le devis ?</h2>
+            <p className="text-gray-600 mb-6">
+              Voulez-vous vraiment supprimer ce devis ? Cette action est irréversible.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                disabled={isDeleting}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Suppression..." : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
+    </div>
+  );
 };
 
 export default Devise;
-

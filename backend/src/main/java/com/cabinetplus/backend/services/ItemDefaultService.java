@@ -8,6 +8,8 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.ItemDefaultRepository;
 import com.cabinetplus.backend.repositories.ItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,6 +24,11 @@ public class ItemDefaultService {
 
     public List<ItemDefault> getDefaultsForDentist(User dentist) {
         return itemDefaultRepository.findByCreatedBy(dentist);
+    }
+
+    public Page<ItemDefault> searchDefaultsForDentist(User dentist, String q, Pageable pageable) {
+        String safeQ = q != null ? q.trim() : "";
+        return itemDefaultRepository.searchByCreatedBy(dentist, safeQ, pageable);
     }
 
     public Optional<ItemDefault> getDefaultByIdForDentist(Long id, User dentist) {

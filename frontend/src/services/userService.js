@@ -45,6 +45,17 @@ export const getCurrentPlanUsage = async () => {
   return response.data;
 };
 
+/** Get current subscription summary for the current cabinet */
+export const getCurrentSubscriptionSummary = async () => {
+  const response = await api.get(`${BASE_URL}/me/subscription-summary`);
+  return response.data;
+};
+
+export const activateNextPlanNow = async () => {
+  const response = await api.post(`${BASE_URL}/me/activate-next-plan-now`);
+  return response.data;
+};
+
 /**
  * ==========================
  * ADMIN ENDPOINTS
@@ -63,6 +74,14 @@ export const getAllDentists = async () => {
   return response.data;
 };
 
+/** Get dentists page (admin) */
+export const getDentistsPage = async ({ page = 0, size = 20, q, status } = {}) => {
+  const response = await api.get(`${BASE_URL}/dentists/paged`, {
+    params: { page, size, q, status },
+  });
+  return response.data;
+};
+
 /** Get a user by ID (admin) */
 export const getUserById = async (id) => {
   const response = await api.get(`${BASE_URL}/${id}`);
@@ -72,6 +91,14 @@ export const getUserById = async (id) => {
 /** Get all admins */
 export const getAllAdmins = async () => {
   const response = await api.get(`${BASE_URL}/admins`);
+  return response.data;
+};
+
+/** Get admins page (admin) */
+export const getAdminsPage = async ({ page = 0, size = 20, q } = {}) => {
+  const response = await api.get(`${BASE_URL}/admins/paged`, {
+    params: { page, size, q },
+  });
   return response.data;
 };
 
@@ -96,5 +123,13 @@ export const deleteAdmin = async (id) => {
 /** Get users whose plans expire in X days */
 export const getUsersExpiringInDays = async (days) => {
   const response = await api.get(`${BASE_URL}/expiring-in/${days}`);
+  return response.data;
+};
+
+/** Get users expiring in X days (paged, admin) */
+export const getUsersExpiringInDaysPage = async (days, { page = 0, size = 20, q, status } = {}) => {
+  const response = await api.get(`${BASE_URL}/expiring-in/${days}/paged`, {
+    params: { page, size, q, status },
+  });
   return response.data;
 };

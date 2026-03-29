@@ -43,6 +43,23 @@ public class AuditController {
         return auditService.getMyLogs(user);
     }
 
+    @GetMapping("/my/paged")
+    public AuditLogPageResponse myLogsPaged(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "entity", required = false) String entity,
+            @RequestParam(name = "action", required = false) String action,
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails principal
+    ) {
+        User user = userService.findByPhoneNumber(principal.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        return auditService.getMyLogsPaged(user, page, size, q, status, entity, action, from, to);
+    }
+
     @GetMapping("/security")
     public List<AuditLogResponse> securityLogs(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails principal
@@ -57,23 +74,45 @@ public class AuditController {
         return auditService.getSecurityLogsForAdmin();
     }
 
-    @GetMapping("/patient/{patientId}")
-    public AuditLogPageResponse patientLogs(
-            @PathVariable String patientId,
+    @GetMapping("/security/paged")
+    public AuditLogPageResponse securityLogsPaged(
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "status", required = false) String status,
-            @RequestParam(name = "entity", required = false) String entity,
-            @RequestParam(name = "action", required = false) String action,
             @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails principal
     ) {
         User user = userService.findByPhoneNumber(principal.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
-        User clinicOwner = userService.resolveClinicOwner(user);
-        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, clinicOwner).getId();
-        return auditService.getPatientLogs(user, internalPatientId, page, size, q, status, entity, action, from, to);
+
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
+        }
+
+        return auditService.getSecurityLogsForAdminPaged(user, page, size, q, status, from, to);
     }
-}
+
+	    @GetMapping("/patient/{patientId}")
+	    public AuditLogPageResponse patientLogs(
+	            @PathVariable String patientId,
+	            @RequestParam(name = "page", defaultValue = "0") int page,
+	            @RequestParam(name = "size", defaultValue = "20") int size,
+	            @RequestParam(name = "q", required = false) String q,
+	            @RequestParam(name = "status", required = false) String status,
+	            @RequestParam(name = "entity", required = false) String entity,
+	            @RequestParam(name = "action", required = false) String action,
+	            @RequestParam(name = "sortKey", required = false) String sortKey,
+	            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+	            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+	            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+	            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails principal
+	    ) {
+	        User user = userService.findByPhoneNumber(principal.getUsername())
+	                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+	        User clinicOwner = userService.resolveClinicOwner(user);
+	        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, clinicOwner).getId();
+	        return auditService.getPatientLogs(user, internalPatientId, page, size, q, status, entity, action, sortKey, sortDirection, from, to);
+	    }
+	}

@@ -9,8 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.cabinetplus.backend.dto.HandPaymentResponseDTO;
+import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.enums.PaymentStatus;
+import com.cabinetplus.backend.enums.BillingCycle;
 import com.cabinetplus.backend.enums.UserPlanStatus;
+import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.HandPayment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.HandPaymentRepository;
@@ -23,11 +26,55 @@ public class HandPaymentService {
 
     private final HandPaymentRepository handPaymentRepository;
     private final UserRepository userRepository;
+    private final PlanLimitService planLimitService;
 
     private boolean hasValidActiveSubscription(User user) {
         return user.getPlan() != null
                 && user.getExpirationDate() != null
                 && user.getExpirationDate().isAfter(LocalDateTime.now());
+    }
+
+    private static boolean hasScheduledNextPlan(User user, LocalDateTime now) {
+        if (user == null) return false;
+        if (user.getNextPlan() == null) return false;
+        LocalDateTime start = user.getNextPlanStartDate();
+        if (start == null) return true; // legacy/inconsistent state: treat as scheduled to avoid double-scheduling
+        return start.isAfter(now);
+    }
+
+    private static boolean isRenewalRequest(String notes) {
+        String requestType = parseNotesValue(notes, "REQUEST_TYPE");
+        return "RENEWAL".equalsIgnoreCase(requestType);
+    }
+
+    private static boolean isUpgradeRequest(String notes) {
+        String requestType = parseNotesValue(notes, "REQUEST_TYPE");
+        return "UPGRADE".equalsIgnoreCase(requestType);
+    }
+
+    private static boolean startModeIsAtEndOfCurrent(String notes) {
+        String startMode = parseNotesValue(notes, "REQUEST_START_MODE");
+        return "AT_END_OF_CURRENT".equalsIgnoreCase(startMode);
+    }
+
+    private boolean hasPendingUpgradeRequest(User user) {
+        if (user == null) return false;
+        List<HandPayment> pending = handPaymentRepository.findByUserAndStatus(user, PaymentStatus.PENDING);
+        if (pending == null || pending.isEmpty()) return false;
+
+        Long currentPlanId = user.getPlan() != null ? user.getPlan().getId() : null;
+        for (HandPayment p : pending) {
+            if (p == null) continue;
+            String notes = p.getNotes();
+            if (isRenewalRequest(notes)) continue;
+
+            Long planId = p.getPlan() != null ? p.getPlan().getId() : null;
+            boolean switchingPlan = planId != null && (currentPlanId == null || !currentPlanId.equals(planId));
+            if (isUpgradeRequest(notes) || switchingPlan) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<HandPaymentResponseDTO> getAllPendingPayments() {
@@ -104,6 +151,65 @@ public List<HandPaymentResponseDTO> getAllPayments() {
             payment.setPaymentMethod(com.cabinetplus.backend.enums.PaymentMethod.HAND);
         }
 
+        User requestUser = payment.getUser();
+        if (requestUser == null) {
+            throw new BadRequestException(java.util.Map.of("_", "Utilisateur introuvable"));
+        }
+        if (requestUser.getRole() == UserRole.DENTIST && requestUser.getOwnerDentist() != null) {
+            throw new BadRequestException(java.util.Map.of("_", "Les comptes employes heritent le plan du proprietaire"));
+        }
+        if (payment.getPlan() == null) {
+            throw new BadRequestException(java.util.Map.of("planId", "Plan introuvable"));
+        }
+
+        String notes = payment.getNotes();
+        LocalDateTime now = LocalDateTime.now();
+
+        boolean isRenewal = isRenewalRequest(notes);
+        Long currentPlanId = requestUser.getPlan() != null ? requestUser.getPlan().getId() : null;
+        Long requestedPlanId = payment.getPlan().getId();
+        boolean switchingPlan = requestedPlanId != null && (currentPlanId == null || !currentPlanId.equals(requestedPlanId));
+        boolean hasActive = hasValidActiveSubscription(requestUser);
+
+        if (isRenewal) {
+            if (hasScheduledNextPlan(requestUser, now) || hasPendingUpgradeRequest(requestUser)) {
+                throw new BadRequestException(java.util.Map.of(
+                        "_",
+                        "Renouvellement impossible: vous avez deja un abonnement prochain (programme ou en attente)."
+                ));
+            }
+            if (switchingPlan) {
+                throw new BadRequestException(java.util.Map.of("_", "Le renouvellement doit concerner le plan actuel."));
+            }
+        } else {
+            // Enforce only one scheduled/pending plan change while current subscription is active.
+            if (switchingPlan && hasActive) {
+                if (!startModeIsAtEndOfCurrent(notes)) {
+                    throw new BadRequestException(java.util.Map.of(
+                            "_",
+                            "Changement de plan immediat non autorise. Le nouveau plan doit demarrer a la fin de l'abonnement actuel."
+                    ));
+                }
+                if (hasScheduledNextPlan(requestUser, now)) {
+                    throw new BadRequestException(java.util.Map.of(
+                            "_",
+                            "Vous avez deja un abonnement programme. Attendez son activation avant de changer a nouveau."
+                    ));
+                }
+                if (hasPendingUpgradeRequest(requestUser)) {
+                    throw new BadRequestException(java.util.Map.of(
+                            "_",
+                            "Une demande de changement de plan est deja en attente. Attendez sa validation avant d'en creer une autre."
+                    ));
+                }
+            }
+
+            // Validate limits when switching plans (upgrade/downgrade).
+            if (switchingPlan) {
+                planLimitService.assertUsageFitsPlan(requestUser, payment.getPlan());
+            }
+        }
+
         // Save the payment
         HandPayment savedPayment = handPaymentRepository.save(payment);
 
@@ -131,36 +237,101 @@ public HandPayment confirmPayment(Long paymentId) {
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Ce paiement est deja traite");
     }
 
-    // 1. Confirm the payment status
+    // 1. Validate the request against current usage before confirming the payment.
+    User user = payment.getUser();
+    if (user == null) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Utilisateur introuvable");
+    }
+    if (user.getRole() == UserRole.DENTIST && user.getOwnerDentist() != null) {
+        throw new BadRequestException(java.util.Map.of("_", "Les comptes employes heritent le plan du proprietaire"));
+    }
+    if (payment.getPlan() == null) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Plan introuvable");
+    }
+
+    String notes = payment.getNotes();
+    String requestType = parseNotesValue(notes, "REQUEST_TYPE");
+    boolean isRenewal = "RENEWAL".equalsIgnoreCase(requestType);
+
+    Long currentPlanId = user.getPlan() != null ? user.getPlan().getId() : null;
+    Long nextPlanId = payment.getPlan().getId();
+    boolean switchingPlan = nextPlanId != null && (currentPlanId == null || !currentPlanId.equals(nextPlanId));
+    if (switchingPlan && !isRenewal) {
+        planLimitService.assertUsageFitsPlan(user, payment.getPlan());
+    }
+
+    // 2. Confirm the payment status (after validation)
     payment.setStatus(PaymentStatus.CONFIRMED);
     handPaymentRepository.save(payment);
 
-    // 2. Update user plan details
-    User user = payment.getUser();
-    user.setPlan(payment.getPlan());
+    // 3. Apply renewal / plan change based on the requested start mode.
     user.setPlanStatus(UserPlanStatus.ACTIVE);
     
-    LocalDateTime startDate = LocalDateTime.now();
-    LocalDateTime expirationDate;
+    LocalDateTime now = LocalDateTime.now();
 
-    // 3. Logic for Expiration Date based on Plan type and Billing Cycle
-    if (payment.getPlan().getMonthlyPrice() == 0) {
-        // Logic for FREE/TRIAL plan (7 days as per your React frontend)
-        expirationDate = startDate.plusDays(7);
-    } else {
-        // Logic for PAID plans based on the BillingCycle attribute
-        switch (payment.getBillingCycle()) {
-            case YEARLY:
-                expirationDate = startDate.plusYears(1);
-                break;
-            case MONTHLY:
-            default:
-                expirationDate = startDate.plusMonths(1);
-                break;
+    BillingCycle cycle = payment.getBillingCycle() != null ? payment.getBillingCycle() : BillingCycle.MONTHLY;
+
+    // Renewal always extends from the current expiration (if still active), otherwise from now.
+    if (isRenewal) {
+        if (switchingPlan) {
+            throw new BadRequestException(java.util.Map.of("_", "Le renouvellement doit concerner le plan actuel."));
         }
+        if (hasScheduledNextPlan(user, now)) {
+            throw new BadRequestException(java.util.Map.of(
+                    "_",
+                    "Renouvellement impossible: vous avez deja un abonnement prochain (programme ou en attente)."
+            ));
+        }
+        LocalDateTime base = user.getExpirationDate() != null && user.getExpirationDate().isAfter(now)
+                ? user.getExpirationDate()
+                : now;
+
+        user.setPlan(payment.getPlan());
+        user.setPlanBillingCycle(cycle);
+        user.setPlanStartDate(base);
+        LocalDateTime newExpiration = computeExpiration(base, payment.getPlan(), cycle);
+        user.setExpirationDate(newExpiration);
+
+        userRepository.save(user);
+        return payment;
     }
 
-    user.setExpirationDate(expirationDate);
+    String startMode = parseNotesValue(notes, "REQUEST_START_MODE");
+    boolean startAtEnd = "AT_END_OF_CURRENT".equalsIgnoreCase(startMode);
+    boolean hasActive = hasValidActiveSubscription(user);
+
+    // If a plan change is requested "at the end of the current plan" AND the user is still active,
+    // schedule it without overriding the current plan/expiration.
+    if (startAtEnd && hasActive && user.getExpirationDate() != null && user.getExpirationDate().isAfter(now)) {
+        if (hasScheduledNextPlan(user, now)) {
+            throw new BadRequestException(java.util.Map.of(
+                    "_",
+                    "Vous avez deja un abonnement programme. Attendez son activation avant de changer a nouveau."
+            ));
+        }
+        LocalDateTime nextStart = user.getExpirationDate();
+        LocalDateTime nextEnd = computeExpiration(nextStart, payment.getPlan(), cycle);
+
+        user.setNextPlan(payment.getPlan());
+        user.setNextPlanBillingCycle(cycle);
+        user.setNextPlanStartDate(nextStart);
+        user.setNextPlanExpirationDate(nextEnd);
+
+        userRepository.save(user);
+        return payment;
+    }
+
+    // Otherwise, apply immediately (or if the current plan is not active anymore).
+    user.setPlan(payment.getPlan());
+    user.setPlanBillingCycle(cycle);
+    user.setPlanStartDate(now);
+    user.setExpirationDate(computeExpiration(now, payment.getPlan(), cycle));
+
+    user.setNextPlan(null);
+    user.setNextPlanBillingCycle(null);
+    user.setNextPlanStartDate(null);
+    user.setNextPlanExpirationDate(null);
+
     userRepository.save(user);
 
     return payment;
@@ -206,5 +377,37 @@ public HandPayment confirmPayment(Long paymentId) {
             user.setPlanStatus(UserPlanStatus.INACTIVE);
             userRepository.save(user);
         }
+    }
+
+    private static LocalDateTime computeExpiration(LocalDateTime startDate, com.cabinetplus.backend.models.Plan plan, BillingCycle cycle) {
+        if (startDate == null || plan == null) return null;
+        Integer monthlyPrice = plan.getMonthlyPrice();
+        boolean isFree = monthlyPrice != null && monthlyPrice == 0;
+        if (isFree) {
+            return startDate.plusDays(7);
+        }
+        return (cycle == BillingCycle.YEARLY) ? startDate.plusYears(1) : startDate.plusMonths(1);
+    }
+
+    private static String parseNotesValue(String notes, String key) {
+        if (notes == null || notes.isBlank() || key == null || key.isBlank()) return null;
+        String target = key.trim().toUpperCase() + "=";
+        String[] parts = notes.split("\\|");
+        for (String raw : parts) {
+            if (raw == null) continue;
+            String part = raw.trim();
+            String upper = part.toUpperCase();
+            int idx = upper.indexOf(target);
+            if (idx < 0) continue;
+            return part.substring(idx + target.length()).trim();
+        }
+        // Fallback for legacy notes: key=value present without '|'
+        String upperNotes = notes.toUpperCase();
+        int idx = upperNotes.indexOf(target);
+        if (idx < 0) return null;
+        int start = idx + target.length();
+        int end = notes.indexOf('|', start);
+        if (end < 0) end = notes.length();
+        return notes.substring(start, end).trim();
     }
 }

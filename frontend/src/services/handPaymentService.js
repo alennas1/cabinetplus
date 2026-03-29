@@ -11,11 +11,25 @@ export const getAllHandPayments = async () => {
   return response.data;
 };
 
+export const getAllHandPaymentsPage = async ({ page = 0, size = 20, q, status } = {}) => {
+  const response = await api.get(`${BASE_URL}/all/paged`, {
+    params: { page, size, q, status },
+  });
+  return response.data;
+};
+
 /**
  * Get all pending hand payments (ADMIN or Dentist)
  */
 export const getPendingHandPayments = async () => {
   const response = await api.get(`${BASE_URL}/pending`);
+  return response.data;
+};
+
+export const getPendingHandPaymentsPage = async ({ page = 0, size = 20, q } = {}) => {
+  const response = await api.get(`${BASE_URL}/pending/paged`, {
+    params: { page, size, q },
+  });
   return response.data;
 };
 
@@ -27,11 +41,30 @@ export const getMyHandPayments = async () => {
   return response.data;
 };
 
+export const getMyHandPaymentsPage = async ({ page = 0, size = 20, q } = {}) => {
+  const response = await api.get(`${BASE_URL}/my-payments/paged`, {
+    params: { page, size, q },
+  });
+  return response.data;
+};
+
 /**
  * Get all hand payments for a specific user (ADMIN only)
  */
 export const getHandPaymentsByUserId = async (userId) => {
   const response = await api.get(`${BASE_URL}/user/${userId}`);
+  return response.data;
+};
+
+export const getHandPaymentsByUserIdPage = async (userId, { page = 0, size = 20, q, status, sortKey, direction } = {}) => {
+  const response = await api.get(`${BASE_URL}/user/${userId}/paged`, {
+    params: { page, size, q, status, sortKey, direction },
+  });
+  return response.data;
+};
+
+export const getHandPaymentsByUserIdSummary = async (userId) => {
+  const response = await api.get(`${BASE_URL}/user/${userId}/summary`);
   return response.data;
 };
 

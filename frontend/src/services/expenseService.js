@@ -11,6 +11,13 @@ export const getExpenses = async () => {
   return response.data;
 };
 
+export const getExpensesPage = async ({ page = 0, size = 20, q, field } = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q, field },
+  });
+  return response.data;
+};
+
 /**
  * Create a new expense
  */
@@ -29,9 +36,6 @@ export const updateExpense = async (id, expenseData) => {
   return response.data;
 };
 
-/**
- * Delete an expense by ID
- */
 export const deleteExpense = async (id) => {
   const response = await api.delete(`${BASE_URL}/${id}`);
   return response.data;

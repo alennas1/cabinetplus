@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,16 +13,20 @@ import {
   Phone,
   Home,
   ChevronDown,
-  Trash2,
 } from "react-feather";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import FieldError from "../components/FieldError";
 import {
   addFournisseurPayment,
-  deleteFournisseurPayment,
+  cancelFournisseurPayment,
   getFournisseurDetails,
+  getFournisseurPaymentsPage,
+  getFournisseurPaymentsSummary,
+  getFournisseurBillingEntriesPage,
+  getFournisseurBillingEntriesSummary,
   updateFournisseur,
 } from "../services/fournisseurService";
 import { getApiErrorMessage } from "../utils/error";
@@ -36,7 +40,7 @@ import {
 } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { FIELD_LIMITS, validateNumber, validateText } from "../utils/validation";
 import "./Patient.css";
 import "./Profile.css";
@@ -63,6 +67,8 @@ const createFilterState = () => ({
   monthDropdownOpen: false,
 });
 
+const isPaymentCancelled = (payment) => String(payment?.recordStatus || "").toUpperCase() === "CANCELLED";
+
 const FournisseurDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -77,6 +83,23 @@ const FournisseurDetails = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFilters, setPaymentFilters] = useState(createFilterState());
   const [billingFilters, setBillingFilters] = useState(createFilterState());
+  const [payments, setPayments] = useState([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [isFetchingPayments, setIsFetchingPayments] = useState(false);
+  const [paymentTotalPages, setPaymentTotalPages] = useState(1);
+  const [filteredPaymentsTotal, setFilteredPaymentsTotal] = useState(0);
+  const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0);
+  const paymentsRequestIdRef = useRef(0);
+  const paymentsLoadedRef = useRef(false);
+
+  const [billingEntries, setBillingEntries] = useState([]);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [isFetchingBilling, setIsFetchingBilling] = useState(false);
+  const [billingTotalPages, setBillingTotalPages] = useState(1);
+  const [filteredBillingTotal, setFilteredBillingTotal] = useState(0);
+  const [billingRefreshKey, setBillingRefreshKey] = useState(0);
+  const billingRequestIdRef = useRef(0);
+  const billingLoadedRef = useRef(false);
   const [showPaymentDeleteConfirm, setShowPaymentDeleteConfirm] = useState(false);
   const [paymentIdToDelete, setPaymentIdToDelete] = useState(null);
   const [paymentData, setPaymentData] = useState({
@@ -135,6 +158,8 @@ const FournisseurDetails = () => {
   const remainingToPayValue = Number(fournisseur?.remainingToPay || 0);
   const hasCredit = remainingToPayValue < 0;
   const displayRemaining = Math.abs(remainingToPayValue);
+  const isArchived =
+    !!fournisseur?.archivedAt || String(fournisseur?.recordStatus || "").toUpperCase() === "ARCHIVED";
 
   const applyDateFilter = (items, dateField, filters) => {
     return items.filter((item) => {
@@ -174,25 +199,6 @@ const FournisseurDetails = () => {
     });
   };
 
-  const filteredPayments = useMemo(
-    () =>
-      applyDateFilter(fournisseur?.payments || [], "paymentDate", paymentFilters).sort(
-        (a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0)
-      ),
-    [fournisseur, paymentFilters]
-  );
-
-  const filteredBillingEntries = useMemo(
-    () =>
-      applyDateFilter(fournisseur?.billingEntries || [], "billingDate", billingFilters).sort(
-        (a, b) => new Date(b.billingDate || 0) - new Date(a.billingDate || 0)
-      ),
-    [fournisseur, billingFilters]
-  );
-
-  const filteredPaymentsTotal = filteredPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const filteredBillingTotal = filteredBillingEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-
   const [paymentSortConfig, setPaymentSortConfig] = useState({
     key: "paymentDate",
     direction: SORT_DIRECTIONS.DESC,
@@ -221,22 +227,6 @@ const FournisseurDetails = () => {
     });
   };
 
-  const sortedPayments = useMemo(() => {
-    const getValue = (payment) => {
-      switch (paymentSortConfig.key) {
-        case "amount":
-          return payment.amount;
-        case "paymentDate":
-          return payment.paymentDate;
-        case "notes":
-          return payment.notes;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filteredPayments, getValue, paymentSortConfig.direction);
-  }, [filteredPayments, paymentSortConfig.direction, paymentSortConfig.key]);
-
   const handleBillingSort = (key, explicitDirection) => {
     if (!key) return;
     setBillingSortConfig((prev) => {
@@ -250,25 +240,6 @@ const FournisseurDetails = () => {
       return { key, direction: nextDirection };
     });
   };
-
-  const sortedBillingEntries = useMemo(() => {
-    const getValue = (entry) => {
-      const source = String(entry.source || "").toUpperCase();
-      switch (billingSortConfig.key) {
-        case "type":
-          return source;
-        case "label":
-          return entry.label;
-        case "amount":
-          return entry.amount;
-        case "billingDate":
-          return entry.billingDate;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filteredBillingEntries, getValue, billingSortConfig.direction);
-  }, [billingSortConfig.direction, billingSortConfig.key, filteredBillingEntries]);
 
   useEffect(() => {
     setPaymentPage(1);
@@ -294,17 +265,222 @@ const FournisseurDetails = () => {
     billingSortConfig.direction,
   ]);
 
-  const indexOfLastPayment = paymentPage * paymentsPerPage;
-  const indexOfFirstPayment = indexOfLastPayment - paymentsPerPage;
-  const currentPayments = sortedPayments.slice(indexOfFirstPayment, indexOfLastPayment);
-  const paymentTotalPages = Math.ceil(sortedPayments.length / paymentsPerPage);
+  useEffect(() => {
+    paymentsLoadedRef.current = false;
+    paymentsRequestIdRef.current = 0;
+    billingLoadedRef.current = false;
+    billingRequestIdRef.current = 0;
+    setPayments([]);
+    setBillingEntries([]);
+    setPaymentTotalPages(1);
+    setBillingTotalPages(1);
+    setFilteredPaymentsTotal(0);
+    setFilteredBillingTotal(0);
+    setPaymentsLoading(false);
+    setIsFetchingPayments(false);
+    setBillingLoading(false);
+    setIsFetchingBilling(false);
+    setPaymentPage(1);
+    setBillingPage(1);
+  }, [id]);
 
-  const indexOfLastBilling = billingPage * billingPerPage;
-  const indexOfFirstBilling = indexOfLastBilling - billingPerPage;
-  const currentBillingEntries = sortedBillingEntries.slice(indexOfFirstBilling, indexOfLastBilling);
-  const billingTotalPages = Math.ceil(sortedBillingEntries.length / billingPerPage);
+  const formatDateParam = (value) => {
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const getDateRangeParams = (filters) => {
+    if (!filters) return { from: "", to: "" };
+
+    if (filters.selectedFilter === "today") {
+      const d = new Date();
+      const formatted = formatDateParam(d);
+      return { from: formatted, to: formatted };
+    }
+
+    if (filters.selectedFilter === "yesterday") {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const formatted = formatDateParam(d);
+      return { from: formatted, to: formatted };
+    }
+
+    if (filters.selectedMonth) {
+      const [year, month] = String(filters.selectedMonth).split("-").map(Number);
+      if (Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12) {
+        const first = new Date(year, month - 1, 1);
+        const last = new Date(year, month, 0);
+        return { from: formatDateParam(first), to: formatDateParam(last) };
+      }
+    }
+
+    const start = filters.customRange?.start ? new Date(filters.customRange.start) : null;
+    const end = filters.customRange?.end ? new Date(filters.customRange.end) : null;
+    return {
+      from: start && !Number.isNaN(start.getTime()) ? formatDateParam(start) : "",
+      to: end && !Number.isNaN(end.getTime()) ? formatDateParam(end) : "",
+    };
+  };
+
+  useEffect(() => {
+    if (activeTab !== "payments") return;
+
+    const loadSummary = async () => {
+      try {
+        const { from, to } = getDateRangeParams(paymentFilters);
+        const summary = await getFournisseurPaymentsSummary(id, { from: from || undefined, to: to || undefined });
+        setFilteredPaymentsTotal(Number(summary?.total || 0));
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Impossible de charger le total des paiements"));
+      }
+    };
+
+    loadSummary();
+  }, [
+    activeTab,
+    id,
+    paymentFilters.selectedFilter,
+    paymentFilters.selectedMonth,
+    paymentFilters.customRange.start,
+    paymentFilters.customRange.end,
+    paymentsRefreshKey,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "payments") return;
+
+    const loadPage = async () => {
+      const requestId = ++paymentsRequestIdRef.current;
+      const isInitial = !paymentsLoadedRef.current;
+
+      if (isInitial) setPaymentsLoading(true);
+      else setIsFetchingPayments(true);
+
+      try {
+        const { from, to } = getDateRangeParams(paymentFilters);
+        const data = await getFournisseurPaymentsPage(id, {
+          page: Math.max(0, paymentPage - 1),
+          size: paymentsPerPage,
+          from: from || undefined,
+          to: to || undefined,
+          sortKey: paymentSortConfig.key,
+          direction: paymentSortConfig.direction,
+        });
+
+        if (requestId !== paymentsRequestIdRef.current) return;
+
+        setPayments(Array.isArray(data?.items) ? data.items : []);
+        setPaymentTotalPages(Number(data?.totalPages || 1));
+        paymentsLoadedRef.current = true;
+      } catch (err) {
+        if (requestId !== paymentsRequestIdRef.current) return;
+        toast.error(getApiErrorMessage(err, "Impossible de charger les paiements"));
+      } finally {
+        if (requestId !== paymentsRequestIdRef.current) return;
+        setPaymentsLoading(false);
+        setIsFetchingPayments(false);
+      }
+    };
+
+    loadPage();
+  }, [
+    activeTab,
+    id,
+    paymentPage,
+    paymentFilters.selectedFilter,
+    paymentFilters.selectedMonth,
+    paymentFilters.customRange.start,
+    paymentFilters.customRange.end,
+    paymentSortConfig.key,
+    paymentSortConfig.direction,
+    paymentsRefreshKey,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "billing") return;
+
+    const loadSummary = async () => {
+      try {
+        const { from, to } = getDateRangeParams(billingFilters);
+        const summary = await getFournisseurBillingEntriesSummary(id, { from: from || undefined, to: to || undefined });
+        setFilteredBillingTotal(Number(summary?.total || 0));
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Impossible de charger le total de facturation"));
+      }
+    };
+
+    loadSummary();
+  }, [
+    activeTab,
+    id,
+    billingFilters.selectedFilter,
+    billingFilters.selectedMonth,
+    billingFilters.customRange.start,
+    billingFilters.customRange.end,
+    billingRefreshKey,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "billing") return;
+
+    const loadPage = async () => {
+      const requestId = ++billingRequestIdRef.current;
+      const isInitial = !billingLoadedRef.current;
+
+      if (isInitial) setBillingLoading(true);
+      else setIsFetchingBilling(true);
+
+      try {
+        const { from, to } = getDateRangeParams(billingFilters);
+        const data = await getFournisseurBillingEntriesPage(id, {
+          page: Math.max(0, billingPage - 1),
+          size: billingPerPage,
+          from: from || undefined,
+          to: to || undefined,
+          sortKey: billingSortConfig.key,
+          direction: billingSortConfig.direction,
+        });
+
+        if (requestId !== billingRequestIdRef.current) return;
+
+        setBillingEntries(Array.isArray(data?.items) ? data.items : []);
+        setBillingTotalPages(Number(data?.totalPages || 1));
+        billingLoadedRef.current = true;
+      } catch (err) {
+        if (requestId !== billingRequestIdRef.current) return;
+        toast.error(getApiErrorMessage(err, "Impossible de charger la facturation"));
+      } finally {
+        if (requestId !== billingRequestIdRef.current) return;
+        setBillingLoading(false);
+        setIsFetchingBilling(false);
+      }
+    };
+
+    loadPage();
+  }, [
+    activeTab,
+    id,
+    billingPage,
+    billingFilters.selectedFilter,
+    billingFilters.selectedMonth,
+    billingFilters.customRange.start,
+    billingFilters.customRange.end,
+    billingSortConfig.key,
+    billingSortConfig.direction,
+    billingRefreshKey,
+  ]);
+
+  const currentPayments = payments;
+  const currentBillingEntries = billingEntries;
 
   const handleEditField = (field) => {
+    if (isArchived) {
+      toast.info("Fournisseur archivé : lecture seule.");
+      return;
+    }
     setEditingField(field);
     const value = fournisseur[field] || "";
     setTempValue(field === "phoneNumber" ? formatPhoneNumber(value) : value);
@@ -324,6 +500,10 @@ const FournisseurDetails = () => {
 
   const handleSaveField = async (field) => {
     try {
+      if (isArchived) {
+        toast.info("Fournisseur archivé : lecture seule.");
+        return;
+      }
       if (field === "phoneNumber" && (tempValue || "").trim() && !isValidPhoneNumber(tempValue)) {
         setProfileErrors((prev) => ({ ...prev, [field]: "Téléphone invalide (ex: 05 51 51 51 51)." }));
         return;
@@ -378,7 +558,7 @@ const FournisseurDetails = () => {
           <span className="field-value">
             {field === "phoneNumber" ? formatPhoneNumber(fournisseur[field]) || "—" : fournisseur[field] || "—"}
           </span>
-          <Edit2 size={18} className="icon action edit" onClick={() => handleEditField(field)} />
+          {!isArchived && <Edit2 size={18} className="icon action edit" onClick={() => handleEditField(field)} />}
         </>
       )}
     </div>
@@ -489,6 +669,10 @@ const FournisseurDetails = () => {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+    if (isArchived) {
+      toast.info("Fournisseur archivé : lecture seule.");
+      return;
+    }
 
     const nextErrors = {};
     nextErrors.amount = validateNumber(paymentData.amount, { label: "Montant", required: true, min: 0.01 });
@@ -507,6 +691,8 @@ const FournisseurDetails = () => {
       const updated = await addFournisseurPayment(id, payload);
       setFournisseur(updated);
       toast.success("Paiement enregistré");
+      setPaymentPage(1);
+      setPaymentsRefreshKey((v) => v + 1);
       resetPaymentForm();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement du paiement"));
@@ -514,20 +700,30 @@ const FournisseurDetails = () => {
   };
 
   const handleDeletePayment = (paymentId) => {
+    if (isArchived) {
+      toast.info("Fournisseur archivé : lecture seule.");
+      return;
+    }
     setPaymentIdToDelete(paymentId);
     setShowPaymentDeleteConfirm(true);
   };
 
   const confirmDeletePayment = async () => {
     if (!paymentIdToDelete) return;
+    if (isArchived) {
+      toast.info("Fournisseur archivé : lecture seule.");
+      return;
+    }
     try {
-      await deleteFournisseurPayment(id, paymentIdToDelete);
-      toast.success("Paiement supprimé");
+      await cancelFournisseurPayment(id, paymentIdToDelete);
+      toast.success("Paiement annulé");
       setShowPaymentDeleteConfirm(false);
       setPaymentIdToDelete(null);
       await loadFournisseur({ silent: true });
+      setPaymentPage(1);
+      setPaymentsRefreshKey((v) => v + 1);
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Erreur lors de la suppression"));
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
     }
   };
 
@@ -565,6 +761,7 @@ const FournisseurDetails = () => {
             <div className="patient-name-row">
               <span className="patient-name-text">{fournisseur.name}</span>
               <span className="context-badge">Fournisseur</span>
+              {isArchived && <span className="context-badge">Archivé</span>}
             </div>
           </div>
           <div className="patient-details">
@@ -583,9 +780,11 @@ const FournisseurDetails = () => {
             </div>
           </div>
           <div className="patient-actions">
-            <button className="btn-primary-app" onClick={() => setShowPaymentModal(true)}>
-              <Plus size={16} /> Ajouter un paiement
-            </button>
+            {!isArchived && (
+              <button className="btn-primary-app" onClick={() => setShowPaymentModal(true)}>
+                <Plus size={16} /> Ajouter un paiement
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -622,25 +821,37 @@ const FournisseurDetails = () => {
               </tr>
             </thead>
             <tbody>
-              {sortedPayments.length ? (
+              {paymentsLoading ? (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "center", color: "#888" }}>
+                    Chargement...
+                  </td>
+                </tr>
+              ) : currentPayments.length ? (
                 currentPayments.map((payment) => (
                   <tr key={payment.id}>
                     <td style={{ fontWeight: "700" }}>{formatCurrency(payment.amount)}</td>
                     <td>{formatDateTime(payment.paymentDate)}</td>
                     <td>{payment.notes || "—"}</td>
                     <td className="actions-cell">
-                      <button
-                        type="button"
-                        className="action-btn delete"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleDeletePayment(payment.id);
-                        }}
-                        title="Supprimer"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {isPaymentCancelled(payment) ? (
+                        <span className="context-badge cancelled">Annulé</span>
+                      ) : (
+                        !isArchived && (
+                          <button
+                            type="button"
+                            className="action-btn cancel"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDeletePayment(payment.id);
+                            }}
+                            title="Annuler"
+                          >
+                            <X size={16} />
+                          </button>
+                        )
+                      )}
                     </td>
                   </tr>
                 ))
@@ -655,21 +866,12 @@ const FournisseurDetails = () => {
           </table>
 
           {paymentTotalPages > 1 && (
-            <div className="pagination">
-              <button disabled={paymentPage === 1} onClick={() => setPaymentPage((prev) => prev - 1)}>
-                ← Précédent
-              </button>
-
-              {[...Array(paymentTotalPages)].map((_, i) => (
-                <button key={i} className={paymentPage === i + 1 ? "active" : ""} onClick={() => setPaymentPage(i + 1)}>
-                  {i + 1}
-                </button>
-              ))}
-
-              <button disabled={paymentPage === paymentTotalPages} onClick={() => setPaymentPage((prev) => prev + 1)}>
-                Suivant →
-              </button>
-            </div>
+            <Pagination
+              currentPage={paymentPage}
+              totalPages={paymentTotalPages}
+              onPageChange={setPaymentPage}
+              disabled={isFetchingPayments}
+            />
           )}
         </div>
       )}
@@ -693,7 +895,13 @@ const FournisseurDetails = () => {
               </tr>
             </thead>
             <tbody>
-              {currentBillingEntries.length ? (
+              {billingLoading ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
+                    Chargement...
+                  </td>
+                </tr>
+              ) : currentBillingEntries.length ? (
                 currentBillingEntries.map((entry) => {
                   const isItem = String(entry.source || "").toUpperCase() === "ITEM";
                   const targetPath = isItem
@@ -738,28 +946,12 @@ const FournisseurDetails = () => {
           </table>
 
           {billingTotalPages > 1 && (
-            <div className="pagination">
-              <button disabled={billingPage === 1} onClick={() => setBillingPage((prev) => prev - 1)}>
-                ← Précédent
-              </button>
-
-              {[...Array(billingTotalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  className={billingPage === i + 1 ? "active" : ""}
-                  onClick={() => setBillingPage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
-              <button
-                disabled={billingPage === billingTotalPages}
-                onClick={() => setBillingPage((prev) => prev + 1)}
-              >
-                Suivant →
-              </button>
-            </div>
+            <Pagination
+              currentPage={billingPage}
+              totalPages={billingTotalPages}
+              onPageChange={setBillingPage}
+              disabled={isFetchingBilling}
+            />
           )}
         </div>
       )}
@@ -819,8 +1011,8 @@ const FournisseurDetails = () => {
       {showPaymentDeleteConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Supprimer le paiement ?</h2>
-            <p className="text-gray-600 mb-6">Voulez-vous vraiment supprimer ce paiement ? Cette action est irréversible.</p>
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Annuler le paiement ?</h2>
+            <p className="text-gray-600 mb-6">Voulez-vous vraiment annuler ce paiement ? Il restera visible dans l'historique mais ne sera plus comptabilisé.</p>
             <div className="flex justify-end gap-3">
               <button
                 type="button"
@@ -830,7 +1022,7 @@ const FournisseurDetails = () => {
                 }}
                 className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                Annuler
+                Retour
               </button>
               <button
                 type="button"
@@ -841,7 +1033,7 @@ const FournisseurDetails = () => {
                 }}
                 className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors"
               >
-                Supprimer
+                Annuler paiement
               </button>
             </div>
           </div>

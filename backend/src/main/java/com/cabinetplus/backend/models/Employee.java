@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.dto.EmployeeStatus;
 import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
@@ -87,6 +88,13 @@ public class Employee {
     // Audit timestamps
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private RecordStatus recordStatus = RecordStatus.ACTIVE;
+
+    private LocalDateTime archivedAt;
 
     @PrePersist
     private void ensurePublicId() {

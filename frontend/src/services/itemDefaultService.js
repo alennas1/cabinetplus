@@ -11,6 +11,13 @@ export const getItemDefaults = async () => {
   return response.data;
 };
 
+export const getItemDefaultsPage = async ({ page = 0, size = 20, q } = {}) => {
+  const response = await api.get(`${BASE_URL}/paged`, {
+    params: { page, size, q },
+  });
+  return response.data;
+};
+
 /**
  * Get an item default by ID
  */
@@ -35,10 +42,3 @@ export const updateItemDefault = async (id, itemDefaultData) => {
   return response.data;
 };
 
-/**
- * Delete an item default by ID
- */
-export const deleteItemDefault = async (id) => {
-  const response = await api.delete(`${BASE_URL}/${id}`);
-  return response.data;
-};

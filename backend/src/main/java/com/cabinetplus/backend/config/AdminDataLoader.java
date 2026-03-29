@@ -124,6 +124,7 @@ public class AdminDataLoader {
             dentist.setPlan(basicPlan);
 
             if (basicPlan != null && basicPlan.getDurationDays() != null) {
+                dentist.setPlanStartDate(LocalDateTime.now());
                 dentist.setExpirationDate(LocalDateTime.now().plusDays(basicPlan.getDurationDays()));
             } else if (basicPlan == null) {
                 logger.warn("Default dentist seeded without a plan because BASIC plan was not found. Enable app.seed.default-plans=true or create a plan manually.");

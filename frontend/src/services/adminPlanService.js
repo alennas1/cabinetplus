@@ -1,15 +1,19 @@
 // src/services/adminPlanService.js
-import axios from "axios";
+import api from "./authService";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
-const ADMIN_API_URL = `${API_URL}/api/admin/plans`;
+const ADMIN_API_URL = "/api/admin/plans";
 
 /**
  * Get all active plans (admin view)
  */
-export const getAllPlansAdmin = async (token) => {
-  const response = await axios.get(ADMIN_API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
+export const getAllPlansAdmin = async () => {
+  const response = await api.get(ADMIN_API_URL);
+  return response.data;
+};
+
+export const getAllPlansAdminPage = async ({ page = 0, size = 20, q, field } = {}) => {
+  const response = await api.get(`${ADMIN_API_URL}/paged`, {
+    params: { page, size, q, field },
   });
   return response.data;
 };
@@ -17,54 +21,41 @@ export const getAllPlansAdmin = async (token) => {
 /**
  * Get plan by ID
  */
-export const getPlanByIdAdmin = async (id, token) => {
-  const response = await axios.get(`${ADMIN_API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const getPlanByIdAdmin = async (id) => {
+  const response = await api.get(`${ADMIN_API_URL}/${id}`);
   return response.data;
 };
 
 /**
  * Create a new plan
  */
-export const createPlanAdmin = async (planData, token) => {
-  const response = await axios.post(ADMIN_API_URL, planData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const createPlanAdmin = async (planData) => {
+  const response = await api.post(ADMIN_API_URL, planData);
   return response.data;
 };
 
 /**
  * Update an existing plan
  */
-export const updatePlanAdmin = async (id, planData, token) => {
-  const response = await axios.put(`${ADMIN_API_URL}/${id}`, planData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const updatePlanAdmin = async (id, planData) => {
+  const response = await api.put(`${ADMIN_API_URL}/${id}`, planData);
   return response.data;
 };
 
 /**
  * Deactivate a plan (soft delete)
  */
-export const deactivatePlanAdmin = async (id, token) => {
-  await axios.delete(`${ADMIN_API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export const deactivatePlanAdmin = async (id) => {
+  await api.delete(`${ADMIN_API_URL}/${id}`);
 };
 
 /**
  * Set/unset a plan as recommended (featured)
  * Calls PUT /api/admin/plans/{id}/recommended?recommended=true|false
  */
-export const setRecommendedPlanAdmin = async (id, recommended, token) => {
-  const response = await axios.put(
-    `${ADMIN_API_URL}/${id}/recommended`,
-    null,
-    {
-      params: { recommended },
-      headers: { Authorization: `Bearer ${token}` },
-    }
-  );
+export const setRecommendedPlanAdmin = async (id, recommended) => {
+  const response = await api.put(`${ADMIN_API_URL}/${id}/recommended`, null, {
+    params: { recommended },
+  });
   return response.data;
 };

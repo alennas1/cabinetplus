@@ -19,6 +19,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import SortableTh from "../components/SortableTh";
+import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
@@ -55,6 +56,8 @@ const EmployeeDetails = () => {
   const [monthlyPage, setMonthlyPage] = useState(1);
   const [expensePage, setExpensePage] = useState(1);
   const rowsPerPage = 10;
+  const isArchived =
+    !!employee?.archivedAt || String(employee?.recordStatus || "").toUpperCase() === "ARCHIVED";
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "—";
@@ -318,6 +321,10 @@ const EmployeeDetails = () => {
   };
 
   const startEdit = (field) => {
+    if (isArchived) {
+      toast.info("Employé archivé : lecture seule.");
+      return;
+    }
     setEditingField(field);
     setFieldErrors({});
     if (field === "password") {
@@ -335,6 +342,10 @@ const EmployeeDetails = () => {
 
   const saveField = async (field) => {
     if (!employee) return;
+    if (isArchived) {
+      toast.info("Employé archivé : lecture seule.");
+      return;
+    }
 
     const nextErrors = {};
     if (field === "password") {
@@ -373,10 +384,12 @@ const EmployeeDetails = () => {
   };
 
   const handleWorkingHourChange = (rowId, field, value) => {
+    if (isArchived) return;
     setWorkingHours((prev) => prev.map((h) => (h.id === rowId ? { ...h, [field]: value } : h)));
   };
 
   const handleRestDayToggle = (rowId, checked) => {
+    if (isArchived) return;
     setWorkingHours((prev) =>
       prev.map((h) =>
         h.id === rowId
@@ -387,6 +400,10 @@ const EmployeeDetails = () => {
   };
 
   const handleSaveWorkingHours = async () => {
+    if (isArchived) {
+      toast.info("Employé archivé : lecture seule.");
+      return;
+    }
     try {
       for (const h of workingHours) {
         if (h.id) {
@@ -459,7 +476,7 @@ const EmployeeDetails = () => {
               ? "—"
               : String(employee[field])}
           </div>
-          <Edit2 size={18} className="icon action edit" onClick={() => startEdit(field)} />
+          {!isArchived && <Edit2 size={18} className="icon action edit" onClick={() => startEdit(field)} />}
         </>
       )}
     </div>
@@ -506,6 +523,7 @@ const EmployeeDetails = () => {
                 {employee.firstName} {employee.lastName}
               </span>
               <span className="context-badge">Employé</span>
+              {isArchived && <span className="context-badge">Archivé</span>}
             </div>
           </div>
           <div className="patient-details">
@@ -606,11 +624,13 @@ const EmployeeDetails = () => {
 
       {activeTab === "schedules" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px" }}>
-            <button className="btn-secondary-app" onClick={() => setIsHoursModalOpen(true)}>
-              <Edit2 size={16} /> Modifier horaires
-            </button>
-          </div>
+          {!isArchived && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px" }}>
+              <button className="btn-secondary-app" onClick={() => setIsHoursModalOpen(true)}>
+                <Edit2 size={16} /> Modifier horaires
+              </button>
+            </div>
+          )}
           <table className="treatment-table">
             <thead>
               <tr>
@@ -630,28 +650,11 @@ const EmployeeDetails = () => {
             </tbody>
           </table>
           {scheduleTotalPages > 1 && (
-            <div className="pagination">
-              <button disabled={scheduleCurrentPage === 1} onClick={() => setSchedulePage((p) => p - 1)}>
-                ← Précédent
-              </button>
-
-              {[...Array(scheduleTotalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  className={scheduleCurrentPage === i + 1 ? "active" : ""}
-                  onClick={() => setSchedulePage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
-              <button
-                disabled={scheduleCurrentPage === scheduleTotalPages}
-                onClick={() => setSchedulePage((p) => p + 1)}
-              >
-                Suivant →
-              </button>
-            </div>
+            <Pagination
+              currentPage={scheduleCurrentPage}
+              totalPages={scheduleTotalPages}
+              onPageChange={setSchedulePage}
+            />
           )}
         </div>
       )}
@@ -684,28 +687,11 @@ const EmployeeDetails = () => {
             </tbody>
           </table>
           {monthlyTotalPages > 1 && (
-            <div className="pagination">
-              <button disabled={monthlyCurrentPage === 1} onClick={() => setMonthlyPage((p) => p - 1)}>
-                ← Précédent
-              </button>
-
-              {[...Array(monthlyTotalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  className={monthlyCurrentPage === i + 1 ? "active" : ""}
-                  onClick={() => setMonthlyPage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
-              <button
-                disabled={monthlyCurrentPage === monthlyTotalPages}
-                onClick={() => setMonthlyPage((p) => p + 1)}
-              >
-                Suivant →
-              </button>
-            </div>
+            <Pagination
+              currentPage={monthlyCurrentPage}
+              totalPages={monthlyTotalPages}
+              onPageChange={setMonthlyPage}
+            />
           )}
 
           <h3 style={{ marginBottom: "10px" }}>Details des versements</h3>
@@ -736,28 +722,11 @@ const EmployeeDetails = () => {
             </tbody>
           </table>
           {expenseTotalPages > 1 && (
-            <div className="pagination">
-              <button disabled={expenseCurrentPage === 1} onClick={() => setExpensePage((p) => p - 1)}>
-                ← Précédent
-              </button>
-
-              {[...Array(expenseTotalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  className={expenseCurrentPage === i + 1 ? "active" : ""}
-                  onClick={() => setExpensePage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
-              <button
-                disabled={expenseCurrentPage === expenseTotalPages}
-                onClick={() => setExpensePage((p) => p + 1)}
-              >
-                Suivant →
-              </button>
-            </div>
+            <Pagination
+              currentPage={expenseCurrentPage}
+              totalPages={expenseTotalPages}
+              onPageChange={setExpensePage}
+            />
           )}
         </div>
       )}

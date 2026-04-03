@@ -7,5 +7,6 @@ public record LaboratoryBillingEntryResponse(
     String patientName,
     String prothesisName,
     Double amount,
-    LocalDateTime billingDate
+    LocalDateTime billingDate,
+    String createdByName
 ) {}

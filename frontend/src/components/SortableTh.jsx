@@ -7,6 +7,13 @@ const getAriaSort = (active, direction) => {
   return direction === SORT_DIRECTIONS.DESC ? "descending" : "ascending";
 };
 
+const resolveLabel = (label) => {
+  if (typeof label !== "string") return label;
+  if (label === "created_at") return "Créé le";
+  if (label === "updated_at") return "Mis à jour le";
+  return label;
+};
+
 export default function SortableTh({
   label,
   sortKey,
@@ -35,7 +42,7 @@ export default function SortableTh({
           title={title || "Trier"}
           onClick={() => onSort(sortKey)}
         >
-          {label}
+          {resolveLabel(label)}
         </button>
         <button
           type="button"

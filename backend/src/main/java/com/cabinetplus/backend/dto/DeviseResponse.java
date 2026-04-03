@@ -8,5 +8,6 @@ public record DeviseResponse(
     String title,
     LocalDateTime createdAt,
     Double totalAmount,
-    List<DeviseItemResponse> items
+    List<DeviseItemResponse> items,
+    String createdByName
 ) {}

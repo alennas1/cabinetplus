@@ -12,4 +12,5 @@ public class PrescriptionSummaryDTO {
     private UUID publicId;
     private String rxId;
     private LocalDateTime date;
+    private String createdByName;
 }

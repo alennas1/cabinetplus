@@ -216,7 +216,11 @@ public class LaboratoryController {
                         payment.getPaymentDate(),
                         payment.getNotes(),
                         payment.getRecordStatus(),
-                        payment.getCancelledAt()
+                        payment.getCancelledAt(),
+                        payment.getCreatedBy() != null
+                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
+                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
+                                : null
                 ))
                 .toList();
 
@@ -254,7 +258,11 @@ public class LaboratoryController {
                         payment.getPaymentDate(),
                         payment.getNotes(),
                         payment.getRecordStatus(),
-                        payment.getCancelledAt()
+                        payment.getCancelledAt(),
+                        payment.getCreatedBy() != null
+                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
+                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
+                                : null
                 ))
                 .toList();
 
@@ -532,7 +540,11 @@ public class LaboratoryController {
                         payment.getPaymentDate(),
                         payment.getNotes(),
                         payment.getRecordStatus(),
-                        payment.getCancelledAt()
+                        payment.getCancelledAt(),
+                        payment.getCreatedBy() != null
+                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
+                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
+                                : null
                 ))
                 .collect(Collectors.toList());
         List<LaboratoryBillingSummaryResponse> billingHistory = service.getBillingHistoryForLaboratory(l, user);

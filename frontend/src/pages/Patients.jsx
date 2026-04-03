@@ -7,6 +7,7 @@ import { FaMale, FaFemale } from "react-icons/fa";
 import PatientDangerIcon from "../components/PatientDangerIcon";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
+import MetadataInfo from "../components/MetadataInfo";
 
   import { ChevronDown } from "react-feather"; // ⬅️ at the top with imports
 import { toast, ToastContainer } from "react-toastify";
@@ -555,7 +556,7 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
             <SortableTh label="Âge" sortKey="age" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Sexe" sortKey="sex" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Téléphone" sortKey="phone" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Créé le" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="created_at" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -599,7 +600,12 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
   )}
 </td>
       <td>{formatPhone(p.phone)}</td>
-      <td>{formatDate(p.createdAt)}</td>
+      <td>
+        <div className="flex items-center gap-2">
+          <span>{formatDate(p.createdAt)}</span>
+          <MetadataInfo entity={p} />
+        </div>
+      </td>
       <td className="actions-cell">
         <button
           className="action-btn view"

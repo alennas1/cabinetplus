@@ -317,6 +317,14 @@ public class ProtheticsController {
   private ProthesisResponse mapToResponse(Prothesis p) {
     String patientFullName = p.getPatient().getFirstname() + " " + p.getPatient().getLastname();
     String safeStatus = p.getRecordStatus() == com.cabinetplus.backend.enums.RecordStatus.CANCELLED ? "CANCELLED" : p.getStatus();
+
+    String createdByName = null;
+    if (p.getPractitioner() != null) {
+        String first = p.getPractitioner().getFirstname() != null ? p.getPractitioner().getFirstname().trim() : "";
+        String last = p.getPractitioner().getLastname() != null ? p.getPractitioner().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        createdByName = combined.isBlank() ? null : combined;
+    }
     
     return new ProthesisResponse(
         p.getId(),
@@ -334,7 +342,8 @@ public class ProtheticsController {
         p.getLaboratory() != null ? p.getLaboratory().getName() : "Not Sent",
         p.getDateCreated(),
         p.getSentToLabDate(),
-        p.getActualReturnDate()
+        p.getActualReturnDate(),
+        createdByName
     );
 }
 

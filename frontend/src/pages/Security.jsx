@@ -24,9 +24,9 @@ import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } fr
 import { isStrongPassword } from "../utils/validation";
 import {
   changeGestionCabinetPin,
-  disableGestionCabinetPin,
   enableGestionCabinetPin,
   getGestionCabinetPinStatus,
+  setGestionCabinetPinRequirement,
 } from "../services/pinGuardService";
 import "./Settings.css";
 import "./Security.css";
@@ -51,7 +51,8 @@ const Security = () => {
   const [activeTab, setActiveTab] = useState("account");
 
   const [gcPinChecking, setGcPinChecking] = useState(false);
-  const [gcPinEnabled, setGcPinEnabled] = useState(false);
+  const [gcPinSet, setGcPinSet] = useState(false);
+  const [gcPinRequireForAccess, setGcPinRequireForAccess] = useState(false);
   const [gcPinSubmitting, setGcPinSubmitting] = useState(false);
   const [gcPinPassword, setGcPinPassword] = useState("");
   const [gcNewPin, setGcNewPin] = useState("");
@@ -141,10 +142,16 @@ const Security = () => {
       setGcPinChecking(true);
       try {
         const status = await getGestionCabinetPinStatus();
-        if (!cancelled) setGcPinEnabled(!!status?.enabled);
+        if (!cancelled) {
+          setGcPinSet(!!status?.pinSet);
+          setGcPinRequireForAccess(!!status?.requirePin);
+        }
       } catch (err) {
         console.error(err);
-        if (!cancelled) setGcPinEnabled(false);
+        if (!cancelled) {
+          setGcPinSet(false);
+          setGcPinRequireForAccess(false);
+        }
       } finally {
         if (!cancelled) setGcPinChecking(false);
       }
@@ -188,8 +195,15 @@ const Security = () => {
     if (!pin) return;
     try {
       setGcPinSubmitting(true);
-      await enableGestionCabinetPin(pin, gcPinPassword);
-      setGcPinEnabled(true);
+      const res = await enableGestionCabinetPin(pin, gcPinPassword);
+      setGcPinSet(!!res?.pinSet);
+      setGcPinRequireForAccess(!!res?.requirePin);
+      try {
+        const freshUser = await getCurrentUser();
+        dispatch(setCredentials({ token, user: freshUser }));
+      } catch {
+        // ignore (UI state already updated)
+      }
       resetGcPinFields();
       toast.success("PIN activé");
     } catch (err) {
@@ -214,7 +228,9 @@ const Security = () => {
     if (!pin) return;
     try {
       setGcPinSubmitting(true);
-      await changeGestionCabinetPin(pin, gcPinPassword);
+      const res = await changeGestionCabinetPin(pin, gcPinPassword);
+      setGcPinSet(!!res?.pinSet);
+      setGcPinRequireForAccess(!!res?.requirePin);
       resetGcPinFields();
       toast.success("PIN modifié");
     } catch (err) {
@@ -225,10 +241,14 @@ const Security = () => {
     }
   };
 
-  const handleDisableGcPin = async () => {
+  const handleToggleGcPinRequirement = async (nextEnabled) => {
     if (gcPinSubmitting) return;
     if (isClinicEmployeeAccount) {
-      toast.error("Seul le dentiste propriétaire peut désactiver le PIN.");
+      toast.error("Seul le dentiste propriétaire peut modifier ce paramètre.");
+      return;
+    }
+    if (!gcPinSet) {
+      toast.error("Configurez d'abord le code PIN.");
       return;
     }
     if (!gcPinPassword.trim()) {
@@ -237,17 +257,25 @@ const Security = () => {
     }
     try {
       setGcPinSubmitting(true);
-      await disableGestionCabinetPin(gcPinPassword);
-      setGcPinEnabled(false);
-      resetGcPinFields();
-      toast.success("PIN désactivé");
+      const res = await setGestionCabinetPinRequirement(!!nextEnabled, gcPinPassword);
+      setGcPinRequireForAccess(!!res?.requirePin);
+      toast.success(!!res?.requirePin ? "Accès protégé par PIN" : "Accès sans PIN");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible de désactiver le PIN"));
+      toast.error(getApiErrorMessage(err, "Impossible de modifier ce paramètre"));
     } finally {
       setGcPinSubmitting(false);
     }
   };
+
+  // Backward-compat aliases for a legacy JSX block kept behind `false && (...)`.
+  // These bindings prevent undefined identifier errors during compilation.
+  const gcPinEnabled = gcPinSet;
+  const gcPassword = gcPinPassword;
+  const setGcPassword = setGcPinPassword;
+  const handleEnableGestionCabinetPin = handleEnableGcPin;
+  const handleChangeGestionCabinetPin = handleChangeGcPin;
+  const handleDisableGestionCabinetPin = () => handleToggleGcPinRequirement(false);
 
   const handlePasswordChange = async () => {
     const nextErrors = {};
@@ -838,6 +866,27 @@ const Security = () => {
                   />
                 </div>
 
+                {gcPinSet ? (
+                  <div className="security-switch-row" style={{ marginBottom: 16 }}>
+                    <div className="security-switch-text">
+                      <div className="security-switch-title">Exiger le PIN pour accéder à Gestion cabinet+</div>
+                      <div className="security-switch-subtitle">
+                        Le PIN est obligatoire, mais vous pouvez activer/désactiver la demande à l'accès.
+                      </div>
+                    </div>
+
+                    <label className="security-switch" aria-label="Exiger le PIN pour accéder à Gestion cabinet+">
+                      <input
+                        type="checkbox"
+                        checked={gcPinRequireForAccess}
+                        onChange={(e) => handleToggleGcPinRequirement(e.target.checked)}
+                        disabled={gcPinSubmitting || isClinicEmployeeAccount}
+                      />
+                      <span className="security-switch-slider" />
+                    </label>
+                  </div>
+                ) : null}
+
                 <div className="security-field">
                   <label>Nouveau PIN</label>
                   <div style={{ display: "flex", justifyContent: "center" }}>
@@ -853,19 +902,7 @@ const Security = () => {
                 </div>
 
                 <div className="modal-actions" style={{ justifyContent: "space-between" }}>
-                  {gcPinEnabled ? (
-                    <button
-                      type="button"
-                      className="security-btn"
-                      style={{ background: "#ef4444" }}
-                      onClick={handleDisableGcPin}
-                      disabled={gcPinSubmitting || isClinicEmployeeAccount}
-                    >
-                      Désactiver
-                    </button>
-                  ) : (
-                    <div />
-                  )}
+                  <div />
 
                   <div style={{ display: "flex", gap: 12 }}>
                     <button
@@ -880,10 +917,10 @@ const Security = () => {
                     <button
                       type="button"
                       className="security-btn"
-                      onClick={gcPinEnabled ? handleChangeGcPin : handleEnableGcPin}
+                      onClick={gcPinSet ? handleChangeGcPin : handleEnableGcPin}
                       disabled={gcPinSubmitting || isClinicEmployeeAccount}
                     >
-                      {gcPinSubmitting ? "..." : gcPinEnabled ? "Modifier" : "Activer"}
+                      {gcPinSubmitting ? "..." : gcPinSet ? "Mettre à jour" : "Configurer"}
                     </button>
                   </div>
                 </div>

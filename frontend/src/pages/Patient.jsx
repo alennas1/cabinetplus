@@ -9,6 +9,7 @@ import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import CancelWithPinModal from "../components/CancelWithPinModal";
+import MetadataInfo from "../components/MetadataInfo";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { downloadPatientFiche, getPublicPatientFicheLink } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
@@ -723,11 +724,12 @@ const handleCancelAppointment = (a) => {
 
   openCancelWithPin({
     title: "Annuler le rendez-vous ?",
-    subtitle: "Motif + PIN requis pour annuler ce rendez-vous.",
-    action: async ({ pin, reason }) => {
+    subtitle: "Motif requis pour annuler ce rendez-vous.",
+    requirePin: false,
+    action: async ({ reason }) => {
       try {
         setBusyAppointmentStatusId(a.id);
-        await cancelAppointment(a.id, { pin, reason });
+        await cancelAppointment(a.id, { reason });
         setAppointments((prev) =>
           prev.map((ap) => (ap.id === a.id ? { ...ap, status: "CANCELLED" } : ap))
         );
@@ -1478,11 +1480,13 @@ const handleAssignProthesisToLab = async (e) => {
  const [cancelWithPinBusy, setCancelWithPinBusy] = useState(false);
  const [cancelWithPinTitle, setCancelWithPinTitle] = useState("Annulation");
  const [cancelWithPinSubtitle, setCancelWithPinSubtitle] = useState("Motif + PIN requis.");
+ const [cancelWithPinRequirePin, setCancelWithPinRequirePin] = useState(true);
  const cancelWithPinActionRef = useRef(null);
 
- const openCancelWithPin = ({ title, subtitle, action }) => {
+ const openCancelWithPin = ({ title, subtitle, action, requirePin = true }) => {
    setCancelWithPinTitle(title || "Annulation");
    setCancelWithPinSubtitle(subtitle || "Motif + PIN requis.");
+   setCancelWithPinRequirePin(!!requirePin);
    cancelWithPinActionRef.current = action;
    setCancelWithPinOpen(true);
  };
@@ -3619,7 +3623,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
 	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
 	          />
 	          <SortableTh
-	            label="Modifié le"
+	            label="created_at"
 	            sortKey="updatedAt"
 	            sortConfig={tableSort.treatments}
 	            onSort={(key, dir) => handleTableSort("treatments", key, dir)}
@@ -3654,7 +3658,12 @@ const handleCreateOrUpdateAppointment = async (e) => {
 	                 {treatmentStatusLabels[t.status] || t.status || "Planifié"}
 	              </span>
 	            </td>
-	            <td>{formatDate(t.updatedAt || t.date)}</td>
+	            <td>
+	              <div className="flex items-center gap-2">
+	                <span>{formatDate(t.updatedAt || t.createdAt || t.date)}</span>
+	                <MetadataInfo entity={t} />
+	              </div>
+	            </td>
 	            <td className="actions-cell">
 	              {isTreatmentCancelled(t) ? (
 	                "—"
@@ -3762,7 +3771,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
             onSort={(key, dir) => handleTableSort("protheses", key, dir)}
           />
           <SortableTh
-            label="Date"
+            label="created_at"
             sortKey="date"
             sortConfig={tableSort.protheses}
             onSort={(key, dir) => handleTableSort("protheses", key, dir)}
@@ -3843,7 +3852,12 @@ const handleCreateOrUpdateAppointment = async (e) => {
       <td>{p.materialName || "-"}</td>
 
       {/* Date */}
-       <td>{formatDate(p.dateCreated || p.createdAt || p.updatedAt)}</td>
+      <td>
+        <div className="flex items-center gap-2">
+          <span>{formatDate(p.dateCreated || p.createdAt || p.updatedAt)}</span>
+          <MetadataInfo entity={p} />
+        </div>
+      </td>
  
        {/* Prix */}
       <td>{formatMoneyWithLabel(p.finalPrice)}</td>
@@ -3970,7 +3984,12 @@ const handleCreateOrUpdateAppointment = async (e) => {
     <tr key={p.id}>
       <td>{formatMoneyWithLabel(p.amount)}</td>
       <td>{paymentMethodLabels[p.method] || p.method}</td>
-      <td>{formatDate(p.date || p.paymentDate || p.createdAt)}</td>
+       <td>
+         <div className="flex items-center gap-2">
+           <span>{formatDate(p.date || p.paymentDate || p.createdAt)}</span>
+           <MetadataInfo entity={p} />
+         </div>
+       </td>
       <td className="actions-cell">
         {isPaymentCancelled(p) ? (
           <span className="context-badge cancelled">Annulé</span>
@@ -4054,7 +4073,12 @@ const handleCreateOrUpdateAppointment = async (e) => {
       <tbody>
         {pagedAppointments.map(a => (
           <tr key={a.id}>
-            <td>{formatDate(a.dateTimeStart)}</td>
+            <td>
+              <div className="flex items-center gap-2">
+                <span>{formatDate(a.dateTimeStart)}</span>
+                <MetadataInfo entity={a} />
+              </div>
+            </td>
             <td>{a.dateTimeStart ? formatHour(a.dateTimeStart) : ""}</td>
             <td>{a.notes || "—"}</td>
             <td>
@@ -4127,7 +4151,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
             onSort={(key, dir) => handleTableSort("justifications", key, dir)}
           />
           <SortableTh
-            label="Date"
+            label="created_at"
             sortKey="date"
             sortConfig={tableSort.justifications}
             onSort={(key, dir) => handleTableSort("justifications", key, dir)}
@@ -4139,7 +4163,12 @@ const handleCreateOrUpdateAppointment = async (e) => {
         {pagedJustifications.map((j) => (
           <tr key={j.id}>
             <td>{j.title || "Sans titre"}</td>
-            <td>{formatDate(j.createdAt || j.date)}</td>
+            <td>
+              <div className="flex items-center gap-2">
+                <span>{formatDate(j.createdAt || j.date)}</span>
+                <MetadataInfo entity={j} />
+              </div>
+            </td>
             <td className="actions-cell">
               <button
                 className="action-btn view" 
@@ -4185,7 +4214,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
             onSort={(key, dir) => handleTableSort("documents", key, dir)}
           />
           <SortableTh
-            label="Date"
+            label="created_at"
             sortKey="date"
             sortConfig={tableSort.documents}
             onSort={(key, dir) => handleTableSort("documents", key, dir)}
@@ -4197,7 +4226,12 @@ const handleCreateOrUpdateAppointment = async (e) => {
         {pagedDocuments.map((documentItem) => (
           <tr key={documentItem.id}>
             <td>{documentItem.title || documentItem.filename || "Sans titre"}</td>
-            <td>{formatDate(documentItem.uploadedAt || documentItem.createdAt)}</td>
+            <td>
+              <div className="flex items-center gap-2">
+                <span>{formatDate(documentItem.uploadedAt || documentItem.createdAt)}</span>
+                <MetadataInfo entity={documentItem} />
+              </div>
+            </td>
             <td className="actions-cell">
               <button
                 className="action-btn view"
@@ -5728,36 +5762,37 @@ const handleCreateOrUpdateAppointment = async (e) => {
 )}
 
 
-{cancelWithPinOpen && (
-  <CancelWithPinModal
-    open={cancelWithPinOpen}
-    busy={cancelWithPinBusy}
-    title={cancelWithPinTitle}
-    subtitle={cancelWithPinSubtitle}
-    confirmLabel="Confirmer"
-    onClose={() => {
-      if (cancelWithPinBusy) return;
-      cancelWithPinActionRef.current = null;
-      setCancelWithPinOpen(false);
-    }}
-    onConfirm={async ({ pin, reason }) => {
-      if (cancelWithPinBusy) return;
-      const action = cancelWithPinActionRef.current;
-      if (!action) {
-        setCancelWithPinOpen(false);
-        return;
-      }
-      setCancelWithPinBusy(true);
-      try {
-        await action({ pin, reason });
-      } finally {
-        setCancelWithPinBusy(false);
-        cancelWithPinActionRef.current = null;
-        setCancelWithPinOpen(false);
-      }
-    }}
-  />
-)}
+ {cancelWithPinOpen && (
+   <CancelWithPinModal
+     open={cancelWithPinOpen}
+     busy={cancelWithPinBusy}
+     title={cancelWithPinTitle}
+     subtitle={cancelWithPinSubtitle}
+     requirePin={cancelWithPinRequirePin}
+     confirmLabel="Confirmer"
+     onClose={() => {
+       if (cancelWithPinBusy) return;
+       cancelWithPinActionRef.current = null;
+       setCancelWithPinOpen(false);
+     }}
+     onConfirm={async (payload) => {
+       if (cancelWithPinBusy) return;
+       const action = cancelWithPinActionRef.current;
+       if (!action) {
+         setCancelWithPinOpen(false);
+         return;
+       }
+       setCancelWithPinBusy(true);
+       try {
+         await action(payload);
+       } finally {
+         setCancelWithPinBusy(false);
+         cancelWithPinActionRef.current = null;
+         setCancelWithPinOpen(false);
+       }
+     }}
+   />
+ )}
 
 {showConfirm && (
   <div
@@ -5902,11 +5937,16 @@ const handleCreateOrUpdateAppointment = async (e) => {
         </tr>
       </thead>
       <tbody>
-        {pagedOrdonnances.map((o) => (
-          <tr key={o.id}>
-            <td>{o.rxId}</td>
-            <td>{formatDate(o.date)}</td>
-            <td className="actions-cell">
+  {pagedOrdonnances.map((o) => (
+    <tr key={o.id}>
+      <td>{o.rxId}</td>
+      <td>
+        <div className="flex items-center gap-2">
+          <span>{formatDate(o.date)}</span>
+          <MetadataInfo entity={o} />
+        </div>
+      </td>
+      <td className="actions-cell">
               <button
                 className="action-btn view"
                 onClick={() => navigate(`/patients/${id}/ordonnance/${o.publicId || o.id}`)}

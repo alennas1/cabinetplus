@@ -34,10 +34,11 @@ import Items from "./pages/Items";
 import Employees from "./pages/Employees";
 import ArchivedEmployees from "./pages/ArchivedEmployees";
 import EmployeeDetails from "./pages/EmployeeDetails"; 
-import VerificationPage from "./pages/VerificationPage"; 
-import PlanPage from "./pages/PlanPage"; 
-import WaitingPage from "./pages/WaitingPage"; 
-import HandPaymentHistory from "./pages/HandPaymentHistory";
+  import VerificationPage from "./pages/VerificationPage"; 
+  import PlanPage from "./pages/PlanPage"; 
+  import WaitingPage from "./pages/WaitingPage"; 
+  import PinRequired from "./pages/PinRequired";
+  import HandPaymentHistory from "./pages/HandPaymentHistory";
 import JustificationContent from "./pages/JustificationContent";
 import GestionCabinet from "./pages/GestionCabinet";
 import Catalogue from "./pages/Catalogue";
@@ -249,6 +250,7 @@ const AppContent = () => {
           <Route path="/verify" element={<VerificationPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/waiting" element={<WaitingPage />} />
+          <Route path="/pin-required" element={<PinRequired />} />
 
           <Route element={<Layout />}>
             <Route path="/devis" element={<Devis />} />

@@ -19,6 +19,7 @@ public record ProthesisResponse(
         String labName,
         LocalDateTime dateCreated,
         LocalDateTime sentToLabDate,
-        LocalDateTime actualReturnDate
+        LocalDateTime actualReturnDate,
+        String createdByName
 ) {
 }

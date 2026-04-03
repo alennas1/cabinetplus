@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
+import MetadataInfo from "../components/MetadataInfo";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { adminListFeedback } from "../services/feedbackService";
@@ -520,7 +521,7 @@ const AdminSupportCenter = () => {
           <table className="treatment-table">
             <thead>
               <tr>
-                <SortableTh label="Date" sortKey="createdAt" sortConfig={fbSortConfig} onSort={handleFbSort} />
+                <SortableTh label="created_at" sortKey="createdAt" sortConfig={fbSortConfig} onSort={handleFbSort} />
                 <SortableTh label="Catégorie" sortKey="category" sortConfig={fbSortConfig} onSort={handleFbSort} />
                 <SortableTh label="Utilisateur" sortKey="clinicOwnerName" sortConfig={fbSortConfig} onSort={handleFbSort} />
                 <SortableTh label="Téléphone" sortKey="phoneNumber" sortConfig={fbSortConfig} onSort={handleFbSort} />
@@ -541,7 +542,12 @@ const AdminSupportCenter = () => {
                     style={{ cursor: "pointer" }}
                     onClick={() => navigate(`/admin/support/feedback/${f.id}`)}
                   >
-                    <td>{formatDateTime(f.createdAt)}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <span>{formatDateTime(f.createdAt)}</span>
+                        <MetadataInfo entity={f} />
+                      </div>
+                    </td>
                     <td>{formatCategory(f.category, f.customCategoryLabel)}</td>
                     <td>{f.clinicOwnerName || "—"}</td>
                     <td>{f.phoneNumber || "—"}</td>

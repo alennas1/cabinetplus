@@ -19,6 +19,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
 import SortableTh from "../components/SortableTh";
+import MetadataInfo from "../components/MetadataInfo";
 import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
@@ -678,7 +679,7 @@ const EmployeeDetails = () => {
               <tr>
                 <SortableTh label="Nom" sortKey="title" sortConfig={expenseSortConfig} onSort={handleExpenseSort} />
                 <SortableTh label="Montant" sortKey="amount" sortConfig={expenseSortConfig} onSort={handleExpenseSort} />
-                <SortableTh label="Date" sortKey="date" sortConfig={expenseSortConfig} onSort={handleExpenseSort} />
+                <SortableTh label="created_at" sortKey="date" sortConfig={expenseSortConfig} onSort={handleExpenseSort} />
               </tr>
             </thead>
             <tbody>
@@ -687,7 +688,12 @@ const EmployeeDetails = () => {
                   <tr key={e.id}>
                     <td>{e.title}</td>
                     <td>{formatMoneyWithLabel(e.amount)}</td>
-                    <td>{formatDate(e.date)}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <span>{formatDate(e.date)}</span>
+                        <MetadataInfo entity={e} />
+                      </div>
+                    </td>
                   </tr>
                 ))
               ) : (

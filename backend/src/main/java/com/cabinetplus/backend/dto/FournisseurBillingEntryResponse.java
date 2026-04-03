@@ -7,6 +7,7 @@ public record FournisseurBillingEntryResponse(
         String source,
         String label,
         Double amount,
-        LocalDateTime billingDate
+        LocalDateTime billingDate,
+        String createdByName
 ) {}
 

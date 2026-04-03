@@ -7,6 +7,7 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
+import MetadataInfo from "../components/MetadataInfo";
 import FieldError from "../components/FieldError";
 import DateInput from "../components/DateInput";
 
@@ -523,7 +524,7 @@ const Devise = () => {
           <tr>
             <SortableTh label="Titre du devis" sortKey="title" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Montant total" sortKey="totalAmount" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Créé le" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="created_at" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
         </thead>
@@ -532,7 +533,12 @@ const Devise = () => {
             <tr key={d.id}>
               <td style={{ fontWeight: 500 }}>{d.title}</td>
               <td>{formatMoneyWithLabel(d.totalAmount || 0)}</td>
-              <td>{formatDateTimeByPreference(d.createdAt) || "-"}</td>
+              <td>
+                <div className="flex items-center gap-2">
+                  <span>{formatDateTimeByPreference(d.createdAt) || "-"}</span>
+                  <MetadataInfo entity={d} />
+                </div>
+              </td>
               <td className="actions-cell">
                 <button
                   className="action-btn view"

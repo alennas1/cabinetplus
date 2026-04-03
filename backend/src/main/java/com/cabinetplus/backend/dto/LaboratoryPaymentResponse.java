@@ -10,5 +10,6 @@ public record LaboratoryPaymentResponse(
     LocalDateTime paymentDate,
     String notes,
     RecordStatus recordStatus,
-    LocalDateTime cancelledAt
+    LocalDateTime cancelledAt,
+    String createdByName
 ) {}

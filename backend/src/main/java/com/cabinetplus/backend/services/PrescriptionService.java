@@ -195,7 +195,16 @@ public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User
         allowed.addAll(practitioners);
 
         return prescriptionRepository.findByPatientIdAndPractitionerInAndRecordStatusOrderByDateDesc(patientId, allowed, RecordStatus.ACTIVE).stream()
-                .map(p -> new PrescriptionSummaryDTO(p.getId(), p.getPublicId(), p.getRxId(), p.getDate()))
+                .map(p -> {
+                    String createdByName = null;
+                    if (p.getPractitioner() != null) {
+                        String first = p.getPractitioner().getFirstname() != null ? p.getPractitioner().getFirstname().trim() : "";
+                        String last = p.getPractitioner().getLastname() != null ? p.getPractitioner().getLastname().trim() : "";
+                        String combined = (first + " " + last).trim();
+                        createdByName = combined.isBlank() ? null : combined;
+                    }
+                    return new PrescriptionSummaryDTO(p.getId(), p.getPublicId(), p.getRxId(), p.getDate(), createdByName);
+                })
                 .collect(Collectors.toList());
     }
 

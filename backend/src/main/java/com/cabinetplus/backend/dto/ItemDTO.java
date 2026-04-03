@@ -22,4 +22,5 @@ public class ItemDTO {
     private LocalDateTime createdAt; // use LocalDateTime here
     private Long fournisseurId;
     private String fournisseurName;
+    private String createdByName;
 }

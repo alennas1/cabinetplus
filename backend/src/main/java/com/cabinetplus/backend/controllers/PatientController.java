@@ -491,6 +491,14 @@ public class PatientController {
         boolean dangerOwed = owedRuleEnabled && moneyOwed >= owedThreshold;
         boolean danger = dangerCancelled || dangerOwed;
 
+        String createdByName = null;
+        if (patient != null && patient.getCreatedBy() != null) {
+            String first = patient.getCreatedBy().getFirstname() != null ? patient.getCreatedBy().getFirstname().trim() : "";
+            String last = patient.getCreatedBy().getLastname() != null ? patient.getCreatedBy().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
+
         return new PatientDto(
                 patient.getId(),
                 patient.getPublicId(),
@@ -507,7 +515,8 @@ public class PatientController {
                 danger,
                 dangerCancelled,
                 dangerOwed,
-                patient.getArchivedAt()
+                patient.getArchivedAt(),
+                createdByName
         );
     }
 }

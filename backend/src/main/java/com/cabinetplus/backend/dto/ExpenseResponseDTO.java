@@ -23,6 +23,8 @@ public class ExpenseResponseDTO {
     private Long fournisseurId;
     private String fournisseurName;
 
-    // 👇 Added (null if not a salary expense)
+    // Added (null if not a salary expense)
     private Long employeeId;
+
+    private String createdByName;
 }

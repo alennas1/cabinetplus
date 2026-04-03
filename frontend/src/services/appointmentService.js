@@ -22,8 +22,8 @@ export const updateAppointment = async (id, appointmentData) => {
   return response.data;
 };
 
-export const cancelAppointment = async (id, { pin, reason } = {}) => {
-  await api.put(`${API_URL}/${id}/cancel`, { pin, reason });
+export const cancelAppointment = async (id, { reason } = {}) => {
+  await api.put(`${API_URL}/${id}/cancel`, { reason });
 };
 
 export const getAppointmentsByPatient = async (patientId) => {

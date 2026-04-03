@@ -19,7 +19,8 @@ public record PatientDto(
     Boolean danger,
     Boolean dangerCancelled,
     Boolean dangerOwed,
-    LocalDateTime archivedAt
+    LocalDateTime archivedAt,
+    String createdByName
 ) {
 
     public PatientDto(
@@ -54,6 +55,7 @@ public record PatientDto(
                 danger,
                 dangerCancelled,
                 dangerOwed,
+                null,
                 null
         );
     }

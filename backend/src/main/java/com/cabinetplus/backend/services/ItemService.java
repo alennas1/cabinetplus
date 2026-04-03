@@ -132,7 +132,11 @@ public class ItemService {
     item.getExpiryDate(),
     item.getCreatedAt(),
     item.getFournisseur() != null ? item.getFournisseur().getId() : null,
-    item.getFournisseur() != null ? item.getFournisseur().getName() : null
+    item.getFournisseur() != null ? item.getFournisseur().getName() : null,
+    item.getCreatedBy() != null ? String.format("%s %s",
+            item.getCreatedBy().getFirstname() != null ? item.getCreatedBy().getFirstname().trim() : "",
+            item.getCreatedBy().getLastname() != null ? item.getCreatedBy().getLastname().trim() : ""
+    ).trim() : null
 );
 
 }

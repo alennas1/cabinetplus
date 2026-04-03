@@ -202,12 +202,21 @@ public class DeviseController {
                 .map(this::mapItemToResponse)
                 .collect(Collectors.toList());
 
+        String createdByName = null;
+        if (d.getPractitioner() != null) {
+            String first = d.getPractitioner().getFirstname() != null ? d.getPractitioner().getFirstname().trim() : "";
+            String last = d.getPractitioner().getLastname() != null ? d.getPractitioner().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
+
         return new DeviseResponse(
                 d.getId(),
                 d.getTitle(),
                 d.getCreatedAt(),
                 d.getTotalAmount(),
-                itemResponses
+                itemResponses,
+                createdByName
         );
     }
 

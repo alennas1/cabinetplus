@@ -133,6 +133,13 @@ public class LaboratoryService {
     }
 
     public List<LaboratoryBillingEntryResponse> getBillingEntriesForLaboratory(Laboratory laboratory, User user) {
+        String createdByName = null;
+        if (user != null) {
+            String first = user.getFirstname() != null ? user.getFirstname().trim() : "";
+            String last = user.getLastname() != null ? user.getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
         return prothesisRepository.findBillingProthesesByPractitionerAndLaboratory(user, laboratory.getId()).stream()
                 .map(p -> {
                     String patientName = "-";
@@ -147,14 +154,15 @@ public class LaboratoryService {
                             ? p.getProthesisCatalog().getName()
                             : "-";
 
-                    return new LaboratoryBillingEntryResponse(
-                            p != null ? p.getId() : null,
-                            patientName,
-                            prothesisName,
-                            p != null ? p.getLabCost() : null,
-                            p != null && p.getSentToLabDate() != null ? p.getSentToLabDate() : (p != null ? p.getDateCreated() : null)
-                    );
-                })
+                     return new LaboratoryBillingEntryResponse(
+                             p != null ? p.getId() : null,
+                             patientName,
+                             prothesisName,
+                             p != null ? p.getLabCost() : null,
+                             p != null && p.getSentToLabDate() != null ? p.getSentToLabDate() : (p != null ? p.getDateCreated() : null),
+                             createdByName
+                     );
+                 })
                 .toList();
     }
 

@@ -11,6 +11,7 @@ const CancelWithPinModal = ({
   busy = false,
   title = "Annulation",
   subtitle = "Entrez le motif et le code PIN.",
+  requirePin = true,
   confirmLabel = "Confirmer",
   onClose,
   onConfirm, // async ({ pin, reason }) => void
@@ -25,19 +26,25 @@ const CancelWithPinModal = ({
   const [pinInputVersion, setPinInputVersion] = useState(0);
 
   const canSubmit = useMemo(() => {
-    const pinOk = String(pin || "").replaceAll(/\D/g, "").length === 4;
     const reasonOk = String(reason || "").trim().length > 0;
+    if (!requirePin) return reasonOk && !busy;
+    const pinOk = String(pin || "").replaceAll(/\D/g, "").length === 4;
     return pinOk && reasonOk && pinEnabled && !checkingPin && !busy;
-  }, [pin, reason, pinEnabled, checkingPin, busy]);
+  }, [pin, reason, pinEnabled, checkingPin, busy, requirePin]);
 
   useEffect(() => {
     if (!open) return;
+    if (!requirePin) {
+      setCheckingPin(false);
+      setPinEnabled(true);
+      return;
+    }
     let cancelled = false;
     const run = async () => {
       setCheckingPin(true);
       try {
         const status = await getGestionCabinetPinStatus();
-        if (!cancelled) setPinEnabled(!!status?.enabled);
+        if (!cancelled) setPinEnabled(!!status?.pinSet);
       } catch (err) {
         if (!cancelled) {
           setPinEnabled(false);
@@ -51,7 +58,7 @@ const CancelWithPinModal = ({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, requirePin]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,11 +90,11 @@ const CancelWithPinModal = ({
         <h2 className="text-lg font-semibold text-gray-800 mb-2">{title}</h2>
         <p className="text-gray-600 mb-4">{subtitle}</p>
 
-        {checkingPin ? (
+        {requirePin && checkingPin ? (
           <div className="text-sm text-gray-500">Vérification du PIN...</div>
-        ) : !pinEnabled ? (
+        ) : requirePin && !pinEnabled ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-            <div className="font-semibold mb-1">Code PIN non activé</div>
+            <div className="font-semibold mb-1">Code PIN non configuré</div>
             <div className="text-sm mb-3">Activez le code PIN dans Paramètres → Sécurité pour autoriser les annulations.</div>
             <button
               type="button"
@@ -111,18 +118,20 @@ const CancelWithPinModal = ({
               />
             </div>
 
-            <div className="mb-2">
-              <div className="text-sm text-gray-700 mb-2">Code PIN</div>
-              <div className="flex justify-center">
-                <PinCodeInput
-                  key={pinInputVersion}
-                  value={pin}
-                  onChange={setPin}
-                  disabled={busy}
-                  autoFocus
-                />
+            {requirePin ? (
+              <div className="mb-2">
+                <div className="text-sm text-gray-700 mb-2">Code PIN</div>
+                <div className="flex justify-center">
+                  <PinCodeInput
+                    key={pinInputVersion}
+                    value={pin}
+                    onChange={setPin}
+                    disabled={busy}
+                    autoFocus
+                  />
+                </div>
               </div>
-            </div>
+            ) : null}
           </>
         )}
 
@@ -141,8 +150,8 @@ const CancelWithPinModal = ({
             onClick={async () => {
               if (!canSubmit) return;
               await onConfirm?.({
-                pin: String(pin || "").replaceAll(/\D/g, ""),
                 reason: String(reason || "").trim(),
+                ...(requirePin ? { pin: String(pin || "").replaceAll(/\D/g, "") } : {}),
               });
             }}
             className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 disabled:opacity-60"
@@ -156,4 +165,3 @@ const CancelWithPinModal = ({
 };
 
 export default CancelWithPinModal;
-

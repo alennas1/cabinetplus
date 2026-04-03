@@ -15,7 +15,7 @@ const notifyPinStatusChanged = () => {
 
 export const getGestionCabinetPinStatus = async () => {
   const { data } = await api.get("/api/security/gestion-cabinet-pin");
-  return data; // { enabled }
+  return data; // { pinSet, requirePin, enabled }
 };
 
 export const enableGestionCabinetPin = async (pin, password) => {
@@ -32,6 +32,12 @@ export const changeGestionCabinetPin = async (pin, password) => {
 
 export const disableGestionCabinetPin = async (password) => {
   const { data } = await api.post("/api/security/gestion-cabinet-pin/disable", { password });
+  notifyPinStatusChanged();
+  return data;
+};
+
+export const setGestionCabinetPinRequirement = async (enabled, password) => {
+  const { data } = await api.put("/api/security/gestion-cabinet-pin/requirement", { enabled, password });
   notifyPinStatusChanged();
   return data;
 };

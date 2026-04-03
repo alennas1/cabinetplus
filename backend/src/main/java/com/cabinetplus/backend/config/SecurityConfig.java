@@ -27,6 +27,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.cabinetplus.backend.security.CustomUserDetailsService;
 import com.cabinetplus.backend.security.JwtAuthenticationFilter;
+import com.cabinetplus.backend.security.PinSetupRequiredFilter;
 import com.cabinetplus.backend.security.RequestTracingFilter;
 import com.cabinetplus.backend.services.AuditService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     private final RequestTracingFilter requestTracingFilter;
+    private final PinSetupRequiredFilter pinSetupRequiredFilter;
     private final CustomUserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
     private final List<String> allowedOrigins;
@@ -46,6 +48,7 @@ public class SecurityConfig {
     public SecurityConfig(
             JwtAuthenticationFilter jwtFilter,
             RequestTracingFilter requestTracingFilter,
+            PinSetupRequiredFilter pinSetupRequiredFilter,
             CustomUserDetailsService userDetailsService,
             ObjectMapper objectMapper,
             @Value("${app.cors.allowed-origins}") String allowedOrigins,
@@ -53,6 +56,7 @@ public class SecurityConfig {
     ) {
         this.jwtFilter = jwtFilter;
         this.requestTracingFilter = requestTracingFilter;
+        this.pinSetupRequiredFilter = pinSetupRequiredFilter;
         this.userDetailsService = userDetailsService;
         this.objectMapper = objectMapper;
         this.allowedOrigins = splitCsv(allowedOrigins);
@@ -112,6 +116,7 @@ public class SecurityConfig {
 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(requestTracingFilter, JwtAuthenticationFilter.class);
+        http.addFilterAfter(pinSetupRequiredFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

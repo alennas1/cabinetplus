@@ -88,6 +88,13 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
 
     // Map Expense to DTO
     public ExpenseResponseDTO toDTO(Expense expense) {
+        String createdByName = null;
+        if (expense.getCreatedBy() != null) {
+            String first = expense.getCreatedBy().getFirstname() != null ? expense.getCreatedBy().getFirstname().trim() : "";
+            String last = expense.getCreatedBy().getLastname() != null ? expense.getCreatedBy().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
         return new ExpenseResponseDTO(
                 expense.getId(),
                 expense.getTitle(),
@@ -98,7 +105,8 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
                 expense.getOtherCategoryLabel(),
                 expense.getFournisseur() != null ? expense.getFournisseur().getId() : null,
                 expense.getFournisseur() != null ? expense.getFournisseur().getName() : null,
-                expense.getEmployee() != null ? expense.getEmployee().getId() : null
+                expense.getEmployee() != null ? expense.getEmployee().getId() : null,
+                createdByName
         );
     }
 

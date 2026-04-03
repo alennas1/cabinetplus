@@ -17,6 +17,7 @@ import {
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import SortableTh from "../components/SortableTh";
+import MetadataInfo from "../components/MetadataInfo";
 import Pagination from "../components/Pagination";
 import FieldError from "../components/FieldError";
 import CancelWithPinModal from "../components/CancelWithPinModal";
@@ -816,7 +817,7 @@ const FournisseurDetails = () => {
             <thead>
               <tr>
                 <SortableTh label="Montant" sortKey="amount" sortConfig={paymentSortConfig} onSort={handlePaymentSort} />
-                <SortableTh label="Date" sortKey="paymentDate" sortConfig={paymentSortConfig} onSort={handlePaymentSort} />
+                <SortableTh label="created_at" sortKey="paymentDate" sortConfig={paymentSortConfig} onSort={handlePaymentSort} />
                 <SortableTh label="Note" sortKey="notes" sortConfig={paymentSortConfig} onSort={handlePaymentSort} />
                 <th>Actions</th>
               </tr>
@@ -832,7 +833,12 @@ const FournisseurDetails = () => {
                 currentPayments.map((payment) => (
                   <tr key={payment.id}>
                     <td style={{ fontWeight: "700" }}>{formatCurrency(payment.amount)}</td>
-                    <td>{formatDateTime(payment.paymentDate)}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <span>{formatDateTime(payment.paymentDate)}</span>
+                        <MetadataInfo entity={payment} />
+                      </div>
+                    </td>
                     <td>{payment.notes || "—"}</td>
                     <td className="actions-cell">
                       {isPaymentCancelled(payment) ? (
@@ -918,7 +924,12 @@ const FournisseurDetails = () => {
                       <td>{isItem ? "Inventaire" : "Dépense"}</td>
                       <td style={{ fontWeight: 700 }}>{entry.label || "—"}</td>
                       <td>{formatCurrency(entry.amount)}</td>
-                      <td>{formatDateByPreference(entry.billingDate)}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span>{formatDateByPreference(entry.billingDate)}</span>
+                          <MetadataInfo entity={entry} />
+                        </div>
+                      </td>
                       <td className="actions-cell">
                         <button
                           type="button"

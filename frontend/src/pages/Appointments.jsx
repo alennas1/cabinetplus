@@ -435,14 +435,14 @@ export default function Appointments() {
       setCompleteAppt(null);
     }
   };
-  const confirmCancelAppointment = async ({ pin, reason }) => {
+  const confirmCancelAppointment = async ({ reason }) => {
     if (!cancelAppt || isCancellingAppointment) return;
     setIsCancellingAppointment(true);
     const cancelledSlotIndex = slots.findIndex((slot) =>
       slot.appointments?.some((a) => a.id === cancelAppt.id)
     );
     try {
-      await cancelAppointment(cancelAppt.id, { pin, reason });
+      await cancelAppointment(cancelAppt.id, { reason });
       setAppointments((prev) => prev.filter((a) => a.id !== cancelAppt.id));
       if (cancelledSlotIndex >= 0) {
         setAutoAdvanceFromIndex(cancelledSlotIndex);
@@ -1973,7 +1973,8 @@ export default function Appointments() {
           open={showCancelConfirm && !!cancelAppt}
           busy={isCancellingAppointment}
           title="Annuler le rendez-vous ?"
-          subtitle={cancelAppt ? `Motif + PIN requis pour annuler le rendez-vous de ${getPatientName(cancelAppt)}.` : "Motif + PIN requis."}
+          subtitle={cancelAppt ? `Motif requis pour annuler le rendez-vous de ${getPatientName(cancelAppt)}.` : "Motif requis."}
+          requirePin={false}
           confirmLabel="Annuler"
           onClose={() => {
             if (isCancellingAppointment) return;

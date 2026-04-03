@@ -42,12 +42,16 @@ public class CancellationSecurityService {
         return normalized;
     }
 
+    public String requireReason(String reason) {
+        return normalizeReason(reason);
+    }
+
     public String requirePinAndReason(User clinicOwner, String pin, String reason) {
         if (clinicOwner == null) {
             throw new BadRequestException(Map.of("_", "Utilisateur introuvable"));
         }
 
-        if (!clinicOwner.isGestionCabinetPinEnabled() || clinicOwner.getGestionCabinetPinHash() == null) {
+        if (clinicOwner.getGestionCabinetPinHash() == null) {
             throw new BadRequestException(Map.of("pin", "Activez d'abord le code PIN (Paramètres → Sécurité)."));
         }
 
@@ -59,4 +63,3 @@ public class CancellationSecurityService {
         return normalizeReason(reason);
     }
 }
-

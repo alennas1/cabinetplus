@@ -164,6 +164,10 @@ public class User {
         return dentistProfile != null ? dentistProfile.getGestionCabinetPinHash() : null;
     }
 
+    public boolean isGestionCabinetPinConfigured() {
+        return getGestionCabinetPinHash() != null;
+    }
+
     public void setGestionCabinetPinHash(String hash) {
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setGestionCabinetPinHash(hash);

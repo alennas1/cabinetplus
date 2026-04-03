@@ -63,6 +63,13 @@ public class FournisseurDetailsService {
 
     public List<FournisseurBillingEntryResponse> getBillingEntriesForFournisseur(Fournisseur fournisseur, User user) {
         List<FournisseurBillingEntryResponse> entries = new ArrayList<>();
+        String createdByName = null;
+        if (user != null) {
+            String first = user.getFirstname() != null ? user.getFirstname().trim() : "";
+            String last = user.getLastname() != null ? user.getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
 
         List<Item> items = itemRepository.findByFournisseur_IdAndCreatedByOrderByCreatedAtDesc(fournisseur.getId(), user);
         for (Item item : items) {
@@ -72,7 +79,8 @@ public class FournisseurDetailsService {
                     "ITEM",
                     itemName,
                     item.getPrice() != null ? item.getPrice() : 0.0,
-                    item.getCreatedAt()
+                    item.getCreatedAt(),
+                    createdByName
             ));
         }
 
@@ -84,7 +92,8 @@ public class FournisseurDetailsService {
                     "EXPENSE",
                     expense.getTitle() != null ? expense.getTitle() : "Dépense",
                     expense.getAmount() != null ? expense.getAmount() : 0.0,
-                    date != null ? date.atStartOfDay() : null
+                    date != null ? date.atStartOfDay() : null,
+                    createdByName
             ));
         }
 

@@ -10,6 +10,7 @@ import { FaTooth } from "react-icons/fa";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
+import MetadataInfo from "../components/MetadataInfo";
 import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import FieldError from "../components/FieldError";
@@ -918,10 +919,15 @@ const Prosthetics = () => {
                 <td style={{ fontWeight: "600" }}>
                   {p.labCost ? formatMoneyWithLabel(p.labCost) : "-"}
                 </td>
-                <td style={{ fontSize: "11px", color: "#666", lineHeight: "1.4" }}>
-                  <div>C: {formatDateLabel(p.dateCreated)}</div>
-                  <div style={{ color: "#3498db" }}>E: {formatDateLabel(p.sentToLabDate)}</div>
-                  <div style={{ color: "#27ae60" }}>R: {formatDateLabel(p.actualReturnDate)}</div>
+                <td>
+                  <div className="flex items-start justify-between gap-2" style={{ fontSize: "11px", color: "#666", lineHeight: "1.4" }}>
+                    <div>
+                      <div>C: {formatDateLabel(p.dateCreated)}</div>
+                      <div style={{ color: "#3498db" }}>E: {formatDateLabel(p.sentToLabDate)}</div>
+                      <div style={{ color: "#27ae60" }}>R: {formatDateLabel(p.actualReturnDate)}</div>
+                    </div>
+                    <MetadataInfo entity={p} />
+                  </div>
                 </td>
                 <td>
                   <span className={`status-chip ${p.status?.toLowerCase()}`} style={{ cursor: "default" }}>

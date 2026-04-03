@@ -72,6 +72,13 @@ public class PatientService {
     }
 
     private PatientDto toDto(Patient patient) {
+        String createdByName = null;
+        if (patient.getCreatedBy() != null) {
+            String first = patient.getCreatedBy().getFirstname() != null ? patient.getCreatedBy().getFirstname().trim() : "";
+            String last = patient.getCreatedBy().getLastname() != null ? patient.getCreatedBy().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
         return new PatientDto(
                 patient.getId(),
                 patient.getPublicId(),
@@ -88,7 +95,8 @@ public class PatientService {
                 false,
                 false,
                 false,
-                patient.getArchivedAt()
+                patient.getArchivedAt(),
+                createdByName
         );
     }
 

@@ -46,12 +46,16 @@ const RequireAuth = ({ allowedRoles }) => {
   if (user?.role === "DENTIST" || user?.role === "EMPLOYEE") {
     const isVerified = user.phoneVerified === true;
     const isPlanActive = isPlanActiveForAccess(user);
+    const isPinConfigured = user?.gestionCabinetPinConfigured === true;
 
     let targetPath = null;
 
     if (!isVerified) targetPath = "/verify";
     else if (!isPlanActive && user.planStatus === "WAITING") targetPath = "/waiting";
     else if (!isPlanActive) targetPath = "/plan";
+    else if (!isPinConfigured) {
+      targetPath = user?.role === "DENTIST" ? "/settings/security" : "/pin-required";
+    }
 
     if (targetPath && currentPath !== targetPath) {
       return <Navigate to={targetPath} replace />;
@@ -59,7 +63,7 @@ const RequireAuth = ({ allowedRoles }) => {
 
     // Only force dentists out of setup pages when setup is fully complete.
     if (!targetPath) {
-      const setupPages = ["/verify", "/plan", "/waiting"];
+      const setupPages = ["/verify", "/plan", "/waiting", "/pin-required"];
       if (setupPages.includes(currentPath)) {
         return <Navigate to="/dashboard" replace />;
       }

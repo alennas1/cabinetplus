@@ -8,6 +8,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
+import MetadataInfo from "../components/MetadataInfo";
 import { createItemDefault, getItemDefaults } from "../services/itemDefaultService";
 import {
   createInventoryItem,
@@ -17,6 +18,7 @@ import {
 } from "../services/itemService";
 import { createFournisseur, getAllFournisseurs } from "../services/fournisseurService";
 import { getApiErrorMessage } from "../utils/error";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel, formatMoney } from "../utils/format";
 import MoneyInput from "../components/MoneyInput";
 import ModernDropdown from "../components/ModernDropdown";
@@ -548,6 +550,7 @@ const Inventory = () => {
             <SortableTh label="Fournisseur" sortKey="fournisseurName" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Quantité" sortKey="quantity" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Prix total" sortKey="price" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="created_at" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Date d'expiration" sortKey="expiryDate" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
@@ -576,6 +579,12 @@ const Inventory = () => {
               </td>
               <td>{i.quantity}</td>
               <td>{formatMoneyWithLabel(i.price)}</td>
+              <td>
+                <div className="flex items-center gap-2">
+                  <span>{formatDateTimeByPreference(i.createdAt)}</span>
+                  <MetadataInfo entity={i} />
+                </div>
+              </td>
               <td>{i.expiryDate || "—"}</td>
               <td className="actions-cell">
                 <button className="action-btn edit" onClick={() => handleEdit(i)} title="Modifier"><Edit2 size={16} /></button>
@@ -584,7 +593,7 @@ const Inventory = () => {
           ))}
           {sortedItems.length === 0 && (
             <tr>
-              <td colSpan="6" style={{ textAlign: "center", color: "#888" }}>Aucun article trouvé</td>
+              <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>Aucun article trouvé</td>
             </tr>
           )}
         </tbody>

@@ -24,7 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.cabinetplus.backend.dto.AppointmentRequest;
 import com.cabinetplus.backend.dto.AppointmentResponse;
 import com.cabinetplus.backend.dto.AppointmentShiftRequest;
-import com.cabinetplus.backend.dto.CancellationRequest;
+import com.cabinetplus.backend.dto.AppointmentCancellationRequest;
 import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.enums.AuditEventType;
@@ -265,9 +265,9 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id:\\d+}/cancel")
-    public void cancelAppointment(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
+    public void cancelAppointment(@PathVariable Long id, @Valid @RequestBody AppointmentCancellationRequest payload, Principal principal) {
         User currentUser = getClinicUser(principal);
-        String reason = cancellationSecurityService.requirePinAndReason(currentUser, payload.pin(), payload.reason());
+        String reason = cancellationSecurityService.requireReason(payload.reason());
         Appointment existing = appointmentService.cancelAppointment(id, currentUser);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_CANCEL,

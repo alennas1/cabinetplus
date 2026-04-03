@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cabinetplus.backend.dto.SecurityPinChangeRequest;
 import com.cabinetplus.backend.dto.SecurityPinDisableRequest;
 import com.cabinetplus.backend.dto.SecurityPinEnableRequest;
+import com.cabinetplus.backend.dto.SecurityPinRequirementRequest;
 import com.cabinetplus.backend.dto.SecurityPinVerifyRequest;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.enums.AuditEventType;
@@ -66,9 +67,10 @@ public class SecurityPinController {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
-        boolean enabled = user.isGestionCabinetPinEnabled() && user.getGestionCabinetPinHash() != null;
+        boolean pinSet = user.getGestionCabinetPinHash() != null;
+        boolean requirePin = pinSet && user.isGestionCabinetPinEnabled();
         auditService.logSuccessAsUser(user, AuditEventType.SECURITY_PIN_STATUS, "USER", String.valueOf(user.getId()), "Statut PIN consulte");
-        return Map.of("enabled", enabled);
+        return Map.of("pinSet", pinSet, "requirePin", requirePin, "enabled", requirePin);
     }
 
     @PostMapping
@@ -93,7 +95,7 @@ public class SecurityPinController {
         userService.save(clinicOwner);
         auditService.logSuccessAsUser(actor, AuditEventType.SECURITY_PIN_ENABLE, "USER", String.valueOf(clinicOwner.getId()), "PIN de securite active");
 
-        return Map.of("enabled", true);
+        return Map.of("pinSet", true, "requirePin", true, "enabled", true);
     }
 
     @PutMapping
@@ -118,7 +120,7 @@ public class SecurityPinController {
         userService.save(clinicOwner);
         auditService.logSuccessAsUser(actor, AuditEventType.SECURITY_PIN_CHANGE, "USER", String.valueOf(clinicOwner.getId()), "PIN de securite modifie");
 
-        return Map.of("enabled", true);
+        return Map.of("pinSet", true, "requirePin", clinicOwner.isGestionCabinetPinEnabled(), "enabled", clinicOwner.isGestionCabinetPinEnabled());
     }
 
     @PostMapping("/disable")
@@ -137,12 +139,46 @@ public class SecurityPinController {
         requirePassword(clinicOwner, payload.password());
 
         clinicOwner.setGestionCabinetPinEnabled(false);
-        clinicOwner.setGestionCabinetPinHash(null);
         clinicOwner.setGestionCabinetPinUpdatedAt(LocalDateTime.now());
         userService.save(clinicOwner);
         auditService.logSuccessAsUser(actor, AuditEventType.SECURITY_PIN_DISABLE, "USER", String.valueOf(clinicOwner.getId()), "PIN de securite desactive");
 
-        return Map.of("enabled", false);
+        boolean pinSet = clinicOwner.getGestionCabinetPinHash() != null;
+        return Map.of("pinSet", pinSet, "requirePin", false, "enabled", false);
+    }
+
+    @PutMapping("/requirement")
+    public Map<String, Object> setRequirement(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails,
+                                              @Valid @RequestBody SecurityPinRequirementRequest payload) {
+        User actor = userService.findByPhoneNumber(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+        if (actor.getRole() == UserRole.EMPLOYEE || actor.getOwnerDentist() != null) {
+            throw new BadRequestException(Map.of("_", "Seul le dentiste propriÃ©taire peut modifier ce paramÃ¨tre."));
+        }
+        User clinicOwner = userService.resolveClinicOwner(actor);
+        if (clinicOwner == null || clinicOwner.getRole() != UserRole.DENTIST || clinicOwner.getOwnerDentist() != null) {
+            throw new BadRequestException(Map.of("_", "Compte dentiste propriÃ©taire introuvable."));
+        }
+
+        if (clinicOwner.getGestionCabinetPinHash() == null) {
+            throw new BadRequestException(Map.of("pin", "Configurez d'abord le code PIN."));
+        }
+
+        requirePassword(clinicOwner, payload.password());
+        boolean enabled = Boolean.TRUE.equals(payload.enabled());
+        clinicOwner.setGestionCabinetPinEnabled(enabled);
+        clinicOwner.setGestionCabinetPinUpdatedAt(LocalDateTime.now());
+        userService.save(clinicOwner);
+
+        auditService.logSuccessAsUser(
+                actor,
+                enabled ? AuditEventType.SECURITY_PIN_ENABLE : AuditEventType.SECURITY_PIN_DISABLE,
+                "USER",
+                String.valueOf(clinicOwner.getId()),
+                enabled ? "Exigence PIN activÃ©e" : "Exigence PIN dÃ©sactivÃ©e"
+        );
+
+        return Map.of("pinSet", true, "requirePin", enabled, "enabled", enabled);
     }
 
     @PostMapping("/verify")
@@ -151,7 +187,7 @@ public class SecurityPinController {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
-        if (!user.isGestionCabinetPinEnabled() || user.getGestionCabinetPinHash() == null) {
+        if (user.getGestionCabinetPinHash() == null) {
             return Map.of("valid", false);
         }
 

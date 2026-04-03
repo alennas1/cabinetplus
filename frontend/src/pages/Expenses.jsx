@@ -9,6 +9,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
+import MetadataInfo from "../components/MetadataInfo";
 import {
   getExpensesPage,
   createExpense,
@@ -486,7 +487,7 @@ const Expenses = () => {
             <SortableTh label="Catégorie" sortKey="category" sortConfig={sortConfig} onSort={handleSort} />
 	            <SortableTh label="Fournisseur" sortKey="fournisseurName" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Date" sortKey="date" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="created_at" sortKey="date" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Description" sortKey="description" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
@@ -506,7 +507,12 @@ const Expenses = () => {
               </td>
               <td>{e.fournisseurName || "—"}</td>
               <td>{formatMoneyWithLabel(e.amount)}</td>
-              <td>{e.date}</td>
+              <td>
+                <div className="flex items-center gap-2">
+                  <span>{e.date}</span>
+                  <MetadataInfo entity={e} />
+                </div>
+              </td>
               <td>{e.description || "—"}</td>
               <td className="actions-cell">
                 <button className="action-btn edit" onClick={() => handleEdit(e)} title="Modifier"> <Edit2 size={16} /> </button>

@@ -21,6 +21,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import PhoneInput from "../components/PhoneInput";
 import FieldError from "../components/FieldError";
+import CancelWithPinModal from "../components/CancelWithPinModal";
 import { AGE_LIMITS, FIELD_LIMITS, validateAge, validateText } from "../utils/validation";
 import {
   TIME_FORMATS,
@@ -434,14 +435,14 @@ export default function Appointments() {
       setCompleteAppt(null);
     }
   };
-  const confirmCancelAppointment = async () => {
+  const confirmCancelAppointment = async ({ pin, reason }) => {
     if (!cancelAppt || isCancellingAppointment) return;
     setIsCancellingAppointment(true);
     const cancelledSlotIndex = slots.findIndex((slot) =>
       slot.appointments?.some((a) => a.id === cancelAppt.id)
     );
     try {
-      await cancelAppointment(cancelAppt.id);
+      await cancelAppointment(cancelAppt.id, { pin, reason });
       setAppointments((prev) => prev.filter((a) => a.id !== cancelAppt.id));
       if (cancelledSlotIndex >= 0) {
         setAutoAdvanceFromIndex(cancelledSlotIndex);
@@ -1968,24 +1969,18 @@ export default function Appointments() {
           </div>
         )}
 
-        {/* Confirm Cancel */}
-        {showCancelConfirm && cancelAppt && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <div className="flex justify-between items-center mb-2">
-                <h2>Annuler le rendez-vous ?</h2>
-                <X className="cursor-pointer" onClick={() => setShowCancelConfirm(false)} />
-              </div>
-              <p>Êtes-vous sûr de vouloir annuler le rendez-vous de {getPatientName(cancelAppt)} ?</p>
-              <div className="modal-actions">
-                <button onClick={() => setShowCancelConfirm(false)} className="btn-cancel">Annuler</button>
-                <button onClick={confirmCancelAppointment} disabled={isCancellingAppointment} className="btn-primary2">
-                  {isCancellingAppointment ? "Confirmation..." : "Confirmer"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <CancelWithPinModal
+          open={showCancelConfirm && !!cancelAppt}
+          busy={isCancellingAppointment}
+          title="Annuler le rendez-vous ?"
+          subtitle={cancelAppt ? `Motif + PIN requis pour annuler le rendez-vous de ${getPatientName(cancelAppt)}.` : "Motif + PIN requis."}
+          confirmLabel="Annuler"
+          onClose={() => {
+            if (isCancellingAppointment) return;
+            setShowCancelConfirm(false);
+          }}
+          onConfirm={confirmCancelAppointment}
+        />
         
       </div>
     </div>

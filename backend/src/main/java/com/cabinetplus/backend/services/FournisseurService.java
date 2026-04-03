@@ -100,7 +100,7 @@ public class FournisseurService {
             }
         }
 
-        String property = order != null ? String.valueOf(order.getProperty() || "").trim() : "";
+        String property = (order != null && order.getProperty() != null) ? order.getProperty().trim() : "";
         boolean desc = order != null && order.getDirection() != null && order.getDirection().isDescending();
 
         Comparator<Fournisseur> primary = switch (property) {

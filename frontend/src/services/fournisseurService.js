@@ -70,8 +70,8 @@ export const addFournisseurPayment = async (id, payment) => {
   return response.data;
 };
 
-export const cancelFournisseurPayment = async (fournisseurId, paymentId) => {
-  const response = await api.put(`${BASE_URL}/${fournisseurId}/payments/${paymentId}/cancel`);
+export const cancelFournisseurPayment = async (fournisseurId, paymentId, { pin, reason } = {}) => {
+  const response = await api.put(`${BASE_URL}/${fournisseurId}/payments/${paymentId}/cancel`, { pin, reason });
   return response.data;
 };
 

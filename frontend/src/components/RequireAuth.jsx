@@ -1,6 +1,5 @@
 import { useSelector } from "react-redux";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import { isPlanActiveForAccess } from "../utils/planAccess";
 
 const RequireAuth = ({ allowedRoles }) => {
@@ -11,10 +10,7 @@ const RequireAuth = ({ allowedRoles }) => {
   const currentPath = location.pathname;
   const redirectByRole = () => {
     if (user?.role === "ADMIN") return "/admin-dashboard";
-    const clinicRole = getClinicRole(user);
-    return [CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST].includes(clinicRole)
-      ? "/dashboard"
-      : "/appointments";
+    return user?.role === "DENTIST" ? "/dashboard" : "/appointments";
   };
 
   // 1️⃣ Loading state (wait until session initializes)
@@ -47,7 +43,7 @@ const RequireAuth = ({ allowedRoles }) => {
   }
 
   // 4️⃣ Dentist setup workflow
-  if (user?.role === "DENTIST" && getClinicRole(user) === CLINIC_ROLES.DENTIST) {
+  if (user?.role === "DENTIST" || user?.role === "EMPLOYEE") {
     const isVerified = user.phoneVerified === true;
     const isPlanActive = isPlanActiveForAccess(user);
 

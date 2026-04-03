@@ -334,7 +334,7 @@ const DentistDetails = () => {
             <div className="field-label">
               <Shield size={16} /> Accès clinique
             </div>
-            <div className="field-value">{dentist.clinicAccessRole || "—"}</div>
+            <div className="field-value">{dentist.role === "EMPLOYEE" ? "Employe" : "Dentiste"}</div>
           </div>
 
           <div className="profile-field">

@@ -26,12 +26,11 @@ const WaitingPage = () => {
             return;
         }
 
-        const clinicRole = getClinicRole(userData);
-        if (clinicRole !== CLINIC_ROLES.DENTIST) {
-            if (clinicRole === CLINIC_ROLES.PARTNER_DENTIST) navigate("/dashboard", { replace: true });
-            else navigate("/appointments", { replace: true });
+          const clinicRole = getClinicRole(userData);
+          if (clinicRole !== CLINIC_ROLES.DENTIST) {
+            navigate("/appointments", { replace: true });
             return;
-        }
+          }
 
         const isActivePlan = isPlanActiveForAccess(userData);
         if (isActivePlan) {

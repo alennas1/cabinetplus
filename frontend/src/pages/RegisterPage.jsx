@@ -49,8 +49,7 @@ const RegisterPage = () => {
 
     const clinicRole = getClinicRole(userData);
     if (clinicRole !== CLINIC_ROLES.DENTIST) {
-      if (clinicRole === CLINIC_ROLES.PARTNER_DENTIST) navigate("/dashboard", { replace: true });
-      else navigate("/appointments", { replace: true });
+      navigate("/appointments", { replace: true });
       return;
     }
 

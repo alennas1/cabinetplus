@@ -2,6 +2,7 @@ package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.TreatmentCreateRequest;
 import com.cabinetplus.backend.dto.TreatmentUpdateRequest;
+import com.cabinetplus.backend.dto.CancellationRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.dto.PageResponse;
@@ -9,6 +10,7 @@ import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.TreatmentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -34,12 +36,18 @@ public class TreatmentController {
     private final UserService userService;
     private final AuditService auditService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final CancellationSecurityService cancellationSecurityService;
 
-    public TreatmentController(TreatmentService treatmentService, UserService userService, AuditService auditService, PublicIdResolutionService publicIdResolutionService) {
+    public TreatmentController(TreatmentService treatmentService,
+                               UserService userService,
+                               AuditService auditService,
+                               PublicIdResolutionService publicIdResolutionService,
+                               CancellationSecurityService cancellationSecurityService) {
         this.treatmentService = treatmentService;
         this.userService = userService;
         this.auditService = auditService;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.cancellationSecurityService = cancellationSecurityService;
     }
 
     private User getCurrentUser(Principal principal) {
@@ -112,8 +120,9 @@ public class TreatmentController {
 
     // Delete treatment
     @PutMapping("/{id}/cancel")
-    public ResponseEntity<Treatment> cancelTreatment(@PathVariable Long id, Principal principal) {
+    public ResponseEntity<Treatment> cancelTreatment(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User currentUser = getCurrentUser(principal);
+        String reason = cancellationSecurityService.requirePinAndReason(currentUser, payload.pin(), payload.reason());
         Treatment cancelled = treatmentService.cancelTreatment(id, currentUser);
 
         String acte = cancelled.getTreatmentCatalog() != null ? cancelled.getTreatmentCatalog().getName() : null;
@@ -121,7 +130,7 @@ public class TreatmentController {
                 AuditEventType.TREATMENT_CANCEL,
                 "PATIENT",
                 cancelled.getPatient() != null ? String.valueOf(cancelled.getPatient().getId()) : null,
-                acte != null && !acte.isBlank() ? ("Traitement annule : " + acte) : "Traitement annule"
+                (acte != null && !acte.isBlank() ? ("Traitement annulé : " + acte) : "Traitement annulé") + ". Motif: " + reason
         );
 
         return ResponseEntity.ok(cancelled);

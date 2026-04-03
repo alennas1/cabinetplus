@@ -24,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.cabinetplus.backend.dto.AppointmentRequest;
 import com.cabinetplus.backend.dto.AppointmentResponse;
 import com.cabinetplus.backend.dto.AppointmentShiftRequest;
+import com.cabinetplus.backend.dto.CancellationRequest;
 import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.enums.AuditEventType;
@@ -32,6 +33,7 @@ import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.AppointmentService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -49,13 +51,20 @@ public class AppointmentController {
     private final PatientService patientService;
     private final AuditService auditService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final CancellationSecurityService cancellationSecurityService;
 
-    public AppointmentController(AppointmentService appointmentService, UserService userService, PatientService patientService, AuditService auditService, PublicIdResolutionService publicIdResolutionService) {
+    public AppointmentController(AppointmentService appointmentService,
+                                 UserService userService,
+                                 PatientService patientService,
+                                 AuditService auditService,
+                                 PublicIdResolutionService publicIdResolutionService,
+                                 CancellationSecurityService cancellationSecurityService) {
         this.appointmentService = appointmentService;
         this.userService = userService;
         this.patientService = patientService;
         this.auditService = auditService;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.cancellationSecurityService = cancellationSecurityService;
     }
 
     // Return appointments only for the logged-in practitioner
@@ -256,8 +265,9 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id:\\d+}/cancel")
-    public void cancelAppointment(@PathVariable Long id, Principal principal) {
+    public void cancelAppointment(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User currentUser = getClinicUser(principal);
+        String reason = cancellationSecurityService.requirePinAndReason(currentUser, payload.pin(), payload.reason());
         Appointment existing = appointmentService.cancelAppointment(id, currentUser);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_CANCEL,
@@ -266,8 +276,8 @@ public class AppointmentController {
                         ? String.valueOf(existing.getPatient().getId())
                         : null,
                 existing != null
-                        ? "Rendez-vous annulÃ©"
-                        : "Rendez-vous annulÃ©: #" + id
+                        ? ("Rendez-vous annulé. Motif: " + reason)
+                        : ("Rendez-vous annulé: #" + id + ". Motif: " + reason)
         );
     }
 

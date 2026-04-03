@@ -1,18 +1,15 @@
 export const CLINIC_ROLES = {
   DENTIST: "DENTIST",
-  PARTNER_DENTIST: "PARTNER_DENTIST",
-  ASSISTANT: "ASSISTANT",
-  RECEPTION: "RECEPTION",
+  EMPLOYEE: "EMPLOYEE",
 };
 
 export const getClinicRole = (user) => {
   if (!user) return null;
   if (user.role === "ADMIN") return "ADMIN";
-  if (user.clinicAccessRole) return user.clinicAccessRole;
+  if (user.role === "EMPLOYEE") return CLINIC_ROLES.EMPLOYEE;
 
-  // Backward compatibility for existing staff accounts created before clinicAccessRole.
-  // If linked to an owner dentist, treat as staff by default.
-  if (user.ownerDentist || user.ownerDentistId) return CLINIC_ROLES.RECEPTION;
+  // Backward compatibility: legacy staff accounts may still come as role=DENTIST with ownerDentist.
+  if (user.ownerDentist || user.ownerDentistId) return CLINIC_ROLES.EMPLOYEE;
 
   return CLINIC_ROLES.DENTIST;
 };

@@ -31,6 +31,7 @@ import com.cabinetplus.backend.dto.FournisseurResponse;
 import com.cabinetplus.backend.dto.FournisseurBillingEntryResponse;
 import com.cabinetplus.backend.dto.FournisseurBillingSummaryResponse;
 import com.cabinetplus.backend.dto.CountTotalResponseDTO;
+import com.cabinetplus.backend.dto.CancellationRequest;
 import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.RecordStatus;
@@ -38,6 +39,7 @@ import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Fournisseur;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.FournisseurDetailsService;
 import com.cabinetplus.backend.services.FournisseurService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
@@ -55,19 +57,22 @@ public class FournisseurController {
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
     private final AuditService auditService;
+    private final CancellationSecurityService cancellationSecurityService;
 
     public FournisseurController(
             FournisseurService service,
             FournisseurDetailsService detailsService,
             UserService userService,
             PublicIdResolutionService publicIdResolutionService,
-            AuditService auditService
+            AuditService auditService,
+            CancellationSecurityService cancellationSecurityService
     ) {
         this.service = service;
         this.detailsService = detailsService;
         this.userService = userService;
         this.publicIdResolutionService = publicIdResolutionService;
         this.auditService = auditService;
+        this.cancellationSecurityService = cancellationSecurityService;
     }
 
     @GetMapping
@@ -424,8 +429,9 @@ public class FournisseurController {
     }
 
     @PutMapping("/{id}/payments/{paymentId}/cancel")
-    public ResponseEntity<Void> cancelPayment(@PathVariable String id, @PathVariable Long paymentId, Principal principal) {
+    public ResponseEntity<Void> cancelPayment(@PathVariable String id, @PathVariable Long paymentId, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User user = getCurrentUser(principal);
+        String reason = cancellationSecurityService.requirePinAndReason(user, payload.pin(), payload.reason());
         Long internalId = publicIdResolutionService.requireFournisseurOwnedBy(id, user).getId();
         if (!detailsService.deletePayment(internalId, paymentId, user)) {
             throw new NotFoundException("Paiement introuvable");
@@ -434,7 +440,7 @@ public class FournisseurController {
                 AuditEventType.SUPPLIER_PAYMENT_CANCEL,
                 "SUPPLIER",
                 String.valueOf(internalId),
-                "Paiement fournisseur annulé"
+                "Paiement fournisseur annulé. Motif: " + reason
         );
         return ResponseEntity.noContent().build();
     }

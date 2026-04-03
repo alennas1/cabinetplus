@@ -57,8 +57,8 @@ export const updateProtheticsStatus = async (id, status) => {
 /**
  * Cancel a prothesis record (kept for audit/logging and read-only history in patient dossier)
  */
-export const cancelProthetics = async (id) => {
-  const response = await api.put(`${BASE_URL}/${id}/cancel`);
+export const cancelProthetics = async (id, { pin, reason } = {}) => {
+  const response = await api.put(`${BASE_URL}/${id}/cancel`, { pin, reason });
   return response.data;
 };
 

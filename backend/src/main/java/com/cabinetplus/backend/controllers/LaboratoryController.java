@@ -27,12 +27,18 @@ public class LaboratoryController {
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
     private final AuditService auditService;
+    private final CancellationSecurityService cancellationSecurityService;
 
-    public LaboratoryController(LaboratoryService service, UserService userService, PublicIdResolutionService publicIdResolutionService, AuditService auditService) {
+    public LaboratoryController(LaboratoryService service,
+                                UserService userService,
+                                PublicIdResolutionService publicIdResolutionService,
+                                AuditService auditService,
+                                CancellationSecurityService cancellationSecurityService) {
         this.service = service;
         this.userService = userService;
         this.publicIdResolutionService = publicIdResolutionService;
         this.auditService = auditService;
+        this.cancellationSecurityService = cancellationSecurityService;
     }
 
     @GetMapping
@@ -437,8 +443,9 @@ public class LaboratoryController {
     }
 
     @PutMapping("/{id}/payments/{paymentId}/cancel")
-    public ResponseEntity<Void> cancelPayment(@PathVariable String id, @PathVariable Long paymentId, Principal principal) {
+    public ResponseEntity<Void> cancelPayment(@PathVariable String id, @PathVariable Long paymentId, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User user = getCurrentUser(principal);
+        String reason = cancellationSecurityService.requirePinAndReason(user, payload.pin(), payload.reason());
         Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
         Laboratory laboratory = service.findByIdAndUser(internalLabId, user).orElse(null);
         if (laboratory == null) {
@@ -452,7 +459,7 @@ public class LaboratoryController {
                 AuditEventType.LAB_PAYMENT_CANCEL,
                 "LABORATORY",
                 String.valueOf(internalLabId),
-                "Paiement laboratoire annulé"
+                "Paiement laboratoire annulé. Motif: " + reason
         );
         return ResponseEntity.noContent().build();
     }

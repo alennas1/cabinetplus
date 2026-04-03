@@ -21,7 +21,6 @@ import org.springframework.core.env.Environment;
 import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
 import com.cabinetplus.backend.dto.EmployeeWorkingHoursDTO;
-import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
@@ -55,7 +54,7 @@ public class EmployeeService {
     public EmployeeResponseDTO saveEmployee(EmployeeRequestDTO dto, User dentist) {
         String normalizedPhone = normalizePhone(dto.getPhone());
         assertDatesCoherent(dto.getHireDate(), dto.getEndDate());
-        planLimitService.assertEmployeeRoleAllowed(dentist, dto.getAccessRole());
+        planLimitService.assertEmployeeLimitNotReached(dentist);
         assertPhoneUnique(normalizedPhone, null);
         assertEmployeePhoneVerified(normalizedPhone, dto.getPhoneVerificationCode());
         User linkedUser = createLinkedUser(dentist, dto, normalizedPhone);
@@ -116,7 +115,6 @@ public class EmployeeService {
         }
 
         User linkedUser = existing.getUser();
-        ClinicAccessRole previousRole = linkedUser != null ? linkedUser.getClinicAccessRole() : null;
         Long linkedUserId = linkedUser != null ? linkedUser.getId() : null;
         String normalizedPhone = normalizePhone(dto.getPhone());
         assertDatesCoherent(dto.getHireDate(), dto.getEndDate());
@@ -136,21 +134,12 @@ public class EmployeeService {
         }
 
         assertPhoneUnique(normalizedPhone, linkedUserId);
-        ClinicAccessRole nextRole = dto.getAccessRole() != null ? dto.getAccessRole() : previousRole;
-        if (roleCategoryChanged(previousRole, nextRole)) {
-            planLimitService.assertEmployeeRoleAllowed(dentist, nextRole);
-        }
 
-        if (linkedUser == null && (hasText(dto.getPassword()) || dto.getAccessRole() != null)) {
+        if (linkedUser == null && hasText(dto.getPassword())) {
             assertEmployeePhoneVerified(normalizedPhone, dto.getPhoneVerificationCode());
             linkedUser = createLinkedUser(dentist, dto, normalizedPhone);
             existing.setUser(linkedUser);
         } else if (linkedUser != null) {
-            if (dto.getAccessRole() != null) {
-                validateStaffRole(dto.getAccessRole());
-                linkedUser.setClinicAccessRole(dto.getAccessRole());
-            }
-
             if (hasText(dto.getPassword())) {
                 linkedUser.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
             }
@@ -298,7 +287,7 @@ public class EmployeeService {
             }
         }
 
-        String property = order != null ? String.valueOf(order.getProperty() || "").trim() : "";
+        String property = (order != null && order.getProperty() != null) ? order.getProperty().trim() : "";
         boolean desc = order != null && order.getDirection() != null && order.getDirection().isDescending();
 
         Comparator<Employee> primary = switch (property) {
@@ -306,7 +295,6 @@ public class EmployeeService {
             case "lastName" -> Comparator.comparing(e -> safeLower(e == null ? null : e.getLastName()), stringComparator(desc));
             case "phone" -> Comparator.comparing(e -> safeLower(e == null ? null : e.getPhone()), stringComparator(desc));
             case "status" -> Comparator.comparing(e -> safeEnumName(e == null ? null : e.getStatus()), stringComparator(desc));
-            case "accessRole" -> Comparator.comparing(EmployeeService::getClinicAccessRoleName, stringComparator(desc));
             case "createdAt" -> Comparator.comparing(e -> e == null ? null : e.getCreatedAt(), dateTimeComparator(desc));
             default -> Comparator.comparing((Employee e) -> e == null ? null : e.getCreatedAt(), dateTimeComparator(true));
         };
@@ -330,13 +318,6 @@ public class EmployeeService {
 
     private static String safeEnumName(Enum<?> value) {
         return value == null ? "" : value.name();
-    }
-
-    private static String getClinicAccessRoleName(Employee employee) {
-        if (employee == null) return "";
-        User user = employee.getUser();
-        ClinicAccessRole role = user != null ? user.getClinicAccessRole() : null;
-        return role == null ? "" : role.name();
     }
 
     // --- Get by ID ---
@@ -412,7 +393,6 @@ public class EmployeeService {
                 .recordStatus(employee.getRecordStatus())
                 .archivedAt(employee.getArchivedAt())
                 .userId(employee.getUser() != null ? employee.getUser().getId() : null)
-                .accessRole(employee.getUser() != null ? employee.getUser().getClinicAccessRole() : null)
                 .workingHours(schedules)
                 .build();
     }
@@ -421,16 +401,10 @@ public class EmployeeService {
         if (!hasText(dto.getPassword())) {
             throw new BadRequestException(java.util.Map.of("password", "Mot de passe obligatoire"));
         }
-        if (dto.getAccessRole() == null) {
-            throw new BadRequestException(java.util.Map.of("accessRole", "Role d'acces obligatoire"));
-        }
-
-        validateStaffRole(dto.getAccessRole());
 
         User user = new User();
         user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
-        user.setRole(UserRole.DENTIST);
-        user.setClinicAccessRole(dto.getAccessRole());
+        user.setRole(UserRole.EMPLOYEE);
         user.setOwnerDentist(ownerDentist);
         user.setFirstname(dto.getFirstName());
         user.setLastname(dto.getLastName());
@@ -498,12 +472,6 @@ public class EmployeeService {
         return PhoneNumberUtil.canonicalAlgeriaForStorage(phone);
     }
 
-    private void validateStaffRole(ClinicAccessRole role) {
-        if (role == ClinicAccessRole.DENTIST) {
-            throw new BadRequestException(java.util.Map.of("accessRole", "Le role DENTIST est reserve au proprietaire"));
-        }
-    }
-
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
@@ -514,12 +482,5 @@ public class EmployeeService {
         }
     }
 
-    private boolean roleCategoryChanged(ClinicAccessRole previousRole, ClinicAccessRole nextRole) {
-        return isDentistCategory(previousRole) != isDentistCategory(nextRole);
-    }
-
-    private boolean isDentistCategory(ClinicAccessRole role) {
-        return role == ClinicAccessRole.PARTNER_DENTIST;
-    }
 }
 

@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
-import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserPlanStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
@@ -34,12 +33,7 @@ public class UserService {
         if (user.getCreatedAt() == null) {
             user.setCreatedAt(LocalDateTime.now());
         }
-        if (user.getPlanStatus() == null) {
-            user.setPlanStatus(UserPlanStatus.PENDING);
-        }
-        if (user.isCanDeleteAdmin() == false) {
-            user.setCanDeleteAdmin(false);
-        }
+        if (!user.isCanDeleteAdmin()) user.setCanDeleteAdmin(false);
         return userRepository.save(user);
     }
 
@@ -73,18 +67,15 @@ public class UserService {
 
     public User resolveClinicOwner(User user) {
         if (user == null) return null;
-        if (user.getRole() != UserRole.DENTIST) return user;
-
-        ClinicAccessRole clinicRole = user.getClinicAccessRole();
-        if (clinicRole != null && clinicRole != ClinicAccessRole.DENTIST && user.getOwnerDentist() != null) {
+        if (user.getOwnerDentist() != null && (user.getRole() == UserRole.EMPLOYEE || user.getRole() == UserRole.DENTIST)) {
             return user.getOwnerDentist();
         }
         return user;
     }
 
     public boolean isOwnerDentist(User user) {
-        if (user == null || user.getRole() != UserRole.DENTIST) return false;
-        return user.getClinicAccessRole() == null || user.getClinicAccessRole() == ClinicAccessRole.DENTIST;
+        if (user == null) return false;
+        return user.getRole() == UserRole.DENTIST && user.getOwnerDentist() == null;
     }
 
     // ===============================
@@ -121,7 +112,6 @@ public class UserService {
 
         newAdmin.setRole(UserRole.ADMIN);
         if (newAdmin.getCreatedAt() == null) newAdmin.setCreatedAt(LocalDateTime.now());
-        if (newAdmin.getPlanStatus() == null) newAdmin.setPlanStatus(UserPlanStatus.PENDING);
         if (!newAdmin.isCanDeleteAdmin()) newAdmin.setCanDeleteAdmin(false);
         if (newAdmin.getFirstname() == null) newAdmin.setFirstname("");
         if (newAdmin.getLastname() == null) newAdmin.setLastname("");
@@ -161,12 +151,9 @@ public class UserService {
             throw new BadRequestException(java.util.Map.of("phoneNumber", "Ce numero de telephone est deja utilise"));
         }
 
-        // Clinic scoping invariant: staff dentist accounts must be attached to an owner dentist.
-        if (user.getRole() == UserRole.DENTIST) {
-            ClinicAccessRole role = user.getClinicAccessRole();
-            if (role != null && role != ClinicAccessRole.DENTIST && user.getOwnerDentist() == null) {
-                throw new BadRequestException(java.util.Map.of("ownerDentist", "Le compte staff doit etre lie au proprietaire"));
-            }
+        // Clinic scoping invariant: employee accounts must be attached to an owner dentist.
+        if (user.getRole() == UserRole.EMPLOYEE && user.getOwnerDentist() == null) {
+            throw new BadRequestException(java.util.Map.of("ownerDentist", "Le compte employe doit etre lie au proprietaire"));
         }
     }
 }

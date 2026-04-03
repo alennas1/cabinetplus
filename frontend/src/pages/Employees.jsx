@@ -30,27 +30,6 @@ import {
 } from "../services/employeeService";
 import "./Patients.css"; // reuse same CSS as Patients
 
-const EMPLOYEE_ROLE_OPTIONS = [
-  {
-    value: "RECEPTION",
-    title: "Accueil et administration",
-    accessLabel: "Reception",
-    description: "Acces accueil, rendez-vous, patients et operations administratives du cabinet.",
-  },
-  {
-    value: "ASSISTANT",
-    title: "Assistance cabinet",
-    accessLabel: "Assistant",
-    description: "Acces assistance cabinet, suivi patient et outils utiles au fauteuil.",
-  },
-  {
-    value: "PARTNER_DENTIST",
-    title: "Acces cabinet et suivi complet",
-    accessLabel: "Dentiste partenaire",
-    description: "Acces dentiste collaborateur avec droits elargis sur les actes et le suivi du cabinet.",
-  },
-];
-
 const Employees = ({ view = "active" }) => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
@@ -87,10 +66,9 @@ const Employees = ({ view = "active" }) => {
     salary: "",
     contractType: "",
     password: "",
-    accessRole: "RECEPTION",
   });
   const [isEditing, setIsEditing] = useState(false);
-  const [formStep, setFormStep] = useState(0);
+  const [formStep, setFormStep] = useState(1);
 
   // Delete Confirmation State
   const [showConfirm, setShowConfirm] = useState(false);
@@ -98,13 +76,6 @@ const Employees = ({ view = "active" }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
-
-  const getRoleOption = (roleValue) =>
-    EMPLOYEE_ROLE_OPTIONS.find((roleOption) => roleOption.value === roleValue);
-
-  const getRoleLabel = (roleValue) => getRoleOption(roleValue)?.title || "—";
-  const getRoleAccessLabel = (roleValue) =>
-    getRoleOption(roleValue)?.accessLabel || roleValue || "—";
 
   const fetchEmployees = async () => {
     try {
@@ -220,7 +191,6 @@ const Employees = ({ view = "active" }) => {
       salary: formData.salary ? Number(formData.salary) : null,
       contractType: formData.contractType,
       password: formData.password || null,
-      accessRole: formData.accessRole || "RECEPTION",
     };
 
     try {
@@ -235,7 +205,7 @@ const Employees = ({ view = "active" }) => {
         toast.success("Employé ajouté");
       }
       setShowModal(false);
-      setFormStep(0);
+      setFormStep(1);
       resetForm();
       setFieldErrors({});
     } catch (err) {
@@ -304,7 +274,6 @@ const Employees = ({ view = "active" }) => {
       salary: "",
       contractType: "",
       password: "",
-      accessRole: "RECEPTION",
     });
     setIsEditing(false);
     setFieldErrors({});
@@ -312,7 +281,7 @@ const Employees = ({ view = "active" }) => {
 
   const closeModal = () => {
     setShowModal(false);
-    setFormStep(0);
+    setFormStep(1);
     resetForm();
   };
 
@@ -367,7 +336,7 @@ const Employees = ({ view = "active" }) => {
                   resetForm();
                   setFieldErrors({});
                   setIsEditing(false);
-                  setFormStep(0);
+                  setFormStep(1);
                   setShowModal(true);
                 }}
               >
@@ -386,7 +355,7 @@ const Employees = ({ view = "active" }) => {
             <SortableTh label="Prénom" sortKey="firstName" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Nom" sortKey="lastName" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Téléphone" sortKey="phone" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Rôle" sortKey="role" sortConfig={sortConfig} onSort={handleSort} />
+            <th>Rôle</th>
             <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
@@ -398,7 +367,7 @@ const Employees = ({ view = "active" }) => {
               <td>{emp.lastName || "—"}</td>
               <td>{formatPhoneNumber(emp.phone) || "—"}</td>
 	              <td>
-	                <span className="employee-role-card-access">{getRoleAccessLabel(emp.accessRole)}</span>
+	                <span className="employee-role-card-access">Employe</span>
 	              </td>
               <td>
                 <span className={`status-badge ${emp.status?.toLowerCase() || "default"}`}>
@@ -476,10 +445,11 @@ const Employees = ({ view = "active" }) => {
 
             <div className="employee-modal-stepper">
               {(() => {
-                const totalSteps = isEditing ? 4 : 5;
-                const currentStep = isEditing ? formStep : formStep + 1;
-                const stepTitles = ["Rôle", "Informations", "Identité", "Contrat", "Compte"];
-                const title = stepTitles[formStep] || "Etape";
+                const totalSteps = 4;
+                const stepTitles = ["Informations", "Identité", "Contrat", "Compte"];
+                const stepIndex = Math.min(Math.max(formStep - 1, 0), totalSteps - 1);
+                const currentStep = stepIndex + 1;
+                const title = stepTitles[stepIndex] || "Etape";
                 return (
                   <>
                     <span className="employee-modal-stepper-count">Etape {currentStep} / {totalSteps}</span>
@@ -499,33 +469,6 @@ const Employees = ({ view = "active" }) => {
               }}
               className="modal-form"
             >
-              {formStep === 0 && !isEditing && (
-                <div className="employee-role-step">
-                  <div className="employee-role-step-header">
-                    <h3>Choisir un role</h3>
-                    <p>Selectionnez le niveau d'acces avant de continuer.</p>
-                  </div>
-
-                  <div className="employee-role-grid">
-                    {EMPLOYEE_ROLE_OPTIONS.map((roleOption) => (
-                      <button
-                        key={roleOption.value}
-                        type="button"
-                        className="employee-role-card"
-                        onClick={() => {
-                          setFormData((prev) => ({ ...prev, accessRole: roleOption.value }));
-                          setFormStep(1);
-                        }}
-                      >
-                        <span className="employee-role-card-title">{roleOption.title}</span>
-                        <span className="employee-role-card-access">{roleOption.accessLabel}</span>
-                        <p>{roleOption.description}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {formStep === 1 && (
                 <>
                   <span className="field-label">Prénom</span>
@@ -640,15 +583,6 @@ const Employees = ({ view = "active" }) => {
 
               {formStep === 3 && (
                 <>
-                  <div className="employee-role-summary">
-                    <span className="employee-role-summary-label">Role selectionne</span>
-                    <strong>
-                      {getRoleLabel(formData.accessRole)}
-                    </strong>
-                    <span className="employee-role-summary-access">
-                      {getRoleOption(formData.accessRole)?.accessLabel}
-                    </span>
-                  </div>
                   <span className="field-label">Date embauche</span>
                   <DateInput name="hireDate" value={formData.hireDate || ""} onChange={handleChange} />
                   <span className="field-label">Date fin</span>
@@ -712,7 +646,7 @@ const Employees = ({ view = "active" }) => {
               )}
 
               <div className="modal-actions">
-                {formStep > (isEditing ? 1 : 0) && (
+                {formStep > 1 && (
                   <button
                     type="button"
                     className="btn-cancel"

@@ -32,6 +32,7 @@ public class ProtheticsController {
     private final AuditService auditService;
     private final ProthesisRepository prothesisRepository;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final CancellationSecurityService cancellationSecurityService;
 
     // --- MERGED GET ALL METHOD ---
     @GetMapping
@@ -262,8 +263,9 @@ public class ProtheticsController {
     }
 
     @PutMapping("/{id}/cancel")
-    public ResponseEntity<ProthesisResponse> cancel(@PathVariable Long id, Principal principal) {
+    public ResponseEntity<ProthesisResponse> cancel(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User user = getCurrentUser(principal);
+        String reason = cancellationSecurityService.requirePinAndReason(user, payload.pin(), payload.reason());
 
         Prothesis existing = prothesisRepository.findById(id)
                 .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
@@ -280,7 +282,7 @@ public class ProtheticsController {
                 AuditEventType.PROTHESIS_CANCEL,
                 "PATIENT",
                 refreshed.getPatient() != null ? String.valueOf(refreshed.getPatient().getId()) : null,
-                acte != null && !acte.isBlank() ? ("Prothese annulee : " + acte) : "Prothese annulee"
+                (acte != null && !acte.isBlank() ? ("Prothèse annulée : " + acte) : "Prothèse annulée") + ". Motif: " + reason
         );
 
         return ResponseEntity.ok(mapToResponse(refreshed));

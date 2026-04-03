@@ -19,6 +19,7 @@ import "react-toastify/dist/ReactToastify.css";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
 import FieldError from "../components/FieldError";
+import CancelWithPinModal from "../components/CancelWithPinModal";
 import {
   addLaboratoryPayment,
   cancelLaboratoryPayment,
@@ -704,7 +705,7 @@ const LaboratoryDetails = () => {
     setShowPaymentDeleteConfirm(true);
   };
 
-  const confirmDeletePayment = async () => {
+  const confirmDeletePayment = async ({ pin, reason }) => {
     const paymentId = paymentIdToDelete;
     setShowPaymentDeleteConfirm(false);
     setPaymentIdToDelete(null);
@@ -715,7 +716,7 @@ const LaboratoryDetails = () => {
         return;
       }
       if (paymentId === null || paymentId === undefined) return;
-      await cancelLaboratoryPayment(id, paymentId);
+      await cancelLaboratoryPayment(id, paymentId, { pin, reason });
       await loadLaboratory({ silent: true });
       toast.success("Paiement annulé");
       setPaymentPage(1);
@@ -997,7 +998,19 @@ const LaboratoryDetails = () => {
         </div>
       )}
 
-      {showPaymentDeleteConfirm && (
+      <CancelWithPinModal
+        open={showPaymentDeleteConfirm && paymentIdToDelete != null}
+        title="Annuler le paiement ?"
+        subtitle="Motif + PIN requis. Le paiement restera visible dans l'historique mais ne sera plus comptabilisé."
+        confirmLabel="Annuler paiement"
+        onClose={() => {
+          setShowPaymentDeleteConfirm(false);
+          setPaymentIdToDelete(null);
+        }}
+        onConfirm={confirmDeletePayment}
+      />
+
+      {false && showPaymentDeleteConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]">
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200">
             <h2 className="text-lg font-semibold text-gray-800 mb-2">Annuler le paiement ?</h2>

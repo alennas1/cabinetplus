@@ -349,3 +349,22 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 039-add-employee-role
+      author: cabinetplus
+      validCheckSum: 9:198fe776925ce053addf0e4bd597f733
+      changes:
+        - sqlFile:
+            path: 039-add-employee-role.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 040-split-dentist-profile-and-subscription
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 040-split-dentist-profile-and-subscription.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

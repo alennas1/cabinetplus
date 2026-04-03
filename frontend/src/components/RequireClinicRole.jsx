@@ -9,9 +9,7 @@ const RequireClinicRole = ({ allowedClinicRoles = [] }) => {
   const clinicRole = getClinicRole(user);
   if (!clinicRole || !allowedClinicRoles.includes(clinicRole)) {
     if (user?.role === "ADMIN") return <Navigate to="/admin-dashboard" replace />;
-    const target = [CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST].includes(clinicRole)
-      ? "/dashboard"
-      : "/appointments";
+    const target = clinicRole === CLINIC_ROLES.DENTIST ? "/dashboard" : "/appointments";
     return <Navigate to={target} replace />;
   }
   return <Outlet />;

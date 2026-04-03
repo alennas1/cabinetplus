@@ -272,9 +272,6 @@ public class UserController {
 
         UserRole role = UserRole.valueOf(request.role().trim().toUpperCase());
         user.setRole(role);
-        if (role == UserRole.ADMIN) {
-            user.setClinicAccessRole(null);
-        }
 
         user.setPhoneVerified(false);
         user.setCreatedAt(LocalDateTime.now());
@@ -431,7 +428,7 @@ public class UserController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
         User owner = userService.resolveClinicOwner(user);
         auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(owner.getId()), "Usage plan consulte");
-        return planLimitService.getPlanUsage(owner);
+        return planLimitService.getUsage(owner);
     }
 
     @GetMapping("/me/subscription-summary")
@@ -465,8 +462,8 @@ public class UserController {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
-        if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
-            throw new AccessDeniedException("Les comptes employes heritent le plan du proprietaire");
+        if (!userService.isOwnerDentist(user)) {
+            throw new AccessDeniedException("Seul le proprietaire du cabinet peut activer un abonnement");
         }
 
         User owner = userService.resolveClinicOwner(user);
@@ -730,7 +727,7 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
-        if (user.getRole() == UserRole.DENTIST && !userService.isOwnerDentist(user)) {
+        if (!userService.isOwnerDentist(user)) {
             throw new AccessDeniedException("Les comptes employes heritent le plan du proprietaire");
         }
 
@@ -840,7 +837,6 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
         newAdmin.setCanDeleteAdmin(requestedSuperAdmin);
 
         newAdmin.setRole(UserRole.ADMIN);
-        newAdmin.setClinicAccessRole(null);
         newAdmin.setCreatedAt(LocalDateTime.now());
         newAdmin.setPlanStatus(UserPlanStatus.PENDING);
         newAdmin.setPhoneVerified(false);

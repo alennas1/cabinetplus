@@ -90,16 +90,21 @@ public class SecurityConfig {
                     "/admin/**"
                 ).hasRole("ADMIN")
 
-                // 3. SHARED PROTECTED ENDPOINTS (DENTIST & ADMIN)
+                // 3. SHARED PROTECTED ENDPOINTS
+                .requestMatchers("/api/users/me/**").hasAnyRole("DENTIST", "ADMIN", "EMPLOYEE")
+
+                // Dentist-only operational endpoints
+                .requestMatchers("/api/employees/**").hasRole("DENTIST")
+
+                // Dentist & Admin payments
                 .requestMatchers(
                     "/api/hand-payments/create",
                     "/api/hand-payments/create-no-password",
-                    "/api/hand-payments/my-payments",
-                    "/api/users/me/**"
+                    "/api/hand-payments/my-payments"
                 ).hasAnyRole("DENTIST", "ADMIN")
 
                 // 4. GENERAL API PROTECTION
-                .requestMatchers("/api/**").hasAnyRole("DENTIST", "ADMIN")
+                .requestMatchers("/api/**").hasAnyRole("DENTIST", "ADMIN", "EMPLOYEE")
 
                 .anyRequest().authenticated()
             )

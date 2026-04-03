@@ -2,8 +2,6 @@ package com.cabinetplus.backend.dto;
 
 import java.time.LocalDate;
 
-import com.cabinetplus.backend.enums.ClinicAccessRole;
-
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -66,7 +64,4 @@ public class EmployeeRequestDTO {
 
     @Size(min = 8, max = 72, message = "Le mot de passe doit contenir entre 8 et 72 caracteres")
     private String password;
-
-    @NotNull(message = "Le role d'acces est obligatoire")
-    private ClinicAccessRole accessRole;
 }

@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.cabinetplus.backend.enums.ClinicAccessRole;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.User;
 
@@ -45,25 +45,5 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Optional<Employee> findByPublicIdAndDentist(UUID publicId, User dentist);
     Optional<Employee> findByUser(User user);
 
-    @Query("""
-            select count(e) from Employee e
-            where e.dentist = :dentist
-            and e.archivedAt is null
-            and e.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
-            and e.user is not null
-            and e.user.clinicAccessRole = :role
-            """)
-    long countByDentistAndClinicRole(@Param("dentist") User dentist, @Param("role") ClinicAccessRole role);
-
-    @Query("""
-            select count(e) from Employee e
-            where e.dentist = :dentist
-            and e.archivedAt is null
-            and e.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
-            and (e.user is null or e.user.clinicAccessRole <> :partnerRole)
-            """)
-    long countStaffByDentist(@Param("dentist") User dentist, @Param("partnerRole") ClinicAccessRole partnerRole);
-
-    long countByDentistAndArchivedAtIsNullAndRecordStatusAndUserIsNull(User dentist,
-                                                                       com.cabinetplus.backend.enums.RecordStatus recordStatus);
+    long countByDentistAndArchivedAtIsNullAndRecordStatus(User dentist, RecordStatus recordStatus);
 }

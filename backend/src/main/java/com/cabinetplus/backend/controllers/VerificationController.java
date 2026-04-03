@@ -23,7 +23,6 @@ import com.cabinetplus.backend.dto.EmployeePhoneVerificationSendRequest;
 import com.cabinetplus.backend.dto.PhoneChangeConfirmRequest;
 import com.cabinetplus.backend.dto.PhoneChangeSendRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
-import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.BadGatewayException;
@@ -440,10 +439,7 @@ public class VerificationController {
 
     private boolean isClinicOwner(User user) {
         if (user == null) return false;
-        if (user.getRole() != UserRole.DENTIST) return false;
-        if (user.getOwnerDentist() != null) return false;
-        ClinicAccessRole role = user.getClinicAccessRole();
-        return role == null || role == ClinicAccessRole.DENTIST;
+        return user.getRole() == UserRole.DENTIST && user.getOwnerDentist() == null;
     }
 
     private String formatPhoneNumber(String number) {

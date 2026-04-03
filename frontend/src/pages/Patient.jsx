@@ -8,6 +8,7 @@ import ToothGraph from "./ToothGraph";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
+import CancelWithPinModal from "../components/CancelWithPinModal";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { downloadPatientFiche, getPublicPatientFicheLink } from "../services/patientService";
 import { getPatientById, updatePatient } from "../services/patientService";
@@ -716,26 +717,30 @@ const handleEditProthesis = (p) => {
   setProthesisFieldErrors({});
   setShowProthesisModal(true);
 };
-const handleCancelAppointment = async (a) => {
+const handleCancelAppointment = (a) => {
   if (busyAppointmentStatusId === a.id) return;
   if (!assertPatientEditable()) return;
-  // Optionnel : Ajouter une confirmation simple
-  if (!window.confirm("Voulez-vous vraiment annuler ce rendez-vous ?")) return;
 
-  try {
-    setBusyAppointmentStatusId(a.id);
-    await cancelAppointment(a.id);
-    setAppointments((prev) =>
-      prev.map((ap) => (ap.id === a.id ? { ...ap, status: "CANCELLED" } : ap))
-    );
-    bumpTabReload("appointments");
-    toast.info("Rendez-vous annulé");
-  } catch (err) {
-    console.error(err);
-    toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du rendez-vous"));
-  } finally {
-    setBusyAppointmentStatusId(null);
-  }
+  openCancelWithPin({
+    title: "Annuler le rendez-vous ?",
+    subtitle: "Motif + PIN requis pour annuler ce rendez-vous.",
+    action: async ({ pin, reason }) => {
+      try {
+        setBusyAppointmentStatusId(a.id);
+        await cancelAppointment(a.id, { pin, reason });
+        setAppointments((prev) =>
+          prev.map((ap) => (ap.id === a.id ? { ...ap, status: "CANCELLED" } : ap))
+        );
+        bumpTabReload("appointments");
+        toast.info("Rendez-vous annulé");
+      } catch (err) {
+        console.error(err);
+        toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du rendez-vous"));
+      } finally {
+        setBusyAppointmentStatusId(null);
+      }
+    },
+  });
 };
 const handleCompleteAppointment = async (a) => {
   if (busyAppointmentStatusId === a.id) return;
@@ -1334,21 +1339,21 @@ const getNextProthesisStatus = (currentStatus) => {
   // Use a local constant to "lock" the ID for the async call
   const idToCancel = prothesis.id;
 
-  setConfirmMessage(`Voulez-vous vraiment annuler la prothèse : ${prothesis.prothesisName} ?`);
-  
-  setOnConfirmAction(() => async () => {
-    try {
-      const cancelled = await cancelProthetics(idToCancel);
-      setProtheses((prev) => prev.map((p) => (p.id === cancelled.id ? cancelled : p)));
-      bumpTabReload("protheses");
-      toast.info("Prothèse annulée");
-    } catch (err) {
-      console.error("Cancel Error:", err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
-    }
+  openCancelWithPin({
+    title: "Annuler la prothèse ?",
+    subtitle: `Motif + PIN requis pour annuler la prothèse : ${prothesis.prothesisName || "—"}.`,
+    action: async ({ pin, reason }) => {
+      try {
+        const cancelled = await cancelProthetics(idToCancel, { pin, reason });
+        setProtheses((prev) => prev.map((p) => (p.id === cancelled.id ? cancelled : p)));
+        bumpTabReload("protheses");
+        toast.info("Prothèse annulée");
+      } catch (err) {
+        console.error("Cancel Error:", err);
+        toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
+      }
+    },
   });
-
-  setShowConfirm(true);
 };
 
 
@@ -1465,9 +1470,22 @@ const handleAssignProthesisToLab = async (e) => {
   }, []);
 
 // --- PATIENT MODAL STATE ---
-const [showConfirm, setShowConfirm] = useState(false);
-const [confirmMessage, setConfirmMessage] = useState("");
-const [onConfirmAction, setOnConfirmAction] = useState(() => () => {});
+ const [showConfirm, setShowConfirm] = useState(false);
+ const [confirmMessage, setConfirmMessage] = useState("");
+ const [onConfirmAction, setOnConfirmAction] = useState(() => () => {});
+
+ const [cancelWithPinOpen, setCancelWithPinOpen] = useState(false);
+ const [cancelWithPinBusy, setCancelWithPinBusy] = useState(false);
+ const [cancelWithPinTitle, setCancelWithPinTitle] = useState("Annulation");
+ const [cancelWithPinSubtitle, setCancelWithPinSubtitle] = useState("Motif + PIN requis.");
+ const cancelWithPinActionRef = useRef(null);
+
+ const openCancelWithPin = ({ title, subtitle, action }) => {
+   setCancelWithPinTitle(title || "Annulation");
+   setCancelWithPinSubtitle(subtitle || "Motif + PIN requis.");
+   cancelWithPinActionRef.current = action;
+   setCancelWithPinOpen(true);
+ };
 
 
 
@@ -2953,29 +2971,32 @@ const handleEditTreatment = (t) => {
 
 const handleCancelTreatment = (t) => {
   if (!assertPatientEditable()) return;
-  setConfirmMessage("Voulez-vous vraiment annuler ce traitement ?");
-  setOnConfirmAction(() => async () => {
-    try {
-      const status = String(t?.status || "PLANNED").toUpperCase();
-      if (status === "CANCELLED") {
-        toast.info("Traitement déjà annulé.");
-        return;
+
+  openCancelWithPin({
+    title: "Annuler le traitement ?",
+    subtitle: "Motif + PIN requis pour annuler ce traitement.",
+    action: async ({ pin, reason }) => {
+      try {
+        const status = String(t?.status || "PLANNED").toUpperCase();
+        if (status === "CANCELLED") {
+          toast.info("Traitement déjà annulé.");
+          return;
+        }
+
+        const cancelled = await cancelTreatment(t.id, { pin, reason });
+
+        const catalogObj = treatmentCatalog.find((tc) => tc.id === cancelled?.treatmentCatalog?.id);
+        cancelled.treatmentCatalog = catalogObj || cancelled.treatmentCatalog;
+
+        setTreatments((prev) => prev.map((tr) => (tr.id === cancelled.id ? cancelled : tr)));
+        bumpTabReload("treatments");
+        toast.info("Traitement annulé");
+      } catch (err) {
+        console.error(err);
+        toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du traitement"));
       }
-
-      const cancelled = await cancelTreatment(t.id);
-
-      const catalogObj = treatmentCatalog.find((tc) => tc.id === cancelled?.treatmentCatalog?.id);
-      cancelled.treatmentCatalog = catalogObj || cancelled.treatmentCatalog;
-
-      setTreatments((prev) => prev.map((tr) => (tr.id === cancelled.id ? cancelled : tr)));
-      bumpTabReload("treatments");
-      toast.info("Traitement annulé");
-    } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du traitement"));
-    }
+    },
   });
-  setShowConfirm(true);
 };
 
   const handleAddTreatment = () => {
@@ -3046,23 +3067,26 @@ setPayments([newPayment, ...payments]);
 const handleCancelPayment = (p) => {
   if (!assertPatientEditable()) return;
   if (isPaymentCancelled(p)) return;
-  setConfirmMessage("Voulez-vous annuler ce versement ?");
-  setOnConfirmAction(() => async () => {
-    try {
-      await cancelPayment(p.id);
-      setPayments((prev) =>
-        prev.map((pay) =>
-          pay.id === p.id ? { ...pay, recordStatus: "CANCELLED", cancelledAt: new Date().toISOString() } : pay
-        )
-      );
-      bumpTabReload("payments");
-      toast.success("Versement annulé !");
-    } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du versement"));
-    }
+
+  openCancelWithPin({
+    title: "Annuler le versement ?",
+    subtitle: "Motif + PIN requis pour annuler ce versement.",
+    action: async ({ pin, reason }) => {
+      try {
+        await cancelPayment(p.id, { pin, reason });
+        setPayments((prev) =>
+          prev.map((pay) =>
+            pay.id === p.id ? { ...pay, recordStatus: "CANCELLED", cancelledAt: new Date().toISOString() } : pay
+          )
+        );
+        bumpTabReload("payments");
+        toast.success("Versement annulé !");
+      } catch (err) {
+        console.error(err);
+        toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du versement"));
+      }
+    },
   });
-  setShowConfirm(true);
 };
 
   // ---------- APPOINTMENTS HANDLERS ----------
@@ -5703,6 +5727,37 @@ const handleCreateOrUpdateAppointment = async (e) => {
   </div>
 )}
 
+
+{cancelWithPinOpen && (
+  <CancelWithPinModal
+    open={cancelWithPinOpen}
+    busy={cancelWithPinBusy}
+    title={cancelWithPinTitle}
+    subtitle={cancelWithPinSubtitle}
+    confirmLabel="Confirmer"
+    onClose={() => {
+      if (cancelWithPinBusy) return;
+      cancelWithPinActionRef.current = null;
+      setCancelWithPinOpen(false);
+    }}
+    onConfirm={async ({ pin, reason }) => {
+      if (cancelWithPinBusy) return;
+      const action = cancelWithPinActionRef.current;
+      if (!action) {
+        setCancelWithPinOpen(false);
+        return;
+      }
+      setCancelWithPinBusy(true);
+      try {
+        await action({ pin, reason });
+      } finally {
+        setCancelWithPinBusy(false);
+        cancelWithPinActionRef.current = null;
+        setCancelWithPinOpen(false);
+      }
+    }}
+  />
+)}
 
 {showConfirm && (
   <div

@@ -1,14 +1,12 @@
 package com.cabinetplus.backend.services;
 
 import com.cabinetplus.backend.dto.PlanUsageDto;
-import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.DocumentRepository;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
-import com.cabinetplus.backend.repositories.UserRepository;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,18 +16,15 @@ public class PlanLimitService {
     private final EmployeeRepository employeeRepository;
     private final PatientRepository patientRepository;
     private final DocumentRepository documentRepository;
-    private final UserRepository userRepository;
 
     public PlanLimitService(
             EmployeeRepository employeeRepository,
             PatientRepository patientRepository,
-            DocumentRepository documentRepository,
-            UserRepository userRepository
+            DocumentRepository documentRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.patientRepository = patientRepository;
         this.documentRepository = documentRepository;
-        this.userRepository = userRepository;
     }
 
     public void assertPatientLimitNotReached(User ownerDentist) {
@@ -44,32 +39,14 @@ public class PlanLimitService {
         }
     }
 
-    public void assertEmployeeRoleAllowed(User ownerDentist, ClinicAccessRole role) {
+    public void assertEmployeeLimitNotReached(User ownerDentist) {
         Plan plan = requirePlan(ownerDentist);
-
-        if (role == ClinicAccessRole.PARTNER_DENTIST) {
-            long partnerDentistsFromUsers = userRepository.countByOwnerDentistAndClinicAccessRole(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-            long partnerDentistsFromEmployees = employeeRepository.countByDentistAndClinicRole(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-            long currentDentists = 1 + Math.max(partnerDentistsFromUsers, partnerDentistsFromEmployees);
-            Long maxDentists = normalizeLimit(plan.getMaxDentists());
-            if (maxDentists == null || maxDentists < 0) {
-                return;
-            }
-            if (currentDentists >= maxDentists) {
-                throw new IllegalArgumentException("Limite de dentistes atteinte pour votre plan");
-            }
-            return;
-        }
-
-        long staffUsers = userRepository.countByOwnerDentistAndClinicAccessRoleNot(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long staffEmployeesNoUser = employeeRepository.countByDentistAndArchivedAtIsNullAndRecordStatusAndUserIsNull(ownerDentist, RecordStatus.ACTIVE);
-        long staffFromEmployees = employeeRepository.countStaffByDentist(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long currentStaff = Math.max(staffFromEmployees, staffUsers + staffEmployeesNoUser);
+        long currentEmployees = employeeRepository.countByDentistAndArchivedAtIsNullAndRecordStatus(ownerDentist, RecordStatus.ACTIVE);
         Long maxEmployees = normalizeLimit(plan.getMaxEmployees());
         if (maxEmployees == null || maxEmployees < 0) {
             return;
         }
-        if (currentStaff >= maxEmployees) {
+        if (currentEmployees >= maxEmployees) {
             throw new IllegalArgumentException("Limite d'employes atteinte pour votre plan");
         }
     }
@@ -91,27 +68,18 @@ public class PlanLimitService {
         return documentRepository.sumFileSizeBytesByOwner(ownerDentist);
     }
 
-    public long getExistingDocumentBytes(Long documentId) {
-        if (documentId == null) return 0L;
-        return documentRepository.findFileSizeBytesById(documentId).orElse(0L);
-    }
-
-    public PlanUsageDto getPlanUsage(User ownerDentist) {
-        if (ownerDentist == null) {
-            return new PlanUsageDto(false, 0, 0, 0, 0, 0, 0, 0, 0.0);
-        }
-
-        Plan plan = ownerDentist.getPlan();
-        long partnerDentistsFromUsers = userRepository.countByOwnerDentistAndClinicAccessRole(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long partnerDentistsFromEmployees = employeeRepository.countByDentistAndClinicRole(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long dentistsUsed = 1 + Math.max(partnerDentistsFromUsers, partnerDentistsFromEmployees);
-
-        long staffUsers = userRepository.countByOwnerDentistAndClinicAccessRoleNot(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long staffEmployeesNoUser = employeeRepository.countByDentistAndArchivedAtIsNullAndRecordStatusAndUserIsNull(ownerDentist, RecordStatus.ACTIVE);
-        long staffFromEmployees = employeeRepository.countStaffByDentist(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long employeesUsed = Math.max(staffFromEmployees, staffUsers + staffEmployeesNoUser);
-        long patientsUsed = patientRepository.countByCreatedByAndArchivedAtIsNull(ownerDentist);
-        long storageUsedBytes = documentRepository.sumFileSizeBytesByOwner(ownerDentist);
+    public PlanUsageDto getUsage(User ownerDentist) {
+        Plan plan = ownerDentist != null ? ownerDentist.getPlan() : null;
+        long dentistsUsed = ownerDentist != null ? 1 : 0;
+        long employeesUsed = ownerDentist != null
+                ? employeeRepository.countByDentistAndArchivedAtIsNullAndRecordStatus(ownerDentist, RecordStatus.ACTIVE)
+                : 0;
+        long patientsUsed = ownerDentist != null
+                ? patientRepository.countByCreatedByAndArchivedAtIsNull(ownerDentist)
+                : 0;
+        long storageUsedBytes = ownerDentist != null
+                ? documentRepository.sumFileSizeBytesByOwner(ownerDentist)
+                : 0;
 
         return new PlanUsageDto(
                 plan != null,
@@ -137,14 +105,8 @@ public class PlanLimitService {
             throw new IllegalArgumentException("Le plan choisi est inactif");
         }
 
-        long partnerDentistsFromUsers = userRepository.countByOwnerDentistAndClinicAccessRole(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long partnerDentistsFromEmployees = employeeRepository.countByDentistAndClinicRole(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long dentistsUsed = 1 + Math.max(partnerDentistsFromUsers, partnerDentistsFromEmployees);
-
-        long staffUsers = userRepository.countByOwnerDentistAndClinicAccessRoleNot(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long staffEmployeesNoUser = employeeRepository.countByDentistAndArchivedAtIsNullAndRecordStatusAndUserIsNull(ownerDentist, RecordStatus.ACTIVE);
-        long staffFromEmployees = employeeRepository.countStaffByDentist(ownerDentist, ClinicAccessRole.PARTNER_DENTIST);
-        long employeesUsed = Math.max(staffFromEmployees, staffUsers + staffEmployeesNoUser);
+        long dentistsUsed = 1;
+        long employeesUsed = employeeRepository.countByDentistAndArchivedAtIsNullAndRecordStatus(ownerDentist, RecordStatus.ACTIVE);
         long patientsUsed = patientRepository.countByCreatedByAndArchivedAtIsNull(ownerDentist);
         long storageUsedBytes = documentRepository.sumFileSizeBytesByOwner(ownerDentist);
 
@@ -195,3 +157,4 @@ public class PlanLimitService {
         return value;
     }
 }
+

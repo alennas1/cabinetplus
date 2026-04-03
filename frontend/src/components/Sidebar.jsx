@@ -13,26 +13,11 @@ import {
   BookOpen,
   Layers,
   Headphones,
-  Lock,
-  Unlock
 } from "react-feather";
-import { toast } from "react-toastify";
-import { getApiErrorMessage } from "../utils/error";
 import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
-import PinCodeInput from "./PinCodeInput";
-import PasswordInput from "./PasswordInput";
-import {
-  changeGestionCabinetPin,
-  clearGestionCabinetUnlocked,
-  disableGestionCabinetPin,
-  enableGestionCabinetPin,
-  setCachedGestionCabinetPinEnabled,
-  getGestionCabinetPinStatus,
-  setGestionCabinetUnlocked,
-} from "../services/pinGuardService";
 import { listMySupportThreads } from "../services/supportService";
 
 import "./Sidebar.css";
@@ -44,46 +29,14 @@ const Sidebar = () => {
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.phoneNumber;
   const clinicRole = getClinicRole(user);
-  const canAccessAdminCore = [CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST].includes(clinicRole);
-  const canAccessDashboard = canAccessAdminCore;
-  const canAccessCatalogues = canAccessAdminCore || clinicRole === CLINIC_ROLES.ASSISTANT;
-  const canAccessProstheses = canAccessCatalogues;
+  const canAccessAdminCore = clinicRole === CLINIC_ROLES.DENTIST;
+  const canAccessDashboard = [CLINIC_ROLES.DENTIST, CLINIC_ROLES.EMPLOYEE].includes(clinicRole);
+  const canAccessCatalogues = canAccessDashboard;
+  const canAccessProstheses = canAccessDashboard;
   const showAdminGroup = canAccessAdminCore || canAccessCatalogues || canAccessProstheses;
+  const isInSupport = useMemo(() => location.pathname.startsWith("/support"), [location.pathname]);
 
-  const isInGestionCabinet = useMemo(() => location.pathname.startsWith("/gestion-cabinet"), [location.pathname]);
-
-  const [pinEnabled, setPinEnabled] = useState(false);
-  const [pinChecking, setPinChecking] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinMode, setPinMode] = useState("enable"); // enable | remove | modify
-  const [pinSubmitting, setPinSubmitting] = useState(false);
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
-
-  const [password, setPassword] = useState("");
-  const [newPin, setNewPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-
-  const refreshPinStatus = async () => {
-    try {
-      setPinChecking(true);
-      const status = await getGestionCabinetPinStatus();
-      const nextEnabled = !!status?.enabled;
-      setPinEnabled(nextEnabled);
-      setCachedGestionCabinetPinEnabled(userKey, nextEnabled);
-    } catch {
-      setPinEnabled(false);
-    } finally {
-      setPinChecking(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!userKey) return;
-    refreshPinStatus();
-    const onChanged = () => refreshPinStatus();
-    window.addEventListener("gcPinStatusChanged", onChanged);
-    return () => window.removeEventListener("gcPinStatusChanged", onChanged);
-  }, [userKey]);
 
   useEffect(() => {
     if (!userKey) return;
@@ -92,7 +45,7 @@ const Sidebar = () => {
     const fetchUnread = async () => {
       // When the user is on the Support screen, keep the badge hidden.
       // (SupportCenter will mark threads as read, but we don't want to briefly re-show stale counts.)
-      if (location.pathname.startsWith("/support")) return;
+      if (isInSupport) return;
       try {
         const data = await listMySupportThreads();
         if (cancelled) return;
@@ -103,7 +56,7 @@ const Sidebar = () => {
       }
     };
 
-    if (location.pathname.startsWith("/support")) {
+    if (isInSupport) {
       setSupportUnreadCount(0);
       return () => {
         cancelled = true;
@@ -116,104 +69,7 @@ const Sidebar = () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [userKey, location.pathname]);
-
-  const resetModal = () => {
-    setPassword("");
-    setNewPin("");
-    setConfirmPin("");
-    setPinSubmitting(false);
-  };
-
-  const openEnableModal = () => {
-    resetModal();
-    setPinMode("enable");
-    setShowPinModal(true);
-  };
-
-  const openRemoveModal = () => {
-    resetModal();
-    setPinMode("remove");
-    setShowPinModal(true);
-  };
-
-  const openModifyModal = () => {
-    resetModal();
-    setPinMode("modify");
-    setShowPinModal(true);
-  };
-
-  const validatePin = () => {
-    if (!/^\d{4}$/.test(newPin)) {
-      toast.error("Le PIN doit contenir 4 chiffres");
-      return false;
-    }
-    if (newPin !== confirmPin) {
-      toast.error("Les codes PIN ne correspondent pas");
-      return false;
-    }
-    return true;
-  };
-
-  const handleEnablePin = async () => {
-    if (pinSubmitting) return;
-    if (!password.trim()) {
-      toast.error("Entrez votre mot de passe");
-      return;
-    }
-    if (!validatePin()) return;
-    try {
-      setPinSubmitting(true);
-      await enableGestionCabinetPin(newPin, password);
-      setGestionCabinetUnlocked(userKey, 30);
-      toast.success("Gestion cabinet verrouillée");
-      setShowPinModal(false);
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Impossible d'activer le PIN"));
-    } finally {
-      setPinSubmitting(false);
-    }
-  };
-
-  const handleRemovePin = async () => {
-    if (pinSubmitting) return;
-    if (!password.trim()) {
-      toast.error("Entrez votre mot de passe");
-      return;
-    }
-    try {
-      setPinSubmitting(true);
-      await disableGestionCabinetPin(password);
-      clearGestionCabinetUnlocked(userKey);
-      toast.success("Verrou retiré");
-      setShowPinModal(false);
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Impossible de retirer le verrou"));
-    } finally {
-      setPinSubmitting(false);
-    }
-  };
-
-  const handleModifyPin = async () => {
-    if (pinSubmitting) return;
-    if (!password.trim()) {
-      toast.error("Entrez votre mot de passe");
-      return;
-    }
-    if (!validatePin()) return;
-
-    try {
-      setPinSubmitting(true);
-      await changeGestionCabinetPin(newPin, password);
-      setGestionCabinetUnlocked(userKey, 30);
-      toast.success("PIN modifié");
-      setShowPinModal(false);
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Impossible de modifier le PIN"));
-    } finally {
-      setPinSubmitting(false);
-    }
-  };
+  }, [userKey, location.pathname, isInSupport]);
 
   const handleLogout = async (e) => {
     // Safety: if this button ever ends up inside a <form>, don't submit and trigger a full page refresh.
@@ -309,43 +165,19 @@ const Sidebar = () => {
         {showAdminGroup && <li className="sidebar-group-title admin">Administration</li>}
 
         {canAccessAdminCore && <li className="admin-link">
-          <Link
-            to="/gestion-cabinet"
-            className={
-              location.pathname.startsWith("/gestion-cabinet") &&
-              !location.pathname.startsWith("/gestion-cabinet/prosthetics-tracking")
-                ? "active"
-                : ""
-            }
-          >
-            <Briefcase size={20} />
-            <span className="link-text">Gestion Cabinet</span>
-            <button
-              type="button"
-              className="gc-lock-btn"
-              title={pinEnabled ? "Retirer ou modifier le verrou" : "Verrouiller Gestion cabinet"}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (pinChecking) return;
-                if (pinEnabled) openRemoveModal();
-                else openEnableModal();
-              }}
-              style={{
-                position: "absolute",
-                right: "16px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "transparent",
-                border: "none",
-                cursor: pinChecking ? "default" : "pointer",
-                padding: 0,
-              }}
+            <Link
+              to="/gestion-cabinet"
+              className={
+                location.pathname.startsWith("/gestion-cabinet") &&
+                !location.pathname.startsWith("/gestion-cabinet/prosthetics-tracking")
+                  ? "active"
+                  : ""
+              }
             >
-              {pinEnabled ? <Lock size={18} color="#ef4444" /> : <Unlock size={18} color="#22c55e" />}
-            </button>
-          </Link>
-        </li>}
+              <Briefcase size={20} />
+              <span className="link-text">Gestion Cabinet</span>
+            </Link>
+          </li>}
 
         {canAccessCatalogues && <li className="admin-link">
           <Link
@@ -386,7 +218,7 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {showPinModal && (
+      {/* PIN management moved to Settings → Sécurité
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]" onClick={() => setShowPinModal(false)}>
           <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             {pinMode === "enable" && (
@@ -586,9 +418,9 @@ const Sidebar = () => {
                 </div>
               </>
             )}
-          </div>
         </div>
-      )}
+      </div>
+      */}
 
     </div>
   );

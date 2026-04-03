@@ -62,7 +62,7 @@ public class PrescriptionMedicationController {
 
     // ===================== GET =====================
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST') or hasRole('EMPLOYEE')")
     public List<PrescriptionMedication> getAllPrescriptionMedications(Principal principal) {
         User currentUser = getCurrentUser(principal);
         if (currentUser.getRole() != UserRole.ADMIN) {
@@ -78,7 +78,7 @@ public class PrescriptionMedicationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST') or hasRole('EMPLOYEE')")
     public PrescriptionMedication getPrescriptionMedicationById(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
         if (currentUser.getRole() == UserRole.ADMIN) {
@@ -106,7 +106,7 @@ public class PrescriptionMedicationController {
     }
 
     @GetMapping("/prescription/{prescriptionId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST') or hasRole('EMPLOYEE')")
     public List<PrescriptionMedication> getByPrescription(@PathVariable String prescriptionId, Principal principal) {
         User currentUser = getCurrentUser(principal);
         Prescription prescription = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(prescriptionId, currentUser);
@@ -121,7 +121,7 @@ public class PrescriptionMedicationController {
 
     // ===================== POST =====================
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST') or hasRole('EMPLOYEE')")
     public PrescriptionMedication createPrescriptionMedication(@Valid @RequestBody PrescriptionMedicationRequest request, Principal principal) {
         User currentUser = getCurrentUser(principal);
         User clinicOwner = userService.resolveClinicOwner(currentUser);
@@ -156,7 +156,7 @@ public class PrescriptionMedicationController {
 
     // ===================== PUT =====================
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST') or hasRole('EMPLOYEE')")
     public PrescriptionMedication updatePrescriptionMedication(@PathVariable Long id, @Valid @RequestBody PrescriptionMedicationRequest request, Principal principal) {
         User currentUser = getCurrentUser(principal);
         User clinicOwner = userService.resolveClinicOwner(currentUser);
@@ -202,7 +202,7 @@ public class PrescriptionMedicationController {
 
     // ===================== DELETE =====================
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DENTIST') or hasRole('EMPLOYEE')")
     public void deletePrescriptionMedication(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
         if (currentUser.getRole() == UserRole.ADMIN) {

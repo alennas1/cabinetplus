@@ -41,8 +41,8 @@ export const updateTreatment = async (id, treatment) => {
 /**
  * Cancel treatment by ID (kept for audit/logging and read-only history)
  */
-export const cancelTreatment = async (id) => {
-  const response = await api.put(`${BASE_URL}/${id}/cancel`);
+export const cancelTreatment = async (id, { pin, reason } = {}) => {
+  const response = await api.put(`${BASE_URL}/${id}/cancel`, { pin, reason });
   return response.data;
 };
 

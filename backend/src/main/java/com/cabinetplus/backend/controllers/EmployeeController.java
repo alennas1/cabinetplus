@@ -99,7 +99,6 @@ public class EmployeeController {
             case "firstname", "first_name", "first" -> "firstName";
             case "lastname", "last_name", "last" -> "lastName";
             case "phone", "phonenumber", "phone_number" -> "phone";
-            case "role", "accessrole", "access_role" -> "accessRole";
             case "status" -> "status";
             case "createdat", "created_at", "created" -> "createdAt";
             default -> "createdAt";
@@ -148,7 +147,6 @@ public class EmployeeController {
             case "firstname", "first_name", "first" -> "firstName";
             case "lastname", "last_name", "last" -> "lastName";
             case "phone", "phonenumber", "phone_number" -> "phone";
-            case "role", "accessrole", "access_role" -> "accessRole";
             case "status" -> "status";
             case "createdat", "created_at", "created" -> "createdAt";
             default -> "createdAt";

@@ -14,6 +14,7 @@ import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import FieldError from "../components/FieldError";
 import DateInput from "../components/DateInput";
+import CancelWithPinModal from "../components/CancelWithPinModal";
 import {
   getProtheticsPage,
   updateProtheticsStatus,
@@ -445,12 +446,12 @@ const Prosthetics = () => {
     setShowConfirmCancel(true);
   };
 
-  const confirmCancel = async () => {
+  const confirmCancel = async ({ pin, reason }) => {
     if (!prothesisToCancel || isCancellingProthesis) return;
 
     try {
       setIsCancellingProthesis(true);
-      await cancelProthetics(prothesisToCancel.id);
+      await cancelProthetics(prothesisToCancel.id, { pin, reason });
       setSelectedIds((current) => current.filter((id) => id !== prothesisToCancel.id));
       toast.success("Travail annulé");
       await loadProthesesPage();
@@ -1329,7 +1330,21 @@ const Prosthetics = () => {
         </div>
       )}
 
-      {showConfirmCancel && (
+      <CancelWithPinModal
+        open={showConfirmCancel && !!prothesisToCancel}
+        busy={isCancellingProthesis}
+        title="Annuler le travail ?"
+        subtitle="Motif + PIN requis. Le travail sera conservé dans l'historique (lecture seule)."
+        confirmLabel="Annuler"
+        onClose={() => {
+          if (isCancellingProthesis) return;
+          setShowConfirmCancel(false);
+          setProthesisToCancel(null);
+        }}
+        onConfirm={confirmCancel}
+      />
+
+      {false && showConfirmCancel && (
         <div
           className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-[9999]"
           onClick={() => setShowConfirmCancel(false)}

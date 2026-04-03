@@ -3,12 +3,14 @@ package com.cabinetplus.backend.controllers;
 import com.cabinetplus.backend.dto.PaymentRequest;
 import com.cabinetplus.backend.dto.PaymentResponse;
 import com.cabinetplus.backend.dto.PageResponse;
+import com.cabinetplus.backend.dto.CancellationRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Payment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.PaymentRepository;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.PaymentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -36,6 +38,7 @@ public class PaymentController {
     private final PaymentRepository paymentRepository;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final CancellationSecurityService cancellationSecurityService;
 
     @PostMapping("/payments")
     public ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request, Principal principal) {
@@ -150,9 +153,11 @@ public class PaymentController {
     }
 
     @PutMapping("/payments/{paymentId}/cancel")
-    public ResponseEntity<Void> cancel(@PathVariable Long paymentId, Principal principal) {
+    public ResponseEntity<Void> cancel(@PathVariable Long paymentId, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User clinicOwner = userService.resolveClinicOwner(actor);
+        String reason = cancellationSecurityService.requirePinAndReason(clinicOwner, payload.pin(), payload.reason());
         Payment existing = paymentRepository.findById(paymentId).orElse(null);
         paymentService.delete(paymentId, actor);
         auditService.logSuccess(
@@ -162,8 +167,8 @@ public class PaymentController {
                         ? String.valueOf(existing.getPatient().getId())
                         : null,
                 existing != null
-                        ? "Paiement annulé"
-                        : "Paiement annulé: #" + paymentId
+                        ? ("Paiement annulé. Motif: " + reason)
+                        : ("Paiement annulé: #" + paymentId + ". Motif: " + reason)
         );
         return ResponseEntity.noContent().build();
     }

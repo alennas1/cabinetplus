@@ -30,12 +30,6 @@ import FieldError from "../components/FieldError";
 import "./Patient.css";
 import "./Profile.css";
 
-const EMPLOYEE_ROLE_OPTIONS = [
-  { value: "RECEPTION", label: "Reception" },
-  { value: "ASSISTANT", label: "Assistant" },
-  { value: "PARTNER_DENTIST", label: "Dentiste partenaire" },
-];
-
 const EmployeeDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -148,11 +142,6 @@ const EmployeeDetails = () => {
     }
   };
 
-  const getRoleAccessLabel = (roleValue) =>
-    EMPLOYEE_ROLE_OPTIONS.find((roleOption) => roleOption.value === roleValue)?.label ||
-    roleValue ||
-    "—";
-
   const toUpdatePayload = (source, passwordValue = null) => ({
     firstName: source.firstName || "",
     lastName: source.lastName || "",
@@ -168,7 +157,6 @@ const EmployeeDetails = () => {
     salary: source.salary === "" || source.salary == null ? null : Number(source.salary),
     contractType: source.contractType || "",
     password: passwordValue,
-    accessRole: source.accessRole || "RECEPTION",
   });
 
   useEffect(() => {
@@ -528,7 +516,7 @@ const EmployeeDetails = () => {
           </div>
           <div className="patient-details">
             <div>
-              <span className="employee-role-pill">{getRoleAccessLabel(employee.accessRole)}</span>
+              <span className="employee-role-pill">Employe</span>
             </div>
             <div>{employee.contractType || "—"}</div>
             <div>{formatPhoneNumber(employee.phone) || "—"}</div>
@@ -583,16 +571,6 @@ const EmployeeDetails = () => {
               { value: "ON_LEAVE", label: "En conge" },
             ],
             translateStatus(employee.status)
-          )}
-          {renderEditableField(
-            "accessRole",
-            "Role d'acces",
-            "text",
-            [
-              { value: "RECEPTION", label: "Reception" },
-              { value: "ASSISTANT", label: "Assistant" },
-              { value: "PARTNER_DENTIST", label: "Partner Dentist" },
-            ]
           )}
         </div>
       )}

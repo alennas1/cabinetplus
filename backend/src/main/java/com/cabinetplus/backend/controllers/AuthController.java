@@ -32,7 +32,6 @@ import com.cabinetplus.backend.dto.PasswordResetSendRequest;
 import com.cabinetplus.backend.dto.RegisterRequest;
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.AuditEventType;
-import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.BadGatewayException;
@@ -470,8 +469,10 @@ private void addDeviceCookie(HttpServletResponse response, String deviceId) {
         user.setClinicName(clinicName == null || clinicName.isBlank() ? null : clinicName);
         user.setAddress(address == null || address.isBlank() ? null : address);
         UserRole role = UserRole.valueOf(request.role());
+        if (role != UserRole.DENTIST) {
+            throw new BadRequestException(Map.of("role", "Role invalide"));
+        }
         user.setRole(role);
-        user.setClinicAccessRole(role == UserRole.DENTIST ? ClinicAccessRole.DENTIST : null);
         user.setCreatedAt(LocalDateTime.now());
 
         if (bypassPhoneVerificationLocal && devProfile && isLocalRequest(httpRequest)) {
@@ -1013,10 +1014,7 @@ if (deviceId == null || deviceId.isBlank()) {
 
     private boolean isEmployeeAccount(User user) {
         if (user == null) return false;
-        if (user.getRole() != UserRole.DENTIST) return false;
-        // Any linked sub-account (or non-owner clinic role) is treated as an "employee" account for password reset.
-        if (user.getOwnerDentist() != null) return true;
-        return user.getClinicAccessRole() != null && user.getClinicAccessRole() != ClinicAccessRole.DENTIST;
+        return user.getRole() == UserRole.EMPLOYEE || user.getOwnerDentist() != null;
     }
     
 }

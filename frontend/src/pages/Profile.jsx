@@ -38,9 +38,7 @@ const Profile = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const isClinicEmployeeAccount =
-    user?.role === "DENTIST" &&
-    user?.clinicAccessRole &&
-    user.clinicAccessRole !== "DENTIST";
+    user?.role === "EMPLOYEE" || !!user?.ownerDentist || !!user?.ownerDentistId;
 
   const passwordProtectedFields = new Set(["firstname", "lastname", "clinicName", "address"]);
 

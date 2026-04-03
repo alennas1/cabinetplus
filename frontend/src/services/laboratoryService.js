@@ -76,8 +76,8 @@ export const addLaboratoryPayment = async (id, payment) => {
   return response.data;
 };
 
-export const cancelLaboratoryPayment = async (labId, paymentId) => {
-  const response = await api.put(`${BASE_URL}/${labId}/payments/${paymentId}/cancel`);
+export const cancelLaboratoryPayment = async (labId, paymentId, { pin, reason } = {}) => {
+  const response = await api.put(`${BASE_URL}/${labId}/payments/${paymentId}/cancel`, { pin, reason });
   return response.data;
 };
 

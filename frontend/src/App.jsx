@@ -210,7 +210,6 @@ const AppContent = () => {
       if (!isPlanActive) return "/plan";
       return "/dashboard";
     }
-    if (getClinicRole(user) === CLINIC_ROLES.PARTNER_DENTIST) return "/dashboard";
     return "/appointments";
   };
 
@@ -245,15 +244,15 @@ const AppContent = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/unauthorized" element={<CatchAllRedirect />} />
 
-        {/* Dentist Protected Routes */}
-        <Route element={<RequireAuth allowedRoles={["DENTIST"]} />}>
+        {/* Clinic Protected Routes (Dentist + Employee) */}
+        <Route element={<RequireAuth allowedRoles={["DENTIST", "EMPLOYEE"]} />}>
           <Route path="/verify" element={<VerificationPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/waiting" element={<WaitingPage />} />
 
           <Route element={<Layout />}>
             <Route path="/devis" element={<Devis />} />
-            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST]} />}>
+            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.EMPLOYEE]} />}>
               <Route path="/dashboard" element={<Dashboard />} />
             </Route>
 
@@ -265,7 +264,7 @@ const AppContent = () => {
             <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
             <Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
 
-            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST, CLINIC_ROLES.ASSISTANT]} />}>
+            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.EMPLOYEE]} />}>
               <Route path="/gestion-cabinet/prosthetics-tracking" element={<Prosthetics />} />
               <Route path="/catalogue" element={<Catalogue />} />
               <Route path="/catalogue/medications" element={<Medications />} />
@@ -278,7 +277,7 @@ const AppContent = () => {
               <Route path="/catalogue/allergies" element={<AllergyCatalog />} />
             </Route>
 
-            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.PARTNER_DENTIST]} />}>
+            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST]} />}>
               <Route element={<GestionCabinetPinGuard />}>
                 <Route path="/gestion-cabinet" element={<GestionCabinet />} />
                 <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />

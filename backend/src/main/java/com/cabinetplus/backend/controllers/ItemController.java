@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.CancellationRequest;
 import com.cabinetplus.backend.dto.CreateItemDTO;
 import com.cabinetplus.backend.dto.ItemDTO;
 import com.cabinetplus.backend.dto.PageResponse;
@@ -25,6 +26,7 @@ import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Item;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.ItemService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -39,6 +41,7 @@ public class ItemController {
     private final ItemService itemService;
     private final UserService userService; // to fetch User from JWT Principal
     private final AuditService auditService;
+    private final CancellationSecurityService cancellationSecurityService;
 
     @GetMapping
     public ResponseEntity<List<ItemDTO>> getAll(Principal principal) {
@@ -105,6 +108,23 @@ public ResponseEntity<ItemDTO> update(@PathVariable Long id,
      auditService.logSuccess(AuditEventType.ITEM_UPDATE, "ITEM", String.valueOf(saved.getId()), "Article modifié");
      return ResponseEntity.ok(itemService.toDTO(saved));
  }
+
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<ItemDTO> cancel(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
+        User actor = userService.findByPhoneNumber(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User clinicOwner = userService.resolveClinicOwner(actor);
+        String reason = cancellationSecurityService.requirePinAndReason(clinicOwner, payload.pin(), payload.reason());
+
+        Item cancelled = itemService.cancelItem(id, clinicOwner, actor, reason);
+        auditService.logSuccess(
+                AuditEventType.ITEM_CANCEL,
+                "ITEM",
+                String.valueOf(cancelled.getId()),
+                "Article annulÃ©. Motif: " + reason
+        );
+        return ResponseEntity.ok(itemService.toDTO(cancelled));
+    }
 
     @DeleteMapping("/{id}")
 public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {

@@ -24,7 +24,13 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
 
     long countByCreatedByAndItemDefault_Id(User user, Long itemDefaultId);
 
- @Query("SELECT SUM(i.price) FROM Item i WHERE i.createdBy = :dentist AND i.createdAt BETWEEN :start AND :end")
+    @Query("""
+             SELECT SUM(i.price)
+             FROM Item i
+             WHERE i.createdBy = :dentist
+           AND i.createdAt BETWEEN :start AND :end
+           AND (i.recordStatus IS NULL OR i.recordStatus <> com.cabinetplus.backend.enums.RecordStatus.CANCELLED)
+         """)
     Optional<Double> sumPriceByDentist(@Param("dentist") User dentist,
                                        @Param("start") LocalDateTime start,
                                        @Param("end") LocalDateTime end);
@@ -49,6 +55,135 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
             """)
     Page<Item> searchByCreatedBy(@Param("owner") User owner, @Param("q") String q, Pageable pageable);
 
-    @Query("SELECT SUM(i.price) FROM Item i WHERE i.createdBy = :dentist AND i.fournisseur.id = :fournisseurId")
+    @Query("""
+            SELECT SUM(i.price)
+            FROM Item i
+            WHERE i.createdBy = :dentist
+              AND i.fournisseur.id = :fournisseurId
+              AND (i.recordStatus IS NULL OR i.recordStatus <> com.cabinetplus.backend.enums.RecordStatus.CANCELLED)
+            """)
     Optional<Double> sumPriceByFournisseur(@Param("dentist") User dentist, @Param("fournisseurId") Long fournisseurId);
+
+    @Query(
+            value = """
+                select
+                    entries.reference_id,
+                    entries.source,
+                    entries.label,
+                    entries.amount,
+                    entries.billing_date,
+                    entries.created_by_name
+                from (
+                    select
+                        i.id as reference_id,
+                        'ITEM' as source,
+                        coalesce(d.name, 'Achat') as label,
+                        coalesce(i.price, 0) as amount,
+                        i.created_at as billing_date,
+                        trim(concat(coalesce(u.firstname, ''), ' ', coalesce(u.lastname, ''))) as created_by_name
+                    from public.items i
+                    join public.item_defaults d on d.id = i.item_default_id
+                    join public.users u on u.id = i.created_by
+                    where i.fournisseur_id = :fournisseurId
+                      and i.created_by = :createdById
+                      and coalesce(i.record_status, 'ACTIVE') <> 'ARCHIVED'
+
+                    union all
+
+                    select
+                        e.id as reference_id,
+                        'EXPENSE' as source,
+                        coalesce(e.title, 'Dépense') as label,
+                        coalesce(e.amount, 0) as amount,
+                        (e.date::timestamp) as billing_date,
+                        trim(concat(coalesce(u2.firstname, ''), ' ', coalesce(u2.lastname, ''))) as created_by_name
+                    from public.expenses e
+                    join public.users u2 on u2.id = e.created_by
+                    where e.fournisseur_id = :fournisseurId
+                      and e.created_by = :createdById
+                      and coalesce(e.record_status, 'ACTIVE') <> 'ARCHIVED'
+                ) entries
+                where (:fromDt is null or entries.billing_date >= :fromDt)
+                  and (:toDt is null or entries.billing_date <= :toDt)
+            """,
+            countQuery = """
+                select count(*)
+                from (
+                    select
+                        i.id as reference_id,
+                        'ITEM' as source,
+                        coalesce(d.name, 'Achat') as label,
+                        coalesce(i.price, 0) as amount,
+                        i.created_at as billing_date,
+                        trim(concat(coalesce(u.firstname, ''), ' ', coalesce(u.lastname, ''))) as created_by_name
+                    from public.items i
+                    join public.item_defaults d on d.id = i.item_default_id
+                    join public.users u on u.id = i.created_by
+                    where i.fournisseur_id = :fournisseurId
+                      and i.created_by = :createdById
+                      and coalesce(i.record_status, 'ACTIVE') <> 'ARCHIVED'
+
+                    union all
+
+                    select
+                        e.id as reference_id,
+                        'EXPENSE' as source,
+                        coalesce(e.title, 'Dépense') as label,
+                        coalesce(e.amount, 0) as amount,
+                        (e.date::timestamp) as billing_date,
+                        trim(concat(coalesce(u2.firstname, ''), ' ', coalesce(u2.lastname, ''))) as created_by_name
+                    from public.expenses e
+                    join public.users u2 on u2.id = e.created_by
+                    where e.fournisseur_id = :fournisseurId
+                      and e.created_by = :createdById
+                      and coalesce(e.record_status, 'ACTIVE') <> 'ARCHIVED'
+                ) entries
+                where (:fromDt is null or entries.billing_date >= :fromDt)
+                  and (:toDt is null or entries.billing_date <= :toDt)
+            """,
+            nativeQuery = true
+    )
+    Page<Object[]> findFournisseurBillingEntries(
+            @Param("fournisseurId") Long fournisseurId,
+            @Param("createdById") Long createdById,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt,
+            Pageable pageable
+    );
+
+    @Query(
+            value = """
+                select
+                    count(*) as total_count,
+                    coalesce(sum(entries.amount), 0) as total_amount
+                from (
+                    select
+                        coalesce(i.price, 0) as amount,
+                        i.created_at as billing_date
+                    from public.items i
+                    where i.fournisseur_id = :fournisseurId
+                      and i.created_by = :createdById
+                      and coalesce(i.record_status, 'ACTIVE') <> 'ARCHIVED'
+
+                    union all
+
+                    select
+                        coalesce(e.amount, 0) as amount,
+                        (e.date::timestamp) as billing_date
+                    from public.expenses e
+                    where e.fournisseur_id = :fournisseurId
+                      and e.created_by = :createdById
+                      and coalesce(e.record_status, 'ACTIVE') <> 'ARCHIVED'
+                ) entries
+                where (:fromDt is null or entries.billing_date >= :fromDt)
+                  and (:toDt is null or entries.billing_date <= :toDt)
+            """,
+            nativeQuery = true
+    )
+    Object[] getFournisseurBillingEntriesSummary(
+            @Param("fournisseurId") Long fournisseurId,
+            @Param("createdById") Long createdById,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt
+    );
 }

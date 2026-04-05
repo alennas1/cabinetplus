@@ -4,10 +4,8 @@ import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.enums.JustificationType;
 import com.cabinetplus.backend.enums.RecordStatus;
-import com.cabinetplus.backend.security.EncryptionConverter;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -34,12 +32,10 @@ public class Justification {
     private Long id;
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String title;
 
 
     @Column(columnDefinition = "TEXT", nullable = false)
-    @Convert(converter = EncryptionConverter.class)
     private String finalContent;
 
     private LocalDateTime date;

@@ -11,7 +11,7 @@ import {
   cancelAppointment,
   shiftAppointments,
 } from "../services/appointmentService";
-import { createPatient, getPatients } from "../services/patientService";
+import { createPatient, getPatientsByIds, getPatientsPage } from "../services/patientService";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import PatientDangerIcon from "../components/PatientDangerIcon";
@@ -90,6 +90,8 @@ export default function Appointments() {
   const [workingHours, setWorkingHours] = useState(() => getWorkingHoursWindow());
   const [minuteDropdownOpen, setMinuteDropdownOpen] = useState(false);
   const minuteDropdownRef = useRef(null);
+  const patientSearchTimeoutRef = useRef(null);
+  const lastPatientSearchRequestRef = useRef(0);
 
   const [activeSlotIndex, setActiveSlotIndex] = useState(null);
   const [autoAdvanceFromIndex, setAutoAdvanceFromIndex] = useState(null);
@@ -167,6 +169,49 @@ export default function Appointments() {
   const filterCancelledAppointments = (list) =>
     (Array.isArray(list) ? list : []).filter((a) => !isCancelledStatus(a.status));
 
+  const didInitialLoadRef = useRef(false);
+
+  const toLocalIsoDate = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const parseIsoDateInput = (value) => {
+    if (!value) return null;
+    const parts = String(value).split("-").map((v) => Number(v));
+    if (parts.length !== 3) return null;
+    const [y, m, d] = parts;
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+    return new Date(y, m - 1, d);
+  };
+
+  const startOfLocalDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const addDaysLocal = (date, days) => {
+    const d = startOfLocalDay(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  };
+
+  const getAppointmentsRangeParams = () => {
+    let baseDate;
+    if (selectedDate === "today") baseDate = startOfLocalDay(new Date());
+    else if (selectedDate === "tomorrow") baseDate = startOfLocalDay(addDaysLocal(new Date(), 1));
+    else if (selectedDate === "custom") baseDate = startOfLocalDay(parseIsoDateInput(customDate) || new Date());
+    else baseDate = startOfLocalDay(new Date());
+
+    if (viewMode === "week") {
+      const from = addDaysLocal(baseDate, weekOffset);
+      const to = addDaysLocal(from, 3);
+      return { from: toLocalIsoDate(from), to: toLocalIsoDate(to) };
+    }
+
+    return { from: toLocalIsoDate(baseDate), to: toLocalIsoDate(baseDate) };
+  };
+
   const handleSexChange = (e) => {
     setNewPatient({ ...newPatient, sex: e.target.value });
     if (fieldErrors.sex) setFieldErrors((prev) => ({ ...prev, sex: "" }));
@@ -176,21 +221,72 @@ export default function Appointments() {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [patientsData, appointmentsData] = await Promise.all([
-          getPatients(),
-          getAppointments(),
-        ]);
-        setPatients(patientsData);
-        setAppointments(filterCancelledAppointments(appointmentsData));
+        const { from, to } = getAppointmentsRangeParams();
+        const appointmentsData = await getAppointments({ from, to });
+        const safeAppointments = filterCancelledAppointments(appointmentsData);
+        setAppointments(safeAppointments);
+
+        const patientIds = Array.from(
+          new Set(
+            (safeAppointments || [])
+              .map((a) => a?.patient?.id ?? a?.patientId ?? null)
+              .filter((id) => id != null)
+          )
+        );
+        if (patientIds.length) {
+          const patientsData = await getPatientsByIds(patientIds);
+          setPatients(patientsData || []);
+        } else {
+          setPatients([]);
+        }
       } catch (err) {
         console.error("Error fetching appointments page data:", err);
         toast.error(getApiErrorMessage(err, "Erreur lors du chargement des rendez-vous"));
       } finally {
         setLoading(false);
+        didInitialLoadRef.current = true;
       }
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!didInitialLoadRef.current) return;
+    const loadAppointments = async () => {
+      try {
+        const { from, to } = getAppointmentsRangeParams();
+        const appointmentsData = await getAppointments({ from, to });
+        const safeAppointments = filterCancelledAppointments(appointmentsData);
+        setAppointments(safeAppointments);
+
+        const patientIds = Array.from(
+          new Set(
+            (safeAppointments || [])
+              .map((a) => a?.patient?.id ?? a?.patientId ?? null)
+              .filter((id) => id != null)
+          )
+        );
+        if (patientIds.length) {
+          const patientsData = await getPatientsByIds(patientIds);
+          setPatients((prev) => {
+            const map = new Map();
+            (prev || []).forEach((p) => {
+              if (p?.id != null) map.set(p.id, p);
+            });
+            (patientsData || []).forEach((p) => {
+              if (p?.id != null) map.set(p.id, p);
+            });
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching appointments:", err);
+        toast.error(getApiErrorMessage(err, "Erreur lors du chargement des rendez-vous"));
+      }
+    };
+    loadAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, customDate, viewMode, weekOffset]);
 
   useEffect(() => {
     const syncWorkingHours = () => setWorkingHours(getWorkingHoursWindow());
@@ -212,13 +308,41 @@ export default function Appointments() {
       setSearchResults([]);
       return;
     }
-    const results = patients.filter(
-      (p) =>
-        (p.firstname || "").toLowerCase().includes(query.toLowerCase()) ||
-        (p.lastname || "").toLowerCase().includes(query.toLowerCase()) ||
-        (p.phone && p.phone.includes(query))
-    );
-    setSearchResults(results.slice(0, 3));
+
+    if (patientSearchTimeoutRef.current) {
+      clearTimeout(patientSearchTimeoutRef.current);
+    }
+
+    const requestId = Date.now();
+    lastPatientSearchRequestRef.current = requestId;
+
+    patientSearchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await getPatientsPage({
+          page: 0,
+          size: 3,
+          q: query.trim(),
+          sortKey: "lastname",
+          sortDirection: "asc",
+        });
+        if (lastPatientSearchRequestRef.current !== requestId) return;
+
+        const items = response?.items || [];
+        setSearchResults(items);
+        setPatients((prev) => {
+          const map = new Map();
+          (prev || []).forEach((p) => {
+            if (p?.id != null) map.set(p.id, p);
+          });
+          items.forEach((p) => {
+            if (p?.id != null) map.set(p.id, p);
+          });
+          return Array.from(map.values());
+        });
+      } catch (err) {
+        console.error("Error searching patients:", err);
+      }
+    }, 250);
   };
 
  const buildSlotsForDate = (baseDate) => {
@@ -613,7 +737,8 @@ export default function Appointments() {
       await createAppointment(payload);
     }
 
-    const updated = await getAppointments();
+    const { from, to } = getAppointmentsRangeParams();
+    const updated = await getAppointments({ from, to });
     setAppointments(filterCancelledAppointments(updated));
 
     toast.success(isEditing ? "Rendez-vous modifié !" : "Rendez-vous ajouté !");
@@ -722,7 +847,8 @@ export default function Appointments() {
         workingDayEndMinutes: workingHours.endMinutes,
       });
 
-      const updated = await getAppointments();
+      const { from, to } = getAppointmentsRangeParams();
+      const updated = await getAppointments({ from, to });
       setAppointments(filterCancelledAppointments(updated));
       toast.success("Rendez-vous décalés !");
       setShowShiftModal(false);
@@ -924,7 +1050,8 @@ export default function Appointments() {
     if (appt.patient && appt.patient.firstname && appt.patient.lastname) {
       return `${appt.patient.firstname} ${appt.patient.lastname}`;
     }
-    const patient = patients.find((p) => p.id === appt.patientId);
+    const id = appt?.patient?.id ?? appt?.patientId ?? null;
+    const patient = id != null ? patientsById.get(id) : null;
     return patient ? `${patient.firstname} ${patient.lastname}` : "Inconnu";
   };
 

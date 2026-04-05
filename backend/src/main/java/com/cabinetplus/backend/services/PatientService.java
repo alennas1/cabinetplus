@@ -31,6 +31,9 @@ public class PatientService {
         if (patient.getCreatedBy() == null) {
             throw new com.cabinetplus.backend.exceptions.BadRequestException(java.util.Map.of("createdBy", "Utilisateur invalide"));
         }
+        if (patient.getUpdatedBy() == null) {
+            patient.setUpdatedBy(patient.getCreatedBy());
+        }
 
         planLimitService.assertPatientLimitNotReached(patient.getCreatedBy());
         Patient saved = patientRepository.save(patient);
@@ -38,7 +41,7 @@ public class PatientService {
     }
 
     // Update patient safely
-    public PatientDto update(Long id, Patient updatedPatient, User ownerDentist) {
+    public PatientDto update(Long id, Patient updatedPatient, User ownerDentist, User actor) {
         Patient existing = patientRepository.findByIdAndCreatedBy(id, ownerDentist)
                 .orElseThrow(() -> new RuntimeException("Patient introuvable"));
         if (existing.getArchivedAt() != null) {
@@ -57,28 +60,35 @@ public class PatientService {
         if (updatedPatient.getDiseases() != null) existing.setDiseases(updatedPatient.getDiseases());
         if (updatedPatient.getAllergies() != null) existing.setAllergies(updatedPatient.getAllergies());
 
+        existing.setUpdatedBy(actor != null ? actor : ownerDentist);
         Patient saved = patientRepository.save(existing);
         return toDto(saved);
     }
 
-    public void delete(Long id, User ownerDentist) {
+    public void delete(Long id, User ownerDentist, User actor) {
         Patient existing = patientRepository.findByIdAndCreatedBy(id, ownerDentist)
                 .orElseThrow(() -> new RuntimeException("Patient introuvable"));
         if (existing.getArchivedAt() != null) {
             throw new com.cabinetplus.backend.exceptions.BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
         }
         existing.setArchivedAt(LocalDateTime.now());
+        existing.setArchivedBy(actor != null ? actor : ownerDentist);
+        existing.setUpdatedBy(actor != null ? actor : ownerDentist);
         patientRepository.save(existing);
     }
 
+    private static String fullName(User user) {
+        if (user == null) return null;
+        String first = user.getFirstname() != null ? user.getFirstname().trim() : "";
+        String last = user.getLastname() != null ? user.getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        return combined.isBlank() ? null : combined;
+    }
+
     private PatientDto toDto(Patient patient) {
-        String createdByName = null;
-        if (patient.getCreatedBy() != null) {
-            String first = patient.getCreatedBy().getFirstname() != null ? patient.getCreatedBy().getFirstname().trim() : "";
-            String last = patient.getCreatedBy().getLastname() != null ? patient.getCreatedBy().getLastname().trim() : "";
-            String combined = (first + " " + last).trim();
-            createdByName = combined.isBlank() ? null : combined;
-        }
+        String createdByName = fullName(patient.getCreatedBy());
+        String updatedByName = fullName(patient.getUpdatedBy());
+        String archivedByName = fullName(patient.getArchivedBy());
         return new PatientDto(
                 patient.getId(),
                 patient.getPublicId(),
@@ -90,13 +100,16 @@ public class PatientService {
                 patient.getDiseases(),
                 patient.getAllergies(),
                 patient.getCreatedAt(),
+                patient.getUpdatedAt(),
                 0L,
                 0.0,
                 false,
                 false,
                 false,
                 patient.getArchivedAt(),
-                createdByName
+                createdByName,
+                updatedByName,
+                archivedByName
         );
     }
 

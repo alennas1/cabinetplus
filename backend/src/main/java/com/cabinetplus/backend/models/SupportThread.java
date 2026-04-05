@@ -2,10 +2,7 @@ package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
 
-import com.cabinetplus.backend.security.EncryptionConverter;
-
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -40,7 +37,6 @@ public class SupportThread {
     private LocalDateTime firstMessageAt;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String firstMessagePreview;
 
     private LocalDateTime lastMessageAt;
@@ -49,7 +45,6 @@ public class SupportThread {
     private LocalDateTime adminLastReadAt;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String lastMessagePreview;
 
     @PrePersist

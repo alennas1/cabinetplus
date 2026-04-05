@@ -5,15 +5,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.core.env.Environment;
@@ -229,95 +226,12 @@ public class EmployeeService {
 
     public Page<Employee> searchEmployeesForDentist(User dentist, String q, Pageable pageable) {
         String safeQ = q != null ? q.trim().toLowerCase() : "";
-        List<Employee> all = employeeRepository.findAllByDentistAndArchivedAtIsNullAndRecordStatus(dentist, RecordStatus.ACTIVE);
-        Comparator<Employee> sortComparator = buildEmployeeSortComparator(pageable);
-        List<Employee> filtered = (all == null ? List.<Employee>of() : all).stream()
-                .filter(e -> {
-                    if (safeQ.isBlank()) return true;
-                    String first = safeLower(e.getFirstName());
-                    String last = safeLower(e.getLastName());
-                    String phone = safeLower(e.getPhone());
-                    return first.contains(safeQ) || last.contains(safeQ) || phone.contains(safeQ);
-                })
-                .sorted(sortComparator)
-                .toList();
-
-        int offset = (int) Math.min(Math.max(pageable.getOffset(), 0), Integer.MAX_VALUE);
-        int fromIndex = Math.min(offset, filtered.size());
-        int toIndex = Math.min(fromIndex + pageable.getPageSize(), filtered.size());
-        List<Employee> pageItems = filtered.subList(fromIndex, toIndex);
-        return new PageImpl<>(pageItems, pageable, filtered.size());
+        return employeeRepository.searchActiveByDentist(dentist, safeQ, pageable);
     }
 
     public Page<Employee> searchArchivedEmployeesForDentist(User dentist, String q, Pageable pageable) {
         String safeQ = q != null ? q.trim().toLowerCase() : "";
-        List<Employee> all = employeeRepository.findArchivedByDentist(dentist);
-        Comparator<Employee> sortComparator = buildEmployeeSortComparator(pageable);
-        List<Employee> filtered = (all == null ? List.<Employee>of() : all).stream()
-                .filter(e -> {
-                    if (safeQ.isBlank()) return true;
-                    String first = safeLower(e.getFirstName());
-                    String last = safeLower(e.getLastName());
-                    String phone = safeLower(e.getPhone());
-                    return first.contains(safeQ) || last.contains(safeQ) || phone.contains(safeQ);
-                })
-                .sorted(sortComparator)
-                .toList();
-
-        int offset = (int) Math.min(Math.max(pageable.getOffset(), 0), Integer.MAX_VALUE);
-        int fromIndex = Math.min(offset, filtered.size());
-        int toIndex = Math.min(fromIndex + pageable.getPageSize(), filtered.size());
-        List<Employee> pageItems = filtered.subList(fromIndex, toIndex);
-        return new PageImpl<>(pageItems, pageable, filtered.size());
-    }
-
-    private static String safeLower(String value) {
-        return value == null ? "" : value.trim().toLowerCase();
-    }
-
-    private static Comparator<Employee> buildEmployeeSortComparator(Pageable pageable) {
-        Sort.Order order = null;
-        if (pageable != null) {
-            Sort sort = pageable.getSort();
-            if (sort != null) {
-                for (Sort.Order candidate : sort) {
-                    order = candidate;
-                    break;
-                }
-            }
-        }
-
-        String property = (order != null && order.getProperty() != null) ? order.getProperty().trim() : "";
-        boolean desc = order != null && order.getDirection() != null && order.getDirection().isDescending();
-
-        Comparator<Employee> primary = switch (property) {
-            case "firstName" -> Comparator.comparing(e -> safeLower(e == null ? null : e.getFirstName()), stringComparator(desc));
-            case "lastName" -> Comparator.comparing(e -> safeLower(e == null ? null : e.getLastName()), stringComparator(desc));
-            case "phone" -> Comparator.comparing(e -> safeLower(e == null ? null : e.getPhone()), stringComparator(desc));
-            case "status" -> Comparator.comparing(e -> safeEnumName(e == null ? null : e.getStatus()), stringComparator(desc));
-            case "createdAt" -> Comparator.comparing(e -> e == null ? null : e.getCreatedAt(), dateTimeComparator(desc));
-            default -> Comparator.comparing((Employee e) -> e == null ? null : e.getCreatedAt(), dateTimeComparator(true));
-        };
-
-        return primary
-                .thenComparing(e -> e == null ? null : e.getCreatedAt(), dateTimeComparator(true))
-                .thenComparing(e -> e == null ? null : e.getId(), Comparator.nullsLast(Comparator.reverseOrder()));
-    }
-
-    private static Comparator<String> stringComparator(boolean desc) {
-        Comparator<String> base = String.CASE_INSENSITIVE_ORDER;
-        if (desc) base = base.reversed();
-        return Comparator.nullsLast(base);
-    }
-
-    private static Comparator<LocalDateTime> dateTimeComparator(boolean desc) {
-        Comparator<LocalDateTime> base = Comparator.naturalOrder();
-        if (desc) base = base.reversed();
-        return Comparator.nullsLast(base);
-    }
-
-    private static String safeEnumName(Enum<?> value) {
-        return value == null ? "" : value.name();
+        return employeeRepository.searchArchivedByDentist(dentist, safeQ, pageable);
     }
 
     // --- Get by ID ---

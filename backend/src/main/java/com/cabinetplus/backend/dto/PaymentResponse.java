@@ -10,5 +10,6 @@ public record PaymentResponse(
         Double amount,
         Method method,
         LocalDateTime date,
-        Long receivedByUserId
+        Long receivedByUserId,
+        String receivedByName
 ) {}

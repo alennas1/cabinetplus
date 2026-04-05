@@ -7,6 +7,8 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.MaterialRepository;
 import com.cabinetplus.backend.repositories.ProthesisCatalogRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +20,14 @@ public class MaterialService {
     private final ProthesisCatalogRepository prothesisCatalogRepository;
 
     public List<Material> findAllByUser(User user) { return repository.findByCreatedBy(user); }
+
+    public Page<Material> searchPagedByUser(User user, String q, Pageable pageable) {
+        String safeQ = q != null ? q.trim() : "";
+        if (safeQ.isBlank()) {
+            return repository.findByCreatedBy(user, pageable);
+        }
+        return repository.findByCreatedByAndNameContainingIgnoreCase(user, safeQ, pageable);
+    }
     
     public Material save(Material material) {
         if (material == null) {

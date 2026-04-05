@@ -34,3 +34,8 @@ export const updateInventoryItem = async (id, itemData) => {
   return response.data;
 };
 
+export const cancelInventoryItem = async (id, { pin, reason } = {}) => {
+  const response = await api.put(`${BASE_URL}/${id}/cancel`, { pin, reason });
+  return response.data;
+};
+

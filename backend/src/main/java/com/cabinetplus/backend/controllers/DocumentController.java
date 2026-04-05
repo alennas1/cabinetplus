@@ -10,6 +10,8 @@ import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import com.cabinetplus.backend.util.PagedQueryUtil;
 import com.cabinetplus.backend.util.PaginationUtil;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
@@ -22,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -75,37 +78,47 @@ public class DocumentController {
         User ownerDentist = getClinicUser(principal);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
 
-        final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
-        final String fieldKey = fieldNorm.isBlank() ? "title" : fieldNorm;
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
         String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
         boolean desc = "desc".equalsIgnoreCase(sortDirection);
 
-        Comparator<DocumentResponseDTO> comparator = buildDocumentSortComparator(sortKeyNorm, desc);
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        String qLike = qNorm.isBlank() ? "" : ("%" + qNorm + "%");
 
-        List<DocumentResponseDTO> filtered = documentService.findByPatientId(internalPatientId, ownerDentist).stream()
-                .filter(d -> {
-                    if (d == null) return false;
-                    if (!PagedQueryUtil.isInDateRange(d.uploadedAt(), from, to)) return false;
+        final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
+        final String fieldKey = switch (fieldNorm) {
+            case "title", "filename" -> fieldNorm;
+            default -> "";
+        };
 
-                    if (q != null && !q.isBlank()) {
-                        String hay = switch (fieldKey) {
-                            case "filename" -> d.filename();
-                            case "title" -> d.title();
-                            default -> {
-                                String title = d.title() != null ? d.title() : "";
-                                String filename = d.filename() != null ? d.filename() : "";
-                                yield title + " " + filename;
-                            }
-                        };
-                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
-                    }
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
+        LocalDateTime fromDateTime = fromEnabled ? from.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+        LocalDateTime toDateTimeExclusive = toEnabled ? to.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
 
-                    return true;
-                })
-                .sorted(comparator)
-                .toList();
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Sort sort = switch (sortKeyNorm) {
+            case "title" -> Sort.by(direction, "title");
+            case "filename" -> Sort.by(direction, "filename");
+            case "date" -> Sort.by(direction, "uploadedAt");
+            default -> Sort.by(Sort.Direction.DESC, "uploadedAt");
+        };
+        sort = sort.and(Sort.by(Sort.Direction.ASC, "id"));
 
-        return PaginationUtil.toPageResponse(filtered, page, size);
+        PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
+        return documentService.findByPatientIdPaged(
+                internalPatientId,
+                ownerDentist,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                pageable
+        );
     }
 
     private static Comparator<DocumentResponseDTO> buildDocumentSortComparator(String sortKeyNorm, boolean desc) {

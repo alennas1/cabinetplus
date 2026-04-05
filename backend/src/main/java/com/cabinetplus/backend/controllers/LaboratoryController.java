@@ -7,6 +7,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -58,45 +59,44 @@ public class LaboratoryController {
             Principal principal) {
 
         User user = getCurrentUser(principal);
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
         String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
         boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
 
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER.reversed())
-                : Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER);
-
-        Comparator<Laboratory> comparator = switch (sortKeyNorm) {
-            case "name" -> Comparator.comparing(Laboratory::getName, stringComparator);
-            case "contactperson", "contact_person", "contact" -> Comparator.comparing(Laboratory::getContactPerson, stringComparator);
-            case "phonenumber", "phone_number", "phone" -> Comparator.comparing(Laboratory::getPhoneNumber, stringComparator);
-            case "address" -> Comparator.comparing(Laboratory::getAddress, stringComparator);
-            default -> Comparator.comparing(Laboratory::getName, stringComparator);
+        String sortProperty = switch (sortKeyNorm) {
+            case "name" -> "name";
+            case "contactperson", "contact_person", "contact" -> "contactPerson";
+            case "phonenumber", "phone_number", "phone" -> "phoneNumber";
+            case "address" -> "address";
+            case "createdat", "created_at" -> "createdAt";
+            default -> "name";
         };
-        comparator = comparator.thenComparing(Laboratory::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
-        List<Laboratory> all = service.findAllByUser(user);
-        List<Laboratory> filtered = (all == null ? List.<Laboratory>of() : all).stream()
-                .filter(l -> {
-                    if (qNorm.isBlank()) return true;
-                    String name = l.getName() != null ? l.getName().trim().toLowerCase() : "";
-                    String contact = l.getContactPerson() != null ? l.getContactPerson().trim().toLowerCase() : "";
-                    String phone = l.getPhoneNumber() != null ? l.getPhoneNumber().trim().toLowerCase() : "";
-                    String address = l.getAddress() != null ? l.getAddress().trim().toLowerCase() : "";
-                    return name.contains(qNorm) || contact.contains(qNorm) || phone.contains(qNorm) || address.contains(qNorm);
-                })
-                .sorted(comparator)
-                .toList();
+        Sort.Order primary = Sort.Order.by(sortProperty)
+                .with(desc ? Sort.Direction.DESC : Sort.Direction.ASC)
+                .nullsLast();
+        if (!"createdAt".equals(sortProperty)) {
+            primary = primary.ignoreCase();
+        }
 
-        PageResponse<Laboratory> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<LaboratoryListResponse> items = pageResponse.items().stream().map(this::mapToListResponse).toList();
+        var pageable = org.springframework.data.domain.PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(primary).and(Sort.by(Sort.Order.asc("id")))
+        );
+
+        var paged = service.searchByUser(user, q, pageable);
+        List<LaboratoryListResponse> items = paged.getContent().stream().map(this::mapToListResponse).toList();
 
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
     }
 
@@ -117,45 +117,44 @@ public class LaboratoryController {
             Principal principal) {
 
         User user = getCurrentUser(principal);
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
         String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
         boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
 
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER.reversed())
-                : Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER);
-
-        Comparator<Laboratory> comparator = switch (sortKeyNorm) {
-            case "name" -> Comparator.comparing(Laboratory::getName, stringComparator);
-            case "contactperson", "contact_person", "contact" -> Comparator.comparing(Laboratory::getContactPerson, stringComparator);
-            case "phonenumber", "phone_number", "phone" -> Comparator.comparing(Laboratory::getPhoneNumber, stringComparator);
-            case "address" -> Comparator.comparing(Laboratory::getAddress, stringComparator);
-            default -> Comparator.comparing(Laboratory::getName, stringComparator);
+        String sortProperty = switch (sortKeyNorm) {
+            case "name" -> "name";
+            case "contactperson", "contact_person", "contact" -> "contactPerson";
+            case "phonenumber", "phone_number", "phone" -> "phoneNumber";
+            case "address" -> "address";
+            case "createdat", "created_at" -> "createdAt";
+            default -> "name";
         };
-        comparator = comparator.thenComparing(Laboratory::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
-        List<Laboratory> all = service.findArchivedByUser(user);
-        List<Laboratory> filtered = (all == null ? List.<Laboratory>of() : all).stream()
-                .filter(l -> {
-                    if (qNorm.isBlank()) return true;
-                    String name = l.getName() != null ? l.getName().trim().toLowerCase() : "";
-                    String contact = l.getContactPerson() != null ? l.getContactPerson().trim().toLowerCase() : "";
-                    String phone = l.getPhoneNumber() != null ? l.getPhoneNumber().trim().toLowerCase() : "";
-                    String address = l.getAddress() != null ? l.getAddress().trim().toLowerCase() : "";
-                    return name.contains(qNorm) || contact.contains(qNorm) || phone.contains(qNorm) || address.contains(qNorm);
-                })
-                .sorted(comparator)
-                .toList();
+        Sort.Order primary = Sort.Order.by(sortProperty)
+                .with(desc ? Sort.Direction.DESC : Sort.Direction.ASC)
+                .nullsLast();
+        if (!"createdAt".equals(sortProperty)) {
+            primary = primary.ignoreCase();
+        }
 
-        PageResponse<Laboratory> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<LaboratoryListResponse> items = pageResponse.items().stream().map(this::mapToListResponse).toList();
+        var pageable = org.springframework.data.domain.PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(primary).and(Sort.by(Sort.Order.asc("id")))
+        );
+
+        var paged = service.searchArchivedByUser(user, q, pageable);
+        List<LaboratoryListResponse> items = paged.getContent().stream().map(this::mapToListResponse).toList();
 
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
     }
 
@@ -188,54 +187,40 @@ public class LaboratoryController {
 
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
         boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
 
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<Double> doubleComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<LocalDateTime> dateComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-
         String sortKeyNorm = sortKey != null ? sortKey.trim() : "";
-        Comparator<LaboratoryPaymentResponse> comparator = switch (sortKeyNorm) {
-            case "amount" -> Comparator.comparing(LaboratoryPaymentResponse::amount, doubleComparator);
-            case "notes" -> Comparator.comparing(p -> p.notes() != null ? p.notes().trim().toLowerCase() : "", stringComparator);
-            case "paymentDate" -> Comparator.comparing(LaboratoryPaymentResponse::paymentDate, dateComparator);
-            default -> Comparator.comparing(LaboratoryPaymentResponse::paymentDate, dateComparator);
+        String sortProperty = switch (sortKeyNorm) {
+            case "amount" -> "amount";
+            case "notes" -> "notes";
+            case "paymentDate" -> "paymentDate";
+            default -> "paymentDate";
         };
-        comparator = comparator.thenComparing(LaboratoryPaymentResponse::id, Comparator.nullsLast(Comparator.naturalOrder()));
 
-        List<LaboratoryPaymentResponse> all = service.getPaymentsForLaboratory(laboratory, user).stream()
-                .map(payment -> new LaboratoryPaymentResponse(
-                        payment.getId(),
-                        payment.getAmount(),
-                        payment.getPaymentDate(),
-                        payment.getNotes(),
-                        payment.getRecordStatus(),
-                        payment.getCancelledAt(),
-                        payment.getCreatedBy() != null
-                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
-                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
-                                : null
-                ))
-                .toList();
+        Sort.Order primary = Sort.Order.by(sortProperty)
+                .with(desc ? Sort.Direction.DESC : Sort.Direction.ASC)
+                .nullsLast();
+        if ("notes".equals(sortProperty)) {
+            primary = primary.ignoreCase();
+        }
 
-        List<LaboratoryPaymentResponse> filtered = (all == null ? List.<LaboratoryPaymentResponse>of() : all).stream()
-                .filter(p -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = p.paymentDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .sorted(comparator)
-                .toList();
+        var pageable = org.springframework.data.domain.PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(primary).and(Sort.by(Sort.Order.asc("id")))
+        );
 
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        var paged = service.getPaymentsPagedForLaboratory(laboratory, user, fromDt, toDt, pageable);
+        return ResponseEntity.ok(new PageResponse<>(
+                paged.getContent(),
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
+        ));
     }
 
     @GetMapping("/{id}/payments/summary")
@@ -251,38 +236,7 @@ public class LaboratoryController {
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
 
-        List<LaboratoryPaymentResponse> all = service.getPaymentsForLaboratory(laboratory, user).stream()
-                .map(payment -> new LaboratoryPaymentResponse(
-                        payment.getId(),
-                        payment.getAmount(),
-                        payment.getPaymentDate(),
-                        payment.getNotes(),
-                        payment.getRecordStatus(),
-                        payment.getCancelledAt(),
-                        payment.getCreatedBy() != null
-                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
-                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
-                                : null
-                ))
-                .toList();
-
-        List<LaboratoryPaymentResponse> filtered = (all == null ? List.<LaboratoryPaymentResponse>of() : all).stream()
-                .filter(p -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = p.paymentDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .toList();
-
-        long count = filtered.size();
-        double total = filtered.stream()
-                .filter(p -> p.recordStatus() != RecordStatus.CANCELLED)
-                .mapToDouble(p -> p.amount() != null ? p.amount() : 0.0)
-                .sum();
-
-        return ResponseEntity.ok(new CountTotalResponseDTO(count, total));
+        return ResponseEntity.ok(service.getPaymentsSummaryForLaboratory(laboratory, user, fromDt, toDt));
     }
 
     @GetMapping("/{id}/billing-entries/paged")
@@ -303,39 +257,42 @@ public class LaboratoryController {
         LocalDateTime toDt = parseDateEnd(to);
         boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
 
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<Double> doubleComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<LocalDateTime> dateComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
         String sortKeyNorm = sortKey != null ? sortKey.trim() : "";
-        Comparator<LaboratoryBillingEntryResponse> comparator = switch (sortKeyNorm) {
-            case "patientName" -> Comparator.comparing(e -> e.patientName() != null ? e.patientName().trim().toLowerCase() : "", stringComparator);
-            case "prothesisName" -> Comparator.comparing(e -> e.prothesisName() != null ? e.prothesisName().trim().toLowerCase() : "", stringComparator);
-            case "amount" -> Comparator.comparing(LaboratoryBillingEntryResponse::amount, doubleComparator);
-            case "billingDate" -> Comparator.comparing(LaboratoryBillingEntryResponse::billingDate, dateComparator);
-            default -> Comparator.comparing(LaboratoryBillingEntryResponse::billingDate, dateComparator);
-        };
-        comparator = comparator.thenComparing(LaboratoryBillingEntryResponse::prothesisId, Comparator.nullsLast(Comparator.naturalOrder()));
 
-        List<LaboratoryBillingEntryResponse> all = service.getBillingEntriesForLaboratory(laboratory, user);
-        List<LaboratoryBillingEntryResponse> filtered = (all == null ? List.<LaboratoryBillingEntryResponse>of() : all).stream()
-                .filter(e -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = e.billingDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .sorted(comparator)
-                .toList();
+        Sort sort = Sort.unsorted();
+        if ("patientName".equalsIgnoreCase(sortKeyNorm)) {
+            sort = Sort.by(
+                    Sort.Order.by("patient.lastname").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.by("patient.firstname").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.asc("id")
+            );
+        } else if ("prothesisName".equalsIgnoreCase(sortKeyNorm)) {
+            sort = Sort.by(
+                    Sort.Order.by("prothesisCatalog.name").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.asc("id")
+            );
+        } else if ("amount".equalsIgnoreCase(sortKeyNorm)) {
+            sort = Sort.by(
+                    (desc ? Sort.Order.desc("labCost") : Sort.Order.asc("labCost")).nullsLast(),
+                    Sort.Order.asc("id")
+            );
+        }
 
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        var pageable = sort.isUnsorted()
+                ? org.springframework.data.domain.PageRequest.of(safePage, safeSize)
+                : org.springframework.data.domain.PageRequest.of(safePage, safeSize, sort);
+
+        var paged = service.getBillingEntriesPagedForLaboratory(laboratory, user, fromDt, toDt, sortKeyNorm, desc, pageable);
+
+        return ResponseEntity.ok(new PageResponse<>(
+                paged.getContent(),
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
+        ));
     }
 
     @GetMapping("/{id}/billing-entries/summary")
@@ -351,20 +308,7 @@ public class LaboratoryController {
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
 
-        List<LaboratoryBillingEntryResponse> all = service.getBillingEntriesForLaboratory(laboratory, user);
-        List<LaboratoryBillingEntryResponse> filtered = (all == null ? List.<LaboratoryBillingEntryResponse>of() : all).stream()
-                .filter(e -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = e.billingDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .toList();
-
-        long count = filtered.size();
-        double total = filtered.stream().mapToDouble(e -> e.amount() != null ? e.amount() : 0.0).sum();
-        return ResponseEntity.ok(new CountTotalResponseDTO(count, total));
+        return ResponseEntity.ok(service.getBillingEntriesSummaryForLaboratory(laboratory, user, fromDt, toDt));
     }
 
     @PutMapping("/{id}/archive")
@@ -569,6 +513,13 @@ public class LaboratoryController {
     }
 
     private LaboratoryListResponse mapToListResponse(Laboratory l) {
+        String createdByName = null;
+        if (l.getCreatedBy() != null) {
+            String first = l.getCreatedBy().getFirstname() != null ? l.getCreatedBy().getFirstname().trim() : "";
+            String last = l.getCreatedBy().getLastname() != null ? l.getCreatedBy().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
         return new LaboratoryListResponse(
                 l.getId(),
                 l.getPublicId(),
@@ -576,6 +527,8 @@ public class LaboratoryController {
                 l.getContactPerson(),
                 l.getPhoneNumber(),
                 l.getAddress(),
+                l.getCreatedAt(),
+                createdByName,
                 l.getRecordStatus(),
                 l.getArchivedAt()
         );

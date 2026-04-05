@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,6 +24,28 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
 
     List<Prescription> findByPatientIdAndPractitionerInOrderByDateDesc(Long patientId, List<User> practitioners);
     List<Prescription> findByPatientIdAndPractitionerInAndRecordStatusOrderByDateDesc(Long patientId, List<User> practitioners, RecordStatus recordStatus);
+
+    @Query("""
+        select p
+        from Prescription p
+        where p.patient.id = :patientId
+          and p.practitioner in :practitioners
+          and p.recordStatus = :recordStatus
+          and (:fromEnabled = false or p.date >= :fromDateTime)
+          and (:toEnabled = false or p.date < :toDateTimeExclusive)
+          and (:rxIdLike is null or :rxIdLike = '' or lower(p.rxId) like :rxIdLike)
+    """)
+    Page<Prescription> searchPatientPrescriptions(
+            @Param("patientId") Long patientId,
+            @Param("practitioners") List<User> practitioners,
+            @Param("recordStatus") RecordStatus recordStatus,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") java.time.LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTimeExclusive") java.time.LocalDateTime toDateTimeExclusive,
+            @Param("rxIdLike") String rxIdLike,
+            Pageable pageable
+    );
 
 
     @Query("SELECT p FROM Prescription p LEFT JOIN FETCH p.medications WHERE p.id = :id")

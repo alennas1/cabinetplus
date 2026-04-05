@@ -8,6 +8,10 @@ import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,8 +42,303 @@ public class ProthesisService {
                 .toList();
     }
 
+    public Page<Prothesis> searchAllPaged(
+            User user,
+            int page,
+            int size,
+            String q,
+            String status,
+            String filterBy,
+            String dateType,
+            LocalDateTime from,
+            LocalDateTime to,
+            String sortKey,
+            boolean desc,
+            Long focusId
+    ) {
+        if (user == null) {
+            return Page.empty(PageRequest.of(Math.max(page, 0), Math.max(size, 1)));
+        }
+
+        User practitionerFilter = user.getRole() == UserRole.ADMIN ? null : user;
+
+        String statusNorm = status != null && !status.isBlank() ? status.trim().toUpperCase(Locale.ROOT) : "";
+
+        String filterKey = normalizeProthesisFilterKey(filterBy);
+        String dateTypeKey = normalizeDateType(dateType);
+
+        String qNorm = q != null ? q.trim().toLowerCase(Locale.ROOT) : "";
+        String qLike = qNorm.isBlank() ? "" : "%" + qNorm + "%";
+        Integer qTooth = parseIntOrNull(qNorm);
+        boolean qToothEnabled = qTooth != null;
+
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
+
+        boolean sortByTeeth = "teeth".equalsIgnoreCase(sortKey != null ? sortKey.trim() : "");
+        Sort sort = sortByTeeth ? Sort.unsorted() : buildMainSort(sortKey, dateTypeKey, desc);
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+
+        int effectivePage = safePage;
+        if (focusId != null && safeSize > 0) {
+            Integer focusPage = resolveFocusPage(
+                    focusId,
+                    practitionerFilter,
+                    statusNorm,
+                    filterKey,
+                    dateTypeKey,
+                    fromEnabled,
+                    from,
+                    toEnabled,
+                    to,
+                    qLike,
+                    qToothEnabled,
+                    qTooth,
+                    sortByTeeth,
+                    desc,
+                    safeSize,
+                    sort
+            );
+            if (focusPage != null) {
+                effectivePage = focusPage;
+            }
+        }
+
+        Pageable pageable = sortByTeeth
+                ? PageRequest.of(effectivePage, safeSize)
+                : PageRequest.of(effectivePage, safeSize, sort);
+
+        if (sortByTeeth) {
+            return desc
+                    ? repository.searchActiveProthesesSortByToothDesc(
+                        practitionerFilter,
+                        RecordStatus.ACTIVE,
+                        statusNorm,
+                        filterKey,
+                        dateTypeKey,
+                        fromEnabled,
+                        from,
+                        toEnabled,
+                        to,
+                        qLike,
+                        qToothEnabled,
+                        qTooth,
+                        pageable
+                    )
+                    : repository.searchActiveProthesesSortByToothAsc(
+                        practitionerFilter,
+                        RecordStatus.ACTIVE,
+                        statusNorm,
+                        filterKey,
+                        dateTypeKey,
+                        fromEnabled,
+                        from,
+                        toEnabled,
+                        to,
+                        qLike,
+                        qToothEnabled,
+                        qTooth,
+                        pageable
+                    );
+        }
+
+        return repository.searchActiveProtheses(
+                practitionerFilter,
+                RecordStatus.ACTIVE,
+                statusNorm,
+                filterKey,
+                dateTypeKey,
+                fromEnabled,
+                from,
+                toEnabled,
+                to,
+                qLike,
+                qToothEnabled,
+                qTooth,
+                pageable
+        );
+    }
+
+    private Integer resolveFocusPage(
+            Long focusId,
+            User practitionerFilter,
+            String statusNorm,
+            String filterKey,
+            String dateTypeKey,
+            boolean fromEnabled,
+            LocalDateTime from,
+            boolean toEnabled,
+            LocalDateTime to,
+            String qLike,
+            boolean qToothEnabled,
+            Integer qTooth,
+            boolean sortByTeeth,
+            boolean desc,
+            int size,
+            Sort sort
+    ) {
+        if (focusId == null || size <= 0) return null;
+
+        int maxScanPages = 200;
+        for (int i = 0; i < maxScanPages; i++) {
+            Pageable probe = sortByTeeth
+                    ? PageRequest.of(i, size)
+                    : PageRequest.of(i, size, sort);
+
+            Page<Long> ids = sortByTeeth
+                    ? (desc
+                        ? repository.searchActiveProthesisIdsSortByToothDesc(
+                            practitionerFilter,
+                            RecordStatus.ACTIVE,
+                            statusNorm,
+                            filterKey,
+                            dateTypeKey,
+                            fromEnabled,
+                            from,
+                            toEnabled,
+                            to,
+                            qLike,
+                            qToothEnabled,
+                            qTooth,
+                            probe
+                        )
+                        : repository.searchActiveProthesisIdsSortByToothAsc(
+                            practitionerFilter,
+                            RecordStatus.ACTIVE,
+                            statusNorm,
+                            filterKey,
+                            dateTypeKey,
+                            fromEnabled,
+                            from,
+                            toEnabled,
+                            to,
+                            qLike,
+                            qToothEnabled,
+                            qTooth,
+                            probe
+                        )
+                    )
+                    : repository.searchActiveProthesisIds(
+                        practitionerFilter,
+                        RecordStatus.ACTIVE,
+                        statusNorm,
+                        filterKey,
+                        dateTypeKey,
+                        fromEnabled,
+                        from,
+                        toEnabled,
+                        to,
+                        qLike,
+                        qToothEnabled,
+                        qTooth,
+                        probe
+                    );
+
+            if (ids.getContent().contains(focusId)) {
+                return i;
+            }
+            if (i >= ids.getTotalPages() - 1) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static String normalizeProthesisFilterKey(String filterBy) {
+        if (filterBy == null) return "";
+        String safe = filterBy.trim().toLowerCase(Locale.ROOT);
+        return switch (safe) {
+            case "prothesisname" -> "prothesisname";
+            case "materialname" -> "materialname";
+            default -> "";
+        };
+    }
+
+    private static String normalizeDateType(String dateType) {
+        if (dateType == null || dateType.isBlank()) return "dateCreated";
+        String safe = dateType.trim();
+        return switch (safe) {
+            case "sentToLabDate" -> "sentToLabDate";
+            case "actualReturnDate" -> "actualReturnDate";
+            case "dateCreated" -> "dateCreated";
+            default -> "dateCreated";
+        };
+    }
+
+    private static Integer parseIntOrNull(String value) {
+        if (value == null) return null;
+        String raw = value.trim();
+        if (raw.isBlank()) return null;
+        if (!raw.chars().allMatch(Character::isDigit)) return null;
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Sort buildMainSort(String sortKey, String dateTypeKey, boolean desc) {
+        String key = sortKey != null && !sortKey.isBlank() ? sortKey.trim() : "dates";
+
+        if ("work".equalsIgnoreCase(key)) {
+            return Sort.by(
+                    Sort.Order.by("prothesisCatalog.name").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.by("prothesisCatalog.material.name").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.asc("id")
+            );
+        }
+
+        if ("lab".equalsIgnoreCase(key)) {
+            return Sort.by(
+                    Sort.Order.by("laboratory.name").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.asc("id")
+            );
+        }
+
+        if ("code".equalsIgnoreCase(key)) {
+            return Sort.by(
+                    Sort.Order.by("code").ignoreCase().nullsLast().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.asc("id")
+            );
+        }
+
+        if ("status".equalsIgnoreCase(key)) {
+            return Sort.by(
+                    Sort.Order.by("status").ignoreCase().nullsLast().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC),
+                    Sort.Order.asc("id")
+            );
+        }
+
+        if ("labCost".equalsIgnoreCase(key)) {
+            return Sort.by(
+                    (desc ? Sort.Order.desc("labCost") : Sort.Order.asc("labCost")).nullsLast(),
+                    Sort.Order.asc("id")
+            );
+        }
+
+        if ("dates".equalsIgnoreCase(key)) {
+            String prop = switch (dateTypeKey) {
+                case "sentToLabDate" -> "sentToLabDate";
+                case "actualReturnDate" -> "actualReturnDate";
+                default -> "dateCreated";
+            };
+            return Sort.by(
+                    (desc ? Sort.Order.desc(prop) : Sort.Order.asc(prop)).nullsLast(),
+                    Sort.Order.asc("id")
+            );
+        }
+
+        return Sort.by(
+                (desc ? Sort.Order.desc("dateCreated") : Sort.Order.asc("dateCreated")).nullsLast(),
+                Sort.Order.asc("id")
+        );
+    }
+
     @Transactional
-    public Prothesis create(ProthesisRequest dto, User user) {
+    public Prothesis create(ProthesisRequest dto, User user, User actor) {
         Patient patient = requirePatientOwnedBy(dto.patientId(), user);
         ProthesisCatalog catalog = requireCatalogOwnedBy(dto.catalogId(), user);
         List<Integer> teeth = normalizeTeeth(dto.teeth());
@@ -56,6 +355,8 @@ public class ProthesisService {
         p.setNotes(trimToNull(dto.notes()));
         p.setStatus("PENDING");
         p.setDateCreated(LocalDateTime.now());
+        p.setUpdatedBy(actor != null ? actor : user);
+        p.setUpdatedAt(p.getDateCreated());
 
         // Keep manually edited price when provided; otherwise fall back to catalog logic.
         if (dto.finalPrice() == null) {
@@ -73,7 +374,7 @@ public class ProthesisService {
     }
 
     @Transactional
-    public Prothesis update(Long id, ProthesisRequest dto, User user) {
+    public Prothesis update(Long id, ProthesisRequest dto, User user, User actor) {
         Prothesis p = requireProthesisOwnedBy(id, user);
         if (p.getRecordStatus() == RecordStatus.CANCELLED) {
             throw new BadRequestException(java.util.Map.of("_", "Prothèse annulée : lecture seule."));
@@ -92,6 +393,7 @@ public class ProthesisService {
         p.setTeeth(teeth);
         p.setCode(trimToNull(dto.code()));
         p.setNotes(trimToNull(dto.notes()));
+        p.setUpdatedBy(actor != null ? actor : user);
 
         if (dto.finalPrice() != null) {
             p.setFinalPrice(dto.finalPrice());
@@ -111,7 +413,7 @@ public class ProthesisService {
     }
 
     @Transactional
-    public Prothesis assignToLab(Long id, LabAssignmentRequest dto, User user) {
+    public Prothesis assignToLab(Long id, LabAssignmentRequest dto, User user, User actor) {
         Prothesis p = requireProthesisOwnedBy(id, user);
         if (p.getRecordStatus() == RecordStatus.CANCELLED) {
             throw new BadRequestException(java.util.Map.of("_", "Prothèse annulée : lecture seule."));
@@ -134,13 +436,17 @@ public class ProthesisService {
         p.setLabCost(dto.labCost()); // Cost in DZD
         p.setStatus("SENT_TO_LAB");
         p.setSentToLabDate(LocalDateTime.now());
+        if (p.getSentToLabBy() == null) {
+            p.setSentToLabBy(actor != null ? actor : user);
+        }
+        p.setUpdatedBy(actor != null ? actor : user);
 
         assertAmounts(p.getFinalPrice(), p.getLabCost());
         return repository.save(p);
     }
 
     @Transactional
-    public Prothesis updateStatus(Long id, String newStatus, User user) {
+    public Prothesis updateStatus(Long id, String newStatus, User user, User actor) {
         Prothesis p = requireProthesisOwnedBy(id, user);
         if (p.getRecordStatus() == RecordStatus.CANCELLED) {
             throw new BadRequestException(java.util.Map.of("_", "Prothèse annulée : lecture seule."));
@@ -164,15 +470,31 @@ public class ProthesisService {
 
         if ("SENT_TO_LAB".equals(statusUpper) && p.getSentToLabDate() == null) {
             p.setSentToLabDate(LocalDateTime.now());
+            if (p.getSentToLabBy() == null) {
+                p.setSentToLabBy(actor != null ? actor : user);
+            }
         }
         
-        // Track specifically when the work arrived back at the cabinet
-        if ("RECEIVED".equals(statusUpper)) {
-            p.setActualReturnDate(LocalDateTime.now());
-        }
+         // Track specifically when the work arrived back at the cabinet
+         if ("RECEIVED".equals(statusUpper)) {
+             p.setActualReturnDate(LocalDateTime.now());
+             if (p.getReceivedBy() == null) {
+                 p.setReceivedBy(actor != null ? actor : user);
+             }
+         }
 
-        return repository.save(p);
-    }
+         if ("FITTED".equals(statusUpper)) {
+             if (p.getPosedAt() == null) {
+                 p.setPosedAt(LocalDateTime.now());
+             }
+             if (p.getPosedBy() == null) {
+                 p.setPosedBy(actor != null ? actor : user);
+             }
+         }
+
+         p.setUpdatedBy(actor != null ? actor : user);
+         return repository.save(p);
+     }
 
     public List<Prothesis> findByPractitionerAndStatus(User user, String status) {
         if (user.getRole() == UserRole.ADMIN) {
@@ -207,15 +529,118 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
             .toList();
 }
 
+    public Page<Prothesis> searchPatientProtheses(
+            Long patientId,
+            User user,
+            String statusNorm,
+            boolean fromEnabled,
+            LocalDateTime fromDateTime,
+            boolean toEnabled,
+            LocalDateTime toDateTimeExclusive,
+            String qLike,
+            String fieldKey,
+            Pageable pageable
+    ) {
+        if (patientId == null || user == null) {
+            return Page.empty(pageable);
+        }
+
+        User practitionerFilter = user.getRole() == UserRole.ADMIN ? null : user;
+
+        return repository.searchPatientProtheses(
+                patientId,
+                practitionerFilter,
+                RecordStatus.ARCHIVED,
+                statusNorm,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                pageable
+        );
+    }
+
+    public Page<Prothesis> searchPatientProthesesSortedByTeeth(
+            Long patientId,
+            User user,
+            String statusNorm,
+            boolean fromEnabled,
+            LocalDateTime fromDateTime,
+            boolean toEnabled,
+            LocalDateTime toDateTimeExclusive,
+            String qLike,
+            String fieldKey,
+            boolean desc,
+            Pageable pageable
+    ) {
+        if (patientId == null || user == null) {
+            return Page.empty(pageable);
+        }
+
+        User practitionerFilter = user.getRole() == UserRole.ADMIN ? null : user;
+
+        if (desc) {
+            return repository.searchPatientProthesesSortByToothDesc(
+                    patientId,
+                    practitionerFilter,
+                    RecordStatus.ARCHIVED,
+                    statusNorm,
+                    fromEnabled,
+                    fromDateTime,
+                    toEnabled,
+                    toDateTimeExclusive,
+                    qLike,
+                    fieldKey,
+                    pageable
+            );
+        }
+
+        return repository.searchPatientProthesesSortByToothAsc(
+                patientId,
+                practitionerFilter,
+                RecordStatus.ARCHIVED,
+                statusNorm,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                pageable
+        );
+    }
+
     @Transactional
-    public void delete(Long id, User user) {
+    public void delete(Long id, User user, User actor, String reason) {
         Prothesis p = requireProthesisOwnedBy(id, user);
         if (p.getPatient() != null && p.getPatient().getArchivedAt() != null) {
             throw new BadRequestException(java.util.Map.of("_", "Patient archivÃ© : lecture seule."));
         }
+        boolean changed = false;
         if (p.getRecordStatus() != RecordStatus.CANCELLED) {
             p.setRecordStatus(RecordStatus.CANCELLED);
             p.setCancelledAt(LocalDateTime.now());
+            changed = true;
+        } else if (p.getCancelledAt() == null) {
+            p.setCancelledAt(LocalDateTime.now());
+            changed = true;
+        }
+
+        if (actor != null && p.getCancelledBy() == null) {
+            p.setCancelledBy(actor);
+            changed = true;
+        }
+
+        String normalizedReason = reason != null ? reason.trim() : "";
+        if (!normalizedReason.isBlank() && (p.getCancelReason() == null || p.getCancelReason().isBlank())) {
+            p.setCancelReason(normalizedReason);
+            changed = true;
+        }
+
+        if (changed) {
+            p.setUpdatedBy(actor != null ? actor : user);
             repository.save(p);
         }
     }

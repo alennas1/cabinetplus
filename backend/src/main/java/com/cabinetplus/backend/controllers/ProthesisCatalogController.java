@@ -13,6 +13,8 @@ import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.services.*;
 import com.cabinetplus.backend.util.PaginationUtil;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @RestController
 @RequestMapping("/api/prothesis-catalog")
@@ -44,61 +46,40 @@ public class ProthesisCatalogController {
             Principal principal
     ) {
         User user = getCurrentUser(principal);
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+
         String sortKeyNorm = sortKey != null ? sortKey.trim() : "";
-        String directionNorm = direction != null ? direction.trim() : "";
+        boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
 
-        Comparator<ProthesisCatalog> comparator = switch (sortKeyNorm) {
-            case "materialName" -> Comparator.comparing(
-                    p -> p.getMaterial() != null && p.getMaterial().getName() != null ? p.getMaterial().getName().trim().toLowerCase() : "",
-                    Comparator.nullsLast(Comparator.naturalOrder())
-            );
-            case "defaultPrice" -> Comparator.comparing(ProthesisCatalog::getDefaultPrice, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "defaultLabCost" -> Comparator.comparing(ProthesisCatalog::getDefaultLabCost, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "type" -> Comparator.comparing(
-                    p -> p.isFlatFee() ? "0-flat" : p.isMultiUnit() ? "1-multi" : "2-unit",
-                    Comparator.nullsLast(Comparator.naturalOrder())
-            );
-            case "name" -> Comparator.comparing(
-                    p -> p.getName() != null ? p.getName().trim().toLowerCase() : "",
-                    Comparator.nullsLast(Comparator.naturalOrder())
-            );
-            default -> Comparator.comparing(
-                    p -> p.getName() != null ? p.getName().trim().toLowerCase() : "",
-                    Comparator.nullsLast(Comparator.naturalOrder())
-            );
+        Sort sort = switch (sortKeyNorm) {
+            case "materialName" -> Sort.by(Sort.Order.by("material.name").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC));
+            case "defaultPrice" -> Sort.by((desc ? Sort.Order.desc("defaultPrice") : Sort.Order.asc("defaultPrice")).nullsLast());
+            case "defaultLabCost" -> Sort.by((desc ? Sort.Order.desc("defaultLabCost") : Sort.Order.asc("defaultLabCost")).nullsLast());
+            case "type" -> {
+                if (desc) {
+                    yield Sort.by(Sort.Order.asc("flatFee"), Sort.Order.asc("multiUnit"));
+                }
+                yield Sort.by(Sort.Order.desc("flatFee"), Sort.Order.desc("multiUnit"));
+            }
+            case "name" -> Sort.by(Sort.Order.by("name").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC));
+            default -> Sort.by(Sort.Order.by("name").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC));
         };
+        sort = sort.and(Sort.by(Sort.Order.asc("id")));
 
-        if ("DESC".equalsIgnoreCase(directionNorm)) {
-            comparator = comparator.reversed();
-        }
+        var pageable = PageRequest.of(safePage, safeSize, sort);
+        var paged = service.searchPagedByUser(user, q, pageable);
 
-        comparator = comparator.thenComparing(ProthesisCatalog::getId, Comparator.nullsLast(Comparator.naturalOrder()));
-
-        List<ProthesisCatalog> all = service.findAllByUser(user);
-        List<ProthesisCatalog> filtered = (all == null ? List.<ProthesisCatalog>of() : all).stream()
-                .filter(p -> {
-                    if (qNorm.isBlank()) return true;
-                    String name = p.getName() != null ? p.getName().trim().toLowerCase() : "";
-                    String material = p.getMaterial() != null && p.getMaterial().getName() != null
-                            ? p.getMaterial().getName().trim().toLowerCase()
-                            : "";
-                    String price = p.getDefaultPrice() != null ? String.valueOf(p.getDefaultPrice()) : "";
-                    return name.contains(qNorm) || material.contains(qNorm) || price.contains(qNorm);
-                })
-                .sorted(comparator)
-                .toList();
-
-        PageResponse<ProthesisCatalog> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<ProthesisCatalogResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+        List<ProthesisCatalogResponse> items = paged.getContent().stream().map(this::mapToResponse).toList();
 
         auditService.logSuccess(AuditEventType.PROTHESIS_CATALOG_READ, "PROTHESIS_CATALOG", null, "Catalogue protheses consulte (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
     }
 

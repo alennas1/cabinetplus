@@ -3,10 +3,24 @@ package com.cabinetplus.backend.util;
 import java.util.List;
 
 import com.cabinetplus.backend.dto.PageResponse;
+import org.springframework.data.domain.Page;
 
 public final class PaginationUtil {
 
     private PaginationUtil() {}
+
+    public static <T> PageResponse<T> toPageResponse(Page<T> page) {
+        if (page == null) {
+            return new PageResponse<>(List.of(), 0, 0, 0L, 0);
+        }
+        return new PageResponse<>(
+                page.getContent() != null ? page.getContent() : List.of(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages()
+        );
+    }
 
     public static <T> PageResponse<T> toPageResponse(List<T> allItems, int page, int size) {
         int safePage = Math.max(page, 0);
@@ -29,4 +43,3 @@ public final class PaginationUtil {
         return new PageResponse<>(pageItems, safePage, safeSize, totalElements, totalPages);
     }
 }
-

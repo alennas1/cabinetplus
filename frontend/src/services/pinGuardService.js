@@ -13,8 +13,10 @@ const notifyPinStatusChanged = () => {
   }
 };
 
-export const getGestionCabinetPinStatus = async () => {
-  const { data } = await api.get("/api/security/gestion-cabinet-pin");
+export const getGestionCabinetPinStatus = async ({ silent } = {}) => {
+  const { data } = await api.get("/api/security/gestion-cabinet-pin", {
+    params: { silent: silent === true ? true : undefined },
+  });
   return data; // { pinSet, requirePin, enabled }
 };
 

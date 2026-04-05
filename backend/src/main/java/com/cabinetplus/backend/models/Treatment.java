@@ -5,10 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.cabinetplus.backend.enums.RecordStatus;
-import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -53,7 +51,6 @@ public class Treatment {
     private Double price;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String notes;
     private String status = "PLANNED";
     private LocalDateTime updatedAt;
@@ -63,6 +60,13 @@ public class Treatment {
     private RecordStatus recordStatus = RecordStatus.ACTIVE;
 
     private LocalDateTime cancelledAt;
+
+    @ManyToOne
+    @JoinColumn(name = "cancelled_by")
+    private User cancelledBy;
+
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
 
     // 👇 store selected teeth as integers
     @ElementCollection(fetch = FetchType.EAGER)

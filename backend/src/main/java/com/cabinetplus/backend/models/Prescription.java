@@ -7,11 +7,9 @@ import java.util.UUID;
 
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.util.UuidV7;
-import com.cabinetplus.backend.security.EncryptionConverter;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -48,7 +46,6 @@ public class Prescription {
     private LocalDateTime date;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String notes;
 
     @ManyToOne

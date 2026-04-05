@@ -1,8 +1,13 @@
 package com.cabinetplus.backend.services;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,71 +83,174 @@ public class HandPaymentService {
     }
 
     public List<HandPaymentResponseDTO> getAllPendingPayments() {
-    return handPaymentRepository.findByStatus(PaymentStatus.PENDING)
-            .stream()
-            .map(p -> new HandPaymentResponseDTO(
-                    p.getId(),
-                    p.getAmount(),
-                    p.getPaymentDate(),
-                    p.getStatus().name(),
-                    p.getPaymentMethod().name(),
-                    p.getBillingCycle() != null ? p.getBillingCycle().name() : "MONTHLY",
-                    p.getNotes(),
-
-                    p.getUser().getId(),
-                    p.getUser().getFirstname() + " " + p.getUser().getLastname(),
-                    p.getUser().getPhoneNumber(),
-
-                    p.getPlan().getId(),
-                    p.getPlan().getName(),
-                    p.getPlan().getDurationDays()
-            ))
-            .toList();
+        return handPaymentRepository.findByStatus(PaymentStatus.PENDING)
+                .stream()
+                .map(this::toResponse)
+                .toList();
 }
 public List<HandPaymentResponseDTO> getPaymentsByUser(User user) {
-    return handPaymentRepository.findByUser(user)
-            .stream()
-            .map(p -> new HandPaymentResponseDTO(
-                    p.getId(),
-                    p.getAmount(),
-                    p.getPaymentDate(),
-                    p.getStatus().name(),
-                    p.getPaymentMethod().name(),
-                    p.getBillingCycle() != null ? p.getBillingCycle().name() : "MONTHLY",
-                    p.getNotes(),
-
-                    p.getUser().getId(),
-                    p.getUser().getFirstname() + " " + p.getUser().getLastname(),
-                    p.getUser().getPhoneNumber(),
-
-                    p.getPlan().getId(),
-                    p.getPlan().getName(),
-                    p.getPlan().getDurationDays()
-            ))
-            .toList();
+        return handPaymentRepository.findByUser(user)
+                .stream()
+                .map(this::toResponse)
+                .toList();
 }
 public List<HandPaymentResponseDTO> getAllPayments() {
-    return handPaymentRepository.findAll()
-            .stream()
-            .map(p -> new HandPaymentResponseDTO(
-                    p.getId(),
-                    p.getAmount(),
-                    p.getPaymentDate(),
-                    p.getStatus().name(),
-                    p.getPaymentMethod().name(),
-                    p.getBillingCycle() != null ? p.getBillingCycle().name() : "MONTHLY",
-                    p.getNotes(),
-
-                    p.getUser().getId(),
-                    p.getUser().getFirstname() + " " + p.getUser().getLastname(),
-                    p.getUser().getPhoneNumber(),
-
-                    p.getPlan().getId(),
-                    p.getPlan().getName(),
-                    p.getPlan().getDurationDays()
-            ))
-            .toList();
+        return handPaymentRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
 }
+
+    public Page<HandPaymentResponseDTO> getAllPaymentsPaged(int page, int size, String q, String status) {
+        PaymentStatus statusFilter = parseStatusFilter(status);
+        if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status.trim()) && statusFilter == null) {
+            return Page.empty(PageRequest.of(Math.max(page, 0), Math.max(size, 1)));
+        }
+
+        PageRequest pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 200),
+                Sort.by(Sort.Order.desc("paymentDate").nullsLast(), Sort.Order.asc("id"))
+        );
+
+        return handPaymentRepository.searchAdminPayments(statusFilter, toLike(q), pageable)
+                .map(this::toResponse);
+    }
+
+    public Page<HandPaymentResponseDTO> getPendingPaymentsPaged(int page, int size, String q) {
+        PageRequest pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 200),
+                Sort.by(Sort.Order.desc("paymentDate").nullsLast(), Sort.Order.asc("id"))
+        );
+
+        return handPaymentRepository.searchAdminPayments(PaymentStatus.PENDING, toLike(q), pageable)
+                .map(this::toResponse);
+    }
+
+    public Page<HandPaymentResponseDTO> getPaymentsByUserPaged(
+            User user,
+            int page,
+            int size,
+            String q,
+            String status,
+            String sortKey,
+            boolean desc
+    ) {
+        if (user == null) {
+            return Page.empty(PageRequest.of(Math.max(page, 0), Math.max(size, 1)));
+        }
+
+        PaymentStatus statusFilter = parseStatusFilter(status);
+        if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status.trim()) && statusFilter == null) {
+            return Page.empty(PageRequest.of(Math.max(page, 0), Math.max(size, 1)));
+        }
+
+        String qNorm = q != null ? q.trim().toLowerCase(Locale.ROOT) : "";
+        List<PaymentStatus> statusMatches = qNorm.isBlank()
+                ? List.of()
+                : Arrays.stream(PaymentStatus.values())
+                        .filter(s -> s != null && s.name().toLowerCase(Locale.ROOT).contains(qNorm))
+                        .toList();
+
+        PageRequest pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 200),
+                buildUserPaymentsSort(sortKey, desc)
+        );
+
+        return handPaymentRepository.searchUserPayments(
+                        user,
+                        statusFilter,
+                        toLike(q),
+                        !statusMatches.isEmpty(),
+                        statusMatches,
+                        pageable
+                )
+                .map(this::toResponse);
+    }
+
+    public Page<HandPaymentResponseDTO> getMyPaymentsPaged(User user, int page, int size, String q) {
+        if (user == null) {
+            return Page.empty(PageRequest.of(Math.max(page, 0), Math.max(size, 1)));
+        }
+
+        PageRequest pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 200),
+                Sort.by(Sort.Order.desc("paymentDate").nullsLast(), Sort.Order.asc("id"))
+        );
+
+        return handPaymentRepository.searchMyPayments(user, toLike(q), pageable)
+                .map(this::toResponse);
+    }
+
+    private HandPaymentResponseDTO toResponse(HandPayment p) {
+        if (p == null) return null;
+
+        Long userId = p.getUser() != null ? p.getUser().getId() : null;
+        String fullName = null;
+        String phone = null;
+        if (p.getUser() != null) {
+            String first = p.getUser().getFirstname() != null ? p.getUser().getFirstname().trim() : "";
+            String last = p.getUser().getLastname() != null ? p.getUser().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            fullName = combined.isBlank() ? null : combined;
+            phone = p.getUser().getPhoneNumber();
+        }
+
+        Long planId = p.getPlan() != null ? p.getPlan().getId() : null;
+        String planName = p.getPlan() != null ? p.getPlan().getName() : null;
+        Integer durationDays = p.getPlan() != null ? p.getPlan().getDurationDays() : null;
+
+        return new HandPaymentResponseDTO(
+                p.getId(),
+                p.getAmount(),
+                p.getPaymentDate(),
+                p.getStatus() != null ? p.getStatus().name() : null,
+                p.getPaymentMethod() != null ? p.getPaymentMethod().name() : null,
+                p.getBillingCycle() != null ? p.getBillingCycle().name() : "MONTHLY",
+                p.getNotes(),
+                userId,
+                fullName,
+                phone,
+                planId,
+                planName,
+                durationDays
+        );
+    }
+
+    private static PaymentStatus parseStatusFilter(String raw) {
+        if (raw == null) return null;
+        String safe = raw.trim();
+        if (safe.isBlank() || "all".equalsIgnoreCase(safe)) return null;
+
+        try {
+            return PaymentStatus.valueOf(safe.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private static String toLike(String q) {
+        String safe = q != null ? q.trim().toLowerCase(Locale.ROOT) : "";
+        return safe.isBlank() ? "" : "%" + safe + "%";
+    }
+
+    private static Sort buildUserPaymentsSort(String sortKey, boolean desc) {
+        String key = sortKey != null ? sortKey.trim() : "";
+        Sort.Direction dir = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+
+        Sort primary = switch (key) {
+            case "planName" -> Sort.by(Sort.Order.by("plan.name").ignoreCase().with(dir));
+            case "amount" -> Sort.by(Sort.Order.by("amount").nullsLast().with(dir));
+            case "status" -> Sort.by(Sort.Order.by("status").with(dir));
+            case "paymentDate" -> Sort.by(Sort.Order.by("paymentDate").nullsLast().with(dir));
+            default -> Sort.by(Sort.Order.by("paymentDate").nullsLast().with(dir));
+        };
+
+        return primary.and(Sort.by(Sort.Order.asc("id")));
+    }
 
 
     public HandPayment createHandPayment(HandPayment payment) {

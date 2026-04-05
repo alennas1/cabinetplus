@@ -34,6 +34,10 @@ const WaitingPage = () => {
 
         const isActivePlan = isPlanActiveForAccess(userData);
         if (isActivePlan) {
+            if (userData?.gestionCabinetPinConfigured !== true) {
+                navigate("/pin-setup", { replace: true });
+                return;
+            }
             navigate("/dashboard", { replace: true });
         }
     };

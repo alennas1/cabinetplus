@@ -9,12 +9,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cabinetplus.backend.dto.FournisseurBillingEntryResponse;
 import com.cabinetplus.backend.dto.FournisseurBillingSummaryResponse;
 import com.cabinetplus.backend.dto.FournisseurPaymentRequest;
+import com.cabinetplus.backend.dto.FournisseurPaymentResponse;
+import com.cabinetplus.backend.dto.CountTotalResponseDTO;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
@@ -61,6 +65,68 @@ public class FournisseurDetailsService {
                 .toList();
     }
 
+    public Page<FournisseurPaymentResponse> getPaymentsPagedForFournisseur(
+            Fournisseur fournisseur,
+            User user,
+            LocalDateTime from,
+            LocalDateTime to,
+            Pageable pageable
+    ) {
+        if (fournisseur == null || user == null) {
+            return Page.empty(pageable);
+        }
+
+        return fournisseurPaymentRepository.searchPaymentsPaged(
+                        fournisseur.getId(),
+                        user,
+                        RecordStatus.ARCHIVED,
+                        from,
+                        to,
+                        pageable
+                )
+                .map(payment -> new FournisseurPaymentResponse(
+                        payment.getId(),
+                        payment.getAmount(),
+                        payment.getPaymentDate(),
+                        payment.getNotes(),
+                        payment.getRecordStatus(),
+                        payment.getCancelledAt(),
+                        payment.getCreatedBy() != null
+                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
+                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
+                                : null
+                ));
+    }
+
+    public CountTotalResponseDTO getPaymentsSummaryForFournisseur(
+            Fournisseur fournisseur,
+            User user,
+            LocalDateTime from,
+            LocalDateTime to
+    ) {
+        if (fournisseur == null || user == null) {
+            return new CountTotalResponseDTO(0, 0.0);
+        }
+
+        Object[] row = fournisseurPaymentRepository.getPaymentsSummary(
+                fournisseur.getId(),
+                user,
+                RecordStatus.ARCHIVED,
+                RecordStatus.CANCELLED,
+                from,
+                to
+        );
+
+        long count = 0L;
+        double total = 0.0;
+        if (row != null) {
+            if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
+            if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
+        }
+
+        return new CountTotalResponseDTO(count, total);
+    }
+
     public List<FournisseurBillingEntryResponse> getBillingEntriesForFournisseur(Fournisseur fournisseur, User user) {
         List<FournisseurBillingEntryResponse> entries = new ArrayList<>();
         String createdByName = null;
@@ -99,6 +165,76 @@ public class FournisseurDetailsService {
 
         entries.sort(Comparator.comparing(FournisseurBillingEntryResponse::billingDate, Comparator.nullsLast(Comparator.reverseOrder())));
         return entries;
+    }
+
+    public Page<FournisseurBillingEntryResponse> getBillingEntriesPagedForFournisseur(
+            Fournisseur fournisseur,
+            User user,
+            LocalDateTime from,
+            LocalDateTime to,
+            Pageable pageable
+    ) {
+        if (fournisseur == null || user == null) {
+            return Page.empty(pageable);
+        }
+
+        Page<Object[]> raw = itemRepository.findFournisseurBillingEntries(
+                fournisseur.getId(),
+                user.getId(),
+                from,
+                to,
+                pageable
+        );
+
+        return raw.map(row -> {
+            if (row == null || row.length < 6) {
+                return new FournisseurBillingEntryResponse(null, null, null, null, null, null);
+            }
+
+            Long referenceId = row[0] instanceof Number n ? n.longValue() : null;
+            String source = row[1] != null ? String.valueOf(row[1]) : null;
+            String label = row[2] != null ? String.valueOf(row[2]) : null;
+            Double amount = row[3] instanceof Number n ? n.doubleValue() : null;
+
+            LocalDateTime billingDate = null;
+            Object dateObj = row[4];
+            if (dateObj instanceof LocalDateTime ldt) {
+                billingDate = ldt;
+            } else if (dateObj instanceof java.sql.Timestamp ts) {
+                billingDate = ts.toLocalDateTime();
+            }
+
+            String createdByName = row[5] != null ? String.valueOf(row[5]) : null;
+
+            return new FournisseurBillingEntryResponse(referenceId, source, label, amount, billingDate, createdByName);
+        });
+    }
+
+    public CountTotalResponseDTO getBillingEntriesSummaryForFournisseur(
+            Fournisseur fournisseur,
+            User user,
+            LocalDateTime from,
+            LocalDateTime to
+    ) {
+        if (fournisseur == null || user == null) {
+            return new CountTotalResponseDTO(0, 0.0);
+        }
+
+        Object[] row = itemRepository.getFournisseurBillingEntriesSummary(
+                fournisseur.getId(),
+                user.getId(),
+                from,
+                to
+        );
+
+        long count = 0L;
+        double total = 0.0;
+        if (row != null) {
+            if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
+            if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
+        }
+
+        return new CountTotalResponseDTO(count, total);
     }
 
     public List<FournisseurBillingSummaryResponse> getBillingHistoryForFournisseur(Fournisseur fournisseur, User user) {

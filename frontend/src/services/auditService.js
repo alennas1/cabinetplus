@@ -8,10 +8,10 @@ export const getMyAuditLogs = async () => {
 };
 
 export const getMyAuditLogsPage = async (
-  { page = 0, size = 20, q, status, entity, action, from, to } = {}
+  { page = 0, size = 20, q, status, entity, action, sortKey, sortDirection, from, to } = {}
 ) => {
   const response = await api.get(`${BASE_URL}/my/paged`, {
-    params: { page, size, q, status, entity, action, from, to },
+    params: { page, size, q, status, entity, action, sortKey, sortDirection, from, to },
   });
   return response.data;
 };

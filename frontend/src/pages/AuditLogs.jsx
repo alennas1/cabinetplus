@@ -11,7 +11,7 @@ import { getMyAuditLogsPage } from "../services/auditService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatHour } from "../utils/workingHours";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
-import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
 import DateInput from "../components/DateInput";
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
@@ -405,6 +405,8 @@ const AuditLogs = () => {
         status: statusFilter !== "ALL" ? statusFilter : undefined,
         entity: entityFilter !== "ALL" ? entityFilter : undefined,
         action: actionFilter !== "ALL" ? actionFilter : undefined,
+        sortKey: sortConfig?.key || undefined,
+        sortDirection: sortConfig?.direction || undefined,
         from: fromParam,
         to: toParam,
       });
@@ -431,7 +433,7 @@ const AuditLogs = () => {
   useEffect(() => {
     loadLogs(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, debouncedQuery, statusFilter, entityFilter, actionFilter, fromParam, toParam]);
+  }, [currentPage, debouncedQuery, statusFilter, entityFilter, actionFilter, fromParam, toParam, sortConfig.key, sortConfig.direction]);
 
   const getActorLabel = (log) => {
     if (!log?.actorUserId) return "-";
@@ -476,32 +478,8 @@ const AuditLogs = () => {
     });
   };
 
-  const sortedLogs = useMemo(() => {
-    if (!sortConfig.key) return filteredLogs;
-    const getValue = (log) => {
-      switch (sortConfig.key) {
-        case "occurredAt":
-          return log.occurredAt;
-        case "action":
-          return getActionLabel(log.eventType);
-        case "entity":
-          return getEntityLabel(log.eventType);
-        case "patient":
-          return getDisplayDetails(log);
-        case "status":
-          return STATUS_LABELS[log.status] || log.status;
-        case "actor":
-          return getActorLabel(log);
-        case "ip":
-          return log.ipAddress;
-        case "location":
-          return log.location;
-        default:
-          return "";
-      }
-    };
-    return sortRowsBy(filteredLogs, getValue, sortConfig.direction);
-  }, [filteredLogs, sortConfig.direction, sortConfig.key, currentUser]);
+  // Server-side sorting: backend returns the sorted page already.
+  const sortedLogs = filteredLogs;
 
   useEffect(() => {
     setCurrentPage(1);

@@ -34,6 +34,20 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
             from Patient p
             where p.createdBy = :owner
               and ((:archived = false and p.archivedAt is null) or (:archived = true and p.archivedAt is not null))
+              and (:sex is null or :sex = '' or lower(coalesce(p.sex, '')) = lower(:sex))
+              and (
+                   :qLike is null or :qLike = ''
+                   or (:fieldKey = 'firstname' and lower(coalesce(p.firstname, '')) like :qLike)
+                   or (:fieldKey = 'lastname' and lower(coalesce(p.lastname, '')) like :qLike)
+                   or (:fieldKey = 'phone' and lower(coalesce(p.phone, '')) like :qLike)
+                   or (:fieldKey = 'age' and :ageExact is not null and p.age = :ageExact)
+                   or (:fieldKey = '' and (
+                        lower(coalesce(p.firstname, '')) like :qLike
+                        or lower(coalesce(p.lastname, '')) like :qLike
+                        or lower(coalesce(p.phone, '')) like :qLike
+                        or (:ageExact is not null and p.age = :ageExact)
+                   ))
+              )
               and (:ageFrom is null or p.age >= :ageFrom)
               and (:ageTo is null or p.age <= :ageTo)
               and (:fromEnabled = false or p.createdAt >= :fromCreatedAt)
@@ -42,6 +56,10 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     Page<Patient> searchPatients(
             @Param("owner") User owner,
             @Param("archived") boolean archived,
+            @Param("sex") String sex,
+            @Param("qLike") String qLike,
+            @Param("fieldKey") String fieldKey,
+            @Param("ageExact") Integer ageExact,
             @Param("ageFrom") Integer ageFrom,
             @Param("ageTo") Integer ageTo,
             @Param("fromEnabled") boolean fromEnabled,

@@ -9,12 +9,14 @@ import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
 import MetadataInfo from "../components/MetadataInfo";
+import CancelWithPinModal from "../components/CancelWithPinModal";
 import { createItemDefault, getItemDefaults } from "../services/itemDefaultService";
 import {
   createInventoryItem,
   updateInventoryItem,
   getInventoryItems,
   getInventoryItemsPage,
+  cancelInventoryItem,
 } from "../services/itemService";
 import { createFournisseur, getAllFournisseurs } from "../services/fournisseurService";
 import { getApiErrorMessage } from "../utils/error";
@@ -42,6 +44,8 @@ const ITEM_CATEGORIES = {
   OFFICE_SUPPLIES: "Fournitures de bureau",
 };
 
+const isInventoryItemCancelled = (item) => String(item?.recordStatus || "").toUpperCase() === "CANCELLED";
+
 const Inventory = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,6 +66,8 @@ const Inventory = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cancelItemId, setCancelItemId] = useState(null);
+  const [isCancellingItem, setIsCancellingItem] = useState(false);
   const itemDefaultSearchRef = useRef(null);
   const [itemDefaultQuery, setItemDefaultQuery] = useState("");
   const [showItemDefaultSuggestions, setShowItemDefaultSuggestions] = useState(false);
@@ -388,6 +394,22 @@ const Inventory = () => {
     setShowModal(true);
   };
 
+  const confirmCancelItem = async ({ pin, reason }) => {
+    if (!cancelItemId) return;
+    if (isCancellingItem) return;
+    try {
+      setIsCancellingItem(true);
+      await cancelInventoryItem(cancelItemId, { pin, reason });
+      toast.success("Article annulÃ©");
+      await fetchInventoryItems();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
+    } finally {
+      setIsCancellingItem(false);
+      setCancelItemId(null);
+    }
+  };
+
   const confirmDeleteItem = async () => {
     if (isDeletingInventoryItem) return;
     try {
@@ -587,7 +609,21 @@ const Inventory = () => {
               </td>
               <td>{i.expiryDate || "—"}</td>
               <td className="actions-cell">
-                <button className="action-btn edit" onClick={() => handleEdit(i)} title="Modifier"><Edit2 size={16} /></button>
+                {isInventoryItemCancelled(i) ? (
+                  <span className="context-badge cancelled">AnnulÃ©</span>
+                ) : (
+                  <>
+                    <button className="action-btn edit" onClick={() => handleEdit(i)} title="Modifier"><Edit2 size={16} /></button>
+                    <button
+                      type="button"
+                      className="action-btn cancel"
+                      onClick={() => setCancelItemId(i.id)}
+                      title="Annuler"
+                    >
+                      <X size={16} />
+                    </button>
+                  </>
+                )}
               </td>
             </tr>
           ))}
@@ -1044,6 +1080,19 @@ const Inventory = () => {
           </div>
         </div>
       )}
+
+      <CancelWithPinModal
+        open={cancelItemId != null}
+        busy={isCancellingItem}
+        title="Annuler l'article ?"
+        subtitle="Motif + PIN requis. L'article restera visible dans l'historique mais ne sera plus comptabilisÃ©."
+        confirmLabel="Annuler l'article"
+        onClose={() => {
+          if (isCancellingItem) return;
+          setCancelItemId(null);
+        }}
+        onConfirm={confirmCancelItem}
+      />
 
       <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
     </div>

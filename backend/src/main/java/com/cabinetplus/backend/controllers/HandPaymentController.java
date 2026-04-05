@@ -76,27 +76,8 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getAllPayments(Principal pri
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
         }
 
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        String statusNorm = status != null ? status.trim().toLowerCase() : "";
-
-        List<HandPaymentResponseDTO> all = handPaymentService.getAllPayments();
-        List<HandPaymentResponseDTO> filtered = (all == null ? List.<HandPaymentResponseDTO>of() : all).stream()
-                .filter(p -> {
-                    if (statusNorm.isBlank() || "all".equals(statusNorm)) return true;
-                    String s = p.paymentStatus() != null ? p.paymentStatus().trim().toLowerCase() : "";
-                    return s.equals(statusNorm);
-                })
-                .filter(p -> {
-                    if (qNorm.isBlank()) return true;
-                    String name = p.fullName() != null ? p.fullName().trim().toLowerCase() : "";
-                    String plan = p.planName() != null ? p.planName().trim().toLowerCase() : "";
-                    String phone = p.phoneNumber() != null ? p.phoneNumber().trim().toLowerCase() : "";
-                    return name.contains(qNorm) || plan.contains(qNorm) || phone.contains(qNorm);
-                })
-                .sorted(Comparator.comparing(HandPaymentResponseDTO::paymentDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .toList();
-
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        var paged = handPaymentService.getAllPaymentsPaged(page, size, q, status);
+        return ResponseEntity.ok(PaginationUtil.toPageResponse(paged));
     }
 
     @GetMapping("/pending")
@@ -121,20 +102,8 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getAllPayments(Principal pri
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
         }
 
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        List<HandPaymentResponseDTO> all = handPaymentService.getAllPendingPayments();
-        List<HandPaymentResponseDTO> filtered = (all == null ? List.<HandPaymentResponseDTO>of() : all).stream()
-                .filter(p -> {
-                    if (qNorm.isBlank()) return true;
-                    String name = p.fullName() != null ? p.fullName().trim().toLowerCase() : "";
-                    String plan = p.planName() != null ? p.planName().trim().toLowerCase() : "";
-                    String phone = p.phoneNumber() != null ? p.phoneNumber().trim().toLowerCase() : "";
-                    return name.contains(qNorm) || plan.contains(qNorm) || phone.contains(qNorm);
-                })
-                .sorted(Comparator.comparing(HandPaymentResponseDTO::paymentDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .toList();
-
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        var paged = handPaymentService.getPendingPaymentsPaged(page, size, q);
+        return ResponseEntity.ok(PaginationUtil.toPageResponse(paged));
     }
 
 @GetMapping("/user/{userId}")
@@ -174,49 +143,9 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getPaymentsByUserId(@PathVar
                 "Paiements manuels utilisateur consultes (page)"
         );
 
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        String statusNorm = status != null ? status.trim().toLowerCase() : "";
-
         boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<Integer> intComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<java.time.LocalDateTime> dateComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-
-        String sortKeyNorm = sortKey != null ? sortKey.trim() : "";
-        Comparator<HandPaymentResponseDTO> comparator = switch (sortKeyNorm) {
-            case "planName" -> Comparator.comparing(p -> p.planName() != null ? p.planName().trim().toLowerCase() : "", stringComparator);
-            case "amount" -> Comparator.comparing(HandPaymentResponseDTO::amount, intComparator);
-            case "status" -> Comparator.comparing(p -> p.paymentStatus() != null ? p.paymentStatus().trim().toLowerCase() : "", stringComparator);
-            case "paymentDate" -> Comparator.comparing(HandPaymentResponseDTO::paymentDate, dateComparator);
-            default -> Comparator.comparing(HandPaymentResponseDTO::paymentDate, dateComparator);
-        };
-        comparator = comparator.thenComparing(HandPaymentResponseDTO::paymentId, Comparator.nullsLast(Comparator.naturalOrder()));
-
-        List<HandPaymentResponseDTO> all = handPaymentService.getPaymentsByUser(user);
-        List<HandPaymentResponseDTO> filtered = (all == null ? List.<HandPaymentResponseDTO>of() : all).stream()
-                .filter(p -> {
-                    if (statusNorm.isBlank() || "all".equals(statusNorm)) return true;
-                    String s = p.paymentStatus() != null ? p.paymentStatus().trim().toLowerCase() : "";
-                    return s.equals(statusNorm);
-                })
-                .filter(p -> {
-                    if (qNorm.isBlank()) return true;
-                    String plan = p.planName() != null ? p.planName().trim().toLowerCase() : "";
-                    String notes = p.notes() != null ? p.notes().trim().toLowerCase() : "";
-                    String statusLabel = p.paymentStatus() != null ? p.paymentStatus().trim().toLowerCase() : "";
-                    String phone = p.phoneNumber() != null ? p.phoneNumber().trim().toLowerCase() : "";
-                    return plan.contains(qNorm) || notes.contains(qNorm) || statusLabel.contains(qNorm) || phone.contains(qNorm);
-                })
-                .sorted(comparator)
-                .toList();
-
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        var paged = handPaymentService.getPaymentsByUserPaged(user, page, size, q, status, sortKey, desc);
+        return ResponseEntity.ok(PaginationUtil.toPageResponse(paged));
     }
 
     @GetMapping("/user/{userId}/summary")
@@ -287,20 +216,9 @@ public ResponseEntity<List<HandPaymentResponseDTO>> getMyPayments(Principal prin
             Principal principal
     ) {
         User user = requireUser(principal);
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
 
-        List<HandPaymentResponseDTO> all = handPaymentService.getPaymentsByUser(user);
-        List<HandPaymentResponseDTO> filtered = (all == null ? List.<HandPaymentResponseDTO>of() : all).stream()
-                .filter(p -> {
-                    if (qNorm.isBlank()) return true;
-                    String plan = p.planName() != null ? p.planName().trim().toLowerCase() : "";
-                    String notes = p.notes() != null ? p.notes().trim().toLowerCase() : "";
-                    return plan.contains(qNorm) || notes.contains(qNorm);
-                })
-                .sorted(Comparator.comparing(HandPaymentResponseDTO::paymentDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .toList();
-
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        var paged = handPaymentService.getMyPaymentsPaged(user, page, size, q);
+        return ResponseEntity.ok(PaginationUtil.toPageResponse(paged));
     }
 
     /**

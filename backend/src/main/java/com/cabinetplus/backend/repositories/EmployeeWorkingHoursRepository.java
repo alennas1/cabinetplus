@@ -3,6 +3,8 @@ package com.cabinetplus.backend.repositories;
 import java.time.DayOfWeek;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -20,6 +22,8 @@ public interface EmployeeWorkingHoursRepository extends JpaRepository<EmployeeWo
 
     // --- Dentist-based filtering ---
     List<EmployeeWorkingHours> findByEmployee_Dentist(User dentist);
+    Page<EmployeeWorkingHours> findByEmployee_Dentist(User dentist, Pageable pageable);
     List<EmployeeWorkingHours> findByEmployeeIdAndEmployee_Dentist(Long employeeId, User dentist);
+    Page<EmployeeWorkingHours> findByEmployeeIdAndEmployee_Dentist(Long employeeId, User dentist, Pageable pageable);
     List<EmployeeWorkingHours> findByEmployeeIdAndDayOfWeekAndEmployee_Dentist(Long employeeId, DayOfWeek day, User dentist);
 }

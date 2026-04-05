@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.controllers;
 
 import com.cabinetplus.backend.dto.TreatmentCreateRequest;
+import com.cabinetplus.backend.dto.TreatmentToothHistoryEntry;
 import com.cabinetplus.backend.dto.TreatmentUpdateRequest;
 import com.cabinetplus.backend.dto.CancellationRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
@@ -19,6 +20,8 @@ import com.cabinetplus.backend.util.PaginationUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import jakarta.validation.Valid;
 import java.security.Principal;
@@ -58,9 +61,18 @@ public class TreatmentController {
 
     // Get all treatments for current user
     @GetMapping
-    public ResponseEntity<List<Treatment>> getAllTreatments(Principal principal) {
+    public ResponseEntity<List<Treatment>> getAllTreatments(
+            @RequestParam(name = "from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(name = "to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Principal principal
+    ) {
+        if (from == null || to == null) {
+            return ResponseEntity.badRequest().build();
+        }
         User currentUser = getCurrentUser(principal);
-        List<Treatment> treatments = treatmentService.findByPractitioner(currentUser);
+        LocalDateTime fromStart = from.atStartOfDay();
+        LocalDateTime toEndExclusive = to.plusDays(1).atStartOfDay();
+        List<Treatment> treatments = treatmentService.findByPractitionerInRange(currentUser, fromStart, toEndExclusive);
         auditService.logSuccess(
                 AuditEventType.TREATMENT_READ,
                 "TREATMENT",
@@ -121,9 +133,11 @@ public class TreatmentController {
     // Delete treatment
     @PutMapping("/{id}/cancel")
     public ResponseEntity<Treatment> cancelTreatment(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
-        User currentUser = getCurrentUser(principal);
+        User actor = userService.findByPhoneNumber(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User currentUser = userService.resolveClinicOwner(actor);
         String reason = cancellationSecurityService.requirePinAndReason(currentUser, payload.pin(), payload.reason());
-        Treatment cancelled = treatmentService.cancelTreatment(id, currentUser);
+        Treatment cancelled = treatmentService.cancelTreatment(id, currentUser, actor, reason);
 
         String acte = cancelled.getTreatmentCatalog() != null ? cancelled.getTreatmentCatalog().getName() : null;
         auditService.logSuccess(
@@ -188,48 +202,100 @@ public class TreatmentController {
         User currentUser = getCurrentUser(principal);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, currentUser).getId();
 
-        Patient patient = new Patient();
-        patient.setId(internalPatientId);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
 
         final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
-        final String fieldKey = fieldNorm.isBlank() ? "name" : fieldNorm;
+        final String fieldKey = switch (fieldNorm) {
+            case "notes" -> "notes";
+            case "name" -> "name";
+            default -> "";
+        };
         String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
         boolean desc = "desc".equalsIgnoreCase(sortDirection);
         String statusNorm = status != null ? status.trim().toUpperCase() : "";
 
-        Comparator<Treatment> comparator = buildTreatmentSortComparator(sortKeyNorm, desc);
+        String qNorm = q != null ? q.trim() : "";
+        boolean hasQuery = !qNorm.isBlank();
 
-        List<Treatment> filtered = treatmentService.findByPatientAndPractitioner(patient, currentUser).stream()
-                .filter(t -> {
-                    if (t == null) return false;
+        if (!"teeth".equals(sortKeyNorm)) {
+            boolean fromEnabled = from != null;
+            boolean toEnabled = to != null;
+            LocalDateTime fromDateTime = fromEnabled ? from.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+            LocalDateTime toDateTimeExclusive = toEnabled ? to.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
 
-                    if (!statusNorm.isBlank()) {
-                        String s = t.getStatus() != null ? t.getStatus().trim().toUpperCase() : "";
-                        if (!s.equals(statusNorm)) return false;
-                    }
+            String qLike = hasQuery ? ("%" + qNorm.toLowerCase() + "%") : "";
 
-                    LocalDateTime dateTime = t.getDate() != null ? t.getDate() : t.getUpdatedAt();
-                    if (!PagedQueryUtil.isInDateRange(dateTime, from, to)) return false;
+            Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+            Sort sort = switch (sortKeyNorm) {
+                case "name" -> Sort.by(direction, "treatmentCatalog.name");
+                case "date" -> Sort.by(direction, "date");
+                case "price" -> Sort.by(direction, "price");
+                case "status" -> Sort.by(direction, "status");
+                case "notes" -> Sort.by(direction, "notes");
+                case "updatedat", "updated_at" -> Sort.by(direction, "updatedAt");
+                default -> Sort.by(Sort.Direction.DESC, "date");
+            };
+            sort = sort.and(Sort.by(Sort.Direction.ASC, "id"));
 
-                    if (q != null && !q.isBlank()) {
-                        String hay = switch (fieldKey) {
-                            case "notes" -> t.getNotes();
-                            case "name" -> t.getTreatmentCatalog() != null ? t.getTreatmentCatalog().getName() : null;
-                            default -> {
-                                String name = t.getTreatmentCatalog() != null ? t.getTreatmentCatalog().getName() : "";
-                                String notes = t.getNotes() != null ? t.getNotes() : "";
-                                yield name + " " + notes;
-                            }
-                        };
-                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
-                    }
+            PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
+            var paged = treatmentService.searchPatientTreatmentsByCatalogName(
+                    internalPatientId,
+                    currentUser,
+                    statusNorm,
+                    fromEnabled,
+                    fromDateTime,
+                    toEnabled,
+                    toDateTimeExclusive,
+                    qLike,
+                    fieldKey,
+                    pageable
+            );
 
-                    return true;
-                })
-                .sorted(comparator)
-                .toList();
+            return ResponseEntity.ok(PaginationUtil.toPageResponse(paged));
+        }
 
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
+        LocalDateTime fromDateTime = fromEnabled ? from.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+        LocalDateTime toDateTimeExclusive = toEnabled ? to.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
+
+        String qLike = hasQuery ? ("%" + qNorm.toLowerCase() + "%") : "";
+        PageRequest pageable = PageRequest.of(safePage, safeSize);
+
+        var paged = treatmentService.searchPatientTreatmentsSortedByTeeth(
+                internalPatientId,
+                currentUser,
+                statusNorm,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                desc,
+                pageable
+        );
+
+        return ResponseEntity.ok(PaginationUtil.toPageResponse(paged));
+    }
+
+    @GetMapping("/patient/{patientId}/teeth-history")
+    public ResponseEntity<List<TreatmentToothHistoryEntry>> getPatientTeethHistory(
+            @PathVariable String patientId,
+            Principal principal
+    ) {
+        User currentUser = getCurrentUser(principal);
+        Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, currentUser).getId();
+
+        auditService.logSuccess(
+                AuditEventType.TREATMENT_READ,
+                "PATIENT",
+                internalPatientId != null ? String.valueOf(internalPatientId) : null,
+                "Historique dentaire patient consulte"
+        );
+
+        return ResponseEntity.ok(treatmentService.getToothHistoryEntriesByPatient(internalPatientId, currentUser));
     }
 
     private static Comparator<Treatment> buildTreatmentSortComparator(String sortKeyNorm, boolean desc) {

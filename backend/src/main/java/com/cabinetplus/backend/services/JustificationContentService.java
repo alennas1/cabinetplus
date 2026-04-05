@@ -4,6 +4,8 @@ import com.cabinetplus.backend.models.JustificationContent;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.JustificationContentRepository;
 import com.cabinetplus.backend.enums.JustificationType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -43,6 +45,11 @@ public class JustificationContentService {
     // =========================
     public List<JustificationContent> findByPractitioner(User practitioner) {
         return repository.findByPractitioner(practitioner);
+    }
+
+    public Page<JustificationContent> searchPagedByPractitioner(User practitioner, String q, Pageable pageable) {
+        String safeQ = q != null ? q.trim().toLowerCase() : "";
+        return repository.searchByPractitioner(practitioner, safeQ, pageable);
     }
 
     public Optional<JustificationContent> findById(Long id) {

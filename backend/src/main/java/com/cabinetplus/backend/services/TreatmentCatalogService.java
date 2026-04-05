@@ -3,6 +3,8 @@ package com.cabinetplus.backend.services;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.models.TreatmentCatalog;
@@ -39,6 +41,15 @@ public class TreatmentCatalogService {
 
     public List<TreatmentCatalog> findAllByUser(User user) {
         return treatmentCatalogRepository.findByCreatedBy(user);
+    }
+
+    public Page<TreatmentCatalog> searchPagedByUser(User user, String q, String field, Pageable pageable) {
+        if (user == null) {
+            return Page.empty(pageable);
+        }
+        String safeQ = q != null ? q.trim() : "";
+        String fieldKey = field != null ? field.trim().toLowerCase() : "";
+        return treatmentCatalogRepository.searchByCreatedBy(user, safeQ, fieldKey, pageable);
     }
 
     public Optional<TreatmentCatalog> findByIdAndUser(Long id, User user) {

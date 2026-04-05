@@ -368,3 +368,75 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 041-patient-metadata
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 041-patient-metadata.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 042-cancellation-metadata
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 042-cancellation-metadata.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 043-prothesis-updated-metadata
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 043-prothesis-updated-metadata.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 044-prothesis-workflow-by
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 044-prothesis-workflow-by.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 045-appointment-metadata
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 045-appointment-metadata.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 046-payments-received-by-backfill
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 046-payments-received-by-backfill.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 047-items-expenses-partners-metadata
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 047-items-expenses-partners-metadata.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 048-prothesis-posed-metadata
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 048-prothesis-posed-metadata.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

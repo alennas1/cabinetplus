@@ -4,8 +4,12 @@ import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse;
+import com.cabinetplus.backend.enums.RecordStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -34,6 +38,681 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
 
     List<Prothesis> findByPatientId(Long patientId);
 
+    @EntityGraph(attributePaths = {
+            "patient",
+            "practitioner",
+            "prothesisCatalog",
+            "prothesisCatalog.material",
+            "laboratory",
+            "updatedBy",
+            "sentToLabBy",
+            "receivedBy",
+            "posedBy",
+            "cancelledBy"
+    })
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and :qTooth member of p.teeth)
+                ))
+          )
+    """)
+    Page<Prothesis> searchActiveProtheses(
+            @Param("practitioner") User practitioner,
+            @Param("activeStatus") RecordStatus activeStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("filterKey") String filterKey,
+            @Param("dateType") String dateType,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            @Param("qLike") String qLike,
+            @Param("qToothEnabled") boolean qToothEnabled,
+            @Param("qTooth") Integer qTooth,
+            Pageable pageable
+    );
+
+    @Query("""
+        select p.id
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and :qTooth member of p.teeth)
+                ))
+          )
+    """)
+    Page<Long> searchActiveProthesisIds(
+            @Param("practitioner") User practitioner,
+            @Param("activeStatus") RecordStatus activeStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("filterKey") String filterKey,
+            @Param("dateType") String dateType,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            @Param("qLike") String qLike,
+            @Param("qToothEnabled") boolean qToothEnabled,
+            @Param("qTooth") Integer qTooth,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {
+            "patient",
+            "practitioner",
+            "prothesisCatalog",
+            "prothesisCatalog.material",
+            "laboratory",
+            "updatedBy",
+            "sentToLabBy",
+            "receivedBy",
+            "posedBy",
+            "cancelledBy"
+    })
+    @Query(
+            value = """
+        select p
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+        group by p
+        order by
+            case when min(tt) is null then 1 else 0 end asc,
+            min(tt) asc,
+            p.id asc
+      """,
+            countQuery = """
+        select count(distinct p.id)
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+      """
+    )
+    Page<Prothesis> searchActiveProthesesSortByToothAsc(
+            @Param("practitioner") User practitioner,
+            @Param("activeStatus") RecordStatus activeStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("filterKey") String filterKey,
+            @Param("dateType") String dateType,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            @Param("qLike") String qLike,
+            @Param("qToothEnabled") boolean qToothEnabled,
+            @Param("qTooth") Integer qTooth,
+            Pageable pageable
+    );
+
+    @Query(
+            value = """
+        select p.id
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+        group by p
+        order by
+            case when min(tt) is null then 1 else 0 end asc,
+            min(tt) asc,
+            p.id asc
+      """,
+            countQuery = """
+        select count(distinct p.id)
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+      """
+    )
+    Page<Long> searchActiveProthesisIdsSortByToothAsc(
+            @Param("practitioner") User practitioner,
+            @Param("activeStatus") RecordStatus activeStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("filterKey") String filterKey,
+            @Param("dateType") String dateType,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            @Param("qLike") String qLike,
+            @Param("qToothEnabled") boolean qToothEnabled,
+            @Param("qTooth") Integer qTooth,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {
+            "patient",
+            "practitioner",
+            "prothesisCatalog",
+            "prothesisCatalog.material",
+            "laboratory",
+            "updatedBy",
+            "sentToLabBy",
+            "receivedBy",
+            "posedBy",
+            "cancelledBy"
+    })
+    @Query(
+            value = """
+        select p
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+        group by p
+        order by
+            case when min(tt) is null then 1 else 0 end asc,
+            min(tt) desc,
+            p.id asc
+      """,
+            countQuery = """
+        select count(distinct p.id)
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+      """
+    )
+    Page<Prothesis> searchActiveProthesesSortByToothDesc(
+            @Param("practitioner") User practitioner,
+            @Param("activeStatus") RecordStatus activeStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("filterKey") String filterKey,
+            @Param("dateType") String dateType,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            @Param("qLike") String qLike,
+            @Param("qToothEnabled") boolean qToothEnabled,
+            @Param("qTooth") Integer qTooth,
+            Pageable pageable
+    );
+
+    @Query(
+            value = """
+        select p.id
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+        group by p
+        order by
+            case when min(tt) is null then 1 else 0 end asc,
+            min(tt) desc,
+            p.id asc
+      """,
+            countQuery = """
+        select count(distinct p.id)
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog pc
+        left join pc.material material
+        left join p.laboratory lab
+        left join p.teeth tt
+        where (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus = :activeStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (
+                :fromEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate >= :fromDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated >= :fromDateTime)
+          )
+          and (
+                :toEnabled = false
+                or (:dateType = 'sentToLabDate' and p.sentToLabDate <= :toDateTime)
+                or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDateTime)
+                or ((:dateType is null or :dateType = '' or :dateType = 'dateCreated') and p.dateCreated <= :toDateTime)
+          )
+          and (
+                :qLike is null or :qLike = ''
+                or (:filterKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:filterKey = 'materialname' and lower(coalesce(material.name, '')) like :qLike)
+                or (:filterKey = '' and (
+                        lower(coalesce(patient.firstname, '')) like :qLike
+                        or lower(coalesce(patient.lastname, '')) like :qLike
+                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                        or lower(coalesce(material.name, '')) like :qLike
+                        or lower(coalesce(p.code, '')) like :qLike
+                        or lower(coalesce(lab.name, '')) like :qLike
+                        or lower(coalesce(p.status, '')) like :qLike
+                        or (:qToothEnabled = true and tt = :qTooth)
+                ))
+          )
+      """
+    )
+    Page<Long> searchActiveProthesisIdsSortByToothDesc(
+            @Param("practitioner") User practitioner,
+            @Param("activeStatus") RecordStatus activeStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("filterKey") String filterKey,
+            @Param("dateType") String dateType,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTime") LocalDateTime toDateTime,
+            @Param("qLike") String qLike,
+            @Param("qToothEnabled") boolean qToothEnabled,
+            @Param("qTooth") Integer qTooth,
+            Pageable pageable
+    );
+
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.prothesisCatalog pc
+        left join pc.material m
+        where p.patient.id = :patientId
+          and (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus <> :archivedStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (:fromEnabled = false or p.dateCreated >= :fromDateTime)
+          and (:toEnabled = false or p.dateCreated < :toDateTimeExclusive)
+          and (
+                :qLike is null or :qLike = ''
+                or (:fieldKey = 'materialname' and lower(coalesce(m.name, '')) like :qLike)
+                or (:fieldKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:fieldKey = '' and (
+                        lower(coalesce(m.name, '')) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                ))
+          )
+    """)
+    Page<Prothesis> searchPatientProtheses(
+            @Param("patientId") Long patientId,
+            @Param("practitioner") User practitioner,
+            @Param("archivedStatus") com.cabinetplus.backend.enums.RecordStatus archivedStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTimeExclusive") LocalDateTime toDateTimeExclusive,
+            @Param("qLike") String qLike,
+            @Param("fieldKey") String fieldKey,
+            Pageable pageable
+    );
+
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.prothesisCatalog pc
+        left join pc.material m
+        left join p.teeth tt
+        where p.patient.id = :patientId
+          and (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus <> :archivedStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (:fromEnabled = false or p.dateCreated >= :fromDateTime)
+          and (:toEnabled = false or p.dateCreated < :toDateTimeExclusive)
+          and (
+                :qLike is null or :qLike = ''
+                or (:fieldKey = 'materialname' and lower(coalesce(m.name, '')) like :qLike)
+                or (:fieldKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:fieldKey = '' and (
+                        lower(coalesce(m.name, '')) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                ))
+          )
+        group by p
+        order by
+            case when min(tt) is null then 1 else 0 end asc,
+            min(tt) asc,
+            p.id asc
+    """)
+    Page<Prothesis> searchPatientProthesesSortByToothAsc(
+            @Param("patientId") Long patientId,
+            @Param("practitioner") User practitioner,
+            @Param("archivedStatus") com.cabinetplus.backend.enums.RecordStatus archivedStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTimeExclusive") LocalDateTime toDateTimeExclusive,
+            @Param("qLike") String qLike,
+            @Param("fieldKey") String fieldKey,
+            Pageable pageable
+    );
+
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.prothesisCatalog pc
+        left join pc.material m
+        left join p.teeth tt
+        where p.patient.id = :patientId
+          and (:practitioner is null or p.practitioner = :practitioner)
+          and p.recordStatus <> :archivedStatus
+          and (:statusNorm is null or :statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (:fromEnabled = false or p.dateCreated >= :fromDateTime)
+          and (:toEnabled = false or p.dateCreated < :toDateTimeExclusive)
+          and (
+                :qLike is null or :qLike = ''
+                or (:fieldKey = 'materialname' and lower(coalesce(m.name, '')) like :qLike)
+                or (:fieldKey = 'prothesisname' and lower(coalesce(pc.name, '')) like :qLike)
+                or (:fieldKey = '' and (
+                        lower(coalesce(m.name, '')) like :qLike
+                        or lower(coalesce(pc.name, '')) like :qLike
+                ))
+          )
+        group by p
+        order by
+            case when max(tt) is null then 1 else 0 end asc,
+            max(tt) desc,
+            p.id asc
+    """)
+    Page<Prothesis> searchPatientProthesesSortByToothDesc(
+            @Param("patientId") Long patientId,
+            @Param("practitioner") User practitioner,
+            @Param("archivedStatus") com.cabinetplus.backend.enums.RecordStatus archivedStatus,
+            @Param("statusNorm") String statusNorm,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDateTime") LocalDateTime fromDateTime,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDateTimeExclusive") LocalDateTime toDateTimeExclusive,
+            @Param("qLike") String qLike,
+            @Param("fieldKey") String fieldKey,
+            Pageable pageable
+    );
+
     boolean existsByPractitionerAndCodeIgnoreCase(User practitioner, String code);
 
     boolean existsByPractitionerAndCodeIgnoreCaseAndIdNot(User practitioner, String code, Long id);
@@ -46,6 +725,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
         GROUP BY p.patient.id
     """)
     List<Object[]> sumFinalPriceByPatientIds(@Param("patientIds") List<Long> patientIds);
+
+    @Query("""
+        SELECT COALESCE(SUM(p.finalPrice), 0)
+        FROM Prothesis p
+        WHERE p.patient.id = :patientId
+          AND p.recordStatus = 'ACTIVE'
+    """)
+    Double sumFinalPriceByPatientId(@Param("patientId") Long patientId);
 
     @Query("""
         select coalesce(sum(p.labCost), 0)
@@ -119,5 +806,96 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     List<Prothesis> findBillingProthesesByPractitionerAndLaboratory(
         @Param("practitioner") User practitioner,
         @Param("laboratoryId") Long laboratoryId
+    );
+
+    @EntityGraph(attributePaths = {
+            "patient",
+            "prothesisCatalog"
+    })
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog catalog
+        where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
+          and p.laboratory.id = :laboratoryId
+          and p.labCost is not null
+          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+    """)
+    Page<Prothesis> searchBillingProthesesByPractitionerAndLaboratory(
+            @Param("practitioner") User practitioner,
+            @Param("laboratoryId") Long laboratoryId,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {
+            "patient",
+            "prothesisCatalog"
+    })
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog catalog
+        where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
+          and p.laboratory.id = :laboratoryId
+          and p.labCost is not null
+          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+        order by coalesce(p.sentToLabDate, p.dateCreated) asc, p.id asc
+    """)
+    Page<Prothesis> searchBillingProthesesByPractitionerAndLaboratoryOrderByBillingDateAsc(
+            @Param("practitioner") User practitioner,
+            @Param("laboratoryId") Long laboratoryId,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {
+            "patient",
+            "prothesisCatalog"
+    })
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog catalog
+        where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
+          and p.laboratory.id = :laboratoryId
+          and p.labCost is not null
+          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+        order by coalesce(p.sentToLabDate, p.dateCreated) desc, p.id asc
+    """)
+    Page<Prothesis> searchBillingProthesesByPractitionerAndLaboratoryOrderByBillingDateDesc(
+            @Param("practitioner") User practitioner,
+            @Param("laboratoryId") Long laboratoryId,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt,
+            Pageable pageable
+    );
+
+    @Query("""
+        select count(p), coalesce(sum(p.labCost), 0)
+        from Prothesis p
+        where p.practitioner = :practitioner
+          and p.recordStatus = 'ACTIVE'
+          and p.laboratory.id = :laboratoryId
+          and p.labCost is not null
+          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+    """)
+    Object[] getBillingEntriesSummaryByPractitionerAndLaboratory(
+            @Param("practitioner") User practitioner,
+            @Param("laboratoryId") Long laboratoryId,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt
     );
 }

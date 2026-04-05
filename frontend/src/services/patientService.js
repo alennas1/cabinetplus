@@ -6,6 +6,11 @@ export const getPatients = async () => {
   return response.data;
 };
 
+export const getPatientsByIds = async (ids = []) => {
+  const response = await api.post("/api/patients/by-ids", ids);
+  return response.data;
+};
+
 export const getPatientsPage = async ({ page = 0, size = 20, q, field, sex, ageFrom, ageTo, from, to, sortKey, sortDirection } = {}) => {
   const response = await api.get("/api/patients/paged", {
     params: { page, size, q, field, sex, ageFrom, ageTo, from, to, sortKey, sortDirection },
@@ -28,6 +33,11 @@ export const getArchivedPatientsPage = async ({ page = 0, size = 20, q, field, s
 // ----------------- Get Patient By ID -----------------
 export const getPatientById = async (id) => {
   const response = await api.get(`/api/patients/${id}`);
+  return response.data;
+};
+
+export const getPatientFinancialStats = async (id) => {
+  const response = await api.get(`/api/patients/${id}/financial-stats`);
   return response.data;
 };
 

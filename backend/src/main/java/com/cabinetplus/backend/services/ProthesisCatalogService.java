@@ -5,6 +5,8 @@ import com.cabinetplus.backend.exceptions.ConflictException;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.repositories.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +19,14 @@ public class ProthesisCatalogService {
     private final ProthesisRepository prothesisRepository;
 
     public List<ProthesisCatalog> findAllByUser(User user) { return repository.findByCreatedBy(user); }
+
+    public Page<ProthesisCatalog> searchPagedByUser(User user, String q, Pageable pageable) {
+        if (user == null) {
+            return Page.empty(pageable);
+        }
+        String safeQ = q != null ? q.trim() : "";
+        return repository.searchByCreatedBy(user, safeQ, pageable);
+    }
 
     public ProthesisCatalog save(ProthesisCatalog catalog, Long materialId, User user) {
         assertUniqueName(catalog != null ? catalog.getName() : null, user, null);

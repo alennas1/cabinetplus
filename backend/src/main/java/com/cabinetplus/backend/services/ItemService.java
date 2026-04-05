@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import com.cabinetplus.backend.dto.CreateItemDTO;
 import com.cabinetplus.backend.dto.UpdateItemDTO;
 import com.cabinetplus.backend.dto.ItemDTO;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Fournisseur;
 import com.cabinetplus.backend.models.Item;
 import com.cabinetplus.backend.models.ItemDefault;
@@ -97,7 +99,23 @@ public class ItemService {
                     item.setExpiryDate(dto.getExpiryDate());
                     item.setFournisseur(fournisseur);
                     return itemRepository.save(item);
-                }).orElseThrow(() -> new RuntimeException("Article introuvable"));
+                 }).orElseThrow(() -> new RuntimeException("Article introuvable"));
+    }
+
+    public Item cancelItem(Long id, User dentist, User actor, String reason) {
+        if (id == null) throw new NotFoundException("Article introuvable");
+        Item item = itemRepository.findByIdAndCreatedBy(id, dentist)
+                .orElseThrow(() -> new NotFoundException("Article introuvable"));
+
+        if (item.getRecordStatus() == RecordStatus.CANCELLED) {
+            return item;
+        }
+
+        item.setRecordStatus(RecordStatus.CANCELLED);
+        item.setCancelledAt(LocalDateTime.now());
+        item.setCancelledBy(actor);
+        item.setCancelReason(reason);
+        return itemRepository.save(item);
     }
 
     // Update item (only if it belongs to this dentist)
@@ -118,28 +136,41 @@ public class ItemService {
     Item item = getItemByIdForDentist(id, dentist)
             .orElseThrow(() -> new RuntimeException("Article introuvable"));
     itemRepository.delete(item);
-}
+ }
 
-
+ 
     public ItemDTO toDTO(Item item) {
-    return new ItemDTO(
-    item.getId(),
-    item.getItemDefault().getId(),
-    item.getItemDefault().getName(),
-    item.getQuantity(),
-    item.getPrice(),
-    item.getUnitPrice(),
-    item.getExpiryDate(),
-    item.getCreatedAt(),
-    item.getFournisseur() != null ? item.getFournisseur().getId() : null,
-    item.getFournisseur() != null ? item.getFournisseur().getName() : null,
-    item.getCreatedBy() != null ? String.format("%s %s",
+    String createdByName = item.getCreatedBy() != null ? String.format("%s %s",
             item.getCreatedBy().getFirstname() != null ? item.getCreatedBy().getFirstname().trim() : "",
             item.getCreatedBy().getLastname() != null ? item.getCreatedBy().getLastname().trim() : ""
-    ).trim() : null
-);
+    ).trim() : null;
+    if (createdByName != null && createdByName.isBlank()) createdByName = null;
 
-}
+    String cancelledByName = item.getCancelledBy() != null ? String.format("%s %s",
+            item.getCancelledBy().getFirstname() != null ? item.getCancelledBy().getFirstname().trim() : "",
+            item.getCancelledBy().getLastname() != null ? item.getCancelledBy().getLastname().trim() : ""
+    ).trim() : null;
+    if (cancelledByName != null && cancelledByName.isBlank()) cancelledByName = null;
+
+    return new ItemDTO(
+            item.getId(),
+            item.getItemDefault().getId(),
+            item.getItemDefault().getName(),
+            item.getQuantity(),
+            item.getPrice(),
+            item.getUnitPrice(),
+            item.getExpiryDate(),
+            item.getCreatedAt(),
+            item.getFournisseur() != null ? item.getFournisseur().getId() : null,
+            item.getFournisseur() != null ? item.getFournisseur().getName() : null,
+            createdByName,
+            item.getRecordStatus(),
+            item.getCancelledAt(),
+            cancelledByName,
+            item.getCancelReason()
+    );
+
+ }
 
 
     

@@ -8,6 +8,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
+import MetadataInfo from "../components/MetadataInfo";
 import FieldError from "../components/FieldError";
 import PhoneInput from "../components/PhoneInput";
 import {
@@ -20,6 +21,7 @@ import {
 } from "../services/fournisseurService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import "./Patients.css";
@@ -284,6 +286,7 @@ const Fournisseurs = ({ view = "active" }) => {
             <SortableTh label="Contact" sortKey="contactPerson" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Téléphone" sortKey="phoneNumber" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Adresse" sortKey="address" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="created_at" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
             <th style={{ textAlign: "right" }}>Actions</th>
           </tr>
         </thead>
@@ -298,6 +301,12 @@ const Fournisseurs = ({ view = "active" }) => {
               <td>{f.contactPerson || "—"}</td>
               <td>{formatPhoneNumber(f.phoneNumber) || "—"}</td>
               <td>{f.address || "—"}</td>
+              <td>
+                <div className="flex items-center gap-2">
+                  <span>{formatDateTimeByPreference(f.createdAt) || "â€”"}</span>
+                  <MetadataInfo entity={f} />
+                </div>
+              </td>
               <td style={{ textAlign: "right" }}>
                 <button
                   className="action-btn view"
@@ -353,7 +362,7 @@ const Fournisseurs = ({ view = "active" }) => {
 
           {current.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
+              <td colSpan={6} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
                 {view === "archived" ? "Aucun fournisseur archivé" : "Aucun fournisseur trouvé"}
               </td>
             </tr>

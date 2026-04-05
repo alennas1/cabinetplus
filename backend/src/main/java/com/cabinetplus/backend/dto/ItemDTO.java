@@ -3,6 +3,8 @@ package com.cabinetplus.backend.dto;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import com.cabinetplus.backend.enums.RecordStatus;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -23,4 +25,9 @@ public class ItemDTO {
     private Long fournisseurId;
     private String fournisseurName;
     private String createdByName;
+
+    private RecordStatus recordStatus;
+    private LocalDateTime cancelledAt;
+    private String cancelledByName;
+    private String cancelReason;
 }

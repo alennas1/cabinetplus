@@ -1,7 +1,6 @@
 package com.cabinetplus.backend.models;
 
 import com.cabinetplus.backend.enums.RecordStatus;
-import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -32,16 +31,16 @@ public class Laboratory {
     private String name;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String contactPerson;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String phoneNumber;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String address;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
@@ -57,6 +56,9 @@ public class Laboratory {
     private void ensurePublicId() {
         if (publicId == null) {
             publicId = UuidV7.randomUuidV7();
+        }
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
         }
     }
 }

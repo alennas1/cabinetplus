@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import com.cabinetplus.backend.enums.PaymentMethod;
 import com.cabinetplus.backend.enums.PaymentStatus;
 import com.cabinetplus.backend.enums.BillingCycle; // Import the new Enum
-import com.cabinetplus.backend.security.EncryptionConverter;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -46,6 +45,5 @@ public class HandPayment {
     private PaymentMethod paymentMethod = PaymentMethod.HAND;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String notes;
 }

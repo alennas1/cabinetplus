@@ -3,10 +3,8 @@ package com.cabinetplus.backend.models;
 import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.enums.RecordStatus;
-import com.cabinetplus.backend.security.EncryptionConverter;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -41,7 +39,6 @@ public class FournisseurPayment {
     private LocalDateTime paymentDate;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String notes;
 
     @ManyToOne(optional = false)

@@ -12,6 +12,8 @@ import com.cabinetplus.backend.exceptions.BadRequestException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -81,6 +83,34 @@ public class JustificationService {
 
     public List<Justification> findByPatientAndPractitioner(Patient patient, User practitioner) {
         return justificationRepository.findByPatientAndPractitionerAndRecordStatus(patient, practitioner, RecordStatus.ACTIVE);
+    }
+
+    public Page<Justification> searchPatientJustifications(
+            Long patientId,
+            User practitioner,
+            boolean fromEnabled,
+            LocalDateTime fromDateTime,
+            boolean toEnabled,
+            LocalDateTime toDateTimeExclusive,
+            String qLike,
+            String fieldKey,
+            Pageable pageable
+    ) {
+        if (patientId == null || practitioner == null) {
+            return Page.empty(pageable);
+        }
+        return justificationRepository.searchPatientJustifications(
+                patientId,
+                practitioner,
+                RecordStatus.ACTIVE,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                pageable
+        );
     }
 
     // ðŸ”µ GENERATE FROM JUSTIFICATION CONTENT (ID-BASED)

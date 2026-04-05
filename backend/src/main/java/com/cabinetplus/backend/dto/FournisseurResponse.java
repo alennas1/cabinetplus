@@ -12,6 +12,8 @@ public record FournisseurResponse(
         String contactPerson,
         String phoneNumber,
         String address,
+        LocalDateTime createdAt,
+        String createdByName,
         RecordStatus recordStatus,
         LocalDateTime archivedAt
 ) {}

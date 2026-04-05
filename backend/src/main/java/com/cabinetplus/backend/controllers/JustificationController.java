@@ -7,6 +7,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -141,40 +143,63 @@ public ResponseEntity<List<JustificationDTO>> getByPatient(
 
         Patient patient = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist);
 
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
         final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
-        final String fieldKey = fieldNorm.isBlank() ? "title" : fieldNorm;
+        final String fieldKey = fieldNorm.isBlank() ? "" : fieldNorm;
         String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
         boolean desc = "desc".equalsIgnoreCase(sortDirection);
 
-        Comparator<JustificationDTO> comparator = buildJustificationSortComparator(sortKeyNorm, desc);
+        String qNorm = q != null ? q.trim() : "";
+        boolean hasQuery = !qNorm.isBlank();
 
-        List<JustificationDTO> filtered = justificationService.findByPatientAndPractitioner(patient, currentUser).stream()
-                .map(JustificationController::mapToDTO)
-                .filter(dto -> {
-                    if (dto == null) return false;
+        LocalDate effectiveFrom = from;
+        LocalDate effectiveTo = to;
+        if (hasQuery && "date".equalsIgnoreCase(fieldKey)) {
+            try {
+                LocalDate parsed = LocalDate.parse(qNorm.trim());
+                if (effectiveFrom == null) effectiveFrom = parsed;
+                if (effectiveTo == null) effectiveTo = parsed;
+                hasQuery = false;
+            } catch (Exception ignored) {
+                effectiveFrom = LocalDate.of(3000, 1, 1);
+                effectiveTo = LocalDate.of(3000, 1, 1);
+                hasQuery = false;
+            }
+        }
 
-                    LocalDateTime dtoDate = parseJustificationDate(dto.getDate());
-                    if (!PagedQueryUtil.isInDateRange(dtoDate, from, to)) return false;
+        String qLike = hasQuery ? ("%" + qNorm.trim().toLowerCase() + "%") : "";
+        String searchFieldKey = "title".equalsIgnoreCase(fieldKey) ? "title" : "";
 
-                    if (q != null && !q.isBlank()) {
-                        String hay = switch (fieldKey) {
-                            case "date" -> dto.getDate();
-                            case "title" -> dto.getTitle();
-                            default -> {
-                                String title = dto.getTitle() != null ? dto.getTitle() : "";
-                                String date = dto.getDate() != null ? dto.getDate() : "";
-                                yield title + " " + date;
-                            }
-                        };
-                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
-                    }
+        boolean fromEnabled = effectiveFrom != null;
+        boolean toEnabled = effectiveTo != null;
+        LocalDateTime fromDateTime = fromEnabled ? effectiveFrom.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+        LocalDateTime toDateTimeExclusive = toEnabled ? effectiveTo.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
 
-                    return true;
-                })
-                .sorted(comparator)
-                .toList();
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Sort sort = switch (sortKeyNorm) {
+            case "title" -> Sort.by(direction, "title");
+            case "date" -> Sort.by(direction, "date");
+            default -> Sort.by(Sort.Direction.DESC, "date");
+        };
+        sort = sort.and(Sort.by(Sort.Direction.ASC, "id"));
 
-        return PaginationUtil.toPageResponse(filtered, page, size);
+        PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
+        var dtoPage = justificationService.searchPatientJustifications(
+                        patient.getId(),
+                        currentUser,
+                        fromEnabled,
+                        fromDateTime,
+                        toEnabled,
+                        toDateTimeExclusive,
+                        qLike,
+                        searchFieldKey,
+                        pageable
+                )
+                .map(JustificationController::mapToDTO);
+
+        return PaginationUtil.toPageResponse(dtoPage);
     }
 
     private static LocalDateTime parseJustificationDate(String yyyyMmDd) {

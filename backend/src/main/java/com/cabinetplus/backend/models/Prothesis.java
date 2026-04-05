@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.cabinetplus.backend.enums.RecordStatus;
-import com.cabinetplus.backend.security.EncryptionConverter;
 import jakarta.persistence.*;
 
 import lombok.AllArgsConstructor;
@@ -46,15 +45,36 @@ public class Prothesis {
     private String status = "PENDING"; 
     
     private LocalDateTime dateCreated = LocalDateTime.now();
+    private LocalDateTime updatedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "updated_by")
+    private User updatedBy;
+
     private LocalDateTime sentToLabDate;
+
+    @ManyToOne
+    @JoinColumn(name = "sent_to_lab_by")
+    private User sentToLabBy;
+
     private LocalDateTime actualReturnDate;
+
+    @ManyToOne
+    @JoinColumn(name = "received_by")
+    private User receivedBy;
+
+    @Column(name = "posed_at")
+    private LocalDateTime posedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "posed_by")
+    private User posedBy;
 
     // --- Pricing & Details ---
     private Double finalPrice; // Calculated: (catalog.price * teeth.size()) or flat fee
     private String code;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String notes;
 
     @ElementCollection(fetch = FetchType.EAGER)
@@ -70,4 +90,26 @@ public class Prothesis {
     private RecordStatus recordStatus = RecordStatus.ACTIVE;
 
     private LocalDateTime cancelledAt;
+
+    @ManyToOne
+    @JoinColumn(name = "cancelled_by")
+    private User cancelledBy;
+
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
+    @PrePersist
+    private void onCreate() {
+        if (dateCreated == null) {
+            dateCreated = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = dateCreated;
+        }
+    }
+
+    @PreUpdate
+    private void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

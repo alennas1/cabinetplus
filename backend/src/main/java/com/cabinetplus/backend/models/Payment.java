@@ -60,6 +60,13 @@ public class Payment {
 
     private LocalDateTime cancelledAt;
 
+    @ManyToOne
+    @JoinColumn(name = "cancelled_by")
+    private User cancelledBy;
+
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
     @PrePersist
     private void ensureRecordStatus() {
         if (recordStatus == null) {

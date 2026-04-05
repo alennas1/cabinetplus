@@ -123,6 +123,8 @@ public class AuditService {
             String status,
             String entity,
             String action,
+            String sortKey,
+            String sortDirection,
             LocalDate from,
             LocalDate to
     ) {
@@ -135,7 +137,7 @@ public class AuditService {
 
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        var pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt"));
+        var pageable = PageRequest.of(safePage, safeSize, buildMyLogsSort(sortKey, sortDirection));
 
         String safeQ = q != null ? q : "";
         String safeStatus = status != null ? status : "";
@@ -171,6 +173,28 @@ public class AuditService {
                 logsPage.getTotalElements(),
                 logsPage.getTotalPages()
         );
+    }
+
+    private static Sort buildMyLogsSort(String sortKey, String sortDirection) {
+        String key = sortKey != null ? sortKey.trim().toLowerCase() : "";
+        boolean desc = sortDirection != null && sortDirection.trim().equalsIgnoreCase("desc");
+
+        Sort.Order primary = switch (key) {
+            case "occurredat", "date", "datetime" -> (desc ? Sort.Order.desc("occurredAt") : Sort.Order.asc("occurredAt")).nullsLast();
+            case "status" -> Sort.Order.by("status").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC).nullsLast();
+            case "ip", "ipaddress" -> Sort.Order.by("ipAddress").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC).nullsLast();
+            case "location" -> Sort.Order.by("location").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC).nullsLast();
+            case "actor", "actorusername" -> Sort.Order.by("actorUsername").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC).nullsLast();
+            case "patient", "targetid" -> Sort.Order.by("targetId").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC).nullsLast();
+            case "action", "entity", "eventtype" -> Sort.Order.by("eventType").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC).nullsLast();
+            default -> Sort.Order.desc("occurredAt").nullsLast();
+        };
+
+        Sort sort = Sort.by(primary);
+        if (!"occurredat".equals(key) && !"date".equals(key) && !"datetime".equals(key)) {
+            sort = sort.and(Sort.by(Sort.Order.desc("occurredAt").nullsLast()));
+        }
+        return sort.and(Sort.by(Sort.Order.desc("id").nullsLast()));
     }
 
     public List<AuditLogResponse> getSecurityLogsForAdmin() {

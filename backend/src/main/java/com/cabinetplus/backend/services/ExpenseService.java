@@ -3,12 +3,16 @@ package com.cabinetplus.backend.services;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.ExpenseRequestDTO;
 import com.cabinetplus.backend.dto.ExpenseResponseDTO;
+import com.cabinetplus.backend.dto.MonthlyExpenseTotalDTO;
 import com.cabinetplus.backend.enums.ExpenseCategory;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Employee;
@@ -32,6 +36,42 @@ public class ExpenseService {
     // Get all expenses for a user
     public List<Expense> getExpensesForUser(User user) {
         return expenseRepository.findByCreatedBy(user);
+    }
+
+    public Page<Expense> searchExpensesForUser(User user, String q, String field, Pageable pageable) {
+        if (user == null) {
+            return Page.empty(pageable);
+        }
+
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        String qLike = qNorm.isBlank() ? "" : ("%" + qNorm + "%");
+        String fieldKey = field != null ? field.trim() : "";
+
+        Double amountExact = null;
+        if (!qNorm.isBlank()) {
+            try {
+                amountExact = Double.valueOf(qNorm.replace(",", "."));
+            } catch (Exception ignored) {
+                amountExact = null;
+            }
+        }
+
+        java.time.LocalDate dateExact = null;
+        if (!qNorm.isBlank()) {
+            try {
+                dateExact = java.time.LocalDate.parse(qNorm);
+            } catch (Exception ignored) {
+                dateExact = null;
+            }
+        }
+
+        // Only allow a known set of field names (prevents accidental JPQL changes and matches frontend keys).
+        String safeFieldKey = switch (fieldKey) {
+            case "title", "description", "category", "fournisseurName", "amount", "date" -> fieldKey;
+            default -> "";
+        };
+
+        return expenseRepository.searchByDentist(user, qLike, safeFieldKey, amountExact, dateExact, pageable);
     }
 
     public List<Expense> getExpensesByFournisseur(Long fournisseurId, User dentist) {
@@ -73,6 +113,22 @@ public class ExpenseService {
         expenseRepository.delete(expense);
     }
 
+    public Expense cancelExpense(Long id, User dentist, User actor, String reason) {
+        if (id == null) throw new NotFoundException("Depense introuvable");
+        Expense expense = expenseRepository.findByIdAndCreatedBy(id, dentist)
+                .orElseThrow(() -> new NotFoundException("Depense introuvable"));
+
+        if (expense.getRecordStatus() == RecordStatus.CANCELLED) {
+            return expense;
+        }
+
+        expense.setRecordStatus(RecordStatus.CANCELLED);
+        expense.setCancelledAt(java.time.LocalDateTime.now());
+        expense.setCancelledBy(actor);
+        expense.setCancelReason(reason);
+        return expenseRepository.save(expense);
+    }
+
     // Get all expenses for a specific employee, only for the dentist
 public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
     Employee employee = employeeRepository.findById(employeeId)
@@ -86,6 +142,47 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
     return expenseRepository.findByEmployeeAndCreatedBy(employee, dentist);
 }
 
+    public Page<Expense> getExpensesByEmployeePage(Long employeeId, User dentist, Pageable pageable) {
+        if (employeeId == null) {
+            return Page.empty(pageable);
+        }
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new NotFoundException("Employe introuvable"));
+
+        if (employee.getDentist() == null || employee.getDentist().getId() == null
+                || dentist == null || dentist.getId() == null
+                || !employee.getDentist().getId().equals(dentist.getId())) {
+            throw new AccessDeniedException("Vous n'etes pas autorise a voir les depenses de cet employe");
+        }
+
+        return expenseRepository.findByEmployeeAndDentist(employee, dentist, pageable);
+    }
+
+    public List<MonthlyExpenseTotalDTO> getEmployeeMonthlyTotals(Long employeeId, User dentist) {
+        if (employeeId == null) {
+            return List.of();
+        }
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new NotFoundException("Employe introuvable"));
+
+        if (employee.getDentist() == null || employee.getDentist().getId() == null
+                || dentist == null || dentist.getId() == null
+                || !employee.getDentist().getId().equals(dentist.getId())) {
+            throw new AccessDeniedException("Vous n'etes pas autorise a voir les depenses de cet employe");
+        }
+
+        return expenseRepository.sumEmployeeMonthlyTotals(employee, dentist).stream()
+                .map(row -> {
+                    if (row == null || row.length < 3) return null;
+                    int year = row[0] instanceof Number n ? n.intValue() : 0;
+                    int month = row[1] instanceof Number n ? n.intValue() : 0;
+                    Double total = row[2] instanceof Number n ? n.doubleValue() : 0.0;
+                    return new MonthlyExpenseTotalDTO(year, month, total);
+                })
+                .filter(v -> v != null && v.getYear() > 0 && v.getMonth() > 0)
+                .toList();
+    }
+
     // Map Expense to DTO
     public ExpenseResponseDTO toDTO(Expense expense) {
         String createdByName = null;
@@ -94,6 +191,14 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
             String last = expense.getCreatedBy().getLastname() != null ? expense.getCreatedBy().getLastname().trim() : "";
             String combined = (first + " " + last).trim();
             createdByName = combined.isBlank() ? null : combined;
+        }
+
+        String cancelledByName = null;
+        if (expense.getCancelledBy() != null) {
+            String first = expense.getCancelledBy().getFirstname() != null ? expense.getCancelledBy().getFirstname().trim() : "";
+            String last = expense.getCancelledBy().getLastname() != null ? expense.getCancelledBy().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            cancelledByName = combined.isBlank() ? null : combined;
         }
         return new ExpenseResponseDTO(
                 expense.getId(),
@@ -106,7 +211,11 @@ public List<Expense> getExpensesByEmployee(Long employeeId, User dentist) {
                 expense.getFournisseur() != null ? expense.getFournisseur().getId() : null,
                 expense.getFournisseur() != null ? expense.getFournisseur().getName() : null,
                 expense.getEmployee() != null ? expense.getEmployee().getId() : null,
-                createdByName
+                createdByName,
+                expense.getRecordStatus(),
+                expense.getCancelledAt(),
+                cancelledByName,
+                expense.getCancelReason()
         );
     }
 

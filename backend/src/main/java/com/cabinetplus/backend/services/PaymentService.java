@@ -3,6 +3,8 @@ package com.cabinetplus.backend.services;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.PaymentRequest;
@@ -53,13 +55,22 @@ public class PaymentService {
                         .build()
         );
 
+        String receivedByName = null;
+        if (receivedBy != null) {
+            String first = receivedBy.getFirstname() != null ? receivedBy.getFirstname().trim() : "";
+            String last = receivedBy.getLastname() != null ? receivedBy.getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            receivedByName = combined.isBlank() ? null : combined;
+        }
+
         return new PaymentResponse(
                 saved.getId(),
                 patient.getId(),
                 saved.getAmount(),
                 saved.getMethod(),
                 saved.getDate(),
-                receivedBy != null ? receivedBy.getId() : null
+                receivedBy != null ? receivedBy.getId() : null,
+                receivedByName
         );
     }
 
@@ -74,7 +85,38 @@ public class PaymentService {
                 .toList();
     }
 
-    public void delete(Long paymentId, User actor) {
+    public Page<Payment> searchPatientPayments(
+            Long patientId,
+            User actor,
+            Payment.Method method,
+            boolean fromEnabled,
+            LocalDateTime fromDateTime,
+            boolean toEnabled,
+            LocalDateTime toDateTimeExclusive,
+            String qLike,
+            String fieldKey,
+            Pageable pageable
+    ) {
+        User clinicOwner = resolveClinicOwner(actor);
+        boolean owned = patientRepository.findByIdAndCreatedBy(patientId, clinicOwner).isPresent();
+        if (!owned) {
+            throw new NotFoundException("Patient introuvable");
+        }
+        return paymentRepository.searchPatientPayments(
+                patientId,
+                RecordStatus.ARCHIVED,
+                method,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                pageable
+        );
+    }
+
+    public Payment cancel(Long paymentId, User actor, String reason) {
         User clinicOwner = resolveClinicOwner(actor);
         Payment existing = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new NotFoundException("Paiement introuvable"));
@@ -89,11 +131,28 @@ public class PaymentService {
             throw new NotFoundException("Paiement introuvable");
         }
 
+        boolean changed = false;
         if (existing.getRecordStatus() != RecordStatus.CANCELLED) {
             existing.setRecordStatus(RecordStatus.CANCELLED);
             existing.setCancelledAt(LocalDateTime.now());
-            paymentRepository.save(existing);
+            changed = true;
+        } else if (existing.getCancelledAt() == null) {
+            existing.setCancelledAt(LocalDateTime.now());
+            changed = true;
         }
+
+        if (actor != null && existing.getCancelledBy() == null) {
+            existing.setCancelledBy(actor);
+            changed = true;
+        }
+
+        String normalizedReason = reason != null ? reason.trim() : "";
+        if (!normalizedReason.isBlank() && (existing.getCancelReason() == null || existing.getCancelReason().isBlank())) {
+            existing.setCancelReason(normalizedReason);
+            changed = true;
+        }
+
+        return changed ? paymentRepository.save(existing) : existing;
     }
 
     private User resolveClinicOwner(User user) {

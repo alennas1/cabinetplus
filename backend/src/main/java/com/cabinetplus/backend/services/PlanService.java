@@ -3,6 +3,8 @@ package com.cabinetplus.backend.services;
 import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.repositories.PlanRepository;
 import com.cabinetplus.backend.exceptions.NotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,12 @@ public class PlanService {
     
     public List<Plan> getAllPlansForAdmin() {
         return planRepository.findAll(); // Retourne tout : actifs et inactifs
+    }
+
+    public Page<Plan> searchPlansPagedForAdmin(String q, String field, Pageable pageable) {
+        String safeQ = q != null ? q.trim().toLowerCase() : "";
+        String safeField = field != null ? field.trim() : "";
+        return planRepository.searchPagedForAdmin(safeQ, safeField, pageable);
     }
 
     public Optional<Plan> findById(Long id) {

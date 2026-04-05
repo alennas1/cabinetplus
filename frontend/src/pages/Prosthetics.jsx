@@ -921,14 +921,15 @@ const Prosthetics = () => {
                 </td>
                 <td>
                   <div className="flex items-start justify-between gap-2" style={{ fontSize: "11px", color: "#666", lineHeight: "1.4" }}>
-                    <div>
-                      <div>C: {formatDateLabel(p.dateCreated)}</div>
-                      <div style={{ color: "#3498db" }}>E: {formatDateLabel(p.sentToLabDate)}</div>
-                      <div style={{ color: "#27ae60" }}>R: {formatDateLabel(p.actualReturnDate)}</div>
+                      <div>
+                        <div>C: {formatDateLabel(p.dateCreated)}</div>
+                        <div style={{ color: "#3498db" }}>E: {formatDateLabel(p.sentToLabDate)}</div>
+                        <div style={{ color: "#27ae60" }}>R: {formatDateLabel(p.actualReturnDate)}</div>
+                        <div style={{ color: "#8e44ad" }}>P: {formatDateLabel(p.posedAt)}</div>
+                      </div>
+                      <MetadataInfo entity={p} />
                     </div>
-                    <MetadataInfo entity={p} />
-                  </div>
-                </td>
+                  </td>
                 <td>
                   <span className={`status-chip ${p.status?.toLowerCase()}`} style={{ cursor: "default" }}>
                     {busyStatusId === p.id

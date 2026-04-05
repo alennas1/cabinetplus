@@ -9,9 +9,12 @@ import com.cabinetplus.backend.repositories.ProthesisCatalogRepository;
 import com.cabinetplus.backend.repositories.TreatmentCatalogRepository;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -65,6 +68,33 @@ public class DeviseService {
 
     public List<Devise> findAllByUser(User user) {
         return deviseRepository.findByPractitioner(user);
+    }
+
+    public Page<Devise> searchPagedByUser(
+            User user,
+            String q,
+            Double amountFrom,
+            Double amountTo,
+            LocalDateTime from,
+            LocalDateTime to,
+            Pageable pageable
+    ) {
+        if (user == null) {
+            return Page.empty(pageable);
+        }
+
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        String qLike = qNorm.isBlank() ? "" : "%" + qNorm + "%";
+
+        return deviseRepository.searchByPractitionerPaged(
+                user,
+                qLike,
+                amountFrom,
+                amountTo,
+                from,
+                to,
+                pageable
+        );
     }
 
     @Transactional

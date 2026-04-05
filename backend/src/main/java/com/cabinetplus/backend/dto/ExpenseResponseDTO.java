@@ -1,8 +1,10 @@
 package com.cabinetplus.backend.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.enums.ExpenseCategory;
+import com.cabinetplus.backend.enums.RecordStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,4 +29,9 @@ public class ExpenseResponseDTO {
     private Long employeeId;
 
     private String createdByName;
+
+    private RecordStatus recordStatus;
+    private LocalDateTime cancelledAt;
+    private String cancelledByName;
+    private String cancelReason;
 }

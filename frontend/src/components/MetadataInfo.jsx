@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { HelpCircle } from "react-feather";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
 const firstValue = (...values) => {
   for (const value of values) {
     if (value === 0) return value;
@@ -19,26 +21,40 @@ const joinName = (first, last) => {
 };
 
 const getUserFullName = (value) => {
-  if (!value) return null;
+  if (value == null) return null;
   if (typeof value === "string") return value.trim() || null;
-  const firstname = String(value?.firstname || "").trim();
-  const lastname = String(value?.lastname || "").trim();
+  if (typeof value !== "object") return null;
+
+  const firstname = String(value?.firstname ?? value?.firstName ?? value?.prenom ?? "").trim();
+  const lastname = String(value?.lastname ?? value?.lastName ?? value?.nom ?? "").trim();
   const full = `${firstname} ${lastname}`.trim();
   if (full) return full;
-  const fallback = String(value?.fullName || value?.name || value?.username || value?.phoneNumber || "").trim();
+
+  const fallback = String(
+    value?.fullName ?? value?.name ?? value?.username ?? value?.phoneNumber ?? value?.email ?? ""
+  ).trim();
   return fallback || null;
+};
+
+const getReasonText = (value) => {
+  if (value == null) return null;
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value !== "object") return null;
+  const fromObj = String(value?.reason ?? value?.message ?? value?.motif ?? value?.label ?? "").trim();
+  return fromObj || null;
 };
 
 const buildDefaultEntries = (entity) => {
   if (!entity) return [];
   const entries = [];
 
-  const push = (label, at, by) => {
+  const push = (label, at, by, note) => {
     if (!at) return;
     entries.push({
       label,
       at,
       by: by || null,
+      note: note || null,
     });
   };
 
@@ -46,6 +62,11 @@ const buildDefaultEntries = (entity) => {
     entity.createdAt,
     entity.created_at,
     entity.dateCreated,
+    entity.dateTimeStart,
+    entity.date_time_start,
+    entity.startDateTime,
+    entity.start_date_time,
+    entity.startedAt,
     entity.uploadedAt,
     entity.uploaded_at,
     entity.date,
@@ -55,50 +76,73 @@ const buildDefaultEntries = (entity) => {
   const createdBy = firstValue(
     getUserFullName(entity.createdBy),
     getUserFullName(entity.practitioner),
-    entity.createdByName,
-    entity.practitionerName,
-    joinName(entity.practitionerFirstname, entity.practitionerLastname)
+    getUserFullName(entity.receivedBy),
+    getUserFullName(entity.createdByName),
+    getUserFullName(entity.practitionerName),
+    getUserFullName(entity.receivedByName),
+    getUserFullName(entity.receivedByUsername),
+    joinName(entity.practitionerFirstname, entity.practitionerLastname),
+    joinName(entity.receivedByFirstname, entity.receivedByLastname)
   );
   push("Créé", createdAt, createdBy);
 
-  const updatedAt = firstValue(entity.updatedAt, entity.updated_at);
-  const updatedBy = firstValue(
+  const updatedAtRaw = firstValue(entity.updatedAt, entity.updated_at);
+  const updatedAt = updatedAtRaw || createdAt;
+  let updatedBy = firstValue(
     getUserFullName(entity.updatedBy),
-    entity.updatedByName,
-    entity.updatedByUsername,
+    getUserFullName(entity.updatedByName),
+    getUserFullName(entity.updatedByUsername),
     joinName(entity.updatedByFirstname, entity.updatedByLastname)
   );
+  if (!updatedBy) updatedBy = createdBy;
   push("Mis à jour", updatedAt, updatedBy);
 
-  const cancelledAt = firstValue(entity.cancelledAt, entity.canceledAt, entity.cancelled_at, entity.canceled_at);
+  const cancelledAtRaw = firstValue(entity.cancelledAt, entity.canceledAt, entity.cancelled_at, entity.canceled_at);
   const cancelledBy = firstValue(
     getUserFullName(entity.cancelledBy),
     getUserFullName(entity.canceledBy),
-    entity.cancelledByName,
-    entity.canceledByName,
+    getUserFullName(entity.cancelledByName),
+    getUserFullName(entity.canceledByName),
     joinName(entity.cancelledByFirstname, entity.cancelledByLastname),
     joinName(entity.canceledByFirstname, entity.canceledByLastname)
   );
-  push("Annulé", cancelledAt, cancelledBy);
+  const cancelledReason = firstValue(
+    getReasonText(entity.cancelReason),
+    getReasonText(entity.cancel_reason),
+    getReasonText(entity.cancellationReason),
+    getReasonText(entity.cancellation_reason),
+    getReasonText(entity.cancelledReason),
+    getReasonText(entity.canceledReason),
+    getReasonText(entity.reason),
+    getReasonText(entity.motif)
+  );
+
+  const statusNorm = String(entity.status ?? entity.recordStatus ?? entity.record_status ?? "").toUpperCase();
+  const cancelledAt = cancelledAtRaw || (statusNorm === "CANCELLED" ? updatedAt || createdAt : null);
+  const cancelledByResolved = cancelledBy || (statusNorm === "CANCELLED" ? updatedBy : null);
+  push("Annulé", cancelledAt, cancelledByResolved, cancelledReason);
 
   const archivedAt = firstValue(entity.archivedAt, entity.archived_at);
-  const archivedBy = firstValue(
+  let archivedBy = firstValue(
     getUserFullName(entity.archivedBy),
-    entity.archivedByName,
+    getUserFullName(entity.archivedByName),
     joinName(entity.archivedByFirstname, entity.archivedByLastname)
   );
+  if (!archivedBy) archivedBy = updatedBy || createdBy;
   push("Archivé", archivedAt, archivedBy);
 
   const sentToLabAt = firstValue(entity.sentToLabAt, entity.sentToLabDate, entity.sentToLabOn);
   const sentToLabBy = firstValue(
     getUserFullName(entity.sentToLabBy),
-    entity.sentToLabByName,
+    getUserFullName(entity.sentToLabByName),
+    getUserFullName(entity.sentToLabByUsername),
     getUserFullName(entity.sentBy),
-    entity.sentByName,
+    getUserFullName(entity.sentByName),
+    getUserFullName(entity.sentByUsername),
     joinName(entity.sentByFirstname, entity.sentByLastname),
     joinName(entity.sentToLabByFirstname, entity.sentToLabByLastname)
   );
-  push("Envoyé au labo", sentToLabAt, sentToLabBy);
+  push("Envoyé au labo", sentToLabAt, sentToLabBy || updatedBy || createdBy);
 
   const receivedAt = firstValue(
     entity.receivedAt,
@@ -111,10 +155,11 @@ const buildDefaultEntries = (entity) => {
   );
   const receivedBy = firstValue(
     getUserFullName(entity.receivedBy),
-    entity.receivedByName,
+    getUserFullName(entity.receivedByName),
+    getUserFullName(entity.receivedByUsername),
     joinName(entity.receivedByFirstname, entity.receivedByLastname)
   );
-  push("Reçu du labo", receivedAt, receivedBy);
+  push("Reçu du labo", receivedAt, receivedBy || updatedBy || createdBy);
 
   const posedAt = firstValue(
     entity.posedAt,
@@ -129,16 +174,16 @@ const buildDefaultEntries = (entity) => {
   const posedBy = firstValue(
     getUserFullName(entity.posedBy),
     getUserFullName(entity.poseeBy),
-    entity.posedByName,
-    entity.poseeByName,
+    getUserFullName(entity.posedByName),
+    getUserFullName(entity.poseeByName),
     joinName(entity.posedByFirstname, entity.posedByLastname),
     joinName(entity.poseeByFirstname, entity.poseeByLastname)
   );
-  push("Posé", posedAt, posedBy);
+  push("Posé", posedAt, posedBy || updatedBy || createdBy);
 
   if (!sentToLabAt) {
     const sentAt = firstValue(entity.sentAt, entity.sent_at);
-    const sentBy = firstValue(getUserFullName(entity.sentBy), entity.sentByName);
+    const sentBy = firstValue(getUserFullName(entity.sentBy), getUserFullName(entity.sentByName));
     push("Envoyé", sentAt, sentBy);
   }
 
@@ -151,7 +196,7 @@ const MetadataInfo = ({ entity, entries, iconSize = 18, className = "" }) => {
   const closeTimerRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [layout, setLayout] = useState({ top: 0, left: 0, maxHeight: 320 });
 
   const computed = useMemo(() => {
     const base = Array.isArray(entries) ? entries : buildDefaultEntries(entity);
@@ -164,13 +209,38 @@ const MetadataInfo = ({ entity, entries, iconSize = 18, className = "" }) => {
     const update = () => {
       const el = triggerRef.current;
       if (!el) return;
+      const tip = tooltipRef.current;
       const rect = el.getBoundingClientRect();
-      const left = rect.left + rect.width / 2;
-      const top = rect.bottom + 8;
-      setPos({ top, left });
+
+      const padding = 12;
+      const gap = 8;
+      const maxHeight = Math.max(140, Math.min(360, window.innerHeight - padding * 2));
+
+      const tooltipWidth = tip?.offsetWidth || 260;
+      const rawHeight = tip?.scrollHeight || 220;
+      const tooltipHeight = Math.min(rawHeight, maxHeight);
+
+      const minLeft = padding + tooltipWidth / 2;
+      const maxLeft = window.innerWidth - padding - tooltipWidth / 2;
+      const left = clamp(
+        rect.left + rect.width / 2,
+        minLeft,
+        Number.isFinite(maxLeft) ? Math.max(minLeft, maxLeft) : minLeft
+      );
+
+      const belowTop = rect.bottom + gap;
+      const aboveTop = rect.top - gap - tooltipHeight;
+      let top = belowTop;
+      if (belowTop + tooltipHeight + padding > window.innerHeight && aboveTop >= padding) {
+        top = aboveTop;
+      }
+      top = clamp(top, padding, Math.max(padding, window.innerHeight - padding - tooltipHeight));
+
+      setLayout({ top, left, maxHeight });
     };
 
     update();
+    window.requestAnimationFrame(update);
     window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
     return () => {
@@ -256,11 +326,14 @@ const MetadataInfo = ({ entity, entries, iconSize = 18, className = "" }) => {
               className="z-[99999] rounded-xl border border-gray-200 bg-white shadow-lg p-3 text-xs text-gray-700"
               style={{
                 position: "fixed",
-                top: pos.top,
-                left: pos.left,
+                top: layout.top,
+                left: layout.left,
                 transform: "translateX(-50%)",
                 minWidth: 220,
                 maxWidth: 320,
+                maxHeight: layout.maxHeight,
+                overflowY: "auto",
+                overscrollBehavior: "contain",
               }}
               role="tooltip"
               onMouseEnter={openTooltip}
@@ -274,6 +347,7 @@ const MetadataInfo = ({ entity, entries, iconSize = 18, className = "" }) => {
                     <span className="text-right">
                       <div className="text-gray-900">{formatDateTimeByPreference(e.at)}</div>
                       <div className="text-gray-500">par {e.by || "—"}</div>
+                      {e.note ? <div className="text-gray-500">motif : {e.note}</div> : null}
                     </span>
                   </div>
                 ))}

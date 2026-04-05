@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.SecurityPinChangeRequest;
@@ -63,13 +64,18 @@ public class SecurityPinController {
     }
 
     @GetMapping
-    public Map<String, Object> status(@AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+    public Map<String, Object> status(
+            @RequestParam(name = "silent", defaultValue = "false") boolean silent,
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
+    ) {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
 
         boolean pinSet = user.getGestionCabinetPinHash() != null;
         boolean requirePin = pinSet && user.isGestionCabinetPinEnabled();
-        auditService.logSuccessAsUser(user, AuditEventType.SECURITY_PIN_STATUS, "USER", String.valueOf(user.getId()), "Statut PIN consulte");
+        if (!silent) {
+            auditService.logSuccessAsUser(user, AuditEventType.SECURITY_PIN_STATUS, "USER", String.valueOf(user.getId()), "Statut PIN consulte");
+        }
         return Map.of("pinSet", pinSet, "requirePin", requirePin, "enabled", requirePin);
     }
 

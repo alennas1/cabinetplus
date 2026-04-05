@@ -11,14 +11,14 @@ import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.JustificationContentService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
-import com.cabinetplus.backend.util.PaginationUtil;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.security.Principal;
-import java.util.Comparator;
 import java.util.List;
 
 @RestController
@@ -102,21 +102,20 @@ public class JustificationContentController {
             Principal principal
     ) {
         User practitioner = getPractitioner(principal);
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
 
-        List<JustificationContent> all = service.findByPractitioner(practitioner);
-        List<JustificationContent> filtered = (all == null ? List.<JustificationContent>of() : all).stream()
-                .filter(j -> {
-                    if (qNorm.isBlank()) return true;
-                    String title = j.getTitle() != null ? j.getTitle().trim().toLowerCase() : "";
-                    String content = j.getContent() != null ? j.getContent().trim().toLowerCase() : "";
-                    return title.contains(qNorm) || content.contains(qNorm);
-                })
-                .sorted(Comparator.comparing(j -> j.getTitle() != null ? j.getTitle().toLowerCase() : ""))
-                .toList();
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        var pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(
+                        Sort.Order.by("title").ignoreCase().nullsLast(),
+                        Sort.Order.asc("id")
+                )
+        );
 
-        PageResponse<JustificationContent> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<JustificationContentResponseDTO> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+        var paged = service.searchPagedByPractitioner(practitioner, q, pageable);
+        List<JustificationContentResponseDTO> items = paged.getContent().stream().map(this::mapToResponse).toList();
 
         auditService.logSuccess(
                 AuditEventType.JUSTIFICATION_TEMPLATE_READ,
@@ -125,13 +124,7 @@ public class JustificationContentController {
                 "Modeles justificatif consultes (page)"
         );
 
-        return ResponseEntity.ok(new PageResponse<>(
-                items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
-        ));
+        return ResponseEntity.ok(new PageResponse<>(items, paged.getNumber(), paged.getSize(), paged.getTotalElements(), paged.getTotalPages()));
     }
 
     // =========================

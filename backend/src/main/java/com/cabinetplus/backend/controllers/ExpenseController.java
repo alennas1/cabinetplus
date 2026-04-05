@@ -1,9 +1,10 @@
 package com.cabinetplus.backend.controllers;
 
 import java.security.Principal;
-import java.util.Comparator;
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,14 +16,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cabinetplus.backend.dto.CancellationRequest;
 import com.cabinetplus.backend.dto.ExpenseRequestDTO;
 import com.cabinetplus.backend.dto.ExpenseResponseDTO;
+import com.cabinetplus.backend.dto.MonthlyExpenseTotalDTO;
 import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.ExpenseService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -40,6 +44,7 @@ public class ExpenseController {
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
     private final AuditService auditService;
+    private final CancellationSecurityService cancellationSecurityService;
 
     @GetMapping
     public ResponseEntity<List<ExpenseResponseDTO>> getAll(Principal principal) {
@@ -64,28 +69,21 @@ public class ExpenseController {
     ) {
         User user = getClinicUser(principal);
 
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        String fieldNorm = field != null ? field.trim() : "";
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Sort sort = Sort.by(Sort.Direction.DESC, "date").and(Sort.by(Sort.Direction.DESC, "id"));
+        PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
 
-        List<Expense> all = expenseService.getExpensesForUser(user);
-        List<Expense> filtered = (all == null ? List.<Expense>of() : all).stream()
-                .filter(e -> matchesExpense(e, qNorm, fieldNorm))
-                .sorted(Comparator
-                        .comparing(Expense::getDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed()
-                        .thenComparing(Expense::getId, Comparator.nullsLast(Comparator.naturalOrder())).reversed()
-                )
-                .toList();
-
-        PageResponse<Expense> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<ExpenseResponseDTO> items = pageResponse.items().stream().map(expenseService::toDTO).toList();
+        var paged = expenseService.searchExpensesForUser(user, q, field, pageable);
+        List<ExpenseResponseDTO> items = paged.getContent().stream().map(expenseService::toDTO).toList();
 
         auditService.logSuccess(AuditEventType.EXPENSE_READ, "EXPENSE", null, "Depenses consultees (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
     }
 
@@ -124,6 +122,23 @@ public class ExpenseController {
         return ResponseEntity.ok(expenseService.toDTO(expense));
     }
 
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<ExpenseResponseDTO> cancel(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
+        User actor = userService.findByPhoneNumber(principal.getName())
+                .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
+        User clinicOwner = userService.resolveClinicOwner(actor);
+        String reason = cancellationSecurityService.requirePinAndReason(clinicOwner, payload.pin(), payload.reason());
+
+        Expense cancelled = expenseService.cancelExpense(id, clinicOwner, actor, reason);
+        auditService.logSuccess(
+                AuditEventType.EXPENSE_CANCEL,
+                "EXPENSE",
+                String.valueOf(cancelled.getId()),
+                "Depense annulee. Motif: " + reason
+        );
+        return ResponseEntity.ok(expenseService.toDTO(cancelled));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
         User user = getClinicUser(principal);
@@ -133,56 +148,90 @@ public class ExpenseController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/employee/{employeeId}")
-public ResponseEntity<List<ExpenseResponseDTO>> getByEmployee(
-        @PathVariable String employeeId,
-        Principal principal) {
+  @GetMapping("/employee/{employeeId}")
+ public ResponseEntity<List<ExpenseResponseDTO>> getByEmployee(
+         @PathVariable String employeeId,
+         @RequestParam(name = "limit", defaultValue = "200") int limit,
+         Principal principal) {
 
     User dentist = getClinicUser(principal);
     Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
 
+    int safeLimit = Math.min(Math.max(limit, 1), 1000);
+    Sort sort = Sort.by(Sort.Direction.DESC, "date").and(Sort.by(Sort.Direction.DESC, "id"));
+    PageRequest pageable = PageRequest.of(0, safeLimit, sort);
+
     auditService.logSuccess(AuditEventType.EXPENSE_READ, "EMPLOYEE", String.valueOf(internalEmployeeId), "Dépenses employé consultées");
-    List<ExpenseResponseDTO> dtos = expenseService
-            .getExpensesByEmployee(internalEmployeeId, dentist) // service method we discussed
+    List<ExpenseResponseDTO> dtos = expenseService.getExpensesByEmployeePage(internalEmployeeId, dentist, pageable)
+            .getContent()
             .stream()
             .map(expenseService::toDTO)
             .toList();
 
-    return ResponseEntity.ok(dtos);
-}
+     return ResponseEntity.ok(dtos);
+ }
 
-    private static boolean matchesExpense(Expense expense, String qNorm, String field) {
-        if (expense == null) return false;
-        if (qNorm == null || qNorm.isBlank()) return true;
+    @GetMapping("/employee/{employeeId}/paged")
+    public ResponseEntity<PageResponse<ExpenseResponseDTO>> getByEmployeePaged(
+            @PathVariable String employeeId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortKey", required = false) String sortKey,
+            @RequestParam(name = "sortDirection", required = false) String sortDirection,
+            Principal principal
+    ) {
+        User dentist = getClinicUser(principal);
+        Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
 
-        String safeField = field != null ? field.trim() : "";
-        String title = safeLower(expense.getTitle());
-        String desc = safeLower(expense.getDescription());
-        String category = expense.getCategory() != null ? expense.getCategory().name().toLowerCase() : "";
-        String otherCategoryLabel = safeLower(expense.getOtherCategoryLabel());
-        String fournisseurName = expense.getFournisseur() != null ? safeLower(expense.getFournisseur().getName()) : "";
-        String amount = expense.getAmount() != null ? String.valueOf(expense.getAmount()) : "";
-        String date = expense.getDate() != null ? expense.getDate().toString().toLowerCase() : "";
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        boolean desc = "desc".equalsIgnoreCase(sortDirection);
+        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
 
-        return switch (safeField) {
-            case "title" -> title.contains(qNorm);
-            case "category" -> category.contains(qNorm) || otherCategoryLabel.contains(qNorm);
-            case "fournisseurName" -> fournisseurName.contains(qNorm);
-            case "amount" -> amount.contains(qNorm);
-            case "date" -> date.contains(qNorm);
-            case "description" -> desc.contains(qNorm);
-            default -> title.contains(qNorm)
-                    || desc.contains(qNorm)
-                    || category.contains(qNorm)
-                    || otherCategoryLabel.contains(qNorm)
-                    || fournisseurName.contains(qNorm)
-                    || amount.contains(qNorm)
-                    || date.contains(qNorm);
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Sort sort = switch (sortKeyNorm) {
+            case "title" -> Sort.by(direction, "title");
+            case "amount" -> Sort.by(direction, "amount");
+            case "date" -> Sort.by(direction, "date");
+            default -> Sort.by(Sort.Direction.DESC, "date");
         };
+        sort = sort.and(Sort.by(Sort.Direction.DESC, "id"));
+
+        PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
+        var paged = expenseService.getExpensesByEmployeePage(internalEmployeeId, dentist, pageable);
+        List<ExpenseResponseDTO> items = paged.getContent().stream().map(expenseService::toDTO).toList();
+
+        auditService.logSuccess(
+                AuditEventType.EXPENSE_READ,
+                "EMPLOYEE",
+                String.valueOf(internalEmployeeId),
+                "Depenses employe consultees (page)"
+        );
+
+        return ResponseEntity.ok(new PageResponse<>(
+                items,
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
+        ));
     }
 
-    private static String safeLower(String value) {
-        return value == null ? "" : value.trim().toLowerCase();
+    @GetMapping("/employee/{employeeId}/monthly-totals")
+    public ResponseEntity<List<MonthlyExpenseTotalDTO>> getEmployeeMonthlyTotals(
+            @PathVariable String employeeId,
+            Principal principal
+    ) {
+        User dentist = getClinicUser(principal);
+        Long internalEmployeeId = publicIdResolutionService.requireEmployeeOwnedBy(employeeId, dentist).getId();
+        List<MonthlyExpenseTotalDTO> totals = expenseService.getEmployeeMonthlyTotals(internalEmployeeId, dentist);
+        auditService.logSuccess(
+                AuditEventType.EXPENSE_READ,
+                "EMPLOYEE",
+                String.valueOf(internalEmployeeId),
+                "Depenses employe (mensuel) consultees"
+        );
+        return ResponseEntity.ok(totals);
     }
 
 private User getClinicUser(Principal principal) {

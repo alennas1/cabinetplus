@@ -3,6 +3,9 @@ package com.cabinetplus.backend.repositories;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +22,44 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
                                                                                                 RecordStatus recordStatus);
 
     List<LaboratoryPayment> findByLaboratoryIdAndCreatedByOrderByPaymentDateDesc(Long laboratoryId, User createdBy);
+
+    @EntityGraph(attributePaths = {"createdBy"})
+    @Query("""
+        select lp
+        from LaboratoryPayment lp
+        where lp.laboratory.id = :laboratoryId
+          and lp.createdBy = :createdBy
+          and lp.recordStatus <> :archivedStatus
+          and (:fromDt is null or lp.paymentDate >= :fromDt)
+          and (:toDt is null or lp.paymentDate <= :toDt)
+    """)
+    Page<LaboratoryPayment> searchPaymentsPaged(
+            @Param("laboratoryId") Long laboratoryId,
+            @Param("createdBy") User createdBy,
+            @Param("archivedStatus") RecordStatus archivedStatus,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt,
+            Pageable pageable
+    );
+
+    @Query("""
+        select count(lp),
+               coalesce(sum(case when lp.recordStatus <> :cancelledStatus then lp.amount else 0 end), 0)
+        from LaboratoryPayment lp
+        where lp.laboratory.id = :laboratoryId
+          and lp.createdBy = :createdBy
+          and lp.recordStatus <> :archivedStatus
+          and (:fromDt is null or lp.paymentDate >= :fromDt)
+          and (:toDt is null or lp.paymentDate <= :toDt)
+    """)
+    Object[] getPaymentsSummary(
+            @Param("laboratoryId") Long laboratoryId,
+            @Param("createdBy") User createdBy,
+            @Param("archivedStatus") RecordStatus archivedStatus,
+            @Param("cancelledStatus") RecordStatus cancelledStatus,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt
+    );
 
     long countByLaboratoryIdAndCreatedByAndRecordStatus(Long laboratoryId, User createdBy, RecordStatus recordStatus);
 

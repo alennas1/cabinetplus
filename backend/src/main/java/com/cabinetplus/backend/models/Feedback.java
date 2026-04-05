@@ -3,10 +3,8 @@ package com.cabinetplus.backend.models;
 import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.enums.FeedbackCategory;
-import com.cabinetplus.backend.security.EncryptionConverter;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -45,11 +43,9 @@ public class Feedback {
     private FeedbackCategory category;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String customCategoryLabel;
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String message;
 
     private LocalDateTime createdAt;

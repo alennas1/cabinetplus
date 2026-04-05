@@ -109,6 +109,7 @@ public class FournisseurController {
             case "contactperson", "contact_person", "contact" -> "contactPerson";
             case "phonenumber", "phone_number", "phone" -> "phoneNumber";
             case "address" -> "address";
+            case "createdat", "created_at" -> "createdAt";
             default -> "name";
         };
 
@@ -151,6 +152,7 @@ public class FournisseurController {
             case "contactperson", "contact_person", "contact" -> "contactPerson";
             case "phonenumber", "phone_number", "phone" -> "phoneNumber";
             case "address" -> "address";
+            case "createdat", "created_at" -> "createdAt";
             default -> "name";
         };
 
@@ -239,54 +241,36 @@ public class FournisseurController {
 
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
         boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
 
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<Double> doubleComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<LocalDateTime> dateComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-
         String sortKeyNorm = sortKey != null ? sortKey.trim() : "";
-        Comparator<FournisseurPaymentResponse> comparator = switch (sortKeyNorm) {
-            case "amount" -> Comparator.comparing(FournisseurPaymentResponse::amount, doubleComparator);
-            case "notes" -> Comparator.comparing(p -> p.notes() != null ? p.notes().trim().toLowerCase() : "", stringComparator);
-            case "paymentDate" -> Comparator.comparing(FournisseurPaymentResponse::paymentDate, dateComparator);
-            default -> Comparator.comparing(FournisseurPaymentResponse::paymentDate, dateComparator);
+        String sortProperty = switch (sortKeyNorm) {
+            case "amount" -> "amount";
+            case "notes" -> "notes";
+            case "paymentDate" -> "paymentDate";
+            default -> "paymentDate";
         };
-        comparator = comparator.thenComparing(FournisseurPaymentResponse::id, Comparator.nullsLast(Comparator.naturalOrder()));
 
-        List<FournisseurPaymentResponse> all = detailsService.getPaymentsForFournisseur(fournisseur, user).stream()
-                .map(payment -> new FournisseurPaymentResponse(
-                        payment.getId(),
-                        payment.getAmount(),
-                        payment.getPaymentDate(),
-                        payment.getNotes(),
-                        payment.getRecordStatus(),
-                        payment.getCancelledAt(),
-                        payment.getCreatedBy() != null
-                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
-                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
-                                : null
-                ))
-                .toList();
+        Sort.Order primary = Sort.Order.by(sortProperty)
+                .with(desc ? Sort.Direction.DESC : Sort.Direction.ASC)
+                .nullsLast();
+        if ("notes".equals(sortProperty)) {
+            primary = primary.ignoreCase();
+        }
 
-        List<FournisseurPaymentResponse> filtered = (all == null ? List.<FournisseurPaymentResponse>of() : all).stream()
-                .filter(p -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = p.paymentDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .sorted(comparator)
-                .toList();
+        var pageable = PageRequest.of(safePage, safeSize, Sort.by(primary).and(Sort.by(Sort.Order.asc("id"))));
+        var paged = detailsService.getPaymentsPagedForFournisseur(fournisseur, user, fromDt, toDt, pageable);
 
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        return ResponseEntity.ok(new PageResponse<>(
+                paged.getContent(),
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
+        ));
     }
 
     @GetMapping("/{id}/payments/summary")
@@ -302,38 +286,7 @@ public class FournisseurController {
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
 
-        List<FournisseurPaymentResponse> all = detailsService.getPaymentsForFournisseur(fournisseur, user).stream()
-                .map(payment -> new FournisseurPaymentResponse(
-                        payment.getId(),
-                        payment.getAmount(),
-                        payment.getPaymentDate(),
-                        payment.getNotes(),
-                        payment.getRecordStatus(),
-                        payment.getCancelledAt(),
-                        payment.getCreatedBy() != null
-                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
-                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
-                                : null
-                ))
-                .toList();
-
-        List<FournisseurPaymentResponse> filtered = (all == null ? List.<FournisseurPaymentResponse>of() : all).stream()
-                .filter(p -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = p.paymentDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .toList();
-
-        long count = filtered.size();
-        double total = filtered.stream()
-                .filter(p -> p.recordStatus() != RecordStatus.CANCELLED)
-                .mapToDouble(p -> p.amount() != null ? p.amount() : 0.0)
-                .sum();
-
-        return ResponseEntity.ok(new CountTotalResponseDTO(count, total));
+        return ResponseEntity.ok(detailsService.getPaymentsSummaryForFournisseur(fournisseur, user, fromDt, toDt));
     }
 
     @GetMapping("/{id}/billing-entries/paged")
@@ -352,41 +305,34 @@ public class FournisseurController {
 
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
         boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
 
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<Double> doubleComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<LocalDateTime> dateComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-
         String sortKeyNorm = sortKey != null ? sortKey.trim() : "";
-        Comparator<FournisseurBillingEntryResponse> comparator = switch (sortKeyNorm) {
-            case "type" -> Comparator.comparing(e -> e.source() != null ? e.source().trim().toUpperCase() : "", stringComparator);
-            case "label" -> Comparator.comparing(e -> e.label() != null ? e.label().trim().toLowerCase() : "", stringComparator);
-            case "amount" -> Comparator.comparing(FournisseurBillingEntryResponse::amount, doubleComparator);
-            case "billingDate" -> Comparator.comparing(FournisseurBillingEntryResponse::billingDate, dateComparator);
-            default -> Comparator.comparing(FournisseurBillingEntryResponse::billingDate, dateComparator);
+        String sortProperty = switch (sortKeyNorm) {
+            case "type" -> "source";
+            case "label" -> "label";
+            case "amount" -> "amount";
+            case "billingDate" -> "billing_date";
+            default -> "billing_date";
         };
-        comparator = comparator.thenComparing(FournisseurBillingEntryResponse::referenceId, Comparator.nullsLast(Comparator.naturalOrder()));
 
-        List<FournisseurBillingEntryResponse> all = detailsService.getBillingEntriesForFournisseur(fournisseur, user);
-        List<FournisseurBillingEntryResponse> filtered = (all == null ? List.<FournisseurBillingEntryResponse>of() : all).stream()
-                .filter(e -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = e.billingDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .sorted(comparator)
-                .toList();
+        Sort.Order primary = Sort.Order.by(sortProperty)
+                .with(desc ? Sort.Direction.DESC : Sort.Direction.ASC)
+                .nullsLast();
 
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        var pageable = PageRequest.of(safePage, safeSize, Sort.by(primary).and(Sort.by(Sort.Order.asc("reference_id"))));
+        var paged = detailsService.getBillingEntriesPagedForFournisseur(fournisseur, user, fromDt, toDt, pageable);
+
+        return ResponseEntity.ok(new PageResponse<>(
+                paged.getContent(),
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
+        ));
     }
 
     @GetMapping("/{id}/billing-entries/summary")
@@ -402,20 +348,7 @@ public class FournisseurController {
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
 
-        List<FournisseurBillingEntryResponse> all = detailsService.getBillingEntriesForFournisseur(fournisseur, user);
-        List<FournisseurBillingEntryResponse> filtered = (all == null ? List.<FournisseurBillingEntryResponse>of() : all).stream()
-                .filter(e -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = e.billingDate();
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .toList();
-
-        long count = filtered.size();
-        double total = filtered.stream().mapToDouble(e -> e.amount() != null ? e.amount() : 0.0).sum();
-        return ResponseEntity.ok(new CountTotalResponseDTO(count, total));
+        return ResponseEntity.ok(detailsService.getBillingEntriesSummaryForFournisseur(fournisseur, user, fromDt, toDt));
     }
 
     @PostMapping("/{id}/payments")
@@ -588,6 +521,13 @@ public class FournisseurController {
     }
 
     private FournisseurResponse mapToResponse(Fournisseur f) {
+        String createdByName = null;
+        if (f.getCreatedBy() != null) {
+            String first = f.getCreatedBy().getFirstname() != null ? f.getCreatedBy().getFirstname().trim() : "";
+            String last = f.getCreatedBy().getLastname() != null ? f.getCreatedBy().getLastname().trim() : "";
+            String combined = (first + " " + last).trim();
+            createdByName = combined.isBlank() ? null : combined;
+        }
         return new FournisseurResponse(
                 f.getId(),
                 f.getPublicId(),
@@ -595,6 +535,8 @@ public class FournisseurController {
                 f.getContactPerson(),
                 f.getPhoneNumber(),
                 f.getAddress(),
+                f.getCreatedAt(),
+                createdByName,
                 f.getRecordStatus(),
                 f.getArchivedAt()
         );

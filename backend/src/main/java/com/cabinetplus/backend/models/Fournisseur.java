@@ -5,11 +5,9 @@ import java.util.UUID;
 import java.time.LocalDateTime;
 
 import com.cabinetplus.backend.enums.RecordStatus;
-import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -44,16 +42,16 @@ public class Fournisseur {
     private String name;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String contactPerson;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String phoneNumber;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String address;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "created_by", nullable = false)
@@ -69,6 +67,9 @@ public class Fournisseur {
     private void ensurePublicId() {
         if (publicId == null) {
             publicId = UuidV7.randomUuidV7();
+        }
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
         }
     }
 }

@@ -41,6 +41,37 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
             """)
     Page<Employee> findArchivedByDentist(@Param("dentist") User dentist, Pageable pageable);
 
+    @Query("""
+            select e
+            from Employee e
+            where e.dentist = :dentist
+              and e.archivedAt is null
+              and e.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
+              and (
+                :q is null
+                or :q = ''
+                or lower(coalesce(e.firstName, '')) like concat('%', :q, '%')
+                or lower(coalesce(e.lastName, '')) like concat('%', :q, '%')
+                or lower(coalesce(e.phone, '')) like concat('%', :q, '%')
+              )
+            """)
+    Page<Employee> searchActiveByDentist(@Param("dentist") User dentist, @Param("q") String q, Pageable pageable);
+
+    @Query("""
+            select e
+            from Employee e
+            where e.dentist = :dentist
+              and (e.archivedAt is not null or e.recordStatus <> com.cabinetplus.backend.enums.RecordStatus.ACTIVE)
+              and (
+                :q is null
+                or :q = ''
+                or lower(coalesce(e.firstName, '')) like concat('%', :q, '%')
+                or lower(coalesce(e.lastName, '')) like concat('%', :q, '%')
+                or lower(coalesce(e.phone, '')) like concat('%', :q, '%')
+              )
+            """)
+    Page<Employee> searchArchivedByDentist(@Param("dentist") User dentist, @Param("q") String q, Pageable pageable);
+
     Optional<Employee> findByIdAndDentist(Long id, User dentist);
     Optional<Employee> findByPublicIdAndDentist(UUID publicId, User dentist);
     Optional<Employee> findByUser(User user);

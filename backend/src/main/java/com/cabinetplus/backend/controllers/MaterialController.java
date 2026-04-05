@@ -20,6 +20,8 @@ import com.cabinetplus.backend.services.MaterialService;
 import com.cabinetplus.backend.services.UserService;
 import com.cabinetplus.backend.util.PaginationUtil;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import jakarta.validation.Valid;
 
 @RestController
@@ -57,28 +59,26 @@ public class MaterialController {
             Principal principal
     ) {
         User currentUser = getCurrentUser(principal);
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
 
-        List<Material> all = materialService.findAllByUser(currentUser);
-        List<Material> filtered = (all == null ? List.<Material>of() : all).stream()
-                .filter(m -> {
-                    if (qNorm.isBlank()) return true;
-                    String name = m.getName() != null ? m.getName().trim().toLowerCase() : "";
-                    return name.contains(qNorm);
-                })
-                .sorted(Comparator.comparing(m -> m.getName() != null ? m.getName().toLowerCase() : ""))
-                .toList();
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
 
-        PageResponse<Material> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<MaterialResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+        var pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(Sort.Order.by("name").ignoreCase().with(Sort.Direction.ASC)).and(Sort.by(Sort.Order.asc("id")))
+        );
+
+        var paged = materialService.searchPagedByUser(currentUser, q, pageable);
+        List<MaterialResponse> items = paged.getContent().stream().map(this::mapToResponse).toList();
 
         auditService.logSuccess(AuditEventType.MATERIAL_READ, "MATERIAL", null, "Materiaux consultes (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
     }
 

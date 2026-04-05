@@ -19,7 +19,16 @@ public record ProthesisResponse(
         String labName,
         LocalDateTime dateCreated,
         LocalDateTime sentToLabDate,
+        String sentToLabByName,
         LocalDateTime actualReturnDate,
-        String createdByName
+        String receivedByName,
+        LocalDateTime posedAt,
+        String posedByName,
+        String createdByName,
+        LocalDateTime updatedAt,
+        String updatedByName,
+        LocalDateTime cancelledAt,
+        String cancelledByName,
+        String cancelReason
 ) {
 }

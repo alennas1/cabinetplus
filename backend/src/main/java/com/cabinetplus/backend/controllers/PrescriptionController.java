@@ -103,50 +103,18 @@ public class PrescriptionController {
         User practitioner = getPractitioner(principal);
         User ownerDentist = userService.resolveClinicOwner(practitioner);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
-
-        final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
-        final String fieldKey = fieldNorm.isBlank() ? "rxid" : fieldNorm;
-        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
-        boolean desc = "desc".equalsIgnoreCase(sortDirection);
-
-        Comparator<PrescriptionSummaryDTO> comparator = buildPrescriptionSortComparator(sortKeyNorm, desc);
-
-        List<PrescriptionSummaryDTO> filtered = prescriptionService.getPrescriptionsByPatientId(internalPatientId, practitioner).stream()
-                .filter(rx -> {
-                    if (rx == null) return false;
-                    if (!PagedQueryUtil.isInDateRange(rx.getDate(), from, to)) return false;
-
-                    if (q != null && !q.isBlank()) {
-                        String hay = switch (fieldKey) {
-                            case "date" -> rx.getDate() != null ? rx.getDate().toString() : null;
-                            case "rxid", "rx_id" -> rx.getRxId();
-                            default -> {
-                                String id = rx.getRxId() != null ? rx.getRxId() : "";
-                                String dt = rx.getDate() != null ? rx.getDate().toString() : "";
-                                yield id + " " + dt;
-                            }
-                        };
-                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
-                    }
-                    return true;
-                })
-                .sorted(comparator)
-                .toList();
-
-        return PaginationUtil.toPageResponse(filtered, page, size);
-    }
-
-    private static Comparator<PrescriptionSummaryDTO> buildPrescriptionSortComparator(String sortKeyNorm, boolean desc) {
-        Comparator<String> stringComparator = PagedQueryUtil.stringComparator(desc);
-        var dateTimeComparator = PagedQueryUtil.dateTimeComparator(desc);
-
-        Comparator<PrescriptionSummaryDTO> comparator = switch (sortKeyNorm) {
-            case "rxid", "rx_id" -> Comparator.comparing(PrescriptionSummaryDTO::getRxId, stringComparator);
-            case "date" -> Comparator.comparing(PrescriptionSummaryDTO::getDate, dateTimeComparator);
-            default -> Comparator.comparing(PrescriptionSummaryDTO::getDate, PagedQueryUtil.dateTimeComparator(true));
-        };
-
-        return comparator.thenComparing(PrescriptionSummaryDTO::getId, PagedQueryUtil.longComparator(false));
+        return prescriptionService.getPrescriptionsByPatientIdPaged(
+                internalPatientId,
+                practitioner,
+                page,
+                size,
+                from,
+                to,
+                q,
+                field,
+                sortKey,
+                sortDirection
+        );
     }
 
     @GetMapping("/{id}")

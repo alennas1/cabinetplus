@@ -12,6 +12,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -127,35 +129,22 @@ public class UserController {
     ) {
         final UserPlanStatus statusFilter = parsePlanStatusFilter(status);
 
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(
+                        Sort.Order.by("lastname").ignoreCase().nullsLast(),
+                        Sort.Order.by("firstname").ignoreCase().nullsLast(),
+                        Sort.Order.asc("id")
+                )
+        );
 
-        List<User> dentists = userService.getAllDentists();
-        List<User> filtered = dentists.stream()
-                .filter(u -> statusFilter == null || u.getPlanStatus() == statusFilter)
-                .filter(u -> {
-                    if (qNorm.isBlank()) return true;
-                    String first = safeLower(u.getFirstname());
-                    String last = safeLower(u.getLastname());
-                    String phone = safeLower(u.getPhoneNumber());
-                    String planName = u.getPlan() != null ? safeLower(u.getPlan().getName()) : "";
-                    return first.contains(qNorm) || last.contains(qNorm) || phone.contains(qNorm) || planName.contains(qNorm);
-                })
-                .sorted((a, b) -> {
-                    int byLast = safeLower(a.getLastname()).compareToIgnoreCase(safeLower(b.getLastname()));
-                    if (byLast != 0) return byLast;
-                    int byFirst = safeLower(a.getFirstname()).compareToIgnoreCase(safeLower(b.getFirstname()));
-                    if (byFirst != 0) return byFirst;
-                    Long aId = a.getId();
-                    Long bId = b.getId();
-                    if (aId == null && bId == null) return 0;
-                    if (aId == null) return 1;
-                    if (bId == null) return -1;
-                    return aId.compareTo(bId);
-                })
-                .toList();
+        var paged = userService.searchDentistsPaged(q, statusFilter, pageable);
 
         auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Liste dentistes consultee (page)");
-        return PaginationUtil.toPageResponse(filtered, page, size);
+        return PaginationUtil.toPageResponse(paged);
     }
 
     @GetMapping("/admins")
@@ -176,33 +165,22 @@ public class UserController {
         User currentUser = userService.findByPhoneNumber(current.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur courant introuvable"));
 
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        List<User> admins = userService.getAllAdmins(currentUser);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(
+                        Sort.Order.by("lastname").ignoreCase().nullsLast(),
+                        Sort.Order.by("firstname").ignoreCase().nullsLast(),
+                        Sort.Order.asc("id")
+                )
+        );
 
-        List<User> filtered = admins.stream()
-                .filter(u -> {
-                    if (qNorm.isBlank()) return true;
-                    String first = safeLower(u.getFirstname());
-                    String last = safeLower(u.getLastname());
-                    String phone = safeLower(u.getPhoneNumber());
-                    return first.contains(qNorm) || last.contains(qNorm) || phone.contains(qNorm);
-                })
-                .sorted((a, b) -> {
-                    int byLast = safeLower(a.getLastname()).compareToIgnoreCase(safeLower(b.getLastname()));
-                    if (byLast != 0) return byLast;
-                    int byFirst = safeLower(a.getFirstname()).compareToIgnoreCase(safeLower(b.getFirstname()));
-                    if (byFirst != 0) return byFirst;
-                    Long aId = a.getId();
-                    Long bId = b.getId();
-                    if (aId == null && bId == null) return 0;
-                    if (aId == null) return 1;
-                    if (bId == null) return -1;
-                    return aId.compareTo(bId);
-                })
-                .toList();
+        var paged = userService.searchAdminsPaged(currentUser, q, pageable);
 
         auditService.logSuccessAsUser(currentUser, AuditEventType.USER_READ, "USER", null, "Liste admins consultee (page)");
-        return PaginationUtil.toPageResponse(filtered, page, size);
+        return PaginationUtil.toPageResponse(paged);
     }
 
     @GetMapping("/expiring-in/{days}")
@@ -221,36 +199,21 @@ public class UserController {
     ) {
         final UserPlanStatus statusFilter = parsePlanStatusFilter(status);
 
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        List<User> users = userService.getUsersExpiringInDays(days);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(
+                        Sort.Order.asc("dentistSubscription.expirationDate").nullsLast(),
+                        Sort.Order.asc("id")
+                )
+        );
 
-        List<User> filtered = users.stream()
-                .filter(u -> statusFilter == null || u.getPlanStatus() == statusFilter)
-                .filter(u -> {
-                    if (qNorm.isBlank()) return true;
-                    String first = safeLower(u.getFirstname());
-                    String last = safeLower(u.getLastname());
-                    String phone = safeLower(u.getPhoneNumber());
-                    String planName = u.getPlan() != null ? safeLower(u.getPlan().getName()) : "";
-                    return first.contains(qNorm) || last.contains(qNorm) || phone.contains(qNorm) || planName.contains(qNorm);
-                })
-                .sorted((a, b) -> {
-                    if (a.getExpirationDate() == null && b.getExpirationDate() == null) return 0;
-                    if (a.getExpirationDate() == null) return 1;
-                    if (b.getExpirationDate() == null) return -1;
-                    int byExpiry = a.getExpirationDate().compareTo(b.getExpirationDate());
-                    if (byExpiry != 0) return byExpiry;
-                    Long aId = a.getId();
-                    Long bId = b.getId();
-                    if (aId == null && bId == null) return 0;
-                    if (aId == null) return 1;
-                    if (bId == null) return -1;
-                    return aId.compareTo(bId);
-                })
-                .toList();
+        var paged = userService.getUsersExpiringInDaysPaged(days, q, statusFilter, pageable);
 
         auditService.logSuccess(AuditEventType.USER_READ, "USER", null, "Utilisateurs expirant bientot consultes (page)");
-        return PaginationUtil.toPageResponse(filtered, page, size);
+        return PaginationUtil.toPageResponse(paged);
     }
 
     @GetMapping("/{id}")
@@ -895,10 +858,6 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
                 user.getMoneyFormat(),
                 user.getCurrencyLabel()
         );
-    }
-
-    private static String safeLower(String value) {
-        return value == null ? "" : value.trim().toLowerCase();
     }
 
     private static UserPlanStatus parsePlanStatusFilter(String status) {

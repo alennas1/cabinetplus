@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.dto.EmployeeStatus;
-import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
 
 import jakarta.persistence.*;
@@ -33,33 +32,26 @@ public class Employee {
 
     // --- Basic Info ---
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String firstName;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String lastName;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String gender;
     private LocalDate dateOfBirth;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String nationalId;
 
     // --- Contact Info ---
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String phone;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String email;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String address;
 
     // --- Employment Info ---

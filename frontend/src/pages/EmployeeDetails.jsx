@@ -13,7 +13,7 @@ import {
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { getEmployeeById, updateEmployee } from "../services/employeeService";
-import { getExpensesByEmployee } from "../services/expenseService";
+import { getEmployeeExpenseMonthlyTotals, getExpensesByEmployeePage } from "../services/expenseService";
 import { updateWorkingHour } from "../services/workingHoursService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
@@ -39,6 +39,8 @@ const EmployeeDetails = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
   const [expenses, setExpenses] = useState([]);
+  const [expenseTotalPages, setExpenseTotalPages] = useState(1);
+  const [monthlyTotals, setMonthlyTotals] = useState([]);
   const [workingHours, setWorkingHours] = useState([]);
   const [isHoursModalOpen, setIsHoursModalOpen] = useState(false);
   const [editingField, setEditingField] = useState(null);
@@ -177,31 +179,38 @@ const EmployeeDetails = () => {
   }, [id]);
 
   useEffect(() => {
-    const fetchExpenses = async () => {
+    const fetchPaieData = async () => {
+      if (!id) return;
+      if (activeTab !== "paie") return;
       try {
-        const data = await getExpensesByEmployee(id);
-        setExpenses(data);
+        const [monthlyData, pageData] = await Promise.all([
+          getEmployeeExpenseMonthlyTotals(id),
+          getExpensesByEmployeePage({
+            employeeId: id,
+            page: Math.max((expensePage || 1) - 1, 0),
+            size: rowsPerPage,
+            sortKey: expenseSortConfig?.key || undefined,
+            sortDirection: expenseSortConfig?.direction || undefined,
+          }),
+        ]);
+        setMonthlyTotals(Array.isArray(monthlyData) ? monthlyData : []);
+        setExpenses(Array.isArray(pageData?.items) ? pageData.items : []);
+        setExpenseTotalPages(Number(pageData?.totalPages || 1));
       } catch (err) {
         console.error("Failed to fetch expenses:", err);
       }
     };
-    fetchExpenses();
-  }, [id]);
+    fetchPaieData();
+  }, [id, activeTab, expensePage, expenseSortConfig.key, expenseSortConfig.direction, rowsPerPage]);
 
   const monthlyRows = useMemo(() => {
-    const totals = expenses.reduce((acc, expense) => {
-      if (!expense.date) return acc;
-      const date = new Date(expense.date);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const key = `${year}-${month}`;
-      if (!acc[key]) acc[key] = 0;
-      acc[key] += Number(expense.amount) || 0;
-      return acc;
-    }, {});
-
-    return Object.entries(totals).map(([month, total]) => ({ month, total }));
-  }, [expenses]);
+    return (Array.isArray(monthlyTotals) ? monthlyTotals : []).map((row) => {
+      const year = Number(row?.year || 0);
+      const monthNumber = Number(row?.month || 0);
+      const month = `${year}-${String(monthNumber).padStart(2, "0")}`;
+      return { month, total: Number(row?.total || 0) };
+    });
+  }, [monthlyTotals]);
 
   const sortedMonthlyRows = useMemo(() => {
     if (!monthlyRows.length) return monthlyRows;
@@ -224,25 +233,7 @@ const EmployeeDetails = () => {
   }, [monthlyRows, monthlySortConfig]);
 
   const sortedExpenses = useMemo(() => {
-    if (!expenses.length) return expenses;
-    const cfg = expenseSortConfig;
-    if (!cfg?.key) return expenses;
-    return sortRowsBy(
-      expenses,
-      (e) => {
-        switch (cfg.key) {
-          case "title":
-            return e?.title || "";
-          case "amount":
-            return Number(e?.amount || 0);
-          case "date":
-            return e?.date || null;
-          default:
-            return null;
-        }
-      },
-      cfg.direction
-    );
+    return expenses;
   }, [expenses, expenseSortConfig]);
 
   const sortedEmployeeWorkingHours = useMemo(() => {
@@ -297,12 +288,8 @@ const EmployeeDetails = () => {
     monthlyCurrentPage * rowsPerPage
   );
 
-  const expenseTotalPages = Math.ceil(sortedExpenses.length / rowsPerPage);
   const expenseCurrentPage = Math.min(expensePage, expenseTotalPages || 1);
-  const pagedExpenses = sortedExpenses.slice(
-    (expenseCurrentPage - 1) * rowsPerPage,
-    expenseCurrentPage * rowsPerPage
-  );
+  const pagedExpenses = sortedExpenses;
 
   const formatMonth = (yearMonth) => {
     const [year, month] = yearMonth.split("-");

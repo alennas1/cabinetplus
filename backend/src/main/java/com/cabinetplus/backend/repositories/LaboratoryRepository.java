@@ -3,6 +3,8 @@ package com.cabinetplus.backend.repositories;
 import com.cabinetplus.backend.models.Laboratory;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.enums.RecordStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,6 +31,37 @@ public interface LaboratoryRepository extends JpaRepository<Laboratory, Long> {
               and (l.archivedAt is not null or l.recordStatus <> com.cabinetplus.backend.enums.RecordStatus.ACTIVE)
             """)
     List<Laboratory> findArchivedByCreatedBy(@Param("owner") User owner);
+
+    @Query("""
+            select l
+            from Laboratory l
+            where l.createdBy = :owner
+              and l.archivedAt is null
+              and l.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
+              and (
+                    coalesce(:q, '') = ''
+                    or lower(coalesce(l.name, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.contactPerson, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.phoneNumber, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.address, '')) like lower(concat('%', :q, '%'))
+              )
+            """)
+    Page<Laboratory> searchByCreatedBy(@Param("owner") User owner, @Param("q") String q, Pageable pageable);
+
+    @Query("""
+            select l
+            from Laboratory l
+            where l.createdBy = :owner
+              and (l.archivedAt is not null or l.recordStatus <> com.cabinetplus.backend.enums.RecordStatus.ACTIVE)
+              and (
+                    coalesce(:q, '') = ''
+                    or lower(coalesce(l.name, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.contactPerson, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.phoneNumber, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.address, '')) like lower(concat('%', :q, '%'))
+              )
+            """)
+    Page<Laboratory> searchArchivedByCreatedBy(@Param("owner") User owner, @Param("q") String q, Pageable pageable);
 
     boolean existsByCreatedByAndNameIgnoreCase(User user, String name);
     boolean existsByCreatedByAndNameIgnoreCaseAndIdNot(User user, String name, Long id);

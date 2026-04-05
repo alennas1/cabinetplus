@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.services;
 
 import com.cabinetplus.backend.dto.DocumentResponseDTO;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Document;
 import com.cabinetplus.backend.models.Patient;
@@ -10,6 +11,9 @@ import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.security.crypto.DecryptingFileResource;
 import com.cabinetplus.backend.security.crypto.EncryptedFileIO;
 import com.cabinetplus.backend.security.crypto.EncryptionKeyProvider;
+import com.cabinetplus.backend.util.PaginationUtil;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -68,6 +72,36 @@ public class DocumentService {
                 .stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    public PageResponse<DocumentResponseDTO> findByPatientIdPaged(
+            Long patientId,
+            User ownerDentist,
+            boolean fromEnabled,
+            LocalDateTime fromDateTime,
+            boolean toEnabled,
+            LocalDateTime toDateTimeExclusive,
+            String qLike,
+            String fieldKey,
+            Pageable pageable
+    ) {
+        Patient patient = patientRepository.findByIdAndCreatedBy(patientId, ownerDentist)
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+
+        Page<DocumentResponseDTO> page = documentRepository.searchPatientDocuments(
+                        patient.getId(),
+                        RecordStatus.ACTIVE,
+                        fromEnabled,
+                        fromDateTime,
+                        toEnabled,
+                        toDateTimeExclusive,
+                        qLike,
+                        fieldKey,
+                        pageable
+                )
+                .map(this::toDto);
+
+        return PaginationUtil.toPageResponse(page);
     }
 
     public DocumentResponseDTO store(

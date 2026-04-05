@@ -55,6 +55,11 @@ const VerificationPage = () => {
       return;
     }
 
+    if (isActivePlan && userData?.gestionCabinetPinConfigured !== true) {
+      navigate("/pin-setup", { replace: true });
+      return;
+    }
+
     navigate(isActivePlan ? "/dashboard" : "/plan", { replace: true });
   };
 

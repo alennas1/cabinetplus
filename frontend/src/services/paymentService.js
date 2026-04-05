@@ -34,5 +34,6 @@ export const getPaymentsByPatientPage = async ({
 
 // 🔹 Delete payment
 export const cancelPayment = async (paymentId, { pin, reason } = {}) => {
-  await api.put(`/api/payments/${paymentId}/cancel`, { pin, reason });
+  const response = await api.put(`/api/payments/${paymentId}/cancel`, { pin, reason });
+  return response.data;
 };

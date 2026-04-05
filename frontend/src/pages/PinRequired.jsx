@@ -24,7 +24,7 @@ const PinRequired = () => {
           {isDentist ? (
             <button
               type="button"
-              onClick={() => navigate("/settings/security")}
+              onClick={() => navigate("/pin-setup")}
               className="px-4 py-2 rounded-xl bg-gray-900 text-white hover:bg-black"
             >
               Configurer le PIN
@@ -48,4 +48,3 @@ const PinRequired = () => {
 };
 
 export default PinRequired;
-

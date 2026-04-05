@@ -37,7 +37,7 @@ const GestionCabinetPinGuard = () => {
     const run = async () => {
       try {
         setChecking(true);
-        const status = await getGestionCabinetPinStatus();
+        const status = await getGestionCabinetPinStatus({ silent: true });
         const nextEnabled = !!status?.enabled;
         setCachedGestionCabinetPinEnabled(userKey, nextEnabled);
         if (!cancelled) setEnabled(nextEnabled);

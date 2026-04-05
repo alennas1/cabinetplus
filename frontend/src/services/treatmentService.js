@@ -80,6 +80,11 @@ export const getTreatmentsByPatientPage = async ({
   return response.data;
 };
 
+export const getTreatmentTeethHistory = async (patientId) => {
+  const response = await api.get(`${BASE_URL}/patient/${patientId}/teeth-history`);
+  return response.data;
+};
+
 /**
  * Get treatments for a specific practitioner
  */

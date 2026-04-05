@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.services;
 
 import java.text.DecimalFormat;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -9,11 +10,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import com.cabinetplus.backend.dto.PrescriptionMedicationDTO;
 import com.cabinetplus.backend.dto.PrescriptionRequestDTO;
 import com.cabinetplus.backend.dto.PrescriptionResponseDTO;
 import com.cabinetplus.backend.dto.PrescriptionSummaryDTO;
+import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.models.Medication;
 import com.cabinetplus.backend.models.Patient;
@@ -26,6 +31,7 @@ import com.cabinetplus.backend.repositories.MedicationRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.PrescriptionRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.util.PaginationUtil;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -206,6 +212,103 @@ public Prescription updatePrescription(Long id, PrescriptionRequestDTO dto, User
                     return new PrescriptionSummaryDTO(p.getId(), p.getPublicId(), p.getRxId(), p.getDate(), createdByName);
                 })
                 .collect(Collectors.toList());
+    }
+
+    public PageResponse<PrescriptionSummaryDTO> getPrescriptionsByPatientIdPaged(
+            Long patientId,
+            User requester,
+            int page,
+            int size,
+            LocalDate from,
+            LocalDate to,
+            String q,
+            String field,
+            String sortKey,
+            String sortDirection
+    ) {
+        User clinicOwner = resolveClinicOwner(requester);
+        boolean owned = patientRepository.findByIdAndCreatedBy(patientId, clinicOwner).isPresent();
+        if (!owned) {
+            throw new NotFoundException("Patient introuvable");
+        }
+
+        List<User> practitioners = userRepository.findByOwnerDentist(clinicOwner);
+        java.util.ArrayList<User> allowed = new java.util.ArrayList<>(practitioners.size() + 1);
+        allowed.add(clinicOwner);
+        allowed.addAll(practitioners);
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
+        String qNorm = q != null ? q.trim() : "";
+        String fieldNorm = field != null ? field.trim().toLowerCase() : "";
+        String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
+        boolean desc = "desc".equalsIgnoreCase(sortDirection);
+
+        LocalDate effectiveFrom = from;
+        LocalDate effectiveTo = to;
+        if (!qNorm.isBlank() && "date".equals(fieldNorm)) {
+            try {
+                LocalDate parsed = LocalDate.parse(qNorm);
+                if (effectiveFrom == null) effectiveFrom = parsed;
+                if (effectiveTo == null) effectiveTo = parsed;
+                qNorm = "";
+            } catch (Exception ignored) {
+                throw new BadRequestException(java.util.Map.of(
+                        "q",
+                        "Date invalide. Format attendu: yyyy-MM-dd"
+                ));
+            }
+        }
+
+        boolean fromEnabled = effectiveFrom != null;
+        boolean toEnabled = effectiveTo != null;
+        LocalDateTime fromDateTime = fromEnabled ? effectiveFrom.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+        LocalDateTime toDateTimeExclusive = toEnabled ? effectiveTo.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
+
+        String rxIdLike = null;
+        if (!qNorm.isBlank() && ("".equals(fieldNorm) || "rxid".equals(fieldNorm) || "rx_id".equals(fieldNorm))) {
+            rxIdLike = "%" + qNorm.toLowerCase() + "%";
+        }
+
+        Sort sort = switch (sortKeyNorm) {
+            case "rxid", "rx_id" -> Sort.by(desc ? Sort.Direction.DESC : Sort.Direction.ASC, "rxId");
+            case "date" -> Sort.by(desc ? Sort.Direction.DESC : Sort.Direction.ASC, "date");
+            default -> Sort.by(Sort.Direction.DESC, "date");
+        };
+        sort = sort.and(Sort.by(Sort.Direction.ASC, "id"));
+
+        PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
+
+        Page<PrescriptionSummaryDTO> dtoPage = prescriptionRepository.searchPatientPrescriptions(
+                        patientId,
+                        allowed,
+                        RecordStatus.ACTIVE,
+                        fromEnabled,
+                        fromDateTime,
+                        toEnabled,
+                        toDateTimeExclusive,
+                        rxIdLike,
+                        pageable
+                )
+                .map(p -> {
+                    String createdByName = null;
+                    if (p != null && p.getPractitioner() != null) {
+                        String first = p.getPractitioner().getFirstname() != null ? p.getPractitioner().getFirstname().trim() : "";
+                        String last = p.getPractitioner().getLastname() != null ? p.getPractitioner().getLastname().trim() : "";
+                        String combined = (first + " " + last).trim();
+                        createdByName = combined.isBlank() ? null : combined;
+                    }
+                    return new PrescriptionSummaryDTO(
+                            p != null ? p.getId() : null,
+                            p != null ? p.getPublicId() : null,
+                            p != null ? p.getRxId() : null,
+                            p != null ? p.getDate() : null,
+                            createdByName
+                    );
+                });
+
+        return PaginationUtil.toPageResponse(dtoPage);
     }
 
     public void deletePrescription(Long id, User requester) {

@@ -14,13 +14,16 @@ public record PatientDto(
     String diseases,
     String allergies,
     LocalDateTime createdAt,
+    LocalDateTime updatedAt,
     Long cancelledAppointmentsCount,
     Double moneyOwed,
     Boolean danger,
     Boolean dangerCancelled,
     Boolean dangerOwed,
     LocalDateTime archivedAt,
-    String createdByName
+    String createdByName,
+    String updatedByName,
+    String archivedByName
 ) {
 
     public PatientDto(
@@ -50,11 +53,14 @@ public record PatientDto(
                 diseases,
                 allergies,
                 createdAt,
+                createdAt,
                 cancelledAppointmentsCount,
                 moneyOwed,
                 danger,
                 dangerCancelled,
                 dangerOwed,
+                null,
+                null,
                 null,
                 null
         );

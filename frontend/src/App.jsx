@@ -38,6 +38,7 @@ import EmployeeDetails from "./pages/EmployeeDetails";
   import PlanPage from "./pages/PlanPage"; 
   import WaitingPage from "./pages/WaitingPage"; 
   import PinRequired from "./pages/PinRequired";
+  import PinSetup from "./pages/PinSetup";
   import HandPaymentHistory from "./pages/HandPaymentHistory";
 import JustificationContent from "./pages/JustificationContent";
 import GestionCabinet from "./pages/GestionCabinet";
@@ -209,6 +210,7 @@ const AppContent = () => {
       const isPlanActive = isPlanActiveForAccess(user);
       if (!isPlanActive && user.planStatus === "WAITING") return "/waiting";
       if (!isPlanActive) return "/plan";
+      if (user?.gestionCabinetPinConfigured !== true) return "/pin-setup";
       return "/dashboard";
     }
     return "/appointments";
@@ -251,6 +253,7 @@ const AppContent = () => {
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/waiting" element={<WaitingPage />} />
           <Route path="/pin-required" element={<PinRequired />} />
+          <Route path="/pin-setup" element={<PinSetup />} />
 
           <Route element={<Layout />}>
             <Route path="/devis" element={<Devis />} />

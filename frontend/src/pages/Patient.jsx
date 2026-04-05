@@ -11,26 +11,29 @@ import ModernDropdown from "../components/ModernDropdown";
 import CancelWithPinModal from "../components/CancelWithPinModal";
 import MetadataInfo from "../components/MetadataInfo";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
-import { downloadPatientFiche, getPublicPatientFicheLink } from "../services/patientService";
-import { getPatientById, updatePatient } from "../services/patientService";
+import {
+  downloadPatientFiche,
+  getPublicPatientFicheLink,
+  getPatientById,
+  getPatientFinancialStats,
+  updatePatient,
+} from "../services/patientService";
 import { QRCodeCanvas } from "qrcode.react";
 import { DownloadCloud, Send, X, Smartphone } from "react-feather";
 import { Maximize, Layers } from "react-feather";
 import { 
-  getTreatmentsByPatient,
   getTreatmentsByPatientPage,
+  getTreatmentTeethHistory,
   createTreatment,
   updateTreatment,
   cancelTreatment,
 } from "../services/treatmentService";
 import { 
-  getPaymentsByPatient,
   getPaymentsByPatientPage,
   createPayment,
   cancelPayment,
 } from "../services/paymentService";
 import { 
-  getAppointmentsByPatient,
   getAppointmentsByPatientPage,
   createAppointment,
   updateAppointment,
@@ -51,18 +54,16 @@ import {
 	import { parseMoneyInput } from "../utils/moneyInput";
 	import useDebouncedValue from "../hooks/useDebouncedValue";
 	
-	import { getPrescriptionsByPatient, getPrescriptionsByPatientPage } from "../services/prescriptionService"; // make sure you have this
+	import { getPrescriptionsByPatientPage } from "../services/prescriptionService"; // make sure you have this
 
 import { getJustificationTemplates } from "../services/justificationContentService";
 import { 
-  getJustificationsByPatient,
   getJustificationsByPatientPage,
   openJustificationPdfInNewTab,
   generateDraftJustification, 
   createJustification
 } from "../services/justificationService";
 import {
-  getProtheticsByPatient,
   getProtheticsByPatientPage,
   createProthetics,
   updateProthetics,
@@ -75,7 +76,6 @@ import { createMaterial, getAllMaterials } from "../services/materialService";
 import { getAllLaboratories } from "../services/laboratoryService";
 import {
   getDocumentBlobUrl,
-  getDocumentsByPatient,
   getDocumentsByPatientPage,
   uploadPatientDocument,
 } from "../services/documentService";
@@ -370,6 +370,8 @@ import PatientActivityLogTab from "../components/PatientActivityLogTab";
   // --- STATES ---
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [financialStats, setFinancialStats] = useState(null);
+  const [financialStatsLoading, setFinancialStatsLoading] = useState(true);
   const isArchived = !!patient?.archivedAt;
   const assertPatientEditable = () => {
     if (isArchived) {
@@ -377,6 +379,20 @@ import PatientActivityLogTab from "../components/PatientActivityLogTab";
       return false;
     }
     return true;
+  };
+
+  const refreshFinancialStats = async () => {
+    if (!id) return;
+    try {
+      setFinancialStatsLoading(true);
+      const stats = await getPatientFinancialStats(id);
+      setFinancialStats(stats);
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des statistiques"));
+    } finally {
+      setFinancialStatsLoading(false);
+    }
   };
 const prothesisStatusLabels = {
   PENDING: "En attente",
@@ -399,16 +415,15 @@ const treatmentStatusLabels = {
   DONE: "Terminé",
   CANCELLED: "Annulé",
 };
-const isTreatmentCancelled = (t) => String(t?.status || "").toUpperCase() === "CANCELLED";
-const [showPatientModal, setShowPatientModal] = useState(false); // for Add/Edit Patient
-const [showJustificationModal, setShowJustificationModal] = useState(false); // for Justification modal
-const [justificationTypes, setJustificationTypes] = useState([]); // list of justification templates
-const [documents, setDocuments] = useState([]);
-const [showDocumentModal, setShowDocumentModal] = useState(false);
-const [isUploadingDocument, setIsUploadingDocument] = useState(false);
-const [documentForm, setDocumentForm] = useState({
-  title: "",
-  file: null,
+ const isTreatmentCancelled = (t) => String(t?.status || "").toUpperCase() === "CANCELLED";
+ const [showPatientModal, setShowPatientModal] = useState(false); // for Add/Edit Patient
+ const [showJustificationModal, setShowJustificationModal] = useState(false); // for Justification modal
+ const [justificationTypes, setJustificationTypes] = useState([]); // list of justification templates
+ const [showDocumentModal, setShowDocumentModal] = useState(false);
+ const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+ const [documentForm, setDocumentForm] = useState({
+   title: "",
+   file: null,
 });
 const [documentFieldErrors, setDocumentFieldErrors] = useState({});
 const [isDragOverDocument, setIsDragOverDocument] = useState(false);
@@ -599,14 +614,16 @@ const maxDocumentFileSizeBytes = 25 * 1024 * 1024;
    });
  };
 
- const [showTeethHistoryModal, setShowTeethHistoryModal] = useState(false);
- const [showTeethPreviewModal, setShowTeethPreviewModal] = useState(false);
- const [teethPreviewSelection, setTeethPreviewSelection] = useState([]);
- const [teethPreviewTitle, setTeethPreviewTitle] = useState("");
-const [isSavingProthesis, setIsSavingProthesis] = useState(false);
-const [isSavingTreatment, setIsSavingTreatment] = useState(false);
-const [isSavingPayment, setIsSavingPayment] = useState(false);
-const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [showTeethHistoryModal, setShowTeethHistoryModal] = useState(false);
+  const [showTeethPreviewModal, setShowTeethPreviewModal] = useState(false);
+  const [teethPreviewSelection, setTeethPreviewSelection] = useState([]);
+  const [teethPreviewTitle, setTeethPreviewTitle] = useState("");
+  const [teethTreatmentMap, setTeethTreatmentMap] = useState({});
+  const [teethHistoryLoading, setTeethHistoryLoading] = useState(false);
+  const [isSavingProthesis, setIsSavingProthesis] = useState(false);
+  const [isSavingTreatment, setIsSavingTreatment] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
 const [isConfirmingAction, setIsConfirmingAction] = useState(false);
 const [busyAppointmentStatusId, setBusyAppointmentStatusId] = useState(null);
 const [busyProthesisStatusId, setBusyProthesisStatusId] = useState(null);
@@ -616,7 +633,6 @@ const [prothesisStatusConfirmNextStatus, setProthesisStatusConfirmNextStatus] = 
 const [isConfirmingProthesisStatus, setIsConfirmingProthesisStatus] = useState(false);
 const [busyTreatmentStatusId, setBusyTreatmentStatusId] = useState(null);
 
-const [protheses, setProtheses] = useState([]);
 const [laboratories, setLaboratories] = useState([]);
 const [labsLoading, setLabsLoading] = useState(false);
 const [showProthesisSendToLabModal, setShowProthesisSendToLabModal] = useState(false);
@@ -649,15 +665,9 @@ const [newProthesisCatalogForm, setNewProthesisCatalogForm] = useState({
 });
 const [newProthesisCatalogErrors, setNewProthesisCatalogErrors] = useState({});
 const [materialCreateErrors, setMaterialCreateErrors] = useState({});
-const normalizeProtheses = (data) => {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.content)) return data.content;
-  if (Array.isArray(data?.protheses)) return data.protheses;
-  return [];
-};
 // REPLACE your current prothesisForm state with this:
-const [prothesisForm, setProthesisForm] = useState({ 
-  id: null, 
+ const [prothesisForm, setProthesisForm] = useState({ 
+   id: null, 
   catalogId: "", 
   price: "", 
   notes: "", 
@@ -727,15 +737,12 @@ const handleCancelAppointment = (a) => {
     subtitle: "Motif requis pour annuler ce rendez-vous.",
     requirePin: false,
     action: async ({ reason }) => {
-      try {
-        setBusyAppointmentStatusId(a.id);
-        await cancelAppointment(a.id, { reason });
-        setAppointments((prev) =>
-          prev.map((ap) => (ap.id === a.id ? { ...ap, status: "CANCELLED" } : ap))
-        );
-        bumpTabReload("appointments");
-        toast.info("Rendez-vous annulé");
-      } catch (err) {
+       try {
+         setBusyAppointmentStatusId(a.id);
+         await cancelAppointment(a.id, { reason });
+         bumpTabReload("appointments");
+         toast.info("Rendez-vous annulé");
+       } catch (err) {
         console.error(err);
         toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation du rendez-vous"));
       } finally {
@@ -757,14 +764,11 @@ const handleCompleteAppointment = async (a) => {
       notes: a.notes ?? null,
       patientId: a.patient?.id ?? a.patientId,
     };
-    const updatedAppointment = await updateAppointment(a.id, payload);
-
-    setAppointments(appointments.map(ap => 
-      ap.id === updatedAppointment.id ? updatedAppointment : ap
-    ));
-    bumpTabReload("appointments");
-    toast.success("Rendez-vous terminé !");
-  } catch (err) {
+     const updatedAppointment = await updateAppointment(a.id, payload);
+ 
+     bumpTabReload("appointments");
+     toast.success("Rendez-vous terminé !");
+   } catch (err) {
     console.error(err);
     toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du rendez-vous"));
   } finally {
@@ -786,12 +790,10 @@ const handleCompleteTreatment = async (t) => {
     const catalogObj = treatmentCatalog.find(
       (tc) => tc.id === updatedTreatment.treatmentCatalog?.id
     );
-    updatedTreatment.treatmentCatalog = catalogObj || updatedTreatment.treatmentCatalog;
-
-    setTreatments((prev) =>
-      prev.map((item) => (item.id === updatedTreatment.id ? updatedTreatment : item))
-    );
+     updatedTreatment.treatmentCatalog = catalogObj || updatedTreatment.treatmentCatalog;
+ 
     bumpTabReload("treatments");
+    await refreshFinancialStats();
     toast.success("Traitement terminé !");
   } catch (err) {
     console.error(err);
@@ -816,12 +818,10 @@ const handleStartTreatment = async (t) => {
     const catalogObj = treatmentCatalog.find(
       (tc) => tc.id === updatedTreatment.treatmentCatalog?.id
     );
-    updatedTreatment.treatmentCatalog = catalogObj || updatedTreatment.treatmentCatalog;
-
-    setTreatments((prev) =>
-      prev.map((item) => (item.id === updatedTreatment.id ? updatedTreatment : item))
-    );
+     updatedTreatment.treatmentCatalog = catalogObj || updatedTreatment.treatmentCatalog;
+ 
     bumpTabReload("treatments");
+    await refreshFinancialStats();
     toast.info("Traitement mis en cours");
   } catch (err) {
     console.error(err);
@@ -845,14 +845,13 @@ const handleQuickPrintJustification = async (template) => {
       content: draftText,
     };
     
-    const saved = await createJustification(payload);
+  const saved = await createJustification(payload);
     
-    // 3. Update the list in the UI so the new justif appears in the tab
-    setJustifications([saved, ...justifications]);
-    bumpTabReload("justifications");
-    
-    // 4. Download/Print the PDF
-    await openJustificationPdfInNewTab(saved.id);
+     // 3. Refresh the tab (server-side)
+     bumpTabReload("justifications");
+     
+     // 4. Download/Print the PDF
+     await openJustificationPdfInNewTab(saved.id);
     
     toast.success("Document généré et imprimé !");
     setShowJustificationModal(false);
@@ -936,19 +935,7 @@ const handlePrintJustification = async (justificationId, title) => {
     toast.error(getApiErrorMessage(error, "Erreur lors de la génération du PDF"));
   }
 };
-const [ordonnances, setOrdonnances] = useState([]);
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const ordos = await getPrescriptionsByPatient(id);
-      setOrdonnances(ordos);
-    } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des ordonnances"));
-    }
-  };
-  fetchData();
-}, [id]);
+
 
 useEffect(() => {
   // Only recalculate if a prothesis type is already selected
@@ -1012,37 +999,29 @@ useEffect(() => {
   };
 }, [showProthesisSendToLabModal, labsLoading, laboratories.length]);
 
-const [justifications, setJustifications] = useState([]);
 useEffect(() => {
-  const fetchData = async () => {
+  if (!id) return;
+  let cancelled = false;
+
+  const fetchCatalog = async () => {
     try {
-      // ... existing fetch calls (patientData, treatments, etc.)
-
       const catalogData = await getAllProstheticsCatalogue();
-      setProthesisCatalog(catalogData);
-
-      try {
-        const prothesesData = await getProtheticsByPatient(id);
-        setProtheses(normalizeProtheses(prothesesData));
-      } catch (prothesisErr) {
-        console.error("Erreur chargement protheses:", prothesisErr);
-        setProtheses([]);
+      if (!cancelled) {
+        setProthesisCatalog(Array.isArray(catalogData) ? catalogData : []);
       }
-
-      const justificationsData = await getJustificationsByPatient(id);
-      setJustifications(justificationsData);
-
-      const documentsData = await getDocumentsByPatient(id);
-      setDocuments(documentsData);
-
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Erreur lors du chargement des données"));
-    } finally {
-      setLoading(false);
+      if (!cancelled) {
+        setProthesisCatalog([]);
+      }
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement du catalogue de prothèses"));
     }
   };
-  fetchData();
+
+  fetchCatalog();
+  return () => {
+    cancelled = true;
+  };
 }, [id]);
 
 const resetDocumentForm = () => {
@@ -1114,7 +1093,6 @@ const handleSaveDocument = async (e) => {
       file: documentForm.file,
     });
 
-    setDocuments((prev) => [savedDocument, ...prev]);
     bumpTabReload("documents");
     setShowDocumentModal(false);
     resetDocumentForm();
@@ -1148,7 +1126,6 @@ const handleOpenDocument = async (documentItem) => {
 
 
 
-  const [treatments, setTreatments] = useState([]);
   const [treatmentCatalog, setTreatmentCatalog] = useState([]);
   const [showTreatmentModal, setShowTreatmentModal] = useState(false);
   const [showCreateTreatmentCatalogModal, setShowCreateTreatmentCatalogModal] = useState(false);
@@ -1175,15 +1152,6 @@ const handleOpenDocument = async (documentItem) => {
    paid: false,
  });
  const [treatmentFieldErrors, setTreatmentFieldErrors] = useState({});
-
-	const completedTreatments = useMemo(
-	  () =>
-	    treatments.filter((t) => {
-	      const status = (t.status || "PLANNED").toUpperCase();
-	      return status === "DONE" || status === "IN_PROGRESS";
-	    }),
-	  [treatments]
-	);
 
 useEffect(() => {
   if (treatmentForm.treatmentCatalogId) {
@@ -1290,27 +1258,23 @@ useEffect(() => {
      }
 
      // 2. Handle Automatic Payment (Mirroring Treatment)
-     if (prothesisForm.paid && !isEditingProthesis) {
-       await createPayment({
-         patientId: patient?.id,
-         amount: parsedPrice,
-         method: "CASH",
-         date: new Date().toISOString(),
-       });
-      // Refresh payments list
-      const updatedPayments = await getPaymentsByPatient(id);
-      setPayments(updatedPayments);
-      bumpTabReload("payments");
-      toast.success("Versement auto ajouté !");
-    }
-
-     // 3. Refresh and Close
-     const updatedProtheses = await getProtheticsByPatient(id);
-     setProtheses(normalizeProtheses(updatedProtheses));
-     bumpTabReload("protheses");
-     setShowProthesisModal(false);
-  } catch (err) {
-    toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
+      if (prothesisForm.paid && !isEditingProthesis) {
+        await createPayment({
+          patientId: patient?.id,
+          amount: parsedPrice,
+          method: "CASH",
+          date: new Date().toISOString(),
+        });
+       bumpTabReload("payments");
+       toast.success("Versement auto ajouté !");
+     }
+ 
+      // 3. Refresh and Close
+      bumpTabReload("protheses");
+      await refreshFinancialStats();
+      setShowProthesisModal(false);
+   } catch (err) {
+     toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
   } finally {
     setIsSavingProthesis(false);
   }
@@ -1344,15 +1308,15 @@ const getNextProthesisStatus = (currentStatus) => {
   openCancelWithPin({
     title: "Annuler la prothèse ?",
     subtitle: `Motif + PIN requis pour annuler la prothèse : ${prothesis.prothesisName || "—"}.`,
-    action: async ({ pin, reason }) => {
-      try {
-        const cancelled = await cancelProthetics(idToCancel, { pin, reason });
-        setProtheses((prev) => prev.map((p) => (p.id === cancelled.id ? cancelled : p)));
-        bumpTabReload("protheses");
-        toast.info("Prothèse annulée");
-      } catch (err) {
-        console.error("Cancel Error:", err);
-        toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
+     action: async ({ pin, reason }) => {
+       try {
+         await cancelProthetics(idToCancel, { pin, reason });
+         bumpTabReload("protheses");
+         await refreshFinancialStats();
+         toast.info("Prothèse annulée");
+       } catch (err) {
+         console.error("Cancel Error:", err);
+         toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
       }
     },
   });
@@ -1368,14 +1332,13 @@ const getNextProthesisStatus = (currentStatus) => {
    }
   const nextStatus = explicitNextStatus || getNextProthesisStatus(p.status || prothesisStatusOrder[0]);
   if (!nextStatus) return;
- 
-   try {
-     setBusyProthesisStatusId(p.id);
-     const updated = await updateProtheticsStatus(p.id, nextStatus);
-     setProtheses((prev) => prev.map((item) => (item.id === p.id ? updated : item)));
-     bumpTabReload("protheses");
-    toast.success(`Statut mis a jour: ${prothesisStatusLabels[nextStatus] || nextStatus}`);
-  } catch (err) {
+    
+    try {
+      setBusyProthesisStatusId(p.id);
+      await updateProtheticsStatus(p.id, nextStatus);
+      bumpTabReload("protheses");
+     toast.success(`Statut mis a jour: ${prothesisStatusLabels[nextStatus] || nextStatus}`);
+   } catch (err) {
     console.error(err);
     toast.error(getApiErrorMessage(err, "Erreur lors de la mise a jour du statut"));
   } finally {
@@ -1411,18 +1374,15 @@ const handleAssignProthesisToLab = async (e) => {
   }
 
   setProthesisSendToLabErrors({});
-  try {
-    setIsSendingProthesisToLab(true);
-    const updated = await assignProtheticsToLab(prothesisSendToLabTarget.id, {
-      laboratoryId: parseInt(prothesisSendToLabData.labId, 10),
-      labCost: labCostNumber,
-    });
-    setProtheses((prev) =>
-      prev.map((item) => (item.id === prothesisSendToLabTarget.id ? updated : item))
-    );
-    bumpTabReload("protheses");
-    toast.success("Envoye au laboratoire avec succes");
-    closeProthesisSendToLabModal();
+   try {
+     setIsSendingProthesisToLab(true);
+     await assignProtheticsToLab(prothesisSendToLabTarget.id, {
+       laboratoryId: parseInt(prothesisSendToLabData.labId, 10),
+       labCost: labCostNumber,
+     });
+     bumpTabReload("protheses");
+     toast.success("Envoye au laboratoire avec succes");
+     closeProthesisSendToLabModal();
   } catch (err) {
     console.error(err);
     toast.error(getApiErrorMessage(err, "Erreur d'assignation"));
@@ -1432,13 +1392,11 @@ const handleAssignProthesisToLab = async (e) => {
 };
  const [isEditingTreatment, setIsEditingTreatment] = useState(false);
 
-  const [payments, setPayments] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ id: null, amount: "", method: "CASH" });
   const [isEditingPayment, setIsEditingPayment] = useState(false);
   const [paymentFieldErrors, setPaymentFieldErrors] = useState({});
 
-	const [appointments, setAppointments] = useState([]);
 	const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [appointmentForm, setAppointmentForm] = useState({
     id: null,
@@ -1681,20 +1639,49 @@ const openProthesisSendToLabModal = (p) => {
 
 const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
-// Add this inside the Patient component body
-const teethTreatmentMap = completedTreatments.reduce((acc, t) => {
-  if (t.teeth && Array.isArray(t.teeth)) {
-    t.teeth.forEach(toothId => {
-      if (!acc[toothId]) acc[toothId] = [];
-      // Combine the catalog name and the date for a better tooltip
-      const entry = `${t.treatmentCatalog?.name} (${formatDate(t.date)})`;
-      acc[toothId].push(entry);
-    });
-  }
-  return acc;
-}, {});
+const treatedTeethIds = useMemo(
+  () => Object.keys(teethTreatmentMap || {}).map((k) => Number(k)).filter((n) => Number.isFinite(n)),
+  [teethTreatmentMap]
+);
 
-const treatedTeethIds = Object.keys(teethTreatmentMap).map(Number);
+useEffect(() => {
+  if (!showTeethHistoryModal) return;
+  if (!id) return;
+  let cancelled = false;
+
+  const load = async () => {
+    try {
+      setTeethHistoryLoading(true);
+      const rows = await getTreatmentTeethHistory(id);
+      if (cancelled) return;
+
+      const nextMap = (Array.isArray(rows) ? rows : []).reduce((acc, row) => {
+        const toothNumber = Number(row?.toothNumber);
+        if (!Number.isFinite(toothNumber)) return acc;
+        if (!acc[toothNumber]) acc[toothNumber] = [];
+
+        const name = String(row?.treatmentName || "").trim() || "Soin";
+        const dateLabel = formatDate(row?.date);
+        const entry = dateLabel ? `${name} (${dateLabel})` : name;
+        acc[toothNumber].push(entry);
+        return acc;
+      }, {});
+
+      setTeethTreatmentMap(nextMap);
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement de l'historique dentaire"));
+      setTeethTreatmentMap({});
+    } finally {
+      if (!cancelled) setTeethHistoryLoading(false);
+    }
+  };
+
+  load();
+  return () => {
+    cancelled = true;
+  };
+}, [showTeethHistoryModal, id]);
 const isoToDateTime = (iso) => {
   const d = new Date(iso);
   const date = d.toISOString().split("T")[0];
@@ -1987,6 +1974,8 @@ const handleSubmit = async (e) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
+        setFinancialStatsLoading(true);
         const patientData = await getPatientById(id);
         setPatient(patientData);
         setFormData({
@@ -1998,48 +1987,31 @@ const handleSubmit = async (e) => {
         });
         setPatientFieldErrors({});
 
-        const treatmentsData = await getTreatmentsByPatient(id);
-        setTreatments(treatmentsData);
-
-        const catalog = await getTreatmentCatalog();
+        const [catalog, stats] = await Promise.all([
+          getTreatmentCatalog(),
+          getPatientFinancialStats(id),
+        ]);
         setTreatmentCatalog(catalog);
-
-        const paymentsData = await getPaymentsByPatient(id);
-        setPayments(paymentsData);
-
-        const appointmentsData = await getAppointmentsByPatient(id);
-        setAppointments(appointmentsData);
+        setFinancialStats(stats);
 
       } catch (err) {
         console.error(err);
         toast.error(getApiErrorMessage(err, "Erreur lors du chargemesnt des données"));
       } finally {
         setLoading(false);
+        setFinancialStatsLoading(false);
       }
     };
     fetchData();
   }, [id]);
 
- // --- STATS ---
-// Sum of completed treatment prices (planned = ignored)
- const totalTreatment = completedTreatments?.reduce((sum, t) => sum + Number(t.price || 0), 0);
-
-// Sum of prothesis finalPrice
- const totalProthesis = protheses?.reduce((sum, p) => {
-  if (isProthesisCancelled(p)) return sum;
-  return sum + Number(p.finalPrice || 0);
- }, 0);
-
-// Total facture = treatments + prothesis
-const totalFacture = totalTreatment + totalProthesis;
-
-// Sum of payments
-const totalPaiement = payments?.reduce((sum, p) => (isPaymentCancelled(p) ? sum : sum + Number(p.amount || 0)), 0);
-
-// Remaining balance
-const totalReste = totalFacture - totalPaiement;
-const hasCredit = totalReste < 0;
-const displayReste = Math.abs(totalReste);
+  // --- STATS (server-side) ---
+  const totalFacture = Number(financialStats?.billedTotal || 0);
+  const totalPaiement = Number(financialStats?.paidTotal || 0);
+  const hasCredit = Boolean(financialStats?.hasCredit);
+  const displayReste = Number(
+    financialStats?.balanceAbs ?? Math.abs(Number(financialStats?.balance || 0))
+  );
 
 	 const monthsList = useMemo(
 	   () =>
@@ -2855,17 +2827,14 @@ const handleCreateOrUpdateTreatment = async (e) => {
       
 
       // Attach full catalog object
-      const catalogObj = treatmentCatalog.find(
-        (tc) => tc.id === savedTreatment.treatmentCatalog.id
-      );
-      savedTreatment.treatmentCatalog = catalogObj;
-
-       setTreatments(
-         treatments.map((t) => (t.id === savedTreatment.id ? savedTreatment : t))
+       const catalogObj = treatmentCatalog.find(
+         (tc) => tc.id === savedTreatment.treatmentCatalog.id
        );
-       bumpTabReload("treatments");
-       toast.success("Traitement mis à jour !");
-     } else {
+       savedTreatment.treatmentCatalog = catalogObj;
+
+        bumpTabReload("treatments");
+        toast.success("Traitement mis à jour !");
+      } else {
        const createdDate = formatLocalDateTime(new Date());
 
        if (!treatmentIsFlatFee && !treatmentIsMultiUnit && treatmentTeethCount > 1) {
@@ -2885,28 +2854,26 @@ const handleCreateOrUpdateTreatment = async (e) => {
          );
 
          const catalogObj = treatmentCatalog.find((tc) => Number(tc?.id) === Number(treatmentForm.treatmentCatalogId));
-         const normalizedCreated = createdItems.map((item) => ({
-           ...item,
-           treatmentCatalog: catalogObj || item.treatmentCatalog,
-         }));
+          const normalizedCreated = createdItems.map((item) => ({
+            ...item,
+            treatmentCatalog: catalogObj || item.treatmentCatalog,
+          }));
 
-         setTreatments((prev) => [...normalizedCreated, ...prev]);
-         bumpTabReload("treatments");
-         toast.success("Traitements ajoutés !");
-       } else {
+          bumpTabReload("treatments");
+          toast.success("Traitements ajoutés !");
+        } else {
          const payload = buildTreatmentPayload({ date: createdDate });
 
          savedTreatment = await createTreatment(payload);
 
          // Attach full catalog object
-         const catalogObj = treatmentCatalog.find((tc) => tc.id === savedTreatment.treatmentCatalog.id);
-         savedTreatment.treatmentCatalog = catalogObj;
+          const catalogObj = treatmentCatalog.find((tc) => tc.id === savedTreatment.treatmentCatalog.id);
+          savedTreatment.treatmentCatalog = catalogObj;
 
-         setTreatments((prev) => [savedTreatment, ...prev]);
-         bumpTabReload("treatments");
-         toast.success("Traitement ajouté !");
-       }
-     }
+          bumpTabReload("treatments");
+          toast.success("Traitement ajouté !");
+        }
+      }
 
      // ✅ create payment if marked as paid
      if (treatmentForm.paid) {
@@ -2918,16 +2885,15 @@ const handleCreateOrUpdateTreatment = async (e) => {
        };
       
 
-      const newPayment = await createPayment(paymentPayload);
-      
+       await createPayment(paymentPayload);
+       bumpTabReload("payments");
+       toast.success("Versement automatique ajouté !");
+     }
 
-      setPayments([newPayment, ...payments]);
-      bumpTabReload("payments");
-      toast.success("Versement automatique ajouté !");
-    }
+     await refreshFinancialStats();
 
-    setShowTreatmentModal(false);
-    setTreatmentForm({
+     setShowTreatmentModal(false);
+     setTreatmentForm({
       id: null,
       treatmentCatalogId: null,
       price: "",
@@ -2987,13 +2953,9 @@ const handleCancelTreatment = (t) => {
           return;
         }
 
-        const cancelled = await cancelTreatment(t.id, { pin, reason });
-
-        const catalogObj = treatmentCatalog.find((tc) => tc.id === cancelled?.treatmentCatalog?.id);
-        cancelled.treatmentCatalog = catalogObj || cancelled.treatmentCatalog;
-
-        setTreatments((prev) => prev.map((tr) => (tr.id === cancelled.id ? cancelled : tr)));
+        await cancelTreatment(t.id, { pin, reason });
         bumpTabReload("treatments");
+        await refreshFinancialStats();
         toast.info("Traitement annulé");
       } catch (err) {
         console.error(err);
@@ -3047,15 +3009,15 @@ setTreatmentForm({
     setPaymentFieldErrors({});
     setIsSavingPayment(true);
     try {
-      const newPayment = await createPayment({
+      await createPayment({
         patientId: patient?.id,
         amount,
         method: paymentForm.method,
         date: new Date().toISOString(),
       });
 
-setPayments([newPayment, ...payments]);
       bumpTabReload("payments");
+      await refreshFinancialStats();
       toast.success("Versement ajouté !");
       setShowPaymentModal(false);
       setPaymentFieldErrors({});
@@ -3078,12 +3040,8 @@ const handleCancelPayment = (p) => {
     action: async ({ pin, reason }) => {
       try {
         await cancelPayment(p.id, { pin, reason });
-        setPayments((prev) =>
-          prev.map((pay) =>
-            pay.id === p.id ? { ...pay, recordStatus: "CANCELLED", cancelledAt: new Date().toISOString() } : pay
-          )
-        );
         bumpTabReload("payments");
+        await refreshFinancialStats();
         toast.success("Versement annulé !");
       } catch (err) {
         console.error(err);
@@ -3216,24 +3174,17 @@ const handleCreateOrUpdateAppointment = async (e) => {
     const endDateTime = `${appointmentForm.date}T${endHour}:${endMinute}:00`;
 
     let payload;
-    let savedAppointment;
 
     if (isEditingAppointment) {
-      const existing = appointments.find(a => a.id === appointmentForm.id);
-      if (!existing) throw new Error("Rendez-vous introuvable pour la mise à jour");
-
       payload = {
         dateTimeStart: startDateTime,
         dateTimeEnd: endDateTime,
         notes: String(appointmentForm.notes ?? "").trim() || null,
         status: "SCHEDULED",
-        patientId: existing.patient?.id ?? existing.patientId ?? patient?.id,
+        patientId: patient?.id,
       };
 
-      savedAppointment = await updateAppointment(appointmentForm.id, payload);
-      setAppointments(
-        appointments.map(a => a.id === savedAppointment.id ? savedAppointment : a)
-      );
+      await updateAppointment(appointmentForm.id, payload);
       bumpTabReload("appointments");
       toast.success("Rendez-vous mis à jour avec succès !");
     } else {
@@ -3245,8 +3196,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
         notes: appointmentForm.notes
       };
 
-      savedAppointment = await createAppointment(payload);
-      setAppointments([savedAppointment, ...appointments]);
+      await createAppointment(payload);
       bumpTabReload("appointments");
       toast.success("Rendez-vous ajouté avec succès !");
     }
@@ -3345,17 +3295,17 @@ const handleCreateOrUpdateAppointment = async (e) => {
     </div>
 
    <div className="patient-middle">
-     <div className="patient-stats">
-       <div className="stat-box stat-facture">
-         Facturé: {formatMoneyWithLabel(totalFacture)}
-       </div>
-       <div className="stat-box stat-paiement">
-         Versement: {formatMoneyWithLabel(totalPaiement)}
-       </div>
-       <div className="stat-box stat-reste">
-         {hasCredit ? "Crédit" : "Reste"}: {formatMoneyWithLabel(displayReste)}
-       </div>
-     </div>
+        <div className="patient-stats">
+        <div className="stat-box stat-facture">
+          Facturé: {financialStatsLoading ? "..." : formatMoneyWithLabel(totalFacture)}
+        </div>
+        <div className="stat-box stat-paiement">
+          Versement: {financialStatsLoading ? "..." : formatMoneyWithLabel(totalPaiement)}
+        </div>
+        <div className="stat-box stat-reste">
+          {hasCredit ? "Crédit" : "Reste"}: {financialStatsLoading ? "..." : formatMoneyWithLabel(displayReste)}
+        </div>
+      </div>
 
       <div className="patient-medical-inline">
         <div className="patient-medical-inline-row">
@@ -3667,7 +3617,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
 	            <td className="actions-cell">
 	              {isTreatmentCancelled(t) ? (
 	                "—"
-	              ) : String(t?.status || "PLANNED").toUpperCase() === "PLANNED" ? (
+	              ) : String(t?.status || "PLANNED").trim().toUpperCase() === "PLANNED" ? (
 	                <>
 	                  <button
 	                    className="action-btn progress"
@@ -3676,6 +3626,30 @@ const handleCreateOrUpdateAppointment = async (e) => {
 	                  >
 	                    <Activity size={16} />
 	                  </button>
+	                  <button
+	                    className="action-btn complete"
+	                    onClick={() => handleCompleteTreatment(t)}
+	                    title="Terminer"
+	                  >
+	                    <Check size={16} />
+	                  </button>
+	                  <button
+	                    className="action-btn edit"
+	                    onClick={() => handleEditTreatment(t)}
+	                    title="Modifier"
+	                  >
+	                    <Edit2 size={16} />
+	                  </button>
+	                  <button
+	                    className="action-btn cancel"
+	                    onClick={() => handleCancelTreatment(t)}
+	                    title="Annuler"
+	                  >
+	                    <X size={16} />
+	                  </button>
+	                </>
+	              ) : String(t?.status || "PLANNED").trim().toUpperCase() === "IN_PROGRESS" ? (
+	                <>
 	                  <button
 	                    className="action-btn complete"
 	                    onClick={() => handleCompleteTreatment(t)}
@@ -3854,7 +3828,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
       {/* Date */}
       <td>
         <div className="flex items-center gap-2">
-          <span>{formatDate(p.dateCreated || p.createdAt || p.updatedAt)}</span>
+          <span>{formatDate(p.updatedAt || p.dateCreated || p.createdAt)}</span>
           <MetadataInfo entity={p} />
         </div>
       </td>
@@ -6017,6 +5991,7 @@ const handleCreateOrUpdateAppointment = async (e) => {
           selectedTeeth={treatedTeethIds} 
           readOnly={true} // Assuming your ToothGraph can handle a read-only mode
           renderTooltip={(toothId) => {
+            if (teethHistoryLoading) return "Chargement...";
             const history = teethTreatmentMap[toothId];
             return history ? history.join(", ") : null;
           }}

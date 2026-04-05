@@ -9,6 +9,7 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
+import MetadataInfo from "../components/MetadataInfo";
 import FieldError from "../components/FieldError";
 import {
   getLaboratoriesPage,
@@ -20,6 +21,7 @@ import {
 } from "../services/laboratoryService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+import { formatDateTimeByPreference } from "../utils/dateFormat";
 import PhoneInput from "../components/PhoneInput";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
@@ -294,19 +296,20 @@ const Laboratories = ({ view = "active" }) => {
             <SortableTh label="Contact" sortKey="contactPerson" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Téléphone" sortKey="phoneNumber" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Adresse" sortKey="address" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="created_at" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />
             <th style={{ textAlign: "right" }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={5} style={{ textAlign: "center", padding: "40px" }}>
+              <td colSpan={6} style={{ textAlign: "center", padding: "40px" }}>
                 Chargement...
               </td>
             </tr>
           ) : currentLabs.length === 0 ? (
             <tr>
-              <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "#888" }}>
+              <td colSpan={6} style={{ textAlign: "center", padding: "40px", color: "#888" }}>
                 {view === "archived" ? "Aucun laboratoire archivé" : "Aucun laboratoire trouvé"}
               </td>
             </tr>
@@ -317,6 +320,12 @@ const Laboratories = ({ view = "active" }) => {
                 <td>{lab.contactPerson || "—"}</td>
                 <td>{formatPhoneNumber(lab.phoneNumber) || "—"}</td>
                 <td>{lab.address || "—"}</td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <span>{formatDateTimeByPreference(lab.createdAt) || "â€”"}</span>
+                    <MetadataInfo entity={lab} />
+                  </div>
+                </td>
                 <td className="actions-cell" style={{ textAlign: "right" }}>
                   <button
                     className="action-btn view"

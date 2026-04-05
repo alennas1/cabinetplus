@@ -1,12 +1,11 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
-import com.cabinetplus.backend.security.EncryptionConverter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -16,10 +15,13 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
+import org.hibernate.Hibernate;
 
 @Entity
 @Table(name = "dentist_profiles")
 @Data
+@ToString(exclude = { "user" })
 @NoArgsConstructor
 @AllArgsConstructor
 public class DentistProfile {
@@ -35,11 +37,9 @@ public class DentistProfile {
     private User user;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String clinicName;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String address;
 
     private boolean gestionCabinetPinEnabled = false;
@@ -74,5 +74,19 @@ public class DentistProfile {
     private Integer patientCancelledAppointmentsThreshold = 0;
 
     private Double patientMoneyOwedThreshold = 0.0;
-}
 
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null) return false;
+        if (Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
+        DentistProfile other = (DentistProfile) o;
+        return userId != null && Objects.equals(userId, other.userId);
+    }
+
+    @Override
+    public final int hashCode() {
+        if (userId != null) return userId.hashCode();
+        return Hibernate.getClass(this).hashCode();
+    }
+}

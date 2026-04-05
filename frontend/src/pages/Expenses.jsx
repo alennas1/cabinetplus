@@ -10,11 +10,12 @@ import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
 import MetadataInfo from "../components/MetadataInfo";
+import CancelWithPinModal from "../components/CancelWithPinModal";
 import {
   getExpensesPage,
   createExpense,
   updateExpense,
-  deleteExpense,
+  cancelExpense,
 } from "../services/expenseService";
 import { getEmployees } from "../services/employeeService";
 import { getApiErrorMessage } from "../utils/error";
@@ -39,6 +40,8 @@ const EXPENSE_CATEGORIES = {
   UTILITIES: "Services publics",
   OTHER: "Autre",
 };
+
+const isExpenseCancelled = (expense) => String(expense?.recordStatus || "").toUpperCase() === "CANCELLED";
 
 const Expenses = () => {
   const location = useLocation();
@@ -69,6 +72,8 @@ const Expenses = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cancelExpenseId, setCancelExpenseId] = useState(null);
+  const [isCancellingExpense, setIsCancellingExpense] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
   const [formData, setFormData] = useState({
@@ -387,6 +392,22 @@ const Expenses = () => {
     setShowModal(true);
   };
 
+  const confirmCancelExpense = async ({ pin, reason }) => {
+    if (!cancelExpenseId) return;
+    if (isCancellingExpense) return;
+    try {
+      setIsCancellingExpense(true);
+      await cancelExpense(cancelExpenseId, { pin, reason });
+      toast.success("DÃ©pense annulÃ©e");
+      await fetchExpenses();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
+    } finally {
+      setIsCancellingExpense(false);
+      setCancelExpenseId(null);
+    }
+  };
+
   const confirmDeleteExpense = async () => {
     if (isDeletingExpense) return;
     try {
@@ -515,7 +536,21 @@ const Expenses = () => {
               </td>
               <td>{e.description || "—"}</td>
               <td className="actions-cell">
-                <button className="action-btn edit" onClick={() => handleEdit(e)} title="Modifier"> <Edit2 size={16} /> </button>
+                {isExpenseCancelled(e) ? (
+                  <span className="context-badge cancelled">AnnulÃ©</span>
+                ) : (
+                  <>
+                    <button className="action-btn edit" onClick={() => handleEdit(e)} title="Modifier"> <Edit2 size={16} /> </button>
+                    <button
+                      type="button"
+                      className="action-btn cancel"
+                      onClick={() => setCancelExpenseId(e.id)}
+                      title="Annuler"
+                    >
+                      <X size={16} />
+                    </button>
+                  </>
+                )}
               </td>
             </tr>
           ))}
@@ -918,6 +953,19 @@ const Expenses = () => {
           </div>
         </div>
       )}
+
+      <CancelWithPinModal
+        open={cancelExpenseId != null}
+        busy={isCancellingExpense}
+        title="Annuler la dÃ©pense ?"
+        subtitle="Motif + PIN requis. La dÃ©pense restera visible dans l'historique mais ne sera plus comptabilisÃ©e."
+        confirmLabel="Annuler la dÃ©pense"
+        onClose={() => {
+          if (isCancellingExpense) return;
+          setCancelExpenseId(null);
+        }}
+        onConfirm={confirmCancelExpense}
+      />
 
       <ToastContainer position="bottom-right" autoClose={3000} theme="light" />
     </div>

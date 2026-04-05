@@ -28,6 +28,7 @@ import com.cabinetplus.backend.dto.AppointmentCancellationRequest;
 import com.cabinetplus.backend.dto.PageResponse;
 import com.cabinetplus.backend.dto.PatientDto;
 import com.cabinetplus.backend.enums.AuditEventType;
+import com.cabinetplus.backend.enums.AppointmentStatus;
 import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
@@ -39,6 +40,8 @@ import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import com.cabinetplus.backend.util.PagedQueryUtil;
 import com.cabinetplus.backend.util.PaginationUtil;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import jakarta.validation.Valid;
 
@@ -69,7 +72,14 @@ public class AppointmentController {
 
     // Return appointments only for the logged-in practitioner
     @GetMapping
-    public List<Appointment> getAllAppointments(Principal principal) {
+    public List<Appointment> getAllAppointments(
+            @RequestParam(name = "from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(name = "to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Principal principal
+    ) {
+        if (from == null || to == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parametres from et to obligatoires (format ISO: yyyy-MM-dd)");
+        }
         User currentUser = getClinicUser(principal);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_READ,
@@ -77,7 +87,9 @@ public class AppointmentController {
                 null,
                 "Rendez-vous consultes"
         );
-        return appointmentService.findByPractitioner(currentUser);
+        LocalDateTime fromStart = from.atStartOfDay();
+        LocalDateTime toEndExclusive = to.plusDays(1).atStartOfDay();
+        return appointmentService.findByPractitionerInRange(currentUser, fromStart, toEndExclusive);
     }
 
     @GetMapping("/{id:\\d+}")
@@ -97,9 +109,10 @@ public class AppointmentController {
 
     @PostMapping
     public AppointmentResponse createAppointment(@RequestBody @Valid AppointmentRequest request, Principal principal) {
-        User currentUser = getClinicUser(principal);
+        User actor = getActor(principal);
+        User currentUser = userService.resolveClinicOwner(actor);
 
-        Appointment saved = appointmentService.createAppointment(request, currentUser);
+        Appointment saved = appointmentService.createAppointment(request, currentUser, actor);
         PatientDto patientDto = patientService.findByIdAndUser(request.patientId(), currentUser);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_CREATE,
@@ -123,9 +136,10 @@ public class AppointmentController {
 
     @PutMapping("/{id:\\d+}")
     public AppointmentResponse updateAppointment(@PathVariable Long id, @RequestBody @Valid AppointmentRequest request, Principal principal) {
-        User currentUser = getClinicUser(principal);
+        User actor = getActor(principal);
+        User currentUser = userService.resolveClinicOwner(actor);
 
-        Appointment saved = appointmentService.updateAppointment(id, request, currentUser);
+        Appointment saved = appointmentService.updateAppointment(id, request, currentUser, actor);
         PatientDto patientDto = patientService.findByIdAndUser(request.patientId(), currentUser);
         boolean cancelled = isCancelled(saved);
         auditService.logSuccess(
@@ -149,7 +163,8 @@ public class AppointmentController {
 
     @PostMapping("/shift")
     public void shiftAppointments(@RequestBody @Valid AppointmentShiftRequest request, Principal principal) {
-        User currentUser = getClinicUser(principal);
+        User actor = getActor(principal);
+        User currentUser = userService.resolveClinicOwner(actor);
 
         if (request == null || request.date() == null || request.minutes() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Paramètres manquants pour le décalage");
@@ -169,7 +184,7 @@ public class AppointmentController {
                 ? baseDate.plusDays(1).atStartOfDay()
                 : baseDate.atStartOfDay().plusMinutes(endMinutes);
 
-        List<Appointment> dayAppointments = appointmentService.findByPractitioner(currentUser).stream()
+        List<Appointment> dayAppointments = appointmentService.findByPractitionerInRange(currentUser, dayStart, dayEnd).stream()
                 .filter(a -> a.getDateTimeStart() != null)
                 .filter(a -> a.getDateTimeEnd() != null)
                 .filter(a -> a.getDateTimeStart().toLocalDate().equals(baseDate))
@@ -255,7 +270,7 @@ public class AppointmentController {
         List<AppointmentService.RescheduleItem> updates = shifted.stream()
                 .map(item -> new AppointmentService.RescheduleItem(item.appt.getId(), item.newStart, item.newEnd))
                 .collect(Collectors.toList());
-        appointmentService.rescheduleAppointments(updates, currentUser);
+        appointmentService.rescheduleAppointments(updates, currentUser, actor);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_UPDATE,
                 "APPOINTMENT",
@@ -266,9 +281,10 @@ public class AppointmentController {
 
     @PutMapping("/{id:\\d+}/cancel")
     public void cancelAppointment(@PathVariable Long id, @Valid @RequestBody AppointmentCancellationRequest payload, Principal principal) {
-        User currentUser = getClinicUser(principal);
+        User actor = getActor(principal);
+        User currentUser = userService.resolveClinicOwner(actor);
         String reason = cancellationSecurityService.requireReason(payload.reason());
-        Appointment existing = appointmentService.cancelAppointment(id, currentUser);
+        Appointment existing = appointmentService.cancelAppointment(id, currentUser, actor, reason);
         auditService.logSuccess(
                 AuditEventType.APPOINTMENT_CANCEL,
                 "PATIENT",
@@ -313,9 +329,6 @@ public class AppointmentController {
         User ownerDentist = getClinicUser(principal);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, ownerDentist).getId();
 
-        Patient patient = new Patient();
-        patient.setId(internalPatientId);
-
         String fieldNorm = field != null ? field.trim().toLowerCase() : "";
         fieldNorm = fieldNorm.isBlank() ? "notes" : fieldNorm;
         final String fieldKey = fieldNorm;
@@ -323,38 +336,69 @@ public class AppointmentController {
         boolean desc = "desc".equalsIgnoreCase(sortDirection);
         String statusNorm = status != null ? status.trim().toUpperCase() : "";
 
-        var comparator = buildAppointmentSortComparator(sortKeyNorm, desc);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
 
-        List<Appointment> filtered = appointmentService.findByPatient(patient).stream()
-                .filter(a -> {
-                    if (a == null) return false;
+        AppointmentStatus statusEnum = null;
+        if (!statusNorm.isBlank()) {
+            try {
+                statusEnum = AppointmentStatus.valueOf(statusNorm);
+            } catch (Exception ignored) {
+                statusEnum = null;
+            }
+        }
 
-                    if (!statusNorm.isBlank()) {
-                        String s = a.getStatus() != null ? a.getStatus().name() : "";
-                        if (!s.equalsIgnoreCase(statusNorm)) return false;
-                    }
+        String qNorm = q != null ? q.trim() : "";
+        boolean hasQuery = !qNorm.isBlank();
 
-                    if (!PagedQueryUtil.isInDateRange(a.getDateTimeStart(), from, to)) return false;
+        LocalDate effectiveFrom = from;
+        LocalDate effectiveTo = to;
 
-                    if (q != null && !q.isBlank()) {
-                        String hay = switch (fieldKey) {
-                            case "date" -> a.getDateTimeStart() != null ? a.getDateTimeStart().toString() : null;
-                            case "notes" -> a.getNotes();
-                            default -> {
-                                String notes = a.getNotes() != null ? a.getNotes() : "";
-                                String dateStr = a.getDateTimeStart() != null ? a.getDateTimeStart().toString() : "";
-                                yield dateStr + " " + notes;
-                            }
-                        };
-                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
-                    }
+        if (hasQuery && "date".equalsIgnoreCase(fieldKey)) {
+            try {
+                LocalDate parsed = LocalDate.parse(qNorm.trim());
+                if (effectiveFrom == null) effectiveFrom = parsed;
+                if (effectiveTo == null) effectiveTo = parsed;
+                hasQuery = false;
+            } catch (Exception ignored) {
+                // Unparseable "date" query -> empty result set.
+                effectiveFrom = LocalDate.of(3000, 1, 1);
+                effectiveTo = LocalDate.of(3000, 1, 1);
+                hasQuery = false;
+            }
+        }
 
-                    return true;
-                })
-                .sorted(comparator)
-                .toList();
+        boolean fromEnabled = effectiveFrom != null;
+        boolean toEnabled = effectiveTo != null;
+        LocalDateTime fromStart = fromEnabled ? effectiveFrom.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+        LocalDateTime toEndExclusive = toEnabled ? effectiveTo.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
 
-        return PaginationUtil.toPageResponse(filtered, page, size);
+        String notesLike = "";
+        if (hasQuery && ("notes".equalsIgnoreCase(fieldKey) || fieldKey.isBlank())) {
+            notesLike = "%" + qNorm.trim().toLowerCase() + "%";
+        }
+
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Sort sort = switch (sortKeyNorm) {
+            case "date", "time" -> Sort.by(direction, "dateTimeStart");
+            case "status" -> Sort.by(direction, "status");
+            case "notes" -> Sort.by(direction, "notes");
+            default -> Sort.by(Sort.Direction.DESC, "dateTimeStart");
+        };
+        sort = sort.and(Sort.by(Sort.Direction.ASC, "id"));
+
+        PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
+        var paged = appointmentService.searchByPatientId(
+                internalPatientId,
+                statusEnum,
+                fromEnabled,
+                fromStart,
+                toEnabled,
+                toEndExclusive,
+                notesLike,
+                pageable
+        );
+        return PaginationUtil.toPageResponse(paged);
     }
 
     @GetMapping("/practitioner/{practitionerId}")
@@ -405,9 +449,12 @@ public Map<String, Object> getComparisonStats(Principal principal) {
 }
 
     private User getClinicUser(Principal principal) {
-        User currentUser = userService.findByPhoneNumber(principal.getName())
+        return userService.resolveClinicOwner(getActor(principal));
+    }
+
+    private User getActor(Principal principal) {
+        return userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
-        return userService.resolveClinicOwner(currentUser);
     }
 
     private User requireClinicPractitioner(Long practitionerId, User clinicOwner) {

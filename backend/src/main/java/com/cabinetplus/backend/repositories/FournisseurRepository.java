@@ -38,7 +38,13 @@ public interface FournisseurRepository extends JpaRepository<Fournisseur, Long> 
             from Fournisseur f
             where f.createdBy = :owner
               and (f.archivedAt is not null or f.recordStatus <> com.cabinetplus.backend.enums.RecordStatus.ACTIVE)
-              and (coalesce(:q, '') = '' or lower(f.name) like lower(concat('%', :q, '%')))
+              and (
+                    coalesce(:q, '') = ''
+                    or lower(coalesce(f.name, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(f.contactPerson, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(f.phoneNumber, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(f.address, '')) like lower(concat('%', :q, '%'))
+              )
             """)
     Page<Fournisseur> searchArchivedByCreatedBy(@Param("owner") User owner, @Param("q") String q, Pageable pageable);
 
@@ -48,7 +54,13 @@ public interface FournisseurRepository extends JpaRepository<Fournisseur, Long> 
             where f.createdBy = :owner
               and f.archivedAt is null
               and f.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
-              and (coalesce(:q, '') = '' or lower(f.name) like lower(concat('%', :q, '%')))
+              and (
+                    coalesce(:q, '') = ''
+                    or lower(coalesce(f.name, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(f.contactPerson, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(f.phoneNumber, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(f.address, '')) like lower(concat('%', :q, '%'))
+              )
             """)
     Page<Fournisseur> searchByCreatedBy(@Param("owner") User owner, @Param("q") String q, Pageable pageable);
 

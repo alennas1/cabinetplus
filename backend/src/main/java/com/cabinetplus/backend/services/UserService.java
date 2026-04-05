@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -65,6 +67,11 @@ public class UserService {
         return userRepository.findByRole(UserRole.DENTIST);
     }
 
+    public Page<User> searchDentistsPaged(String q, UserPlanStatus statusFilter, Pageable pageable) {
+        String safeQ = q != null ? q.trim().toLowerCase() : "";
+        return userRepository.searchDentistsPaged(safeQ, statusFilter, pageable);
+    }
+
     public User resolveClinicOwner(User user) {
         if (user == null) return null;
         if (user.getOwnerDentist() != null && (user.getRole() == UserRole.EMPLOYEE || user.getRole() == UserRole.DENTIST)) {
@@ -92,6 +99,12 @@ public class UserService {
                     .filter(u -> !u.isCanDeleteAdmin()) // hide super-admins
                     .collect(Collectors.toList());
         }
+    }
+
+    public Page<User> searchAdminsPaged(User currentUser, String q, Pageable pageable) {
+        boolean includeSuperAdmins = currentUser != null && currentUser.isCanDeleteAdmin();
+        String safeQ = q != null ? q.trim().toLowerCase() : "";
+        return userRepository.searchAdminsPaged(safeQ, includeSuperAdmins, pageable);
     }
 
     // Only super-admin can delete another admin
@@ -128,6 +141,14 @@ public class UserService {
         LocalDateTime targetDateStart = now.plusDays(days).withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime targetDateEnd = targetDateStart.plusDays(1); // full day
         return userRepository.findUsersWithExpiringPlans(targetDateStart, targetDateEnd);
+    }
+
+    public Page<User> getUsersExpiringInDaysPaged(int days, String q, UserPlanStatus statusFilter, Pageable pageable) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime targetDateStart = now.plusDays(days).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime targetDateEnd = targetDateStart.plusDays(1); // full day
+        String safeQ = q != null ? q.trim().toLowerCase() : "";
+        return userRepository.findUsersWithExpiringPlansPaged(targetDateStart, targetDateEnd, safeQ, statusFilter, pageable);
     }
 
     private void assertBusinessRules(User user) {

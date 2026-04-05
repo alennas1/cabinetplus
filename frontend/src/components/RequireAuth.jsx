@@ -2,6 +2,8 @@ import { useSelector } from "react-redux";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { isPlanActiveForAccess } from "../utils/planAccess";
 
+const AFTER_PIN_REDIRECT_KEY = "cabinetplus:after_pin_redirect";
+
 const RequireAuth = ({ allowedRoles }) => {
   const { token, isAuthenticated, user, loading } = useSelector(
     (state) => state.auth
@@ -54,16 +56,26 @@ const RequireAuth = ({ allowedRoles }) => {
     else if (!isPlanActive && user.planStatus === "WAITING") targetPath = "/waiting";
     else if (!isPlanActive) targetPath = "/plan";
     else if (!isPinConfigured) {
-      targetPath = user?.role === "DENTIST" ? "/settings/security" : "/pin-required";
+      targetPath = user?.role === "DENTIST" ? "/pin-setup" : "/pin-required";
     }
 
     if (targetPath && currentPath !== targetPath) {
+      if (targetPath === "/pin-setup") {
+        const setupPages = ["/verify", "/plan", "/waiting", "/pin-required", "/pin-setup"];
+        if (!setupPages.includes(currentPath)) {
+          try {
+            sessionStorage.setItem(AFTER_PIN_REDIRECT_KEY, currentPath);
+          } catch {
+            // ignore
+          }
+        }
+      }
       return <Navigate to={targetPath} replace />;
     }
 
     // Only force dentists out of setup pages when setup is fully complete.
     if (!targetPath) {
-      const setupPages = ["/verify", "/plan", "/waiting", "/pin-required"];
+      const setupPages = ["/verify", "/plan", "/waiting", "/pin-required", "/pin-setup"];
       if (setupPages.includes(currentPath)) {
         return <Navigate to="/dashboard" replace />;
       }

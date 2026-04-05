@@ -3,11 +3,9 @@ package com.cabinetplus.backend.models;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -36,29 +34,23 @@ public class Patient {
     private UUID publicId;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String firstname;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String lastname;
 
     private Integer age;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String sex;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String phone;
 
     @Column(name = "diseases", columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String diseases;
 
     @Column(name = "allergies", columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String allergies;
 
     @ManyToOne
@@ -67,8 +59,18 @@ public class Patient {
 
     private LocalDateTime createdAt;
 
+    @ManyToOne
+    @JoinColumn(name = "updated_by")
+    private User updatedBy;
+
+    private LocalDateTime updatedAt;
+
     @Column(name = "archived_at")
     private LocalDateTime archivedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "archived_by")
+    private User archivedBy;
 
     @PrePersist
     private void ensureDefaultsOnCreate() {
@@ -78,6 +80,9 @@ public class Patient {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (updatedAt == null) {
+            updatedAt = createdAt;
+        }
     }
 
     @PreUpdate
@@ -86,5 +91,6 @@ public class Patient {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        updatedAt = LocalDateTime.now();
     }
 }

@@ -31,15 +31,17 @@ import com.lowagie.text.Element;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.security.Principal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
-import com.cabinetplus.backend.util.PagedQueryUtil;
 
 @RestController
 @RequestMapping("/api/devises")
@@ -75,85 +77,37 @@ public class DeviseController {
             Principal principal
     ) {
         User currentUser = getCurrentUser(principal);
-        String qNorm = PagedQueryUtil.normalizeText(q);
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+
         String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
-        String sortDirNorm = sortDirection != null ? sortDirection.trim().toLowerCase() : "";
-        Comparator<Devise> sortComparator = buildDeviseSortComparator(sortKeyNorm, sortDirNorm);
+        boolean desc = sortDirection != null && sortDirection.trim().equalsIgnoreCase("desc");
 
-        List<Devise> all = deviseService.findAllByUser(currentUser);
-        List<Devise> filtered = (all == null ? List.<Devise>of() : all).stream()
-                .filter(d -> matchesDeviseQuery(d, qNorm))
-                .filter(d -> PagedQueryUtil.isInDateRange(d == null ? null : d.getCreatedAt(), from, to))
-                .filter(d -> matchesAmountRange(d == null ? null : d.getTotalAmount(), amountFrom, amountTo))
-                .sorted(sortComparator)
-                .toList();
+        Sort sort = switch (sortKeyNorm) {
+            case "title" -> Sort.by(Sort.Order.by("title").ignoreCase().with(desc ? Sort.Direction.DESC : Sort.Direction.ASC));
+            case "totalamount", "total_amount", "amount" -> Sort.by((desc ? Sort.Order.desc("totalAmount") : Sort.Order.asc("totalAmount")).nullsLast());
+            case "createdat", "created_at", "created" -> Sort.by((desc ? Sort.Order.desc("createdAt") : Sort.Order.asc("createdAt")).nullsLast());
+            default -> Sort.by(Sort.Order.desc("createdAt").nullsLast());
+        };
+        sort = sort.and(Sort.by(Sort.Order.asc("id")));
 
-        PageResponse<Devise> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<DeviseResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+        LocalDateTime fromDt = from != null ? from.atStartOfDay() : null;
+        LocalDateTime toDt = to != null ? to.atTime(23, 59, 59, 999_999_999) : null;
+
+        var pageable = PageRequest.of(safePage, safeSize, sort);
+        var paged = deviseService.searchPagedByUser(currentUser, q, amountFrom, amountTo, fromDt, toDt, pageable);
+
+        List<DeviseResponse> items = paged.getContent().stream().map(this::mapToResponse).toList();
 
         auditService.logSuccess(AuditEventType.DEVISE_READ, "DEVISE", null, "Devis consultes (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
-    }
-
-    private static boolean matchesDeviseQuery(Devise devise, String qNorm) {
-        if (qNorm == null || qNorm.isBlank()) return true;
-        if (devise == null) return false;
-
-        if (PagedQueryUtil.matchesSearch(devise.getTitle(), qNorm)) {
-            return true;
-        }
-
-        List<DeviseItem> items = devise.getItems();
-        if (items == null || items.isEmpty()) return false;
-
-        return items.stream().anyMatch(item -> {
-            if (item == null) return false;
-            if (item.getTreatmentCatalog() != null && PagedQueryUtil.matchesSearch(item.getTreatmentCatalog().getName(), qNorm)) {
-                return true;
-            }
-            if (item.getProthesisCatalog() != null) {
-                if (PagedQueryUtil.matchesSearch(item.getProthesisCatalog().getName(), qNorm)) return true;
-                Material material = item.getProthesisCatalog().getMaterial();
-                return material != null && PagedQueryUtil.matchesSearch(material.getName(), qNorm);
-            }
-            return false;
-        });
-    }
-
-    private static boolean matchesAmountRange(Double totalAmount, Double amountFrom, Double amountTo) {
-        if (amountFrom == null && amountTo == null) return true;
-        if (totalAmount == null) return false;
-        if (amountFrom != null && totalAmount < amountFrom) return false;
-        if (amountTo != null && totalAmount > amountTo) return false;
-        return true;
-    }
-
-    private static Comparator<Devise> buildDeviseSortComparator(String sortKeyNorm, String sortDirNorm) {
-        boolean desc = "desc".equalsIgnoreCase(sortDirNorm);
-
-        Comparator<Devise> comparator = switch (sortKeyNorm == null ? "" : sortKeyNorm) {
-            case "title" -> Comparator.comparing(
-                    d -> d == null ? null : d.getTitle(),
-                    PagedQueryUtil.stringComparator(desc)
-            );
-            case "totalamount", "total_amount", "amount" -> Comparator.comparing(
-                    Devise::getTotalAmount,
-                    PagedQueryUtil.doubleComparator(desc)
-            );
-            case "createdat", "created_at", "created" -> Comparator.comparing(
-                    Devise::getCreatedAt,
-                    PagedQueryUtil.dateTimeComparator(desc)
-            );
-            default -> Comparator.comparing(Devise::getCreatedAt, PagedQueryUtil.dateTimeComparator(true));
-        };
-
-        return comparator.thenComparing(Devise::getId, PagedQueryUtil.longComparator(false));
     }
 
     @GetMapping("/{id}")

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.time.LocalDateTime;
 import com.cabinetplus.backend.enums.RecordStatus;
+import com.cabinetplus.backend.dto.TreatmentToothHistoryEntry;
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.Treatment;
 import com.cabinetplus.backend.models.TreatmentCatalog;
@@ -16,6 +17,8 @@ import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.TreatmentCatalogRepository;
 import com.cabinetplus.backend.repositories.TreatmentRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,11 +42,21 @@ public class TreatmentService {
 
     // All treatments of a practitioner
     public List<Treatment> findByPractitioner(User practitioner) {
-        return treatmentRepository.findByPractitionerAndRecordStatus(practitioner, RecordStatus.ACTIVE)
-                .stream()
-                // Cancelled treatments are only meant to be viewed from within the patient dossier.
-                .filter(t -> !isCancelled(t))
-                .toList();
+        return treatmentRepository.findActiveNotCancelledByPractitioner(practitioner, RecordStatus.ACTIVE);
+    }
+
+    public List<Treatment> findByPractitionerInRange(User practitioner, LocalDateTime fromInclusive, LocalDateTime toExclusive) {
+        if (practitioner == null || fromInclusive == null || toExclusive == null) {
+            return List.of();
+        }
+        return treatmentRepository.findActiveNotCancelledByPractitionerInRange(
+                practitioner,
+                RecordStatus.ACTIVE,
+                true,
+                fromInclusive,
+                true,
+                toExclusive
+        );
     }
 
     // Treatment by ID scoped to practitioner
@@ -152,26 +165,145 @@ public class TreatmentService {
     }
 
     public Treatment cancelTreatment(Long id, User practitioner) {
+        return cancelTreatment(id, practitioner, practitioner, null);
+    }
+
+    public Treatment cancelTreatment(Long id, User practitioner, User actor, String reason) {
         Treatment treatment = treatmentRepository.findByIdAndPractitioner(id, practitioner)
                 .orElseThrow(() -> new NotFoundException("Traitement introuvable"));
         if (treatment.getPatient() != null && treatment.getPatient().getArchivedAt() != null) {
             throw new BadRequestException(java.util.Map.of("_", "Patient archive : lecture seule."));
         }
 
+        boolean changed = false;
         if (!isCancelled(treatment)) {
             treatment.setStatus("CANCELLED");
             treatment.setCancelledAt(LocalDateTime.now());
             // Keep recordStatus ACTIVE so cancelled treatments remain visible in the patient dossier.
             treatment.setRecordStatus(RecordStatus.ACTIVE);
-            treatmentRepository.save(treatment);
+            changed = true;
+        } else if (treatment.getCancelledAt() == null) {
+            treatment.setCancelledAt(LocalDateTime.now());
+            changed = true;
         }
 
-        return treatment;
+        if (actor != null && treatment.getCancelledBy() == null) {
+            treatment.setCancelledBy(actor);
+            changed = true;
+        }
+
+        String normalizedReason = reason != null ? reason.trim() : "";
+        if (!normalizedReason.isBlank() && (treatment.getCancelReason() == null || treatment.getCancelReason().isBlank())) {
+            treatment.setCancelReason(normalizedReason);
+            changed = true;
+        }
+
+        return changed ? treatmentRepository.save(treatment) : treatment;
     }
 
     // Treatments of a patient scoped to practitioner
     public List<Treatment> findByPatientAndPractitioner(Patient patient, User practitioner) {
         return treatmentRepository.findByPatientAndPractitionerAndRecordStatus(patient, practitioner, RecordStatus.ACTIVE);
+    }
+
+    public Page<Treatment> searchPatientTreatmentsByCatalogName(
+            Long patientId,
+            User practitioner,
+            String statusNorm,
+            boolean fromEnabled,
+            LocalDateTime fromDateTime,
+            boolean toEnabled,
+            LocalDateTime toDateTimeExclusive,
+            String qLike,
+            String fieldKey,
+            Pageable pageable
+    ) {
+        if (patientId == null || practitioner == null) {
+            return Page.empty(pageable);
+        }
+        return treatmentRepository.searchPatientTreatmentsByCatalogName(
+                patientId,
+                practitioner,
+                RecordStatus.ACTIVE,
+                statusNorm,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                pageable
+        );
+    }
+
+    public Page<Treatment> searchPatientTreatmentsSortedByTeeth(
+            Long patientId,
+            User practitioner,
+            String statusNorm,
+            boolean fromEnabled,
+            LocalDateTime fromDateTime,
+            boolean toEnabled,
+            LocalDateTime toDateTimeExclusive,
+            String qLike,
+            String fieldKey,
+            boolean desc,
+            Pageable pageable
+    ) {
+        if (patientId == null || practitioner == null) {
+            return Page.empty(pageable);
+        }
+        if (desc) {
+            return treatmentRepository.searchPatientTreatmentsSortByToothDesc(
+                    patientId,
+                    practitioner,
+                    RecordStatus.ACTIVE,
+                    statusNorm,
+                    fromEnabled,
+                    fromDateTime,
+                    toEnabled,
+                    toDateTimeExclusive,
+                    qLike,
+                    fieldKey,
+                    pageable
+            );
+        }
+        return treatmentRepository.searchPatientTreatmentsSortByToothAsc(
+                patientId,
+                practitioner,
+                RecordStatus.ACTIVE,
+                statusNorm,
+                fromEnabled,
+                fromDateTime,
+                toEnabled,
+                toDateTimeExclusive,
+                qLike,
+                fieldKey,
+                pageable
+        );
+    }
+
+    public List<TreatmentToothHistoryEntry> getToothHistoryEntriesByPatient(Long patientId, User practitioner) {
+        if (patientId == null || practitioner == null) {
+            return List.of();
+        }
+
+        return treatmentRepository.findToothHistoryRowsByPatientAndPractitioner(patientId, practitioner).stream()
+                .map(row -> {
+                    if (row == null || row.length < 3) return null;
+
+                    Integer tooth = null;
+                    if (row[0] instanceof Number n) {
+                        tooth = n.intValue();
+                    }
+
+                    String name = row[1] != null ? String.valueOf(row[1]) : null;
+                    LocalDateTime date = row[2] instanceof LocalDateTime dt ? dt : null;
+
+                    if (tooth == null) return null;
+                    return new TreatmentToothHistoryEntry(tooth, name, date);
+                })
+                .filter(e -> e != null && e.toothNumber() > 0)
+                .toList();
     }
 
     private void assertCatalogRules(Treatment treatment) {

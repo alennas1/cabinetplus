@@ -94,7 +94,12 @@ export default function DashboardUpdated() {
   const fetchAppointments = async () => {
     setLoadingAppointments(true);
     try {
-      const data = await getAppointments(); // token handled by service
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      const iso = `${yyyy}-${mm}-${dd}`;
+      const data = await getAppointments({ from: iso, to: iso }); // token handled by service
       setAppointments(data);
     } catch (err) {
       console.error("Error fetching appointments:", err);

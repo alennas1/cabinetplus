@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.cabinetplus.backend.dto.AppointmentRequest;
@@ -41,8 +43,44 @@ public class AppointmentService {
         return appointmentRepository.findByPatient(patient);
     }
 
+    public Page<Appointment> searchByPatientId(
+            Long patientId,
+            AppointmentStatus status,
+            boolean fromEnabled,
+            LocalDateTime fromStart,
+            boolean toEnabled,
+            LocalDateTime toEndExclusive,
+            String notesLike,
+            Pageable pageable
+    ) {
+        if (patientId == null) {
+            return Page.empty(pageable);
+        }
+        return appointmentRepository.searchByPatientId(
+                patientId,
+                status,
+                fromEnabled,
+                fromStart,
+                toEnabled,
+                toEndExclusive,
+                notesLike,
+                pageable
+        );
+    }
+
     public List<Appointment> findByPractitioner(User practitioner) {
         return appointmentRepository.findByPractitioner(practitioner);
+    }
+
+    public List<Appointment> findByPractitionerInRange(User practitioner, LocalDateTime startInclusive, LocalDateTime endExclusive) {
+        if (practitioner == null || startInclusive == null || endExclusive == null) {
+            return List.of();
+        }
+        return appointmentRepository.findByPractitionerAndDateTimeStartGreaterThanEqualAndDateTimeStartLessThanOrderByDateTimeStartAsc(
+                practitioner,
+                startInclusive,
+                endExclusive
+        );
     }
 
     public List<Appointment> findBetween(LocalDateTime start, LocalDateTime end) {
@@ -54,7 +92,7 @@ public class AppointmentService {
                 .orElseThrow(() -> new NotFoundException("Rendez-vous introuvable"));
     }
 
-    public Appointment createAppointment(AppointmentRequest request, User practitioner) {
+    public Appointment createAppointment(AppointmentRequest request, User practitioner, User actor) {
         validateTimeRange(request.dateTimeStart(), request.dateTimeEnd());
         assertNoOverlap(practitioner, request.dateTimeStart(), request.dateTimeEnd(), null);
 
@@ -71,11 +109,13 @@ public class AppointmentService {
         appointment.setNotes(request.notes());
         appointment.setPatient(patient);
         appointment.setPractitioner(practitioner);
+        appointment.setCreatedBy(actor != null ? actor : practitioner);
+        appointment.setUpdatedBy(actor != null ? actor : practitioner);
 
         return appointmentRepository.save(appointment);
     }
 
-    public Appointment updateAppointment(Long id, AppointmentRequest request, User practitioner) {
+    public Appointment updateAppointment(Long id, AppointmentRequest request, User practitioner, User actor) {
         validateTimeRange(request.dateTimeStart(), request.dateTimeEnd());
         assertNoOverlap(practitioner, request.dateTimeStart(), request.dateTimeEnd(), id);
 
@@ -96,17 +136,25 @@ public class AppointmentService {
         existing.setNotes(request.notes());
         existing.setPatient(patient);
         existing.setPractitioner(practitioner);
+        existing.setUpdatedBy(actor != null ? actor : practitioner);
 
         return appointmentRepository.save(existing);
     }
 
-    public Appointment cancelAppointment(Long id, User practitioner) {
+    public Appointment cancelAppointment(Long id, User practitioner, User actor, String reason) {
         Appointment existing = requireByIdForPractitioner(id, practitioner);
         if (existing.getPatient() != null && existing.getPatient().getArchivedAt() != null) {
             throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
         }
         if (existing.getStatus() != AppointmentStatus.CANCELLED) {
             existing.setStatus(AppointmentStatus.CANCELLED);
+            existing.setCancelledAt(LocalDateTime.now());
+            existing.setCancelledBy(actor != null ? actor : practitioner);
+            String normalizedReason = reason != null ? reason.trim() : "";
+            if (!normalizedReason.isBlank()) {
+                existing.setCancelReason(normalizedReason);
+            }
+            existing.setUpdatedBy(actor != null ? actor : practitioner);
             appointmentRepository.save(existing);
         }
         return existing;
@@ -116,7 +164,7 @@ public class AppointmentService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public void rescheduleAppointments(List<RescheduleItem> updates, User practitioner) {
+    public void rescheduleAppointments(List<RescheduleItem> updates, User practitioner, User actor) {
         if (updates == null || updates.isEmpty()) {
             return;
         }
@@ -168,6 +216,7 @@ public class AppointmentService {
             RescheduleItem u = updateById.get(appt.getId());
             appt.setDateTimeStart(u.start());
             appt.setDateTimeEnd(u.end());
+            appt.setUpdatedBy(actor != null ? actor : practitioner);
         });
         appointmentRepository.saveAll(appointments);
     }

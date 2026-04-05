@@ -2,8 +2,8 @@ import api from "./authService";
 
 const API_URL = "/api/appointments";
 
-export const getAppointments = async () => {
-  const response = await api.get(API_URL);
+export const getAppointments = async ({ from, to } = {}) => {
+  const response = await api.get(API_URL, { params: { from, to } });
   return response.data;
 };
 

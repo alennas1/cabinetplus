@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,6 +24,44 @@ public interface FournisseurPaymentRepository extends JpaRepository<FournisseurP
                                                                                                   RecordStatus recordStatus);
 
     List<FournisseurPayment> findByFournisseurIdAndCreatedByOrderByPaymentDateDesc(Long fournisseurId, User createdBy);
+
+    @EntityGraph(attributePaths = {"createdBy"})
+    @Query("""
+        select fp
+        from FournisseurPayment fp
+        where fp.fournisseur.id = :fournisseurId
+          and fp.createdBy = :createdBy
+          and fp.recordStatus <> :archivedStatus
+          and (:fromDt is null or fp.paymentDate >= :fromDt)
+          and (:toDt is null or fp.paymentDate <= :toDt)
+    """)
+    Page<FournisseurPayment> searchPaymentsPaged(
+            @Param("fournisseurId") Long fournisseurId,
+            @Param("createdBy") User createdBy,
+            @Param("archivedStatus") RecordStatus archivedStatus,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt,
+            Pageable pageable
+    );
+
+    @Query("""
+        select count(fp),
+               coalesce(sum(case when fp.recordStatus <> :cancelledStatus then fp.amount else 0 end), 0)
+        from FournisseurPayment fp
+        where fp.fournisseur.id = :fournisseurId
+          and fp.createdBy = :createdBy
+          and fp.recordStatus <> :archivedStatus
+          and (:fromDt is null or fp.paymentDate >= :fromDt)
+          and (:toDt is null or fp.paymentDate <= :toDt)
+    """)
+    Object[] getPaymentsSummary(
+            @Param("fournisseurId") Long fournisseurId,
+            @Param("createdBy") User createdBy,
+            @Param("archivedStatus") RecordStatus archivedStatus,
+            @Param("cancelledStatus") RecordStatus cancelledStatus,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toDt") LocalDateTime toDt
+    );
 
     long countByFournisseurIdAndCreatedByAndRecordStatus(Long fournisseurId, User createdBy, RecordStatus recordStatus);
 

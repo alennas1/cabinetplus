@@ -28,6 +28,8 @@ import com.cabinetplus.backend.services.TreatmentCatalogService;
 import com.cabinetplus.backend.services.UserService;
 import com.cabinetplus.backend.util.PaginationUtil;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import jakarta.validation.Valid;
 
 @RestController
@@ -68,25 +70,25 @@ public class TreatmentCatalogController {
             Principal principal
     ) {
         User currentUser = getCurrentUser(principal);
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        String fieldNorm = field != null ? field.trim() : "";
 
-        List<TreatmentCatalog> all = treatmentCatalogService.findAllByUser(currentUser);
-        List<TreatmentCatalog> filtered = (all == null ? List.<TreatmentCatalog>of() : all).stream()
-                .filter(t -> matchesTreatmentCatalog(t, qNorm, fieldNorm))
-                .sorted(Comparator.comparing(t -> t.getName() != null ? t.getName().toLowerCase() : ""))
-                .toList();
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        var pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(Sort.Order.by("name").ignoreCase().with(Sort.Direction.ASC)).and(Sort.by(Sort.Order.asc("id")))
+        );
 
-        PageResponse<TreatmentCatalog> pageResponse = PaginationUtil.toPageResponse(filtered, page, size);
-        List<TreatmentCatalogResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+        var paged = treatmentCatalogService.searchPagedByUser(currentUser, q, field, pageable);
+        List<TreatmentCatalogResponse> items = paged.getContent().stream().map(this::mapToResponse).toList();
 
         auditService.logSuccess(AuditEventType.TREATMENT_CATALOG_READ, "TREATMENT_CATALOG", null, "Catalogue traitements consulte (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
     }
 
@@ -172,21 +174,6 @@ public class TreatmentCatalogController {
         );
     }
 
-    private static boolean matchesTreatmentCatalog(TreatmentCatalog treatment, String qNorm, String field) {
-        if (treatment == null) return false;
-        if (qNorm == null || qNorm.isBlank()) return true;
 
-        String safeField = field != null ? field.trim() : "";
-        String name = treatment.getName() != null ? treatment.getName().trim().toLowerCase() : "";
-        String desc = treatment.getDescription() != null ? treatment.getDescription().trim().toLowerCase() : "";
-        String price = treatment.getDefaultPrice() != null ? String.valueOf(treatment.getDefaultPrice()) : "";
-
-        return switch (safeField) {
-            case "name" -> name.contains(qNorm);
-            case "defaultPrice" -> price.contains(qNorm);
-            case "description" -> desc.contains(qNorm);
-            default -> name.contains(qNorm) || desc.contains(qNorm) || price.contains(qNorm);
-        };
-    }
 }
 

@@ -1,16 +1,15 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 import com.cabinetplus.backend.enums.UserRole;
-import com.cabinetplus.backend.security.EncryptionConverter;
 import com.cabinetplus.backend.util.UuidV7;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -26,10 +25,13 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
+import org.hibernate.Hibernate;
 
 @Entity
 @Table(name = "users")
 @Data
+@ToString(exclude = { "passwordHash", "ownerDentist", "dentistProfile", "dentistSubscription" })
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
@@ -48,11 +50,9 @@ public class User {
     private UserRole role;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String firstname;
 
     @Column(columnDefinition = "TEXT")
-    @Convert(converter = EncryptionConverter.class)
     private String lastname;
 
     private boolean isPhoneVerified = false;
@@ -86,6 +86,22 @@ public class User {
     @JsonIgnore
     @OneToOne(mappedBy = "dentist", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     private DentistSubscription dentistSubscription;
+
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null) return false;
+        if (Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
+        User other = (User) o;
+        if (publicId != null && other.publicId != null) return Objects.equals(publicId, other.publicId);
+        return id != null && Objects.equals(id, other.id);
+    }
+
+    @Override
+    public final int hashCode() {
+        if (publicId != null) return publicId.hashCode();
+        return Hibernate.getClass(this).hashCode();
+    }
 
     // ===============================
     // Derived accessors (backward-compatible API)

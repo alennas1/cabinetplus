@@ -10,6 +10,8 @@ import com.cabinetplus.backend.services.*;
 import com.cabinetplus.backend.util.PagedQueryUtil;
 import com.cabinetplus.backend.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,7 +42,7 @@ public class ProtheticsController {
             @RequestParam(required = false) String status, 
             Principal principal) {
         
-        User user = getCurrentUser(principal);
+        User user = getClinicUser(principal);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_READ,
                 "PROTHESIS",
@@ -64,8 +66,9 @@ public class ProtheticsController {
 
     @PostMapping
     public ResponseEntity<ProthesisResponse> create(@Valid @RequestBody ProthesisRequest dto, Principal principal) {
-        User user = getCurrentUser(principal);
-        Prothesis created = service.create(dto, user);
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        Prothesis created = service.create(dto, user, actor);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_CREATE,
                 "PATIENT",
@@ -90,140 +93,42 @@ public class ProtheticsController {
             @RequestParam(name = "focusId", required = false) Long focusId,
             Principal principal
     ) {
-        User user = getCurrentUser(principal);
-
-        String statusUpper = status != null && !status.isBlank() ? status.trim().toUpperCase() : "";
-        List<Prothesis> base = statusUpper.isBlank()
-                ? service.findAllByUser(user)
-                : service.findByPractitionerAndStatus(user, statusUpper);
-
-        String qNorm = q != null ? q.trim().toLowerCase() : "";
-        String filterByNorm = filterBy != null ? filterBy.trim() : "";
-        String dateTypeNorm = dateType != null && !dateType.isBlank() ? dateType.trim() : "dateCreated";
+        User user = getClinicUser(principal);
+        boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
 
-        Function<Prothesis, LocalDateTime> dateGetter = switch (dateTypeNorm) {
-            case "sentToLabDate" -> Prothesis::getSentToLabDate;
-            case "actualReturnDate" -> Prothesis::getActualReturnDate;
-            case "dateCreated" -> Prothesis::getDateCreated;
-            default -> Prothesis::getDateCreated;
-        };
+        var paged = service.searchAllPaged(
+                user,
+                page,
+                size,
+                q,
+                status,
+                filterBy,
+                dateType,
+                fromDt,
+                toDt,
+                sortKey,
+                desc,
+                focusId
+        );
 
-        boolean desc = direction != null && direction.trim().equalsIgnoreCase("desc");
-        Comparator<String> stringComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<Double> doubleComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-        Comparator<LocalDateTime> dateComparator = desc
-                ? Comparator.nullsLast(Comparator.reverseOrder())
-                : Comparator.nullsLast(Comparator.naturalOrder());
-
-        String sortKeyNorm = sortKey != null && !sortKey.isBlank() ? sortKey.trim() : "dates";
-        Comparator<Prothesis> comparator = switch (sortKeyNorm) {
-            case "work" -> Comparator.comparing(p -> {
-                String work = p.getProthesisCatalog() != null && p.getProthesisCatalog().getName() != null
-                        ? p.getProthesisCatalog().getName().trim()
-                        : "";
-                String materialName = p.getProthesisCatalog() != null
-                        && p.getProthesisCatalog().getMaterial() != null
-                        && p.getProthesisCatalog().getMaterial().getName() != null
-                        ? p.getProthesisCatalog().getMaterial().getName().trim()
-                        : "";
-                return (work + " " + materialName).trim().toLowerCase();
-            }, stringComparator);
-            case "code" -> Comparator.comparing(p -> p.getCode() != null ? p.getCode().trim().toLowerCase() : "", stringComparator);
-            case "teeth" -> Comparator.comparing(p -> p.getTeeth() != null ? p.getTeeth().toString() : "", stringComparator);
-            case "lab" -> Comparator.comparing(p -> p.getLaboratory() != null && p.getLaboratory().getName() != null
-                    ? p.getLaboratory().getName().trim().toLowerCase()
-                    : "", stringComparator);
-            case "labCost" -> Comparator.comparing(Prothesis::getLabCost, doubleComparator);
-            case "status" -> Comparator.comparing(p -> p.getStatus() != null ? p.getStatus().trim().toLowerCase() : "", stringComparator);
-            case "dates" -> Comparator.comparing(dateGetter, dateComparator);
-            default -> Comparator.comparing(dateGetter, dateComparator);
-        };
-        comparator = comparator.thenComparing(Prothesis::getId, Comparator.nullsLast(Comparator.naturalOrder()));
-
-        List<Prothesis> filtered = (base == null ? List.<Prothesis>of() : base).stream()
-                .filter(p -> {
-                    if (qNorm.isBlank()) return true;
-
-                    String prothesisName = p.getProthesisCatalog() != null && p.getProthesisCatalog().getName() != null
-                            ? p.getProthesisCatalog().getName().trim().toLowerCase()
-                            : "";
-                    String materialName = p.getProthesisCatalog() != null
-                            && p.getProthesisCatalog().getMaterial() != null
-                            && p.getProthesisCatalog().getMaterial().getName() != null
-                            ? p.getProthesisCatalog().getMaterial().getName().trim().toLowerCase()
-                            : "";
-
-                    if ("prothesisName".equalsIgnoreCase(filterByNorm)) {
-                        return prothesisName.contains(qNorm);
-                    }
-                    if ("materialName".equalsIgnoreCase(filterByNorm)) {
-                        return materialName.contains(qNorm);
-                    }
-
-                    String patientName = p.getPatient() != null
-                            ? ((p.getPatient().getFirstname() != null ? p.getPatient().getFirstname() : "") + " " + (p.getPatient().getLastname() != null ? p.getPatient().getLastname() : "")).trim().toLowerCase()
-                            : "";
-                    String code = p.getCode() != null ? p.getCode().trim().toLowerCase() : "";
-                    String lab = p.getLaboratory() != null && p.getLaboratory().getName() != null
-                            ? p.getLaboratory().getName().trim().toLowerCase()
-                            : "";
-                    String teeth = p.getTeeth() != null ? p.getTeeth().toString().toLowerCase() : "";
-                    String s = p.getStatus() != null ? p.getStatus().trim().toLowerCase() : "";
-                    return patientName.contains(qNorm)
-                            || prothesisName.contains(qNorm)
-                            || materialName.contains(qNorm)
-                            || code.contains(qNorm)
-                            || lab.contains(qNorm)
-                            || teeth.contains(qNorm)
-                            || s.contains(qNorm);
-                })
-                .filter(p -> {
-                    if (fromDt == null && toDt == null) return true;
-                    LocalDateTime value = dateGetter.apply(p);
-                    if (value == null) return false;
-                    if (fromDt != null && value.isBefore(fromDt)) return false;
-                    return toDt == null || !value.isAfter(toDt);
-                })
-                .sorted(comparator)
-                .toList();
-
-        int effectivePage = page;
-        if (focusId != null && size > 0) {
-            int idx = -1;
-            for (int i = 0; i < filtered.size(); i++) {
-                Prothesis p = filtered.get(i);
-                if (p != null && p.getId() != null && p.getId().equals(focusId)) {
-                    idx = i;
-                    break;
-                }
-            }
-            if (idx >= 0) {
-                effectivePage = idx / size;
-            }
-        }
-
-        PageResponse<Prothesis> pageResponse = PaginationUtil.toPageResponse(filtered, effectivePage, size);
-        List<ProthesisResponse> items = pageResponse.items().stream().map(this::mapToResponse).toList();
+        List<ProthesisResponse> items = paged.getContent().stream().map(this::mapToResponse).toList();
 
         return ResponseEntity.ok(new PageResponse<>(
                 items,
-                pageResponse.page(),
-                pageResponse.size(),
-                pageResponse.totalElements(),
-                pageResponse.totalPages()
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages()
         ));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ProthesisResponse> update(@PathVariable Long id, @Valid @RequestBody ProthesisRequest dto, Principal principal) {
-        User user = getCurrentUser(principal);
-        Prothesis updated = service.update(id, dto, user);
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        Prothesis updated = service.update(id, dto, user, actor);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_UPDATE,
                 "PATIENT",
@@ -235,8 +140,9 @@ public class ProtheticsController {
 
     @PutMapping("/{id}/assign-lab")
     public ResponseEntity<ProthesisResponse> assignLab(@PathVariable Long id, @Valid @RequestBody LabAssignmentRequest dto, Principal principal) {
-        User user = getCurrentUser(principal);
-        Prothesis updated = service.assignToLab(id, dto, user);
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        Prothesis updated = service.assignToLab(id, dto, user, actor);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_ASSIGN_LAB,
                 "PATIENT",
@@ -251,8 +157,9 @@ public class ProtheticsController {
             @PathVariable Long id, 
             @RequestParam String status, 
             Principal principal) {
-        User user = getCurrentUser(principal);
-        Prothesis updated = service.updateStatus(id, status, user);
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        Prothesis updated = service.updateStatus(id, status, user, actor);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_STATUS_CHANGE,
                 "PATIENT",
@@ -264,14 +171,15 @@ public class ProtheticsController {
 
     @PutMapping("/{id}/cancel")
     public ResponseEntity<ProthesisResponse> cancel(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
-        User user = getCurrentUser(principal);
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
         String reason = cancellationSecurityService.requirePinAndReason(user, payload.pin(), payload.reason());
 
         Prothesis existing = prothesisRepository.findById(id)
                 .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
                 .orElse(null);
 
-        service.delete(id, user);
+        service.delete(id, user, actor, reason);
 
         Prothesis refreshed = prothesisRepository.findById(id)
                 .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
@@ -290,11 +198,13 @@ public class ProtheticsController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Principal principal) {
-        User user = getCurrentUser(principal);
+        User actor = userService.findByPhoneNumber(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        User user = userService.resolveClinicOwner(actor);
         Prothesis existing = prothesisRepository.findById(id)
                 .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
                 .orElse(null);
-        service.delete(id, user);
+        service.delete(id, user, actor, null);
         auditService.logSuccess(
                 AuditEventType.PROTHESIS_CANCEL,
                 "PATIENT",
@@ -308,10 +218,13 @@ public class ProtheticsController {
         return ResponseEntity.noContent().build();
     }
 
-    private User getCurrentUser(Principal principal) {
-        User user = userService.findByPhoneNumber(principal.getName())
+    private User getActor(Principal principal) {
+        return userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
-        return userService.resolveClinicOwner(user);
+    }
+
+    private User getClinicUser(Principal principal) {
+        return userService.resolveClinicOwner(getActor(principal));
     }
 
   private ProthesisResponse mapToResponse(Prothesis p) {
@@ -325,7 +238,47 @@ public class ProtheticsController {
         String combined = (first + " " + last).trim();
         createdByName = combined.isBlank() ? null : combined;
     }
-    
+
+    String cancelledByName = null;
+    if (p.getCancelledBy() != null) {
+        String first = p.getCancelledBy().getFirstname() != null ? p.getCancelledBy().getFirstname().trim() : "";
+        String last = p.getCancelledBy().getLastname() != null ? p.getCancelledBy().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        cancelledByName = combined.isBlank() ? null : combined;
+    }
+
+    String updatedByName = null;
+    if (p.getUpdatedBy() != null) {
+        String first = p.getUpdatedBy().getFirstname() != null ? p.getUpdatedBy().getFirstname().trim() : "";
+        String last = p.getUpdatedBy().getLastname() != null ? p.getUpdatedBy().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        updatedByName = combined.isBlank() ? null : combined;
+    }
+
+    String sentToLabByName = null;
+    if (p.getSentToLabBy() != null) {
+        String first = p.getSentToLabBy().getFirstname() != null ? p.getSentToLabBy().getFirstname().trim() : "";
+        String last = p.getSentToLabBy().getLastname() != null ? p.getSentToLabBy().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        sentToLabByName = combined.isBlank() ? null : combined;
+    }
+
+    String receivedByName = null;
+    if (p.getReceivedBy() != null) {
+        String first = p.getReceivedBy().getFirstname() != null ? p.getReceivedBy().getFirstname().trim() : "";
+        String last = p.getReceivedBy().getLastname() != null ? p.getReceivedBy().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        receivedByName = combined.isBlank() ? null : combined;
+    }
+
+    String posedByName = null;
+    if (p.getPosedBy() != null) {
+        String first = p.getPosedBy().getFirstname() != null ? p.getPosedBy().getFirstname().trim() : "";
+        String last = p.getPosedBy().getLastname() != null ? p.getPosedBy().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        posedByName = combined.isBlank() ? null : combined;
+    }
+     
     return new ProthesisResponse(
         p.getId(),
         p.getProthesisCatalog().getId(),
@@ -342,8 +295,17 @@ public class ProtheticsController {
         p.getLaboratory() != null ? p.getLaboratory().getName() : "Not Sent",
         p.getDateCreated(),
         p.getSentToLabDate(),
+        sentToLabByName,
         p.getActualReturnDate(),
-        createdByName
+        receivedByName,
+        p.getPosedAt(),
+        posedByName,
+        createdByName,
+        p.getUpdatedAt(),
+        updatedByName,
+        p.getCancelledAt(),
+        cancelledByName,
+        p.getCancelReason()
     );
 }
 
@@ -382,7 +344,7 @@ public ResponseEntity<List<ProthesisResponse>> getByPatient(
         @PathVariable String patientId,
         Principal principal) {
     
-    User user = getCurrentUser(principal);
+    User user = getClinicUser(principal);
     Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, user).getId();
     auditService.logSuccess(
             AuditEventType.PROTHESIS_READ,
@@ -412,48 +374,86 @@ public ResponseEntity<List<ProthesisResponse>> getByPatient(
             @RequestParam(name = "sortDirection", required = false) String sortDirection,
             Principal principal
     ) {
-        User user = getCurrentUser(principal);
+        User user = getClinicUser(principal);
         Long internalPatientId = publicIdResolutionService.requirePatientOwnedBy(patientId, user).getId();
 
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
         final String fieldNorm = field != null ? field.trim().toLowerCase() : "";
-        final String fieldKey = fieldNorm.isBlank() ? "prothesisname" : fieldNorm;
+        final String fieldKeyRaw = fieldNorm.isBlank() ? "prothesisname" : fieldNorm;
+        final String fieldKey = switch (fieldKeyRaw) {
+            case "materialname", "material_name", "material" -> "materialname";
+            case "prothesisname", "prothesis_name", "type" -> "prothesisname";
+            default -> "";
+        };
         String sortKeyNorm = sortKey != null ? sortKey.trim().toLowerCase() : "";
         boolean desc = "desc".equalsIgnoreCase(sortDirection);
         String statusNorm = status != null ? status.trim().toUpperCase() : "";
 
-        Comparator<ProthesisResponse> comparator = buildProthesisSortComparator(sortKeyNorm, desc);
+        if (!"teeth".equals(sortKeyNorm)) {
+            String qNorm = q != null ? q.trim().toLowerCase() : "";
+            String qLike = qNorm.isBlank() ? "" : ("%" + qNorm + "%");
 
-        List<ProthesisResponse> filtered = service.findByPatientAndPractitionerIncludingCancelled(internalPatientId, user).stream()
-                .map(this::mapToResponse)
-                .filter(p -> {
-                    if (p == null) return false;
+            boolean fromEnabled = from != null;
+            boolean toEnabled = to != null;
+            LocalDateTime fromDateTime = fromEnabled ? from.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+            LocalDateTime toDateTimeExclusive = toEnabled ? to.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
 
-                    if (!statusNorm.isBlank()) {
-                        String s = p.status() != null ? p.status().trim().toUpperCase() : "";
-                        if (!s.equals(statusNorm)) return false;
-                    }
+            Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+            Sort sort = switch (sortKeyNorm) {
+                case "type" -> Sort.by(direction, "prothesisCatalog.name");
+                case "material" -> Sort.by(direction, "prothesisCatalog.material.name");
+                case "date" -> Sort.by(direction, "dateCreated");
+                case "price" -> Sort.by(direction, "finalPrice");
+                case "status" -> Sort.by(direction, "status");
+                default -> Sort.by(Sort.Direction.DESC, "dateCreated");
+            };
+            sort = sort.and(Sort.by(Sort.Direction.ASC, "id"));
 
-                    if (!PagedQueryUtil.isInDateRange(p.dateCreated(), from, to)) return false;
+            PageRequest pageable = PageRequest.of(safePage, safeSize, sort);
+            var dtoPage = service.searchPatientProtheses(
+                            internalPatientId,
+                            user,
+                            statusNorm,
+                            fromEnabled,
+                            fromDateTime,
+                            toEnabled,
+                            toDateTimeExclusive,
+                            qLike,
+                            fieldKey,
+                            pageable
+                    )
+                    .map(this::mapToResponse);
 
-                    if (q != null && !q.isBlank()) {
-                        String hay = switch (fieldKey) {
-                            case "materialname", "material_name", "material" -> p.materialName();
-                            case "prothesisname", "prothesis_name", "type" -> p.prothesisName();
-                            default -> {
-                                String type = p.prothesisName() != null ? p.prothesisName() : "";
-                                String material = p.materialName() != null ? p.materialName() : "";
-                                yield type + " " + material;
-                            }
-                        };
-                        if (!PagedQueryUtil.matchesSearch(hay, q)) return false;
-                    }
+            return ResponseEntity.ok(PaginationUtil.toPageResponse(dtoPage));
+        }
 
-                    return true;
-                })
-                .sorted(comparator)
-                .toList();
+        String qNorm = q != null ? q.trim().toLowerCase() : "";
+        String qLike = qNorm.isBlank() ? "" : ("%" + qNorm + "%");
 
-        return ResponseEntity.ok(PaginationUtil.toPageResponse(filtered, page, size));
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
+        LocalDateTime fromDateTime = fromEnabled ? from.atStartOfDay() : LocalDate.of(1900, 1, 1).atStartOfDay();
+        LocalDateTime toDateTimeExclusive = toEnabled ? to.plusDays(1).atStartOfDay() : LocalDate.of(3000, 1, 1).atStartOfDay();
+
+        PageRequest pageable = PageRequest.of(safePage, safeSize);
+        var dtoPage = service.searchPatientProthesesSortedByTeeth(
+                        internalPatientId,
+                        user,
+                        statusNorm,
+                        fromEnabled,
+                        fromDateTime,
+                        toEnabled,
+                        toDateTimeExclusive,
+                        qLike,
+                        fieldKey,
+                        desc,
+                        pageable
+                )
+                .map(this::mapToResponse);
+
+        return ResponseEntity.ok(PaginationUtil.toPageResponse(dtoPage));
     }
 
     private static Comparator<ProthesisResponse> buildProthesisSortComparator(String sortKeyNorm, boolean desc) {

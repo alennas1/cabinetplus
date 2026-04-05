@@ -51,13 +51,15 @@ public class AuditController {
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "entity", required = false) String entity,
             @RequestParam(name = "action", required = false) String action,
+            @RequestParam(name = "sortKey", required = false) String sortKey,
+            @RequestParam(name = "sortDirection", required = false) String sortDirection,
             @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails principal
     ) {
         User user = userService.findByPhoneNumber(principal.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
-        return auditService.getMyLogsPaged(user, page, size, q, status, entity, action, from, to);
+        return auditService.getMyLogsPaged(user, page, size, q, status, entity, action, sortKey, sortDirection, from, to);
     }
 
     @GetMapping("/security")

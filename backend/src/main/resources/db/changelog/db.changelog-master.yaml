@@ -440,3 +440,12 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 049-employee-onboarding-and-permissions
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 049-employee-onboarding-and-permissions.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

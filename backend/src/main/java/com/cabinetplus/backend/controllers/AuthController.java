@@ -167,6 +167,21 @@ private void addDeviceCookie(HttpServletResponse response, String deviceId) {
             );
         }
 
+        boolean staffAccount = user.getRole() == UserRole.EMPLOYEE || user.getOwnerDentist() != null;
+        if (staffAccount && !user.isAccountSetupCompleted()) {
+            auditService.logFailureAsUser(
+                    user,
+                    AuditEventType.AUTH_LOGIN,
+                    "SESSION",
+                    String.valueOf(user.getId()),
+                    "Compte employe non configure"
+            );
+            throw new UnauthorizedException(
+                    "Compte employe non configure",
+                    Map.of("_", "Compte employe non configure. Cliquez sur \"Nouvel employe\" pour configurer votre compte.")
+            );
+        }
+
         try {
             String principalPhoneNumber = user.getPhoneNumber();
             authManager.authenticate(new UsernamePasswordAuthenticationToken(principalPhoneNumber, password));

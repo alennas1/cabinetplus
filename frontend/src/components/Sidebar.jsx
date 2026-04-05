@@ -14,7 +14,7 @@ import {
   Layers,
   Headphones,
 } from "react-feather";
-import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
+import { PERMISSIONS, userHasPermission } from "../utils/permissions";
 
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
@@ -28,12 +28,17 @@ const Sidebar = () => {
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.phoneNumber;
-  const clinicRole = getClinicRole(user);
-  const canAccessAdminCore = clinicRole === CLINIC_ROLES.DENTIST;
-  const canAccessDashboard = [CLINIC_ROLES.DENTIST, CLINIC_ROLES.EMPLOYEE].includes(clinicRole);
-  const canAccessCatalogues = canAccessDashboard;
-  const canAccessProstheses = canAccessDashboard;
-  const showAdminGroup = canAccessAdminCore || canAccessCatalogues || canAccessProstheses;
+  const canAccessDashboard = userHasPermission(user, PERMISSIONS.DASHBOARD);
+  const canAccessAppointments = userHasPermission(user, PERMISSIONS.APPOINTMENTS);
+  const canAccessPatients = userHasPermission(user, PERMISSIONS.PATIENTS);
+  const canAccessDevis = userHasPermission(user, PERMISSIONS.DEVIS);
+  const canAccessSupport = userHasPermission(user, PERMISSIONS.SUPPORT);
+  const canAccessCatalogues = userHasPermission(user, PERMISSIONS.CATALOGUE);
+  const canAccessProstheses = userHasPermission(user, PERMISSIONS.PROSTHESES);
+  const canAccessGestionCabinet = userHasPermission(user, PERMISSIONS.GESTION_CABINET);
+  const canAccessSettings = userHasPermission(user, PERMISSIONS.SETTINGS);
+
+  const showAdminGroup = canAccessGestionCabinet || canAccessCatalogues || canAccessProstheses || canAccessSettings;
   const isInSupport = useMemo(() => location.pathname.startsWith("/support"), [location.pathname]);
 
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
@@ -95,7 +100,7 @@ const Sidebar = () => {
       <ul className="sidebar-links">
         {/* --- Brand --- */}
         <li className="brand">
-          <Link to="/dashboard">
+          <Link to={canAccessDashboard ? "/dashboard" : "/appointments"}>
             <PlusSquare size={20} />
             <span className="link-text brand-text">Cabinet+</span>
           </Link>
@@ -114,7 +119,7 @@ const Sidebar = () => {
           </Link>
         </li>}
 
-        <li>
+        {canAccessAppointments && <li>
           <Link
             to="/appointments"
             className={isActivePath("/appointments") ? "active" : ""}
@@ -122,9 +127,9 @@ const Sidebar = () => {
             <Calendar size={20} />
             <span className="link-text">Rendez-vous</span>
           </Link>
-        </li>
+        </li>}
 
-        <li>
+        {canAccessPatients && <li>
           <Link
             to="/patients"
             className={isActivePath("/patients") ? "active" : ""}
@@ -132,9 +137,9 @@ const Sidebar = () => {
             <Users size={20} />
             <span className="link-text">Patients</span>
           </Link>
-        </li>
+        </li>}
 
-        <li>
+        {canAccessDevis && <li>
           <Link
             to="/devis"
             className={isActivePath("/devis") ? "active" : ""}
@@ -142,9 +147,9 @@ const Sidebar = () => {
             <FileText size={20} />
             <span className="link-text">Devis</span>
           </Link>
-        </li>
+        </li>}
 
-        <li>
+        {canAccessSupport && <li>
           <Link
             to="/support"
             className={isActivePath("/support") ? "active" : ""}
@@ -159,12 +164,12 @@ const Sidebar = () => {
             </span>
             <span className="link-text">Support</span>
           </Link>
-        </li>
+        </li>}
 
         {/* --- Administration Group --- */}
         {showAdminGroup && <li className="sidebar-group-title admin">Administration</li>}
 
-        {canAccessAdminCore && <li className="admin-link">
+        {canAccessGestionCabinet && <li className="admin-link">
             <Link
               to="/gestion-cabinet"
               className={
@@ -199,7 +204,7 @@ const Sidebar = () => {
           </Link>
         </li>}
 
-        {canAccessAdminCore && <li className="admin-link">
+        {canAccessSettings && <li className="admin-link">
           <Link
             to="/settings"
             className={isActivePath("/settings") ? "active" : ""}

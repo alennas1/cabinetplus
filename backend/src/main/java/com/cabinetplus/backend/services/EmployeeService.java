@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -13,7 +15,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.core.env.Environment;
 
 import com.cabinetplus.backend.dto.EmployeeRequestDTO;
 import com.cabinetplus.backend.dto.EmployeeResponseDTO;
@@ -21,20 +22,15 @@ import com.cabinetplus.backend.dto.EmployeeWorkingHoursDTO;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
-import com.cabinetplus.backend.exceptions.BadGatewayException;
-import com.cabinetplus.backend.exceptions.InternalServerErrorException;
-import com.cabinetplus.backend.exceptions.TooManyRequestsException;
 import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.EmployeeWorkingHours;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.EmployeeWorkingHoursRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
-import com.cabinetplus.backend.services.PhoneVerificationService;
 import com.cabinetplus.backend.util.PhoneNumberUtil;
 
 import lombok.RequiredArgsConstructor;
-import com.twilio.exception.ApiException;
 
 @Service
 @RequiredArgsConstructor
@@ -44,8 +40,6 @@ public class EmployeeService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final PlanLimitService planLimitService;
-    private final PhoneVerificationService phoneVerificationService;
-    private final Environment environment;
 
     // --- Create ---
     public EmployeeResponseDTO saveEmployee(EmployeeRequestDTO dto, User dentist) {
@@ -53,7 +47,6 @@ public class EmployeeService {
         assertDatesCoherent(dto.getHireDate(), dto.getEndDate());
         planLimitService.assertEmployeeLimitNotReached(dentist);
         assertPhoneUnique(normalizedPhone, null);
-        assertEmployeePhoneVerified(normalizedPhone, dto.getPhoneVerificationCode());
         User linkedUser = createLinkedUser(dentist, dto, normalizedPhone);
 
         Employee employee = Employee.builder()
@@ -132,14 +125,15 @@ public class EmployeeService {
 
         assertPhoneUnique(normalizedPhone, linkedUserId);
 
-        if (linkedUser == null && hasText(dto.getPassword())) {
-            assertEmployeePhoneVerified(normalizedPhone, dto.getPhoneVerificationCode());
+        if (linkedUser == null) {
             linkedUser = createLinkedUser(dentist, dto, normalizedPhone);
             existing.setUser(linkedUser);
-        } else if (linkedUser != null) {
-            if (hasText(dto.getPassword())) {
-                linkedUser.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
-            }
+        } else if (dto.getPermissions() != null) {
+            Set<String> requested = dto.getPermissions().stream()
+                    .filter(this::hasText)
+                    .map(String::trim)
+                    .collect(Collectors.toSet());
+            linkedUser.setPermissions(requested);
         }
 
         existing.setFirstName(dto.getFirstName());
@@ -163,6 +157,10 @@ public class EmployeeService {
             if (!normalizedPhone.equals(linkedUser.getPhoneNumber())) {
                 linkedUser.setPhoneNumber(normalizedPhone);
                 linkedUser.setPhoneVerified(false);
+                linkedUser.setAccountSetupCompleted(false);
+                linkedUser.setEmployeeGestionCabinetPinEnabled(false);
+                linkedUser.setEmployeeGestionCabinetPinHash(null);
+                linkedUser.setEmployeeGestionCabinetPinUpdatedAt(LocalDateTime.now());
             }
             userRepository.save(linkedUser);
         }
@@ -283,6 +281,7 @@ public class EmployeeService {
     // --- Mapper ---
     private EmployeeResponseDTO mapToResponse(Employee employee, List<EmployeeWorkingHoursDTO> schedules) {
         String dentistName = employee.getDentist().getFirstname() + " " + employee.getDentist().getLastname();
+        User user = employee.getUser();
 
         return EmployeeResponseDTO.builder()
                 .id(employee.getId())
@@ -306,65 +305,41 @@ public class EmployeeService {
                 .updatedAt(employee.getUpdatedAt())
                 .recordStatus(employee.getRecordStatus())
                 .archivedAt(employee.getArchivedAt())
-                .userId(employee.getUser() != null ? employee.getUser().getId() : null)
+                .userId(user != null ? user.getId() : null)
+                .accountSetupCompleted(user != null && user.isAccountSetupCompleted())
+                .permissions(user != null && user.getPermissions() != null ? user.getPermissions().stream().sorted().toList() : List.of())
                 .workingHours(schedules)
                 .build();
     }
 
     private User createLinkedUser(User ownerDentist, EmployeeRequestDTO dto, String normalizedPhone) {
-        if (!hasText(dto.getPassword())) {
-            throw new BadRequestException(java.util.Map.of("password", "Mot de passe obligatoire"));
-        }
-
         User user = new User();
-        user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
+        // Employee will set password during onboarding using the shared employee publicId.
+        // Use a random password to keep the account non-guessable before setup.
+        user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setRole(UserRole.EMPLOYEE);
         user.setOwnerDentist(ownerDentist);
         user.setFirstname(dto.getFirstName());
         user.setLastname(dto.getLastName());
         user.setPhoneNumber(normalizedPhone);
-        user.setPhoneVerified(true);
+        user.setPhoneVerified(false);
+        user.setAccountSetupCompleted(false);
         user.setCreatedAt(LocalDateTime.now());
         user.setPlan(ownerDentist.getPlan());
         user.setPlanStatus(ownerDentist.getPlanStatus());
         user.setPlanStartDate(ownerDentist.getPlanStartDate());
         user.setExpirationDate(ownerDentist.getExpirationDate());
 
+        Set<String> requested = dto.getPermissions() != null
+                ? dto.getPermissions().stream().filter(this::hasText).map(String::trim).collect(Collectors.toSet())
+                : Set.of();
+        if (requested.isEmpty()) {
+            user.setPermissions(new java.util.HashSet<>(java.util.Set.of("APPOINTMENTS", "PATIENTS")));
+        } else {
+            user.setPermissions(new java.util.HashSet<>(requested));
+        }
+
         return userRepository.save(user);
-    }
-
-    private void assertEmployeePhoneVerified(String normalizedPhone, String code) {
-        if (!hasText(code)) {
-            throw new BadRequestException(java.util.Map.of("phoneVerificationCode", "Code SMS obligatoire"));
-        }
-
-        boolean dev = environment != null && Arrays.asList(environment.getActiveProfiles()).contains("dev");
-        if (dev) {
-            return;
-        }
-
-        try {
-            boolean approved = phoneVerificationService.checkVerificationCode(normalizedPhone, code);
-            if (!approved) {
-                throw new BadRequestException(java.util.Map.of("phoneVerificationCode", "Code SMS invalide"));
-            }
-        } catch (IllegalStateException e) {
-            throw new InternalServerErrorException(
-                    "Service SMS indisponible",
-                    java.util.Map.of("_", "Service SMS indisponible", "reason", "not_configured")
-            );
-        } catch (ApiException e) {
-            int status = e.getStatusCode();
-            if (status == 400) {
-                throw new BadRequestException(java.util.Map.of("phoneVerificationCode", "Code SMS invalide"));
-            }
-            if (status == 429) {
-                throw new TooManyRequestsException("Trop de demandes. Reessayez plus tard.");
-            }
-            throw new BadGatewayException("Service SMS indisponible");
-        } catch (Exception e) {
-            throw new InternalServerErrorException("Service SMS indisponible");
-        }
     }
 
     private void assertPhoneUnique(String normalizedPhone, Long currentUserId) {

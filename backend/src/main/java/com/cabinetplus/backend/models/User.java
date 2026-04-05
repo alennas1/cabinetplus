@@ -1,7 +1,9 @@
 package com.cabinetplus.backend.models;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import com.cabinetplus.backend.enums.UserRole;
@@ -10,6 +12,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -22,6 +26,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -77,6 +82,25 @@ public class User {
 
     // --- Optional login 2-step verification (SMS) ---
     private boolean loginTwoFactorEnabled = true;
+
+    // --- Employee onboarding ---
+    private boolean accountSetupCompleted = true;
+    private LocalDateTime employeeSetupOtpLastSentAt;
+
+    // --- Employee PIN (per-user; used when role=EMPLOYEE or legacy staff account) ---
+    private boolean employeeGestionCabinetPinEnabled = false;
+
+    @JsonIgnore
+    @Column(length = 100)
+    private String employeeGestionCabinetPinHash;
+
+    private LocalDateTime employeeGestionCabinetPinUpdatedAt;
+
+    // --- Sidebar permissions (employee-controlled by clinic owner) ---
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_permissions", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "permission", length = 50)
+    private Set<String> permissions = new HashSet<>();
 
     // Dentist-only data (split into dedicated tables)
     @JsonIgnore
@@ -163,20 +187,28 @@ public class User {
     }
 
     public boolean isGestionCabinetPinEnabled() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.isGestionCabinetPinEnabled();
+        // PIN is per-user for EMPLOYEE (and legacy staff accounts), clinic-level for owner dentist.
+        if (role == UserRole.EMPLOYEE || ownerDentist != null) {
+            return employeeGestionCabinetPinEnabled;
+        }
         return dentistProfile != null && dentistProfile.isGestionCabinetPinEnabled();
     }
 
     public void setGestionCabinetPinEnabled(boolean enabled) {
+        if (role == UserRole.EMPLOYEE || ownerDentist != null) {
+            this.employeeGestionCabinetPinEnabled = enabled;
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setGestionCabinetPinEnabled(enabled);
     }
 
     @JsonIgnore
     public String getGestionCabinetPinHash() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getGestionCabinetPinHash();
+        // PIN is per-user for EMPLOYEE (and legacy staff accounts), clinic-level for owner dentist.
+        if (role == UserRole.EMPLOYEE || ownerDentist != null) {
+            return employeeGestionCabinetPinHash;
+        }
         return dentistProfile != null ? dentistProfile.getGestionCabinetPinHash() : null;
     }
 
@@ -185,19 +217,33 @@ public class User {
     }
 
     public void setGestionCabinetPinHash(String hash) {
+        if (role == UserRole.EMPLOYEE || ownerDentist != null) {
+            this.employeeGestionCabinetPinHash = hash;
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setGestionCabinetPinHash(hash);
     }
 
     public LocalDateTime getGestionCabinetPinUpdatedAt() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getGestionCabinetPinUpdatedAt();
+        if (role == UserRole.EMPLOYEE || ownerDentist != null) {
+            return employeeGestionCabinetPinUpdatedAt;
+        }
         return dentistProfile != null ? dentistProfile.getGestionCabinetPinUpdatedAt() : null;
     }
 
     public void setGestionCabinetPinUpdatedAt(LocalDateTime at) {
+        if (role == UserRole.EMPLOYEE || ownerDentist != null) {
+            this.employeeGestionCabinetPinUpdatedAt = at;
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setGestionCabinetPinUpdatedAt(at);
+    }
+
+    @Transient
+    public boolean isEmployee() {
+        return role == UserRole.EMPLOYEE || ownerDentist != null;
     }
 
     public String getWorkingHoursMode() {

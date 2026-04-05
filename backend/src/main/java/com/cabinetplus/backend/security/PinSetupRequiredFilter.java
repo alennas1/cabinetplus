@@ -75,15 +75,10 @@ public class PinSetupRequiredFilter extends OncePerRequestFilter {
             return;
         }
 
-        User owner = userService.resolveClinicOwner(user);
-        if (owner == null) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        boolean enforce = owner.isPhoneVerified()
-                && owner.getPlanStatus() == UserPlanStatus.ACTIVE
-                && !owner.isGestionCabinetPinConfigured();
+        // PIN is required per user (dentist or employee) once the clinic subscription is active.
+        boolean enforce = user.isPhoneVerified()
+                && user.getPlanStatus() == UserPlanStatus.ACTIVE
+                && !user.isGestionCabinetPinConfigured();
 
         if (!enforce || isAllowedWhilePinMissing(path)) {
             filterChain.doFilter(request, response);
@@ -102,4 +97,3 @@ public class PinSetupRequiredFilter extends OncePerRequestFilter {
         ));
     }
 }
-

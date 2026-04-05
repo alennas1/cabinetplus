@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -64,4 +65,7 @@ public class EmployeeRequestDTO {
 
     @Size(min = 8, max = 72, message = "Le mot de passe doit contenir entre 8 et 72 caracteres")
     private String password;
+
+    // Optional: dentist can control employee sidebar access.
+    private List<String> permissions;
 }

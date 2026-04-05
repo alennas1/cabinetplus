@@ -98,8 +98,8 @@ const GestionCabinetPinGuard = () => {
   };
 
   const goToSecurity = () => {
-    navigate("/settings/security", { replace: false });
-    toast.info("Configurez le code PIN dans Sécurité");
+    navigate("/pin-setup", { replace: false });
+    toast.info("Modifiez votre code PIN");
   };
 
   if (checking) {

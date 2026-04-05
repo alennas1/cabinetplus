@@ -43,6 +43,8 @@ public class EmployeeResponseDTO {
     private LocalDateTime archivedAt;
 
     private Long userId;
+    private boolean accountSetupCompleted;
+    private List<String> permissions;
 
     // Add working hours
     private List<EmployeeWorkingHoursDTO> workingHours;

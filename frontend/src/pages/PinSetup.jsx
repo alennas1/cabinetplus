@@ -15,7 +15,9 @@ export default function PinSetup() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const isDentistOwner = user?.role === "DENTIST";
+  const isEmployee = user?.role === "EMPLOYEE" || !!user?.ownerDentist || !!user?.ownerDentistId;
+  const isDentistOwner = user?.role === "DENTIST" && !user?.ownerDentist && !user?.ownerDentistId;
+
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -25,7 +27,7 @@ export default function PinSetup() {
   const normalizedConfirm = useMemo(() => String(confirmPin || "").replaceAll(/\D/g, ""), [confirmPin]);
 
   const finishRedirect = () => {
-    const fallback = user?.role === "ADMIN" ? "/admin-dashboard" : "/dashboard";
+    const fallback = user?.role === "ADMIN" ? "/admin-dashboard" : isEmployee ? "/appointments" : "/dashboard";
     try {
       const next = sessionStorage.getItem(AFTER_PIN_REDIRECT_KEY);
       sessionStorage.removeItem(AFTER_PIN_REDIRECT_KEY);
@@ -41,10 +43,6 @@ export default function PinSetup() {
 
   const handleSubmit = async () => {
     if (submitting) return;
-    if (!isDentistOwner) {
-      toast.error("Seul le dentiste propriétaire peut configurer le PIN.");
-      return;
-    }
     if (!String(password || "").trim()) {
       toast.error("Entrez votre mot de passe");
       return;
@@ -66,10 +64,10 @@ export default function PinSetup() {
         const freshUser = await getCurrentUser();
         dispatch(setCredentials({ token, user: freshUser }));
       } catch {
-        // ignore (RequireAuth will still allow after next refresh)
+        // ignore
       }
 
-      toast.success("PIN configuré");
+      toast.success("PIN configure");
       finishRedirect();
     } catch (err) {
       console.error(err);
@@ -90,14 +88,8 @@ export default function PinSetup() {
         <div className="bg-white rounded-2xl shadow p-6 w-full max-w-md">
           <h1 className="text-xl font-semibold text-gray-900">Configurer le code PIN</h1>
           <p className="text-gray-600 mt-1">
-            Pour continuer, définissez le code PIN (4 chiffres) du cabinet.
+            Pour continuer, definissez un code PIN (4 chiffres) {isDentistOwner ? "du cabinet" : "pour votre compte"}.
           </p>
-
-          {!isDentistOwner ? (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm">
-              Le code PIN doit être configuré par le dentiste propriétaire.
-            </div>
-          ) : null}
 
           <div className="mt-6 space-y-4">
             <div>
@@ -130,7 +122,7 @@ export default function PinSetup() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={submitting || !isDentistOwner}
+              disabled={submitting}
               className="w-full px-4 py-3 rounded-xl bg-gray-900 text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {submitting ? "..." : "Confirmer"}
@@ -141,7 +133,7 @@ export default function PinSetup() {
               onClick={handleLogout}
               className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50"
             >
-              Se déconnecter
+              Se deconnecter
             </button>
           </div>
         </div>

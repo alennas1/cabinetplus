@@ -56,7 +56,7 @@ const RequireAuth = ({ allowedRoles }) => {
     else if (!isPlanActive && user.planStatus === "WAITING") targetPath = "/waiting";
     else if (!isPlanActive) targetPath = "/plan";
     else if (!isPinConfigured) {
-      targetPath = user?.role === "DENTIST" ? "/pin-setup" : "/pin-required";
+      targetPath = "/pin-setup";
     }
 
     if (targetPath && currentPath !== targetPath) {
@@ -77,7 +77,7 @@ const RequireAuth = ({ allowedRoles }) => {
     if (!targetPath) {
       const setupPages = ["/verify", "/plan", "/waiting", "/pin-required", "/pin-setup"];
       if (setupPages.includes(currentPath)) {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to={user?.role === "DENTIST" ? "/dashboard" : "/appointments"} replace />;
       }
     }
   }

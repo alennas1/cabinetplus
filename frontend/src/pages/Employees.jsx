@@ -7,14 +7,13 @@ import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import SortableTh from "../components/SortableTh";
-import PasswordInput from "../components/PasswordInput";
 import FieldError from "../components/FieldError";
 import ModernDropdown from "../components/ModernDropdown";
 import Pagination from "../components/Pagination";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
-import { FIELD_LIMITS, isStrongPassword, validateText } from "../utils/validation";
+import { FIELD_LIMITS, validateText } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import DateInput from "../components/DateInput";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
@@ -29,6 +28,18 @@ import {
   unarchiveEmployee,
 } from "../services/employeeService";
 import "./Patients.css"; // reuse same CSS as Patients
+
+const EMPLOYEE_PERMISSION_OPTIONS = [
+  { key: "DASHBOARD", label: "Tableau de bord" },
+  { key: "APPOINTMENTS", label: "Rendez-vous" },
+  { key: "PATIENTS", label: "Patients" },
+  { key: "DEVIS", label: "Devis" },
+  { key: "SUPPORT", label: "Support" },
+  { key: "CATALOGUE", label: "Catalogues" },
+  { key: "PROSTHESES", label: "Protheses" },
+  { key: "GESTION_CABINET", label: "Gestion cabinet" },
+  { key: "SETTINGS", label: "Parametres" },
+];
 
 const Employees = ({ view = "active" }) => {
   const token = useSelector((state) => state.auth.token);
@@ -65,7 +76,7 @@ const Employees = ({ view = "active" }) => {
     status: "ACTIVE", // default enum
     salary: "",
     contractType: "",
-    password: "",
+    permissions: ["APPOINTMENTS", "PATIENTS"],
   });
   const [isEditing, setIsEditing] = useState(false);
   const [formStep, setFormStep] = useState(1);
@@ -136,6 +147,16 @@ const Employees = ({ view = "active" }) => {
     if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  const togglePermission = (key) => {
+    if (!key) return;
+    setFormData((prev) => {
+      const current = Array.isArray(prev?.permissions) ? prev.permissions : [];
+      const has = current.includes(key);
+      const next = has ? current.filter((p) => p !== key) : [...current, key];
+      return { ...prev, permissions: next };
+    });
+  };
+
   // Add / update
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -165,12 +186,6 @@ const Employees = ({ view = "active" }) => {
       nextErrors.phone = "Telephone invalide (ex: 05 51 51 51 51).";
     }
 
-    if (!isEditing && !String(formData.password || "").trim()) {
-      nextErrors.password = "Le mot de passe est obligatoire.";
-    } else if (String(formData.password || "").trim() && !isStrongPassword(formData.password)) {
-      nextErrors.password = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.";
-    }
-
     if (Object.values(nextErrors).some(Boolean)) {
       setFieldErrors(nextErrors);
       return;
@@ -190,7 +205,7 @@ const Employees = ({ view = "active" }) => {
       status: formData.status || "ACTIVE", // must match enum
       salary: formData.salary ? Number(formData.salary) : null,
       contractType: formData.contractType,
-      password: formData.password || null,
+      permissions: Array.isArray(formData.permissions) ? formData.permissions : [],
     };
 
     try {
@@ -273,7 +288,7 @@ const Employees = ({ view = "active" }) => {
       status: "ACTIVE",
       salary: "",
       contractType: "",
-      password: "",
+      permissions: ["APPOINTMENTS", "PATIENTS"],
     });
     setIsEditing(false);
     setFieldErrors({});
@@ -446,7 +461,7 @@ const Employees = ({ view = "active" }) => {
             <div className="employee-modal-stepper">
               {(() => {
                 const totalSteps = 4;
-                const stepTitles = ["Informations", "Identité", "Contrat", "Compte"];
+                const stepTitles = ["Informations", "Identite", "Contrat", "Acces"];
                 const stepIndex = Math.min(Math.max(formStep - 1, 0), totalSteps - 1);
                 const currentStep = stepIndex + 1;
                 const title = stepTitles[stepIndex] || "Etape";
@@ -632,16 +647,26 @@ const Employees = ({ view = "active" }) => {
 
               {formStep === 4 && (
                 <>
-                  <span className="field-label">Mot de passe</span>
-                  <PasswordInput
-                    name="password"
-                    value={formData.password || ""}
-                    onChange={handleChange}
-                    placeholder={isEditing ? "Laisser vide pour conserver" : "Choisir un mot de passe"}
-                    autoComplete="new-password"
-                    inputClassName={fieldErrors.password ? "invalid" : ""}
-                  />
-                  <FieldError message={fieldErrors.password} />
+                  <div className="text-sm text-gray-700 mb-2">
+                    L'employe va configurer son mot de passe et son PIN lui-meme via l'ID de setup.
+                  </div>
+
+                  <span className="field-label">Acces</span>
+                  <div className="flex flex-col gap-2">
+                    {EMPLOYEE_PERMISSION_OPTIONS.map((opt) => {
+                      const checked = Array.isArray(formData.permissions) && formData.permissions.includes(opt.key);
+                      return (
+                        <label key={opt.key} className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => togglePermission(opt.key)}
+                          />
+                          <span>{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </>
               )}
 

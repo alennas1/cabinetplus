@@ -10,6 +10,7 @@ import { initPwaUpdatePrompt } from "./pwa/registerPwaUpdate";
 // --- Pages ---
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import EmployeeSetup from "./pages/EmployeeSetup";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import ArchivedPatients from "./pages/ArchivedPatients";
@@ -73,11 +74,12 @@ import FournisseurDetails from "./pages/FournisseurDetails";
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
 import RequireAuth from "./components/RequireAuth"; 
-import RequireClinicRole from "./components/RequireClinicRole";
+import RequirePermission from "./components/RequirePermission";
 import GestionCabinetPinGuard from "./components/GestionCabinetPinGuard";
 import SessionExpiredModal from "./components/SessionExpiredModal";
 import OfflineScreen from "./components/OfflineScreen";
 import { CLINIC_ROLES, getClinicRole } from "./utils/clinicAccess";
+import { PERMISSIONS } from "./utils/permissions";
 import { isPlanActiveForAccess } from "./utils/planAccess";
 import { applyUserPreferences } from "./utils/workingHours";
 import { getUserPreferences } from "./services/userPreferenceService";
@@ -245,6 +247,7 @@ const AppContent = () => {
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/employee-setup/:employeeId" element={<EmployeeSetup />} />
         <Route path="/unauthorized" element={<CatchAllRedirect />} />
 
         {/* Clinic Protected Routes (Dentist + Employee) */}
@@ -256,21 +259,32 @@ const AppContent = () => {
           <Route path="/pin-setup" element={<PinSetup />} />
 
           <Route element={<Layout />}>
-            <Route path="/devis" element={<Devis />} />
-            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.EMPLOYEE]} />}>
+            <Route element={<RequirePermission permission={PERMISSIONS.DEVIS} />}>
+              <Route path="/devis" element={<Devis />} />
+            </Route>
+
+            <Route element={<RequirePermission permission={PERMISSIONS.DASHBOARD} />}>
               <Route path="/dashboard" element={<Dashboard />} />
             </Route>
 
-            <Route path="/patients" element={<Patients />} />
-            <Route path="/patients/archived" element={<ArchivedPatients />} />
-            <Route path="/patients/:id" element={<Patient />} />
-            <Route path="/appointments" element={<Appointments />} />
-            <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
-            <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
-            <Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
+            <Route element={<RequirePermission permission={PERMISSIONS.PATIENTS} />}>
+              <Route path="/patients" element={<Patients />} />
+              <Route path="/patients/archived" element={<ArchivedPatients />} />
+              <Route path="/patients/:id" element={<Patient />} />
+              <Route path="/patients/:id/ordonnance/:ordonnanceId" element={<Ordonnance />} />
+              <Route path="/patients/:id/ordonnance/create" element={<Ordonnance />} />
+              <Route path="/patients/:patientId/justification/:templateId" element={<Justification />} />
+            </Route>
 
-            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST, CLINIC_ROLES.EMPLOYEE]} />}>
+            <Route element={<RequirePermission permission={PERMISSIONS.APPOINTMENTS} />}>
+              <Route path="/appointments" element={<Appointments />} />
+            </Route>
+
+            <Route element={<RequirePermission permission={PERMISSIONS.PROSTHESES} />}>
               <Route path="/gestion-cabinet/prosthetics-tracking" element={<Prosthetics />} />
+            </Route>
+
+            <Route element={<RequirePermission permission={PERMISSIONS.CATALOGUE} />}>
               <Route path="/catalogue" element={<Catalogue />} />
               <Route path="/catalogue/medications" element={<Medications />} />
               <Route path="/catalogue/treatments" element={<TreatmentCatalog />} />
@@ -282,7 +296,7 @@ const AppContent = () => {
               <Route path="/catalogue/allergies" element={<AllergyCatalog />} />
             </Route>
 
-            <Route element={<RequireClinicRole allowedClinicRoles={[CLINIC_ROLES.DENTIST]} />}>
+            <Route element={<RequirePermission permission={PERMISSIONS.GESTION_CABINET} />}>
               <Route element={<GestionCabinetPinGuard />}>
                 <Route path="/gestion-cabinet" element={<GestionCabinet />} />
                 <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
@@ -298,24 +312,30 @@ const AppContent = () => {
                 <Route path="/gestion-cabinet/employees/archived" element={<ArchivedEmployees />} />
                 <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
               </Route>
+            </Route>
+
+            <Route element={<RequirePermission permission={PERMISSIONS.SETTINGS} />}>
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/preferences" element={<Preference />} />
               <Route path="/settings/patient-management" element={<PatientManagementSettings />} />
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />
               <Route path="/settings/audit-logs" element={<AuditLogs />} />
-            <Route path="/settings/payments" element={<HandPaymentHistory />} />
+              <Route path="/settings/payments" element={<HandPaymentHistory />} />
+            </Route>
           </Route>
 
-          <Route path="/support" element={<SupportCenter />} />
+          <Route element={<RequirePermission permission={PERMISSIONS.SUPPORT} />}>
+            <Route path="/support" element={<SupportCenter />} />
+          </Route>
 
-          <Route path="/settings/medications" element={<Navigate to="/catalogue/medications" replace />} />
+          <Route element={<RequirePermission permission={PERMISSIONS.CATALOGUE} />}>
+            <Route path="/settings/medications" element={<Navigate to="/catalogue/medications" replace />} />
             <Route path="/settings/treatments" element={<Navigate to="/catalogue/treatments" replace />} />
             <Route path="/settings/justifications" element={<Navigate to="/catalogue/justifications" replace />} />
             <Route path="/settings/prosthetics" element={<Navigate to="/catalogue/prosthetics" replace />} />
             <Route path="/settings/materials" element={<Navigate to="/catalogue/materials" replace />} />
             <Route path="/settings/items" element={<Navigate to="/catalogue/items" replace />} />
-            
           </Route>
         </Route>
 

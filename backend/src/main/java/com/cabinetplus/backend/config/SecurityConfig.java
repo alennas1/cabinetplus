@@ -27,6 +27,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.cabinetplus.backend.security.CustomUserDetailsService;
 import com.cabinetplus.backend.security.JwtAuthenticationFilter;
+import com.cabinetplus.backend.security.EmployeePermissionsFilter;
 import com.cabinetplus.backend.security.PinSetupRequiredFilter;
 import com.cabinetplus.backend.security.RequestTracingFilter;
 import com.cabinetplus.backend.services.AuditService;
@@ -39,6 +40,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     private final RequestTracingFilter requestTracingFilter;
+    private final EmployeePermissionsFilter employeePermissionsFilter;
     private final PinSetupRequiredFilter pinSetupRequiredFilter;
     private final CustomUserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
@@ -48,6 +50,7 @@ public class SecurityConfig {
     public SecurityConfig(
             JwtAuthenticationFilter jwtFilter,
             RequestTracingFilter requestTracingFilter,
+            EmployeePermissionsFilter employeePermissionsFilter,
             PinSetupRequiredFilter pinSetupRequiredFilter,
             CustomUserDetailsService userDetailsService,
             ObjectMapper objectMapper,
@@ -56,6 +59,7 @@ public class SecurityConfig {
     ) {
         this.jwtFilter = jwtFilter;
         this.requestTracingFilter = requestTracingFilter;
+        this.employeePermissionsFilter = employeePermissionsFilter;
         this.pinSetupRequiredFilter = pinSetupRequiredFilter;
         this.userDetailsService = userDetailsService;
         this.objectMapper = objectMapper;
@@ -116,7 +120,8 @@ public class SecurityConfig {
 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(requestTracingFilter, JwtAuthenticationFilter.class);
-        http.addFilterAfter(pinSetupRequiredFilter, JwtAuthenticationFilter.class);
+        http.addFilterAfter(employeePermissionsFilter, JwtAuthenticationFilter.class);
+        http.addFilterAfter(pinSetupRequiredFilter, EmployeePermissionsFilter.class);
 
         return http.build();
     }

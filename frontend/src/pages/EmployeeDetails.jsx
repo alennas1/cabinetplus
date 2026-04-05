@@ -24,12 +24,22 @@ import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
-import { isStrongPassword } from "../utils/validation";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
-import PasswordInput from "../components/PasswordInput";
 import FieldError from "../components/FieldError";
 import "./Patient.css";
 import "./Profile.css";
+
+const EMPLOYEE_PERMISSION_OPTIONS = [
+  { key: "DASHBOARD", label: "Tableau de bord" },
+  { key: "APPOINTMENTS", label: "Rendez-vous" },
+  { key: "PATIENTS", label: "Patients" },
+  { key: "DEVIS", label: "Devis" },
+  { key: "SUPPORT", label: "Support" },
+  { key: "CATALOGUE", label: "Catalogues" },
+  { key: "PROSTHESES", label: "Protheses" },
+  { key: "GESTION_CABINET", label: "Gestion cabinet" },
+  { key: "SETTINGS", label: "Parametres" },
+];
 
 const EmployeeDetails = () => {
   const { id } = useParams();
@@ -42,6 +52,7 @@ const EmployeeDetails = () => {
   const [expenseTotalPages, setExpenseTotalPages] = useState(1);
   const [monthlyTotals, setMonthlyTotals] = useState([]);
   const [workingHours, setWorkingHours] = useState([]);
+  const [permissionsDraft, setPermissionsDraft] = useState([]);
   const [isHoursModalOpen, setIsHoursModalOpen] = useState(false);
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
@@ -145,7 +156,7 @@ const EmployeeDetails = () => {
     }
   };
 
-  const toUpdatePayload = (source, passwordValue = null) => ({
+  const toUpdatePayload = (source, permissionsValue = null) => ({
     firstName: source.firstName || "",
     lastName: source.lastName || "",
     gender: source.gender || "",
@@ -159,7 +170,7 @@ const EmployeeDetails = () => {
     status: source.status || "ACTIVE",
     salary: source.salary === "" || source.salary == null ? null : Number(source.salary),
     contractType: source.contractType || "",
-    password: passwordValue,
+    permissions: permissionsValue != null ? permissionsValue : source.permissions || [],
   });
 
   useEffect(() => {
@@ -169,6 +180,7 @@ const EmployeeDetails = () => {
         const data = await getEmployeeById(id);
         setEmployee(data);
         setWorkingHours(data.workingHours || []);
+        setPermissionsDraft(Array.isArray(data?.permissions) ? data.permissions : []);
       } catch (err) {
         toast.error(getApiErrorMessage(err, "Erreur chargement employe"));
       } finally {
@@ -303,10 +315,6 @@ const EmployeeDetails = () => {
     }
     setEditingField(field);
     setFieldErrors({});
-    if (field === "password") {
-      setTempValue("");
-      return;
-    }
     setTempValue(employee?.[field] == null ? "" : String(employee[field]));
   };
 
@@ -323,19 +331,6 @@ const EmployeeDetails = () => {
       return;
     }
 
-    const nextErrors = {};
-    if (field === "password") {
-      if (!String(tempValue || "").trim()) nextErrors.password = "Entrez un nouveau mot de passe.";
-      else if (!isStrongPassword(tempValue)) {
-        nextErrors.password = "Mot de passe invalide: minimum 8 caracteres avec majuscule, minuscule, chiffre et symbole.";
-      }
-    }
-
-    if (Object.keys(nextErrors).length) {
-      setFieldErrors(nextErrors);
-      return;
-    }
-
     let nextValue = tempValue;
     if (field === "salary") {
       nextValue = tempValue === "" ? null : Number(tempValue);
@@ -345,9 +340,8 @@ const EmployeeDetails = () => {
     }
 
     const draft = { ...employee, [field]: nextValue };
-    const passwordValue = field === "password" ? tempValue : null;
     try {
-      const updated = await updateEmployee(id, toUpdatePayload(draft, passwordValue));
+      const updated = await updateEmployee(id, toUpdatePayload(draft));
       setEmployee(updated);
       if (updated.workingHours) setWorkingHours(updated.workingHours);
       setEditingField(null);
@@ -399,6 +393,32 @@ const EmployeeDetails = () => {
     }
   };
 
+  const togglePermissionDraft = (key) => {
+    if (!key) return;
+    setPermissionsDraft((prev) => {
+      const current = Array.isArray(prev) ? prev : [];
+      const has = current.includes(key);
+      return has ? current.filter((p) => p !== key) : [...current, key];
+    });
+  };
+
+  const savePermissions = async () => {
+    if (!employee) return;
+    if (isArchived) {
+      toast.info("Employe archive : lecture seule.");
+      return;
+    }
+    try {
+      const draft = { ...employee, permissions: permissionsDraft };
+      const updated = await updateEmployee(id, toUpdatePayload(draft, permissionsDraft));
+      setEmployee(updated);
+      setPermissionsDraft(Array.isArray(updated?.permissions) ? updated.permissions : []);
+      toast.success("Acces mis a jour");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur mise a jour acces"));
+    }
+  };
+
   const renderEditableField = (field, label, type = "text", options = null, displayValue = null) => (
     <div className="profile-field" key={field}>
       <div className="field-label">{label}:</div>
@@ -416,16 +436,6 @@ const EmployeeDetails = () => {
                 options={options}
                 ariaLabel={label}
                 fullWidth
-              />
-            ) : type === "password" ? (
-              <PasswordInput
-                value={tempValue}
-                onChange={(e) => {
-                  setTempValue(e.target.value);
-                  if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: "" }));
-                }}
-                autoComplete="new-password"
-                inputClassName={fieldErrors[field] ? "invalid" : ""}
               />
             ) : (
               <input
@@ -584,7 +594,65 @@ const EmployeeDetails = () => {
 
       {activeTab === "account" && (
         <div className="profile-content">
-          {renderEditableField("password", "Mot de passe", "password", null, "********")}
+          <div className="profile-field">
+            <div className="field-label">ID setup:</div>
+            <div className="field-value" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>{employee.publicId || "—"}</span>
+              {employee.publicId ? (
+                <button
+                  type="button"
+                  className="btn-secondary-app"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(String(employee.publicId));
+                      toast.success("ID copie");
+                    } catch {
+                      toast.error("Impossible de copier");
+                    }
+                  }}
+                >
+                  Copier
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="profile-field">
+            <div className="field-label">Statut compte:</div>
+            <div className="field-value">{employee.accountSetupCompleted ? "Configure" : "En attente"}</div>
+          </div>
+
+          <div className="profile-field">
+            <div className="field-label">Acces:</div>
+            <div className="field-value" style={{ flex: 1 }}>
+              <div className="flex flex-col gap-2">
+                {EMPLOYEE_PERMISSION_OPTIONS.map((opt) => {
+                  const checked = Array.isArray(permissionsDraft) && permissionsDraft.includes(opt.key);
+                  return (
+                    <label key={opt.key} className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePermissionDraft(opt.key)}
+                        disabled={isArchived}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                className="btn-primary2"
+                onClick={savePermissions}
+                disabled={isArchived}
+                style={{ marginTop: 12 }}
+              >
+                Enregistrer l'acces
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

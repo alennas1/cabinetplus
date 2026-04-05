@@ -223,6 +223,21 @@ export const register = async (userData) => {
   return data;
 };
 
+// Employee onboarding (public)
+export const startEmployeeAccountSetup = async (employeeId) => {
+  const { data } = await api.post("/auth/employee-setup/start", { employeeId });
+  return data; // { maskedPhone, message }
+};
+
+export const confirmEmployeeAccountSetup = async ({ employeeId, code, newPassword, pin }) => {
+  clearManualLogout();
+  const { data } = await api.post("/auth/employee-setup/confirm", { employeeId, code, newPassword, pin });
+  if (data?.accessToken) {
+    setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
+  }
+  return data;
+};
+
 export const sendPasswordResetCode = async (phoneNumber) => {
   const { data } = await api.post("/auth/password/reset/send", { phoneNumber });
   return data;

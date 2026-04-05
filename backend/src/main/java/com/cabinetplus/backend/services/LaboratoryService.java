@@ -9,6 +9,7 @@ import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.LaboratoryPayment;
 import com.cabinetplus.backend.models.Laboratory;
+import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.LaboratoryPaymentRepository;
 import com.cabinetplus.backend.repositories.LaboratoryRepository;

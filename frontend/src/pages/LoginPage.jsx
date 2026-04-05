@@ -46,6 +46,10 @@ const LoginPage = () => {
   const [resetFieldErrors, setResetFieldErrors] = useState({});
   const [resetSendCooldown, setResetSendCooldown] = useState(0);
 
+  const [employeeSetupOpen, setEmployeeSetupOpen] = useState(false);
+  const [employeeSetupId, setEmployeeSetupId] = useState("");
+  const [employeeSetupError, setEmployeeSetupError] = useState("");
+
   const [loginTwoFactorRequired, setLoginTwoFactorRequired] = useState(false);
   const [loginChallengeToken, setLoginChallengeToken] = useState("");
   const [loginMaskedPhone, setLoginMaskedPhone] = useState("");
@@ -60,6 +64,16 @@ const LoginPage = () => {
     }, 1000);
     return () => window.clearInterval(id);
   }, [resetSendCooldown]);
+
+  const openEmployeeSetupModal = () => {
+    setEmployeeSetupId("");
+    setEmployeeSetupError("");
+    setEmployeeSetupOpen(true);
+  };
+
+  const closeEmployeeSetupModal = () => {
+    setEmployeeSetupOpen(false);
+  };
 
   useEffect(() => {
     if (loginOtpCooldown <= 0) return;
@@ -518,6 +532,10 @@ const LoginPage = () => {
                   Mot de passe oublie ?
                 </button>
 
+                <button type="button" className="create-account-btn" onClick={openEmployeeSetupModal}>
+                  Nouvel employe
+                </button>
+
                 <Link to="/register" className="create-account-btn">
                   Creer un compte
                 </Link>
@@ -629,6 +647,48 @@ const LoginPage = () => {
             )}
 
             {resetError && <p className="login-reset-error">{resetError}</p>}
+          </div>
+        </div>
+      )}
+
+      {employeeSetupOpen && (
+        <div className="login-reset-overlay" onClick={closeEmployeeSetupModal}>
+          <div className="login-reset-card" onClick={(e) => e.stopPropagation()}>
+            <h3>Nouvel employe</h3>
+            <p className="login-reset-sub">Entrez l'ID recu du dentiste pour configurer votre compte.</p>
+
+            <div className="login-reset-form">
+              <input
+                type="text"
+                placeholder="ID employe"
+                value={employeeSetupId}
+                onChange={(e) => {
+                  setEmployeeSetupId(e.target.value);
+                  if (employeeSetupError) setEmployeeSetupError("");
+                }}
+              />
+
+              {employeeSetupError ? <p className="login-reset-error">{employeeSetupError}</p> : null}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const id = String(employeeSetupId || "").trim();
+                  if (!id) {
+                    setEmployeeSetupError("ID obligatoire");
+                    return;
+                  }
+                  closeEmployeeSetupModal();
+                  navigate(`/employee-setup/${encodeURIComponent(id)}`);
+                }}
+              >
+                Configurer mon compte
+              </button>
+
+              <button type="button" className="login-reset-cancel" onClick={closeEmployeeSetupModal}>
+                Annuler
+              </button>
+            </div>
           </div>
         </div>
       )}

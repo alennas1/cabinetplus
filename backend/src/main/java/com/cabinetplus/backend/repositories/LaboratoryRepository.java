@@ -24,6 +24,10 @@ public interface LaboratoryRepository extends JpaRepository<Laboratory, Long> {
     Optional<Laboratory> findByIdAndCreatedBy(Long id, User user);
     Optional<Laboratory> findByPublicIdAndCreatedBy(UUID publicId, User user);
 
+    Optional<Laboratory> findByPublicId(UUID publicId);
+
+    Optional<Laboratory> findFirstByCreatedByAndArchivedAtIsNullAndRecordStatusOrderByIdAsc(User user, RecordStatus recordStatus);
+
     @Query("""
             select l
             from Laboratory l
@@ -62,6 +66,31 @@ public interface LaboratoryRepository extends JpaRepository<Laboratory, Long> {
               )
             """)
     Page<Laboratory> searchArchivedByCreatedBy(@Param("owner") User owner, @Param("q") String q, Pageable pageable);
+
+    @Query("""
+            select l
+            from Laboratory l
+            where l.archivedAt is null
+              and l.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
+              and (
+                   l.createdBy = :dentist
+                   or exists (
+                       select 1
+                       from LaboratoryConnection c
+                       where c.dentist = :dentist
+                         and c.laboratory = l
+                         and c.status = com.cabinetplus.backend.enums.LaboratoryConnectionStatus.ACCEPTED
+                   )
+              )
+              and (
+                    coalesce(:q, '') = ''
+                    or lower(coalesce(l.name, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.contactPerson, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.phoneNumber, '')) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(l.address, '')) like lower(concat('%', :q, '%'))
+              )
+            """)
+    Page<Laboratory> searchAccessibleByDentist(@Param("dentist") User dentist, @Param("q") String q, Pageable pageable);
 
     boolean existsByCreatedByAndNameIgnoreCase(User user, String name);
     boolean existsByCreatedByAndNameIgnoreCaseAndIdNot(User user, String name, Long id);

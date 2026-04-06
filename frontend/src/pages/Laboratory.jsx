@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit2, Search, X, Eye, Archive, RotateCcw } from "react-feather";
+import { Plus, Edit2, Search, X, Eye, Archive, RotateCcw, Link2 } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
@@ -19,6 +19,7 @@ import {
   archiveLaboratory,
   unarchiveLaboratory,
 } from "../services/laboratoryService";
+import { inviteLaboratoryConnection } from "../services/laboratoryConnectionService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
@@ -56,6 +57,10 @@ const Laboratories = ({ view = "active" }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [labIdToDelete, setLabIdToDelete] = useState(null);
   const [isDeletingLab, setIsDeletingLab] = useState(false);
+
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteLabPublicId, setInviteLabPublicId] = useState("");
+  const [isInvitingLab, setIsInvitingLab] = useState(false);
 
   const fetchLabs = async () => {
     try {
@@ -125,6 +130,26 @@ const Laboratories = ({ view = "active" }) => {
     setFormData({ id: null, name: "", contactPerson: "", phoneNumber: "", address: "" });
     setIsEditing(false);
     setFieldErrors({});
+  };
+
+  const submitInvite = async () => {
+    const value = String(inviteLabPublicId || "").trim();
+    if (!value) {
+      toast.info("Entrez l'ID du laboratoire.");
+      return;
+    }
+    if (isInvitingLab) return;
+    try {
+      setIsInvitingLab(true);
+      await inviteLaboratoryConnection({ labPublicId: value });
+      toast.success("Invitation envoyée au laboratoire");
+      setShowInviteModal(false);
+      setInviteLabPublicId("");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'envoi de l'invitation"));
+    } finally {
+      setIsInvitingLab(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -275,19 +300,28 @@ const Laboratories = ({ view = "active" }) => {
               >
                 <Archive size={16} />
               </button>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  resetForm();
-                  setShowModal(true);
-                }}
-              >
-                <Plus size={16} /> Ajouter un laboratoire
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+               <button
+                 className="btn-primary"
+                 onClick={() => {
+                   resetForm();
+                   setShowModal(true);
+                 }}
+               >
+                 <Plus size={16} /> Ajouter un laboratoire
+               </button>
+               <button
+                 className="btn-secondary"
+                 onClick={() => {
+                   setInviteLabPublicId("");
+                   setShowInviteModal(true);
+                 }}
+               >
+                 <Link2 size={16} /> Inviter un laboratoire
+               </button>
+             </>
+           )}
+         </div>
+       </div>
 
       <table className="patients-table">
         <thead>
@@ -316,7 +350,14 @@ const Laboratories = ({ view = "active" }) => {
           ) : (
             currentLabs.map((lab) => (
               <tr key={lab.id} onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.publicId || lab.id}`)} style={{ cursor: "pointer" }}>
-                <td style={{ fontWeight: "bold" }}>{lab.name}</td>
+                <td style={{ fontWeight: "bold" }}>
+                  {lab.name}
+                  {lab.connected ? (
+                    <span style={{ marginLeft: 8, fontSize: 12, padding: "2px 6px", borderRadius: 999, background: "#eef2ff", color: "#3730a3" }}>
+                      Connecté
+                    </span>
+                  ) : null}
+                </td>
                 <td>{lab.contactPerson || "—"}</td>
                 <td>{formatPhoneNumber(lab.phoneNumber) || "—"}</td>
                 <td>{lab.address || "—"}</td>
@@ -337,7 +378,7 @@ const Laboratories = ({ view = "active" }) => {
                   >
                     <Eye size={16} />
                   </button>
-                  {view !== "archived" && (
+                  {view !== "archived" && lab.editable !== false && (
                     <>
                       <button
                         className="action-btn edit"
@@ -484,6 +525,41 @@ const Laboratories = ({ view = "active" }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showInviteModal && (
+        <div className="modal-overlay" onClick={() => setShowInviteModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h2>Inviter un laboratoire</h2>
+              <X className="cursor-pointer" onClick={() => setShowInviteModal(false)} />
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Collez l'ID fourni par le laboratoire (menu Invitations du laboratoire). Après acceptation, le laboratoire apparaîtra dans votre liste.
+            </p>
+
+            <div className="field-group">
+              <span className="field-label">ID laboratoire *</span>
+              <input
+                type="text"
+                value={inviteLabPublicId}
+                onChange={(e) => setInviteLabPublicId(e.target.value)}
+                placeholder="Ex: 018f9a1b-..."
+                disabled={isInvitingLab}
+              />
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: "2rem" }}>
+              <button type="button" className="btn-primary2" onClick={submitInvite} disabled={isInvitingLab}>
+                {isInvitingLab ? "Envoi..." : "Envoyer"}
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => setShowInviteModal(false)} disabled={isInvitingLab}>
+                Annuler
+              </button>
+            </div>
           </div>
         </div>
       )}

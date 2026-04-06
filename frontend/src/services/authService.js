@@ -223,6 +223,13 @@ export const register = async (userData) => {
   return data;
 };
 
+export const registerLab = async (labData) => {
+  clearManualLogout();
+  const { data } = await api.post("/auth/register-lab", labData);
+  setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
+  return data;
+};
+
 // Employee onboarding (public)
 export const startEmployeeAccountSetup = async (employeeId) => {
   const { data } = await api.post("/auth/employee-setup/start", { employeeId });

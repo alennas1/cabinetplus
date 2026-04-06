@@ -109,6 +109,11 @@ const LoginPage = () => {
       return;
     }
 
+    if (userData.role === "LAB") {
+      navigate("/lab", { replace: true });
+      return;
+    }
+
     const clinicRole = getClinicRole(userData);
     if (clinicRole !== CLINIC_ROLES.DENTIST) {
       navigate("/appointments", { replace: true });
@@ -538,6 +543,10 @@ const LoginPage = () => {
 
                 <Link to="/register" className="create-account-btn">
                   Creer un compte
+                </Link>
+
+                <Link to="/register-lab" className="create-account-btn">
+                  Creer un compte laboratoire
                 </Link>
               </>
             )}

@@ -44,6 +44,12 @@
   background: #fee2e2;
   color: #b91c1c;
 }
+
+.context-badge.pending {
+  border-color: #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+}
 .btn-secondary-app {
   display: flex;
   align-items: center;

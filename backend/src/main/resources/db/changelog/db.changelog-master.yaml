@@ -467,3 +467,12 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 052-lab-accounts-and-connections
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 052-lab-accounts-and-connections.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

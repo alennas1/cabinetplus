@@ -23,5 +23,7 @@ public record LaboratoryResponse(
     List<LaboratoryBillingSummaryResponse> billingHistory,
     List<LaboratoryBillingEntryResponse> billingEntries,
     RecordStatus recordStatus,
-    LocalDateTime archivedAt
+    LocalDateTime archivedAt,
+    boolean connected,
+    boolean editable
 ) {}

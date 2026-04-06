@@ -3,6 +3,8 @@ package com.cabinetplus.backend.services;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.repositories.*;
 import com.cabinetplus.backend.dto.*;
+import com.cabinetplus.backend.enums.CancellationRequestDecision;
+import com.cabinetplus.backend.enums.LaboratoryConnectionStatus;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
@@ -30,6 +32,7 @@ public class ProthesisService {
     private final ProthesisCatalogRepository catalogRepository;
     private final PatientRepository patientRepository;
     private final LaboratoryRepository labRepository;
+    private final LaboratoryConnectionRepository laboratoryConnectionRepository;
 
     public List<Prothesis> findAllByUser(User user) {
         if (user.getRole() == UserRole.ADMIN) {
@@ -423,10 +426,27 @@ public class ProthesisService {
             throw new BadRequestException(java.util.Map.of("status", "Envoi au laboratoire autorise uniquement depuis le statut PENDING"));
         }
 
-        Laboratory lab = user.getRole() == UserRole.ADMIN
-                ? labRepository.findById(dto.laboratoryId())
-                .orElse(null)
-                : labRepository.findByIdAndCreatedBy(dto.laboratoryId(), user).orElse(null);
+        Laboratory lab;
+        if (user.getRole() == UserRole.ADMIN) {
+            lab = labRepository.findById(dto.laboratoryId()).orElse(null);
+        } else {
+            lab = labRepository.findById(dto.laboratoryId()).orElse(null);
+            if (lab != null && lab.getCreatedBy() != null && lab.getCreatedBy().getId() != null
+                    && user.getId() != null && lab.getCreatedBy().getId().equals(user.getId())) {
+                // Private lab created by the dentist
+            } else if (lab != null && lab.getCreatedBy() != null && lab.getCreatedBy().getRole() == UserRole.LAB) {
+                boolean connected = laboratoryConnectionRepository.existsByDentistAndLaboratoryAndStatus(
+                        user,
+                        lab,
+                        LaboratoryConnectionStatus.ACCEPTED
+                );
+                if (!connected) {
+                    lab = null;
+                }
+            } else {
+                lab = null;
+            }
+        }
 
         if (lab == null) {
             throw new BadRequestException(java.util.Map.of("laboratoryId", "Laboratoire introuvable"));
@@ -618,6 +638,35 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
         if (p.getPatient() != null && p.getPatient().getArchivedAt() != null) {
             throw new BadRequestException(java.util.Map.of("_", "Patient archivÃ© : lecture seule."));
         }
+        // If this prothesis is assigned to a connected lab account, the lab must confirm cancellation.
+        if (p.getLaboratory() != null
+                && p.getLaboratory().getCreatedBy() != null
+                && p.getLaboratory().getCreatedBy().getRole() == UserRole.LAB
+                && user.getRole() != UserRole.ADMIN) {
+
+            boolean connected = laboratoryConnectionRepository.existsByDentistAndLaboratoryAndStatus(
+                    user,
+                    p.getLaboratory(),
+                    LaboratoryConnectionStatus.ACCEPTED
+            );
+            if (connected) {
+                if (p.getCancelRequestDecision() == CancellationRequestDecision.PENDING) {
+                    throw new BadRequestException(java.util.Map.of("_", "Annulation deja en attente de confirmation du laboratoire."));
+                }
+
+                p.setCancelRequestedAt(LocalDateTime.now());
+                p.setCancelRequestedBy(actor != null ? actor : user);
+                String normalizedReason = reason != null ? reason.trim() : "";
+                p.setCancelRequestReason(normalizedReason.isBlank() ? null : normalizedReason);
+                p.setCancelRequestDecision(CancellationRequestDecision.PENDING);
+                p.setCancelRequestDecidedAt(null);
+                p.setCancelRequestDecidedBy(null);
+                p.setUpdatedBy(actor != null ? actor : user);
+                repository.save(p);
+                return;
+            }
+        }
+
         boolean changed = false;
         if (p.getRecordStatus() != RecordStatus.CANCELLED) {
             p.setRecordStatus(RecordStatus.CANCELLED);

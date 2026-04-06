@@ -12,6 +12,7 @@ const RequireAuth = ({ allowedRoles }) => {
   const currentPath = location.pathname;
   const redirectByRole = () => {
     if (user?.role === "ADMIN") return "/admin-dashboard";
+    if (user?.role === "LAB") return "/lab";
     return user?.role === "DENTIST" ? "/dashboard" : "/appointments";
   };
 

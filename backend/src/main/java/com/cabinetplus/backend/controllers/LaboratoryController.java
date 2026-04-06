@@ -27,17 +27,20 @@ public class LaboratoryController {
     private final LaboratoryService service;
     private final UserService userService;
     private final PublicIdResolutionService publicIdResolutionService;
+    private final LaboratoryAccessService laboratoryAccessService;
     private final AuditService auditService;
     private final CancellationSecurityService cancellationSecurityService;
 
     public LaboratoryController(LaboratoryService service,
                                 UserService userService,
                                 PublicIdResolutionService publicIdResolutionService,
+                                LaboratoryAccessService laboratoryAccessService,
                                 AuditService auditService,
                                 CancellationSecurityService cancellationSecurityService) {
         this.service = service;
         this.userService = userService;
         this.publicIdResolutionService = publicIdResolutionService;
+        this.laboratoryAccessService = laboratoryAccessService;
         this.auditService = auditService;
         this.cancellationSecurityService = cancellationSecurityService;
     }
@@ -46,7 +49,7 @@ public class LaboratoryController {
     public ResponseEntity<List<LaboratoryResponse>> getAll(Principal principal) {
         User user = getCurrentUser(principal);
         auditService.logSuccess(AuditEventType.LABORATORY_READ, "LABORATORY", null, "Laboratoires consultés");
-        return ResponseEntity.ok(service.findAllByUser(user).stream().map(this::mapToResponse).collect(Collectors.toList()));
+        return ResponseEntity.ok(service.findAllByUser(user).stream().map(l -> mapToResponse(l, user)).collect(Collectors.toList()));
     }
 
     @GetMapping("/paged")
@@ -89,7 +92,7 @@ public class LaboratoryController {
         );
 
         var paged = service.searchByUser(user, q, pageable);
-        List<LaboratoryListResponse> items = paged.getContent().stream().map(this::mapToListResponse).toList();
+        List<LaboratoryListResponse> items = paged.getContent().stream().map(l -> mapToListResponse(l, user)).toList();
 
         return ResponseEntity.ok(new PageResponse<>(
                 items,
@@ -104,7 +107,7 @@ public class LaboratoryController {
     public ResponseEntity<List<LaboratoryResponse>> getArchived(Principal principal) {
         User user = getCurrentUser(principal);
         auditService.logSuccess(AuditEventType.LABORATORY_READ, "LABORATORY", null, "Laboratoires archivés consultés");
-        return ResponseEntity.ok(service.findArchivedByUser(user).stream().map(this::mapToResponse).collect(Collectors.toList()));
+        return ResponseEntity.ok(service.findArchivedByUser(user).stream().map(l -> mapToResponse(l, user)).collect(Collectors.toList()));
     }
 
     @GetMapping("/archived/paged")
@@ -147,7 +150,7 @@ public class LaboratoryController {
         );
 
         var paged = service.searchArchivedByUser(user, q, pageable);
-        List<LaboratoryListResponse> items = paged.getContent().stream().map(this::mapToListResponse).toList();
+        List<LaboratoryListResponse> items = paged.getContent().stream().map(l -> mapToListResponse(l, user)).toList();
 
         return ResponseEntity.ok(new PageResponse<>(
                 items,
@@ -161,14 +164,14 @@ public class LaboratoryController {
     @GetMapping("/{id}")
     public ResponseEntity<LaboratoryResponse> getOne(@PathVariable String id, Principal principal) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = publicIdResolutionService.requireLaboratoryOwnedBy(id, user);
+        Laboratory laboratory = laboratoryAccessService.requireLaboratoryAccessibleByDentist(id, user);
         auditService.logSuccess(
                 AuditEventType.LABORATORY_READ,
                 "LABORATORY",
                 String.valueOf(laboratory.getId()),
                 "Laboratoire consulté"
         );
-        return ResponseEntity.ok(mapToResponse(laboratory));
+        return ResponseEntity.ok(mapToResponse(laboratory, user));
     }
 
     @GetMapping("/{id}/payments/paged")
@@ -183,7 +186,7 @@ public class LaboratoryController {
             Principal principal
     ) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = publicIdResolutionService.requireLaboratoryOwnedBy(id, user);
+        Laboratory laboratory = laboratoryAccessService.requireLaboratoryAccessibleByDentist(id, user);
 
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
@@ -231,7 +234,7 @@ public class LaboratoryController {
             Principal principal
     ) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = publicIdResolutionService.requireLaboratoryOwnedBy(id, user);
+        Laboratory laboratory = laboratoryAccessService.requireLaboratoryAccessibleByDentist(id, user);
 
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
@@ -251,7 +254,7 @@ public class LaboratoryController {
             Principal principal
     ) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = publicIdResolutionService.requireLaboratoryOwnedBy(id, user);
+        Laboratory laboratory = laboratoryAccessService.requireLaboratoryAccessibleByDentist(id, user);
 
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
@@ -303,7 +306,7 @@ public class LaboratoryController {
             Principal principal
     ) {
         User user = getCurrentUser(principal);
-        Laboratory laboratory = publicIdResolutionService.requireLaboratoryOwnedBy(id, user);
+        Laboratory laboratory = laboratoryAccessService.requireLaboratoryAccessibleByDentist(id, user);
 
         LocalDateTime fromDt = parseDateStart(from);
         LocalDateTime toDt = parseDateEnd(to);
@@ -319,7 +322,7 @@ public class LaboratoryController {
         Laboratory laboratory = service.findByIdAndUser(internalLabId, user)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
         auditService.logSuccess(AuditEventType.LABORATORY_ARCHIVE, "LABORATORY", String.valueOf(internalLabId), "Laboratoire archivé");
-        return ResponseEntity.ok(mapToResponse(laboratory));
+        return ResponseEntity.ok(mapToResponse(laboratory, user));
     }
 
     @PutMapping("/{id}/unarchive")
@@ -330,7 +333,7 @@ public class LaboratoryController {
         Laboratory laboratory = service.findByIdAndUser(internalLabId, user)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
         auditService.logSuccess(AuditEventType.LABORATORY_UPDATE, "LABORATORY", String.valueOf(internalLabId), "Laboratoire désarchivé");
-        return ResponseEntity.ok(mapToResponse(laboratory));
+        return ResponseEntity.ok(mapToResponse(laboratory, user));
     }
 
     @PostMapping
@@ -349,7 +352,7 @@ public class LaboratoryController {
                 String.valueOf(saved.getId()),
                 "Laboratoire créé"
         );
-        return ResponseEntity.ok(mapToResponse(saved));
+        return ResponseEntity.ok(mapToResponse(saved, user));
     }
 
     @PutMapping("/{id}")
@@ -362,7 +365,7 @@ public class LaboratoryController {
         updateData.setPhoneNumber(dto.phoneNumber());
         updateData.setAddress(dto.address());
         return service.update(internalLabId, updateData, user)
-                .map(this::mapToResponse)
+                .map(l -> mapToResponse(l, user))
                 .map(resp -> {
                     auditService.logSuccess(
                             AuditEventType.LABORATORY_UPDATE,
@@ -381,41 +384,38 @@ public class LaboratoryController {
                                                          @Valid @RequestBody LaboratoryPaymentRequest dto,
                                                          Principal principal) {
         User user = getCurrentUser(principal);
-        Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
-        service.addPayment(internalLabId, dto, user);
+        Laboratory laboratory = laboratoryAccessService.requireLaboratoryAccessibleByDentist(id, user);
+        service.addPaymentForLaboratory(laboratory, dto, user);
         auditService.logSuccess(
                 AuditEventType.LAB_PAYMENT_CREATE,
                 "LABORATORY",
-                String.valueOf(internalLabId),
+                String.valueOf(laboratory.getId()),
                 "Paiement laboratoire ajouté"
         );
-        Laboratory laboratory = service.findByIdAndUser(internalLabId, user)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
-        return ResponseEntity.ok(mapToResponse(laboratory));
+        return ResponseEntity.ok(mapToResponse(laboratory, user));
     }
 
     @PutMapping("/{id}/payments/{paymentId}/cancel")
-    public ResponseEntity<Void> cancelPayment(@PathVariable String id, @PathVariable Long paymentId, @Valid @RequestBody CancellationRequest payload, Principal principal) {
+    public ResponseEntity<LaboratoryPaymentResponse> cancelPayment(@PathVariable String id, @PathVariable Long paymentId, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         User user = userService.resolveClinicOwner(actor);
         String reason = cancellationSecurityService.requirePinAndReason(actor, payload.pin(), payload.reason());
-        Long internalLabId = publicIdResolutionService.requireLaboratoryOwnedBy(id, user).getId();
-        Laboratory laboratory = service.findByIdAndUser(internalLabId, user).orElse(null);
-        if (laboratory == null) {
-            throw new NotFoundException("Laboratoire introuvable");
-        }
+        Laboratory laboratory = laboratoryAccessService.requireLaboratoryAccessibleByDentist(id, user);
 
-        if (!service.deletePayment(internalLabId, paymentId, user)) {
-            throw new NotFoundException("Paiement introuvable");
-        }
+        boolean requireConfirmation = laboratoryAccessService.isSelfRegisteredLab(laboratory) && !sameUser(laboratory.getCreatedBy(), user);
+        LaboratoryPayment updated = service.cancelPaymentOrRequest(laboratory, paymentId, user, actor, reason, requireConfirmation)
+                .orElseThrow(() -> new NotFoundException("Paiement introuvable"));
+        String msg = updated.getRecordStatus() == RecordStatus.CANCELLED
+                ? ("Paiement laboratoire annule. Motif: " + reason)
+                : ("Demande d'annulation de paiement envoyee au laboratoire. Motif: " + reason);
         auditService.logSuccess(
                 AuditEventType.LAB_PAYMENT_CANCEL,
                 "LABORATORY",
-                String.valueOf(internalLabId),
-                "Paiement laboratoire annulé. Motif: " + reason
+                String.valueOf(laboratory.getId()),
+                msg
         );
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(mapPaymentToResponse(updated));
     }
 
     @DeleteMapping("/{id}")
@@ -474,12 +474,27 @@ public class LaboratoryController {
         }
     }
 
-    private LaboratoryResponse mapToResponse(Laboratory l) {
-        User user = l.getCreatedBy();
-        double totalOwed = service.getTotalOwed(l, user);
-        double totalPaid = service.getTotalPaid(l, user);
+    private static String fullName(User user) {
+        if (user == null) return null;
+        String first = user.getFirstname() != null ? user.getFirstname().trim() : "";
+        String last = user.getLastname() != null ? user.getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        return combined.isBlank() ? null : combined;
+    }
+
+    private static boolean sameUser(User a, User b) {
+        if (a == null || b == null) return false;
+        return a.getId() != null && b.getId() != null && a.getId().equals(b.getId());
+    }
+
+    private LaboratoryResponse mapToResponse(Laboratory l, User viewerDentist) {
+        boolean editable = sameUser(l.getCreatedBy(), viewerDentist);
+        boolean connected = !editable && laboratoryAccessService.isSelfRegisteredLab(l);
+
+        double totalOwed = service.getTotalOwed(l, viewerDentist);
+        double totalPaid = service.getTotalPaid(l, viewerDentist);
         double remainingToPay = Math.max(totalOwed - totalPaid, 0.0);
-        List<LaboratoryPaymentResponse> payments = service.getPaymentsForLaboratory(l, user).stream()
+        List<LaboratoryPaymentResponse> payments = service.getPaymentsForLaboratory(l, viewerDentist).stream()
                 .map(payment -> new LaboratoryPaymentResponse(
                         payment.getId(),
                         payment.getAmount(),
@@ -487,14 +502,17 @@ public class LaboratoryController {
                         payment.getNotes(),
                         payment.getRecordStatus(),
                         payment.getCancelledAt(),
-                        payment.getCreatedBy() != null
-                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
-                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
-                                : null
+                        fullName(payment.getCreatedBy()),
+                        payment.getCancelRequestedAt(),
+                        fullName(payment.getCancelRequestedBy()),
+                        payment.getCancelRequestReason(),
+                        payment.getCancelRequestDecision() != null ? payment.getCancelRequestDecision().name() : null,
+                        payment.getCancelRequestDecidedAt(),
+                        fullName(payment.getCancelRequestDecidedBy())
                 ))
                 .collect(Collectors.toList());
-        List<LaboratoryBillingSummaryResponse> billingHistory = service.getBillingHistoryForLaboratory(l, user);
-        List<LaboratoryBillingEntryResponse> billingEntries = service.getBillingEntriesForLaboratory(l, user);
+        List<LaboratoryBillingSummaryResponse> billingHistory = service.getBillingHistoryForLaboratory(l, viewerDentist);
+        List<LaboratoryBillingEntryResponse> billingEntries = service.getBillingEntriesForLaboratory(l, viewerDentist);
 
         return new LaboratoryResponse(
                 l.getId(),
@@ -510,18 +528,16 @@ public class LaboratoryController {
                 billingHistory,
                 billingEntries,
                 l.getRecordStatus(),
-                l.getArchivedAt()
+                l.getArchivedAt(),
+                connected,
+                editable
         );
     }
 
-    private LaboratoryListResponse mapToListResponse(Laboratory l) {
-        String createdByName = null;
-        if (l.getCreatedBy() != null) {
-            String first = l.getCreatedBy().getFirstname() != null ? l.getCreatedBy().getFirstname().trim() : "";
-            String last = l.getCreatedBy().getLastname() != null ? l.getCreatedBy().getLastname().trim() : "";
-            String combined = (first + " " + last).trim();
-            createdByName = combined.isBlank() ? null : combined;
-        }
+    private LaboratoryListResponse mapToListResponse(Laboratory l, User viewerDentist) {
+        boolean editable = sameUser(l.getCreatedBy(), viewerDentist);
+        boolean connected = !editable && laboratoryAccessService.isSelfRegisteredLab(l);
+        String createdByName = fullName(l.getCreatedBy());
         return new LaboratoryListResponse(
                 l.getId(),
                 l.getPublicId(),
@@ -532,7 +548,30 @@ public class LaboratoryController {
                 l.getCreatedAt(),
                 createdByName,
                 l.getRecordStatus(),
-                l.getArchivedAt()
+                l.getArchivedAt(),
+                connected,
+                editable
+        );
+    }
+
+    private LaboratoryPaymentResponse mapPaymentToResponse(LaboratoryPayment payment) {
+        if (payment == null) {
+            return null;
+        }
+        return new LaboratoryPaymentResponse(
+                payment.getId(),
+                payment.getAmount(),
+                payment.getPaymentDate(),
+                payment.getNotes(),
+                payment.getRecordStatus(),
+                payment.getCancelledAt(),
+                fullName(payment.getCreatedBy()),
+                payment.getCancelRequestedAt(),
+                fullName(payment.getCancelRequestedBy()),
+                payment.getCancelRequestReason(),
+                payment.getCancelRequestDecision() != null ? payment.getCancelRequestDecision().name() : null,
+                payment.getCancelRequestDecidedAt(),
+                fullName(payment.getCancelRequestDecidedBy())
         );
     }
 }

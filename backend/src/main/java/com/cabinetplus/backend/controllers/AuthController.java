@@ -29,6 +29,7 @@ import com.cabinetplus.backend.dto.LoginTwoFactorResendRequest;
 import com.cabinetplus.backend.dto.LoginTwoFactorVerifyRequest;
 import com.cabinetplus.backend.dto.PasswordResetConfirmRequest;
 import com.cabinetplus.backend.dto.PasswordResetSendRequest;
+import com.cabinetplus.backend.dto.RegisterLabRequest;
 import com.cabinetplus.backend.dto.RegisterRequest;
 import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.enums.AuditEventType;
@@ -41,8 +42,10 @@ import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.exceptions.TooManyRequestsException;
 import com.cabinetplus.backend.exceptions.UnauthorizedException;
 import com.cabinetplus.backend.models.RefreshToken;
+import com.cabinetplus.backend.models.Laboratory;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
+import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.security.RefreshTokenHash;
@@ -66,6 +69,7 @@ public class AuthController {
     private final AuthenticationManager authManager;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepo;
+    private final LaboratoryRepository laboratoryRepository;
     private final RefreshTokenRepository refreshRepo;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
@@ -97,13 +101,14 @@ public class AuthController {
     private boolean bypassLoginTwoFactorLocal;
 
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
-                          UserRepository userRepo, RefreshTokenRepository refreshRepo,
+                          UserRepository userRepo, LaboratoryRepository laboratoryRepository, RefreshTokenRepository refreshRepo,
                           PasswordEncoder passwordEncoder, AuditService auditService,
                           PhoneVerificationService phoneVerificationService,
                           Environment environment) {
         this.authManager = authManager;
         this.jwtUtil = jwtUtil;
         this.userRepo = userRepo;
+        this.laboratoryRepository = laboratoryRepository;
         this.refreshRepo = refreshRepo;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
@@ -529,6 +534,74 @@ if (deviceId == null || deviceId.isBlank()) {
                 saved.getRole().name()
         );
 
+        return ResponseEntity.ok(Map.of("user", dto, "accessToken", accessToken));
+    }
+
+    @PostMapping("/register-lab")
+    public ResponseEntity<?> registerLab(@Valid @RequestBody RegisterLabRequest request, HttpServletResponse response, HttpServletRequest httpRequest) {
+        var phoneCandidates = PhoneNumberUtil.algeriaStoredCandidates(request.phoneNumber());
+        if (!phoneCandidates.isEmpty() && userRepo.existsByPhoneNumberIn(phoneCandidates)) {
+            auditService.logFailure(
+                    AuditEventType.AUTH_REGISTER,
+                    "USER",
+                    request.phoneNumber(),
+                    "Numero de telephone deja utilise"
+            );
+            throw new BadRequestException(Map.of("phoneNumber", "Ce numero de telephone est deja utilise"));
+        }
+
+        User user = new User();
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setFirstname("");
+        user.setLastname("");
+        user.setPhoneNumber(PhoneNumberUtil.canonicalAlgeriaForStorage(request.phoneNumber()));
+        user.setRole(UserRole.LAB);
+        user.setCreatedAt(LocalDateTime.now());
+
+        if (bypassPhoneVerificationLocal && devProfile && isLocalRequest(httpRequest)) {
+            user.setPhoneVerified(true);
+        }
+
+        User saved = userRepo.save(user);
+
+        Laboratory laboratory = new Laboratory();
+        laboratory.setName(request.name());
+        laboratory.setContactPerson(request.contactPerson());
+        laboratory.setPhoneNumber(request.phoneNumber());
+        laboratory.setAddress(request.address());
+        laboratory.setCreatedBy(saved);
+        laboratoryRepository.save(laboratory);
+
+        String accessToken = jwtUtil.generateAccessToken(saved);
+
+        String deviceId = resolveDeviceId(httpRequest);
+        if (deviceId == null || deviceId.isBlank()) {
+            deviceId = UUID.randomUUID().toString();
+            addDeviceCookie(response, deviceId);
+        }
+        revokeActiveSessionsForDevice(saved, deviceId);
+
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setUser(saved);
+        String rawRefreshToken = jwtUtil.generateRefreshToken(saved.getPhoneNumber(), refreshTokenMs);
+        refreshToken.setToken(RefreshTokenHash.hash(rawRefreshToken));
+        refreshToken.setDeviceId(deviceId);
+        refreshToken.setCreatedAt(LocalDateTime.now());
+        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshTokenMs / 1000));
+        refreshToken.setLastUsedAt(LocalDateTime.now());
+        fillSessionMeta(refreshToken, httpRequest);
+        refreshRepo.save(refreshToken);
+
+        addRefreshCookie(response, rawRefreshToken, refreshTokenMs / 1000);
+
+        UserDto dto = new UserDto(
+                saved.getId(),
+                saved.getFirstname(),
+                saved.getLastname(),
+                saved.getPhoneNumber(),
+                saved.getRole().name()
+        );
+        auditService.logSuccessAsUser(saved, AuditEventType.AUTH_REGISTER, "USER", String.valueOf(saved.getId()), "Compte laboratoire cree");
         return ResponseEntity.ok(Map.of("user", dto, "accessToken", accessToken));
     }
 

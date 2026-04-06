@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.cabinetplus.backend.enums.CancellationRequestDecision;
 import com.cabinetplus.backend.enums.RecordStatus;
 import jakarta.persistence.*;
 import org.hibernate.annotations.BatchSize;
@@ -99,6 +100,28 @@ public class Prothesis {
 
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
+
+    // --- Cancellation confirmation (when connected to a lab account) ---
+    @Column(name = "cancel_requested_at")
+    private LocalDateTime cancelRequestedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "cancel_requested_by")
+    private User cancelRequestedBy;
+
+    @Column(name = "cancel_request_reason", columnDefinition = "TEXT")
+    private String cancelRequestReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancel_request_decision", length = 20)
+    private CancellationRequestDecision cancelRequestDecision;
+
+    @Column(name = "cancel_request_decided_at")
+    private LocalDateTime cancelRequestDecidedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "cancel_request_decided_by")
+    private User cancelRequestDecidedBy;
 
     @PrePersist
     private void onCreate() {

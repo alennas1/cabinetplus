@@ -288,7 +288,23 @@ public class ProtheticsController {
         String combined = (first + " " + last).trim();
         posedByName = combined.isBlank() ? null : combined;
     }
-     
+
+    String cancelRequestedByName = null;
+    if (p.getCancelRequestedBy() != null) {
+        String first = p.getCancelRequestedBy().getFirstname() != null ? p.getCancelRequestedBy().getFirstname().trim() : "";
+        String last = p.getCancelRequestedBy().getLastname() != null ? p.getCancelRequestedBy().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        cancelRequestedByName = combined.isBlank() ? null : combined;
+    }
+
+    String cancelRequestDecidedByName = null;
+    if (p.getCancelRequestDecidedBy() != null) {
+        String first = p.getCancelRequestDecidedBy().getFirstname() != null ? p.getCancelRequestDecidedBy().getFirstname().trim() : "";
+        String last = p.getCancelRequestDecidedBy().getLastname() != null ? p.getCancelRequestDecidedBy().getLastname().trim() : "";
+        String combined = (first + " " + last).trim();
+        cancelRequestDecidedByName = combined.isBlank() ? null : combined;
+    }
+      
     return new ProthesisResponse(
         p.getId(),
         p.getProthesisCatalog().getId(),
@@ -315,7 +331,13 @@ public class ProtheticsController {
         updatedByName,
         p.getCancelledAt(),
         cancelledByName,
-        p.getCancelReason()
+        p.getCancelReason(),
+        p.getCancelRequestedAt(),
+        cancelRequestedByName,
+        p.getCancelRequestReason(),
+        p.getCancelRequestDecision() != null ? p.getCancelRequestDecision().name() : null,
+        p.getCancelRequestDecidedAt(),
+        cancelRequestDecidedByName
     );
 }
 

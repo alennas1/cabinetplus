@@ -42,6 +42,11 @@ const VerificationPage = () => {
 
     if (!userData.phoneVerified) return;
 
+    if (userData.role === "LAB") {
+      navigate("/lab", { replace: true });
+      return;
+    }
+
     const clinicRole = getClinicRole(userData);
     if (clinicRole !== CLINIC_ROLES.DENTIST) {
       navigate("/appointments", { replace: true });

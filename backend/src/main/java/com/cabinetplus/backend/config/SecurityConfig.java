@@ -101,7 +101,11 @@ public class SecurityConfig {
                 ).hasRole("ADMIN")
 
                 // 3. SHARED PROTECTED ENDPOINTS
-                .requestMatchers("/api/users/me/**").hasAnyRole("DENTIST", "ADMIN", "EMPLOYEE")
+                .requestMatchers("/api/users/me/**").hasAnyRole("DENTIST", "ADMIN", "EMPLOYEE", "LAB")
+                .requestMatchers("/api/security/**").hasAnyRole("DENTIST", "ADMIN", "EMPLOYEE", "LAB")
+
+                // 3b. LAB PORTAL ENDPOINTS
+                .requestMatchers("/api/lab/**").hasRole("LAB")
 
                 // Dentist-only operational endpoints
                 .requestMatchers("/api/employees/**").hasRole("DENTIST")
@@ -113,7 +117,7 @@ public class SecurityConfig {
                     "/api/hand-payments/my-payments"
                 ).hasAnyRole("DENTIST", "ADMIN")
 
-                // 4. GENERAL API PROTECTION
+                // 4. GENERAL API PROTECTION (clinic users only)
                 .requestMatchers("/api/**").hasAnyRole("DENTIST", "ADMIN", "EMPLOYEE")
 
                 .anyRequest().authenticated()

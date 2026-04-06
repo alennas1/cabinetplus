@@ -10,6 +10,7 @@ import { initPwaUpdatePrompt } from "./pwa/registerPwaUpdate";
 // --- Pages ---
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import RegisterLabPage from "./pages/RegisterLabPage";
 import EmployeeSetup from "./pages/EmployeeSetup";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
@@ -70,9 +71,18 @@ import LaboratoryDetails from "./pages/LaboratoryDetails";
 import Fournisseurs from "./pages/Fournisseurs";
 import ArchivedFournisseurs from "./pages/ArchivedFournisseurs";
 import FournisseurDetails from "./pages/FournisseurDetails";
+
+// --- Lab Portal Pages ---
+import LabProsthetics from "./pages/LabProsthetics";
+import LabPayments from "./pages/LabPayments";
+  import LabDentists from "./pages/LabDentists";
+  import LabDentistDetails from "./pages/LabDentistDetails";
+  import LabInvitations from "./pages/LabInvitations";
+  import LabSettings from "./pages/LabSettings";
 // --- Components ---
   import Layout from "./components/Layout";
   import AdminLayout from "./components/AdminLayout";
+  import LabLayout from "./components/LabLayout";
   import RequireAuth from "./components/RequireAuth"; 
   import RequirePermission from "./components/RequirePermission";
   import RequireAnyPermission from "./components/RequireAnyPermission";
@@ -209,6 +219,7 @@ const AppContent = () => {
     if (!user) return "/login";
     if (user.role === "ADMIN") return "/admin-dashboard";
     if (!user.phoneVerified) return "/verify";
+    if (user.role === "LAB") return "/lab";
     if (getClinicRole(user) === CLINIC_ROLES.DENTIST) {
       const isPlanActive = isPlanActiveForAccess(user);
       if (!isPlanActive && user.planStatus === "WAITING") return "/waiting";
@@ -248,12 +259,17 @@ const AppContent = () => {
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register-lab" element={<RegisterLabPage />} />
         <Route path="/employee-setup/:employeeId" element={<EmployeeSetup />} />
         <Route path="/unauthorized" element={<CatchAllRedirect />} />
 
+        {/* Shared Protected Routes (Dentist + Employee + Lab) */}
+        <Route element={<RequireAuth allowedRoles={["DENTIST", "EMPLOYEE", "LAB"]} />}>
+          <Route path="/verify" element={<VerificationPage />} />
+        </Route>
+
         {/* Clinic Protected Routes (Dentist + Employee) */}
         <Route element={<RequireAuth allowedRoles={["DENTIST", "EMPLOYEE"]} />}>
-          <Route path="/verify" element={<VerificationPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/waiting" element={<WaitingPage />} />
           <Route path="/pin-required" element={<PinRequired />} />
@@ -357,6 +373,19 @@ const AppContent = () => {
             <Route path="/settings/prosthetics" element={<Navigate to="/catalogue/prosthetics" replace />} />
             <Route path="/settings/materials" element={<Navigate to="/catalogue/materials" replace />} />
             <Route path="/settings/items" element={<Navigate to="/catalogue/items" replace />} />
+          </Route>
+        </Route>
+
+        {/* Lab Protected Routes */}
+        <Route element={<RequireAuth allowedRoles={["LAB"]} />}>
+          <Route element={<LabLayout />}>
+            <Route path="/lab" element={<Navigate to="/lab/prosthetics" replace />} />
+            <Route path="/lab/prosthetics" element={<LabProsthetics />} />
+            <Route path="/lab/payments" element={<LabPayments />} />
+            <Route path="/lab/dentists" element={<LabDentists />} />
+            <Route path="/lab/dentists/:id" element={<LabDentistDetails />} />
+            <Route path="/lab/invitations" element={<LabInvitations />} />
+            <Route path="/lab/settings" element={<LabSettings />} />
           </Route>
         </Route>
 

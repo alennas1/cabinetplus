@@ -5,6 +5,7 @@ import com.cabinetplus.backend.dto.LaboratoryPaymentResponse;
 import com.cabinetplus.backend.dto.LaboratoryBillingEntryResponse;
 import com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse;
 import com.cabinetplus.backend.dto.CountTotalResponseDTO;
+import com.cabinetplus.backend.enums.CancellationRequestDecision;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.LaboratoryPayment;
@@ -40,7 +41,7 @@ public class LaboratoryService {
     }
 
     public List<Laboratory> findAllByUser(User user) {
-        return repository.findByCreatedByAndArchivedAtIsNullAndRecordStatus(user, RecordStatus.ACTIVE);
+        return repository.searchAccessibleByDentist(user, "", Pageable.unpaged()).getContent();
     }
 
     public List<Laboratory> findArchivedByUser(User user) {
@@ -49,7 +50,7 @@ public class LaboratoryService {
 
     public Page<Laboratory> searchByUser(User user, String q, Pageable pageable) {
         String safeQ = q != null ? q.trim() : "";
-        return repository.searchByCreatedBy(user, safeQ, pageable);
+        return repository.searchAccessibleByDentist(user, safeQ, pageable);
     }
 
     public Page<Laboratory> searchArchivedByUser(User user, String q, Pageable pageable) {
@@ -166,27 +167,39 @@ public class LaboratoryService {
         boolean fromEnabled = from != null;
         boolean toEnabled = to != null;
         return laboratoryPaymentRepository.searchPaymentsPaged(
-                        laboratory.getId(),
-                        user,
-                        RecordStatus.ARCHIVED,
-                        fromEnabled,
-                        from,
-                        toEnabled,
-                        to,
-                        pageable
-                )
-                .map(payment -> new LaboratoryPaymentResponse(
-                        payment.getId(),
-                        payment.getAmount(),
-                        payment.getPaymentDate(),
-                        payment.getNotes(),
-                        payment.getRecordStatus(),
-                        payment.getCancelledAt(),
-                        payment.getCreatedBy() != null
-                                ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
-                                + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
-                                : null
-                ));
+                         laboratory.getId(),
+                         user,
+                         RecordStatus.ARCHIVED,
+                         fromEnabled,
+                         from,
+                         toEnabled,
+                         to,
+                         pageable
+                 )
+                 .map(payment -> new LaboratoryPaymentResponse(
+                         payment.getId(),
+                         payment.getAmount(),
+                         payment.getPaymentDate(),
+                         payment.getNotes(),
+                         payment.getRecordStatus(),
+                         payment.getCancelledAt(),
+                         payment.getCreatedBy() != null
+                                 ? ((payment.getCreatedBy().getFirstname() != null ? payment.getCreatedBy().getFirstname().trim() : "")
+                                 + " " + (payment.getCreatedBy().getLastname() != null ? payment.getCreatedBy().getLastname().trim() : "")).trim()
+                                 : null,
+                         payment.getCancelRequestedAt(),
+                         payment.getCancelRequestedBy() != null
+                                 ? ((payment.getCancelRequestedBy().getFirstname() != null ? payment.getCancelRequestedBy().getFirstname().trim() : "")
+                                 + " " + (payment.getCancelRequestedBy().getLastname() != null ? payment.getCancelRequestedBy().getLastname().trim() : "")).trim()
+                                 : null,
+                         payment.getCancelRequestReason(),
+                         payment.getCancelRequestDecision() != null ? payment.getCancelRequestDecision().name() : null,
+                         payment.getCancelRequestDecidedAt(),
+                         payment.getCancelRequestDecidedBy() != null
+                                 ? ((payment.getCancelRequestDecidedBy().getFirstname() != null ? payment.getCancelRequestDecidedBy().getFirstname().trim() : "")
+                                 + " " + (payment.getCancelRequestDecidedBy().getLastname() != null ? payment.getCancelRequestDecidedBy().getLastname().trim() : "")).trim()
+                                 : null
+                 ));
     }
 
     public CountTotalResponseDTO getPaymentsSummaryForLaboratory(
@@ -398,6 +411,29 @@ public class LaboratoryService {
         return laboratoryPaymentRepository.save(payment);
     }
 
+    public LaboratoryPayment addPaymentForLaboratory(Laboratory laboratory, LaboratoryPaymentRequest request, User user) {
+        if (laboratory == null || user == null) {
+            throw new BadRequestException(java.util.Map.of("_", "Laboratoire introuvable"));
+        }
+        if (laboratory.getArchivedAt() != null || laboratory.getRecordStatus() != RecordStatus.ACTIVE) {
+            throw new BadRequestException(java.util.Map.of("_", "Laboratoire archivÃ© : lecture seule."));
+        }
+
+        if (request == null || request.amount() == null || request.amount() <= 0) {
+            throw new BadRequestException(java.util.Map.of("amount", "Montant invalide"));
+        }
+
+        LaboratoryPayment payment = new LaboratoryPayment();
+        payment.setLaboratory(laboratory);
+        payment.setCreatedBy(user);
+        payment.setAmount(request.amount());
+        // Force server-side timestamp for traceability (ignore any client-provided paymentDate).
+        payment.setPaymentDate(LocalDateTime.now());
+        payment.setNotes(request.notes());
+
+        return laboratoryPaymentRepository.save(payment);
+    }
+
     @Transactional
     public boolean deletePayment(Long laboratoryId, Long paymentId, User user) {
         return laboratoryPaymentRepository.findByIdAndLaboratoryIdAndCreatedBy(paymentId, laboratoryId, user)
@@ -410,6 +446,48 @@ public class LaboratoryService {
                 return true;
             })
             .orElse(false);
+    }
+
+    @Transactional
+    public Optional<LaboratoryPayment> cancelPaymentOrRequest(
+            Laboratory laboratory,
+            Long paymentId,
+            User user,
+            User actor,
+            String reason,
+            boolean requireConfirmation
+    ) {
+        if (laboratory == null || laboratory.getId() == null || paymentId == null || user == null) {
+            return Optional.empty();
+        }
+
+        return laboratoryPaymentRepository.findByIdAndLaboratoryIdAndCreatedBy(paymentId, laboratory.getId(), user)
+                .map(payment -> {
+                    if (requireConfirmation) {
+                        if (payment.getCancelRequestDecision() == CancellationRequestDecision.PENDING) {
+                            throw new BadRequestException(java.util.Map.of("_", "Annulation deja en attente de confirmation du laboratoire."));
+                        }
+                        payment.setCancelRequestedAt(LocalDateTime.now());
+                        payment.setCancelRequestedBy(actor != null ? actor : user);
+                        String normalizedReason = reason != null ? reason.trim() : "";
+                        payment.setCancelRequestReason(normalizedReason.isBlank() ? null : normalizedReason);
+                        payment.setCancelRequestDecision(CancellationRequestDecision.PENDING);
+                        payment.setCancelRequestDecidedAt(null);
+                        payment.setCancelRequestDecidedBy(null);
+                        return laboratoryPaymentRepository.save(payment);
+                    }
+
+                    if (payment.getRecordStatus() != RecordStatus.CANCELLED) {
+                        payment.setRecordStatus(RecordStatus.CANCELLED);
+                        payment.setCancelledAt(LocalDateTime.now());
+                        return laboratoryPaymentRepository.save(payment);
+                    }
+                    if (payment.getCancelledAt() == null) {
+                        payment.setCancelledAt(LocalDateTime.now());
+                        return laboratoryPaymentRepository.save(payment);
+                    }
+                    return payment;
+                });
     }
 }
 

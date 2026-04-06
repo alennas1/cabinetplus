@@ -6,15 +6,18 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse;
 import com.cabinetplus.backend.enums.RecordStatus;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
@@ -967,4 +970,58 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
             @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt
     );
+
+    @EntityGraph(attributePaths = {
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name",
+            "practitioner.firstname",
+            "practitioner.lastname"
+    })
+    @Query("""
+        select p
+        from Prothesis p
+        left join p.patient patient
+        left join p.prothesisCatalog catalog
+        left join p.practitioner pract
+        where p.laboratory = :laboratory
+          and p.recordStatus <> :archivedStatus
+          and (:dentistPublicId is null or pract.publicId = :dentistPublicId)
+          and (:statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+          and (:fromEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+          and (
+            :qLike = ''
+            or lower(coalesce(patient.firstname, '')) like :qLike
+            or lower(coalesce(patient.lastname, '')) like :qLike
+            or lower(coalesce(catalog.name, '')) like :qLike
+            or lower(coalesce(p.code, '')) like :qLike
+            or lower(coalesce(p.notes, '')) like :qLike
+            or lower(concat(coalesce(pract.firstname, ''), ' ', coalesce(pract.lastname, ''))) like :qLike
+          )
+    """)
+    Page<Prothesis> searchForLabPortal(
+            @Param("laboratory") com.cabinetplus.backend.models.Laboratory laboratory,
+            @Param("archivedStatus") RecordStatus archivedStatus,
+            @Param("dentistPublicId") UUID dentistPublicId,
+            @Param("statusNorm") String statusNorm,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDt") LocalDateTime toDt,
+            @Param("qLike") String qLike,
+            Pageable pageable
+    );
+
+    @Modifying
+    @Transactional
+    @Query("""
+        update Prothesis p
+        set p.laboratory = :target
+        where p.practitioner = :dentist
+          and p.laboratory = :source
+    """)
+    int migrateLaboratoryForDentist(@Param("dentist") User dentist,
+                                    @Param("source") com.cabinetplus.backend.models.Laboratory source,
+                                    @Param("target") com.cabinetplus.backend.models.Laboratory target);
 }

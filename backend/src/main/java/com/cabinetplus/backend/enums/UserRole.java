@@ -3,6 +3,7 @@ package com.cabinetplus.backend.enums;
 public enum UserRole {
     DENTIST,
     ADMIN,
-    EMPLOYEE
+    EMPLOYEE,
+    LAB
 }
 

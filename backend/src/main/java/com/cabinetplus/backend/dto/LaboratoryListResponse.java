@@ -15,7 +15,9 @@ public record LaboratoryListResponse(
         LocalDateTime createdAt,
         String createdByName,
         RecordStatus recordStatus,
-        LocalDateTime archivedAt
+        LocalDateTime archivedAt,
+        boolean connected,
+        boolean editable
 ) {
 }
 

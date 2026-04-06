@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
   Phone,
   Home,
   ChevronDown,
+  Link2,
 } from "react-feather";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -31,6 +32,7 @@ import {
   getLaboratoryById,
   updateLaboratory,
 } from "../services/laboratoryService";
+import { inviteLaboratoryConnection } from "../services/laboratoryConnectionService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateByPreference, formatDateTimeByPreference, formatMonthYearByPreference } from "../utils/dateFormat";
 import { formatMoneyWithLabel } from "../utils/format";
@@ -78,6 +80,9 @@ const LaboratoryDetails = () => {
   const [tempValue, setTempValue] = useState("");
   const [profileErrors, setProfileErrors] = useState({});
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectLabPublicId, setConnectLabPublicId] = useState("");
+  const [isConnectingLab, setIsConnectingLab] = useState(false);
   const [paymentFilters, setPaymentFilters] = useState(createFilterState());
   const [billingFilters, setBillingFilters] = useState(createFilterState());
   const [payments, setPayments] = useState([]);
@@ -140,9 +145,9 @@ const LaboratoryDetails = () => {
   const formatCurrency = (value) => formatMoneyWithLabel(value);
 
   const formatDateTime = (value) => {
-    if (!value) return "—";
+    if (!value) return "â€”";
     const label = formatDateTimeByPreference(value);
-    return label === "-" ? "—" : label;
+    return label === "-" ? "â€”" : label;
   };
 
   const formatPhoneNumber = (phone) => {
@@ -159,6 +164,8 @@ const LaboratoryDetails = () => {
   const displayRemaining = Math.abs(remainingToPayValue);
   const isArchived =
     !!laboratory?.archivedAt || String(laboratory?.recordStatus || "").toUpperCase() === "ARCHIVED";
+  const isEditable = !isArchived && laboratory?.editable !== false;
+  const isCancelRequestPending = (payment) => String(payment?.cancelRequestDecision || "").toUpperCase() === "PENDING";
 
   const applyDateFilter = (items, dateField, filters) => {
     return items.filter((item) => {
@@ -460,8 +467,8 @@ const LaboratoryDetails = () => {
   const currentBillingEntries = billingEntries;
 
   const handleEditField = (field) => {
-    if (isArchived) {
-      toast.info("Laboratoire archivé : lecture seule.");
+    if (!isEditable) {
+      toast.info(laboratory?.editable === false ? "Laboratoire connecté : lecture seule." : "Laboratoire archivé : lecture seule.");
       return;
     }
     setEditingField(field);
@@ -483,8 +490,8 @@ const LaboratoryDetails = () => {
 
   const handleSaveField = async (field) => {
     try {
-      if (isArchived) {
-        toast.info("Laboratoire archivé : lecture seule.");
+      if (!isEditable) {
+        toast.info(laboratory?.editable === false ? "Laboratoire connecté : lecture seule." : "Laboratoire archivé : lecture seule.");
         return;
       }
       if (field === "phoneNumber" && (tempValue || "").trim() && !isValidPhoneNumber(tempValue)) {
@@ -539,13 +546,40 @@ const LaboratoryDetails = () => {
       ) : (
         <>
           <span className="field-value">
-            {field === "phoneNumber" ? formatPhoneNumber(laboratory[field]) || "—" : laboratory[field] || "—"}
+            {field === "phoneNumber" ? formatPhoneNumber(laboratory[field]) || "â€”" : laboratory[field] || "â€”"}
           </span>
-          {!isArchived && <Edit2 size={18} className="icon action edit" onClick={() => handleEditField(field)} />}
+          {isEditable && <Edit2 size={18} className="icon action edit" onClick={() => handleEditField(field)} />}
         </>
       )}
     </div>
   );
+
+  const submitConnect = async (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+
+    const value = String(connectLabPublicId || "").trim();
+    if (!value) {
+      toast.info("Entrez l'ID du laboratoire.");
+      return;
+    }
+    if (isConnectingLab) return;
+
+    try {
+      setIsConnectingLab(true);
+      await inviteLaboratoryConnection({
+        labPublicId: value,
+        mergeFromLaboratoryId: String(laboratory?.publicId || laboratory?.id || id),
+      });
+      toast.success("Invitation envoyée au laboratoire");
+      setShowConnectModal(false);
+      setConnectLabPublicId("");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de l'envoi de l'invitation"));
+    } finally {
+      setIsConnectingLab(false);
+    }
+  };
 
   const updateFilterState = (setter, partial) => {
     setter((current) => ({ ...current, ...partial }));
@@ -717,9 +751,11 @@ const LaboratoryDetails = () => {
         return;
       }
       if (paymentId === null || paymentId === undefined) return;
-      await cancelLaboratoryPayment(id, paymentId, { pin, reason });
+      const updated = await cancelLaboratoryPayment(id, paymentId, { pin, reason });
       await loadLaboratory({ silent: true });
-      toast.success("Paiement annulé");
+      if (String(updated?.recordStatus || "").toUpperCase() === "CANCELLED") toast.success("Paiement annulé");
+      else if (String(updated?.cancelRequestDecision || "").toUpperCase() === "PENDING") toast.info("Demande d'annulation envoyée au laboratoire");
+      else toast.success("Action enregistrée");
       setPaymentPage(1);
       setPaymentsRefreshKey((v) => v + 1);
     } catch (err) {
@@ -766,6 +802,7 @@ const LaboratoryDetails = () => {
             <div className="patient-name-row">
               <span className="patient-name-text">{laboratory.name}</span>
               <span className="context-badge">Laboratoire</span>
+              {laboratory.connected && <span className="context-badge">Connecté</span>}
               {isArchived && <span className="context-badge">Archivé</span>}
             </div>
           </div>
@@ -785,6 +822,11 @@ const LaboratoryDetails = () => {
             </div>
           </div>
           <div className="patient-actions">
+            {!isArchived && !laboratory.connected && laboratory.editable !== false && (
+              <button className="btn-secondary-app" onClick={() => setShowConnectModal(true)}>
+                <Link2 size={16} /> Connecter un compte labo
+              </button>
+            )}
             {!isArchived && (
               <button className="btn-primary-app" onClick={() => setShowPaymentModal(true)}>
                 <Plus size={16} /> Ajouter un paiement
@@ -806,7 +848,16 @@ const LaboratoryDetails = () => {
         </button>
       </div>
 
-      {activeTab === "profile" && <div className="profile-content">{Object.keys(fieldLabels).map(renderField)}</div>}
+      {activeTab === "profile" && (
+        <div className="profile-content">
+          {laboratory?.editable === false ? (
+            <div style={{ marginBottom: 12, padding: 12, border: "1px solid #eee", borderRadius: 10, opacity: 0.85 }}>
+              Ce laboratoire est connecté à un compte laboratoire. Les informations sont gérées par le laboratoire.
+            </div>
+          ) : null}
+          {Object.keys(fieldLabels).map(renderField)}
+        </div>
+      )}
 
       {activeTab === "payments" && (
         <div>
@@ -842,10 +893,12 @@ const LaboratoryDetails = () => {
                         <MetadataInfo entity={payment} />
                       </div>
                     </td>
-                    <td>{payment.notes || "—"}</td>
+                    <td>{payment.notes || "â€”"}</td>
                     <td className="actions-cell">
                       {isPaymentCancelled(payment) ? (
                         <span className="context-badge cancelled">Annulé</span>
+                      ) : isCancelRequestPending(payment) ? (
+                        <span className="context-badge pending">Annulation en attente</span>
                       ) : (
                         !isArchived && (
                           <button
@@ -914,8 +967,8 @@ const LaboratoryDetails = () => {
                     style={{ cursor: "pointer" }}
                     title="Voir dans le suivi prothèses"
                   >
-                    <td>{entry.patientName || "—"}</td>
-                    <td style={{ fontWeight: 700 }}>{entry.prothesisName || "—"}</td>
+                    <td>{entry.patientName || "â€”"}</td>
+                    <td style={{ fontWeight: 700 }}>{entry.prothesisName || "â€”"}</td>
                     <td>{formatCurrency(entry.amount)}</td>
                     <td>
                       <div className="flex items-center gap-2">
@@ -1009,6 +1062,63 @@ const LaboratoryDetails = () => {
         </div>
       )}
 
+      {showConnectModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (isConnectingLab) return;
+            setShowConnectModal(false);
+            setConnectLabPublicId("");
+          }}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h2>Connecter un compte labo</h2>
+              <X
+                className="cursor-pointer"
+                onClick={() => {
+                  if (isConnectingLab) return;
+                  setShowConnectModal(false);
+                  setConnectLabPublicId("");
+                }}
+              />
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Entrez l&apos;ID fourni par le laboratoire. Après acceptation, les prothèses et paiements seront associés au laboratoire connecté.
+            </p>
+
+            <form noValidate onSubmit={submitConnect} className="modal-form">
+              <label className="field-label">ID du laboratoire</label>
+              <input
+                type="text"
+                value={connectLabPublicId}
+                onChange={(e) => setConnectLabPublicId(e.target.value)}
+                placeholder="Ex: 9b7e2d2f-..."
+                disabled={isConnectingLab}
+              />
+
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary2" disabled={isConnectingLab}>
+                  {isConnectingLab ? "Envoi..." : "Envoyer l'invitation"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => {
+                    if (isConnectingLab) return;
+                    setShowConnectModal(false);
+                    setConnectLabPublicId("");
+                  }}
+                  disabled={isConnectingLab}
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <CancelWithPinModal
         open={showPaymentDeleteConfirm && paymentIdToDelete != null}
         title="Annuler le paiement ?"
@@ -1058,3 +1168,5 @@ const LaboratoryDetails = () => {
 };
 
 export default LaboratoryDetails;
+
+

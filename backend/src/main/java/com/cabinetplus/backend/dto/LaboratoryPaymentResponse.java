@@ -11,5 +11,11 @@ public record LaboratoryPaymentResponse(
     String notes,
     RecordStatus recordStatus,
     LocalDateTime cancelledAt,
-    String createdByName
+    String createdByName,
+    LocalDateTime cancelRequestedAt,
+    String cancelRequestedByName,
+    String cancelRequestReason,
+    String cancelRequestDecision,
+    LocalDateTime cancelRequestDecidedAt,
+    String cancelRequestDecidedByName
 ) {}

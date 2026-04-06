@@ -29,6 +29,13 @@ public record ProthesisResponse(
         String updatedByName,
         LocalDateTime cancelledAt,
         String cancelledByName,
-        String cancelReason
+        String cancelReason,
+
+        LocalDateTime cancelRequestedAt,
+        String cancelRequestedByName,
+        String cancelRequestReason,
+        String cancelRequestDecision,
+        LocalDateTime cancelRequestDecidedAt,
+        String cancelRequestDecidedByName
 ) {
 }

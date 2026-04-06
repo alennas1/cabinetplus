@@ -15,6 +15,12 @@ export const getUserProfile = async () => {
   return response.data;
 };
 
+/** Get current employee details (employee accounts only) */
+export const getMyEmployeeProfile = async () => {
+  const response = await api.get(`${BASE_URL}/me/employee`);
+  return response.data;
+};
+
 /** Update current user's profile */
 export const updateUserProfile = async (data) => {
   const response = await api.put(`${BASE_URL}/me`, data);

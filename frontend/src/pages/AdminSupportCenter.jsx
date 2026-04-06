@@ -355,6 +355,19 @@ const AdminSupportCenter = () => {
                   const active = String(t.id) === String(selectedThreadId);
                   const title = t.clinicName || t.clinicOwnerName || t.phoneNumber || `Thread #${t.id}`;
                   const preview = t.lastMessagePreview || "";
+                  const actorRole = String(t?.lastClinicSenderRole || "").toUpperCase();
+                  const roleLabel =
+                    actorRole === "EMPLOYEE" ? "Employé" :
+                    actorRole === "DENTIST" ? "Dentiste" :
+                    actorRole || "Utilisateur";
+                  const actorName = t?.lastClinicSenderName || t?.lastClinicSenderPhoneNumber || "";
+                  const isStaff =
+                    t?.lastClinicSenderId != null &&
+                    t?.clinicOwnerId != null &&
+                    String(t.lastClinicSenderId) !== String(t.clinicOwnerId);
+                  const employer = isStaff ? (t?.clinicOwnerName || t?.clinicName || "") : "";
+                  const actorMeta = actorName ? `${roleLabel}: ${actorName}` : roleLabel;
+                  const employerMeta = employer ? ` • Employeur: ${employer}` : "";
                   return (
                     <button
                       key={t.id}
@@ -385,6 +398,9 @@ const AdminSupportCenter = () => {
                         ) : null}
                       </div>
                       <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{preview}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                        {actorMeta}{employerMeta}
+                      </div>
                       <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>{formatDateTime(t.lastMessageAt)}</div>
                     </button>
                   );
@@ -400,6 +416,22 @@ const AdminSupportCenter = () => {
                 {selectedThread ? (selectedThread.clinicName || selectedThread.clinicOwnerName || selectedThread.phoneNumber) : "Sélectionnez une conversation"}
               </div>
               {selectedThread?.phoneNumber ? <div className="text-sm text-gray-600">{selectedThread.phoneNumber}</div> : null}
+              {selectedThread ? (() => {
+                const actorRole = String(selectedThread?.lastClinicSenderRole || "").toUpperCase();
+                const roleLabel =
+                  actorRole === "EMPLOYEE" ? "Employé" :
+                  actorRole === "DENTIST" ? "Dentiste" :
+                  actorRole || "Utilisateur";
+                const actorName = selectedThread?.lastClinicSenderName || selectedThread?.lastClinicSenderPhoneNumber || "";
+                const isStaff =
+                  selectedThread?.lastClinicSenderId != null &&
+                  selectedThread?.clinicOwnerId != null &&
+                  String(selectedThread.lastClinicSenderId) !== String(selectedThread.clinicOwnerId);
+                const employer = isStaff ? (selectedThread?.clinicOwnerName || selectedThread?.clinicName || "") : "";
+                const meta = actorName ? `${roleLabel}: ${actorName}` : roleLabel;
+                const employerMeta = employer ? ` • Employeur: ${employer}` : "";
+                return <div className="text-xs text-gray-500">{meta}{employerMeta}</div>;
+              })() : null}
             </div>
 
             <div

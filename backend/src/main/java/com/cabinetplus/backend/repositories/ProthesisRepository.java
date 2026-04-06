@@ -38,17 +38,54 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
 
     List<Prothesis> findByPatientId(Long patientId);
 
+    // Avoid Hibernate eager-join explosion (open-in-view=false). This graph fetches only what ProtheticsController
+    // needs to build ProthesisResponse, while keeping nested User/DentistProfile/Subscription graphs lazy.
     @EntityGraph(attributePaths = {
-            "patient",
-            "practitioner",
-            "prothesisCatalog",
-            "prothesisCatalog.material",
-            "laboratory",
-            "updatedBy",
-            "sentToLabBy",
-            "receivedBy",
-            "posedBy",
-            "cancelledBy"
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name",
+            "prothesisCatalog.material.name",
+            "laboratory.name",
+            "teeth",
+            "practitioner.firstname",
+            "practitioner.lastname",
+            "updatedBy.firstname",
+            "updatedBy.lastname",
+            "sentToLabBy.firstname",
+            "sentToLabBy.lastname",
+            "receivedBy.firstname",
+            "receivedBy.lastname",
+            "posedBy.firstname",
+            "posedBy.lastname",
+            "cancelledBy.firstname",
+            "cancelledBy.lastname"
+    })
+    @Query("""
+        select p
+        from Prothesis p
+        where p.id = :id
+    """)
+    java.util.Optional<Prothesis> findForResponseById(@Param("id") Long id);
+
+    @EntityGraph(attributePaths = {
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name",
+            "prothesisCatalog.material.name",
+            "laboratory.name",
+            "teeth",
+            "practitioner.firstname",
+            "practitioner.lastname",
+            "updatedBy.firstname",
+            "updatedBy.lastname",
+            "sentToLabBy.firstname",
+            "sentToLabBy.lastname",
+            "receivedBy.firstname",
+            "receivedBy.lastname",
+            "posedBy.firstname",
+            "posedBy.lastname",
+            "cancelledBy.firstname",
+            "cancelledBy.lastname"
     })
     @Query("""
         select p
@@ -161,16 +198,24 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     );
 
     @EntityGraph(attributePaths = {
-            "patient",
-            "practitioner",
-            "prothesisCatalog",
-            "prothesisCatalog.material",
-            "laboratory",
-            "updatedBy",
-            "sentToLabBy",
-            "receivedBy",
-            "posedBy",
-            "cancelledBy"
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name",
+            "prothesisCatalog.material.name",
+            "laboratory.name",
+            "teeth",
+            "practitioner.firstname",
+            "practitioner.lastname",
+            "updatedBy.firstname",
+            "updatedBy.lastname",
+            "sentToLabBy.firstname",
+            "sentToLabBy.lastname",
+            "receivedBy.firstname",
+            "receivedBy.lastname",
+            "posedBy.firstname",
+            "posedBy.lastname",
+            "cancelledBy.firstname",
+            "cancelledBy.lastname"
     })
     @Query(
             value = """
@@ -379,16 +424,24 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     );
 
     @EntityGraph(attributePaths = {
-            "patient",
-            "practitioner",
-            "prothesisCatalog",
-            "prothesisCatalog.material",
-            "laboratory",
-            "updatedBy",
-            "sentToLabBy",
-            "receivedBy",
-            "posedBy",
-            "cancelledBy"
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name",
+            "prothesisCatalog.material.name",
+            "laboratory.name",
+            "teeth",
+            "practitioner.firstname",
+            "practitioner.lastname",
+            "updatedBy.firstname",
+            "updatedBy.lastname",
+            "sentToLabBy.firstname",
+            "sentToLabBy.lastname",
+            "receivedBy.firstname",
+            "receivedBy.lastname",
+            "posedBy.firstname",
+            "posedBy.lastname",
+            "cancelledBy.firstname",
+            "cancelledBy.lastname"
     })
     @Query(
             value = """
@@ -792,11 +845,16 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
         @Param("laboratoryId") Long laboratoryId
     );
 
+    @EntityGraph(attributePaths = {
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name"
+    })
     @Query("""
         select p
         from Prothesis p
-        left join fetch p.patient patient
-        left join fetch p.prothesisCatalog catalog
+        left join p.patient patient
+        left join p.prothesisCatalog catalog
         where p.practitioner = :practitioner
           and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
@@ -809,8 +867,9 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     );
 
     @EntityGraph(attributePaths = {
-            "patient",
-            "prothesisCatalog"
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name"
     })
     @Query("""
         select p
@@ -821,20 +880,23 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
           and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
           and p.labCost is not null
-          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
-          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+          and (:fromEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
     """)
     Page<Prothesis> searchBillingProthesesByPractitionerAndLaboratory(
             @Param("practitioner") User practitioner,
             @Param("laboratoryId") Long laboratoryId,
+            @Param("fromEnabled") boolean fromEnabled,
             @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt,
             Pageable pageable
     );
 
     @EntityGraph(attributePaths = {
-            "patient",
-            "prothesisCatalog"
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name"
     })
     @Query("""
         select p
@@ -845,21 +907,24 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
           and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
           and p.labCost is not null
-          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
-          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+          and (:fromEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
         order by coalesce(p.sentToLabDate, p.dateCreated) asc, p.id asc
     """)
     Page<Prothesis> searchBillingProthesesByPractitionerAndLaboratoryOrderByBillingDateAsc(
             @Param("practitioner") User practitioner,
             @Param("laboratoryId") Long laboratoryId,
+            @Param("fromEnabled") boolean fromEnabled,
             @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt,
             Pageable pageable
     );
 
     @EntityGraph(attributePaths = {
-            "patient",
-            "prothesisCatalog"
+            "patient.firstname",
+            "patient.lastname",
+            "prothesisCatalog.name"
     })
     @Query("""
         select p
@@ -870,14 +935,16 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
           and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
           and p.labCost is not null
-          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
-          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+          and (:fromEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
         order by coalesce(p.sentToLabDate, p.dateCreated) desc, p.id asc
     """)
     Page<Prothesis> searchBillingProthesesByPractitionerAndLaboratoryOrderByBillingDateDesc(
             @Param("practitioner") User practitioner,
             @Param("laboratoryId") Long laboratoryId,
+            @Param("fromEnabled") boolean fromEnabled,
             @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt,
             Pageable pageable
     );
@@ -889,13 +956,15 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
           and p.recordStatus = 'ACTIVE'
           and p.laboratory.id = :laboratoryId
           and p.labCost is not null
-          and (:fromDt is null or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
-          and (:toDt is null or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
+          and (:fromEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
+          and (:toEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
     """)
     Object[] getBillingEntriesSummaryByPractitionerAndLaboratory(
             @Param("practitioner") User practitioner,
             @Param("laboratoryId") Long laboratoryId,
+            @Param("fromEnabled") boolean fromEnabled,
             @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt
     );
 }

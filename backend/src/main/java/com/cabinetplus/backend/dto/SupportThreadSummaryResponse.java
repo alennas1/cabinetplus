@@ -13,5 +13,9 @@ public record SupportThreadSummaryResponse(
         java.time.LocalDateTime firstMessageAt,
         String lastMessagePreview,
         LocalDateTime lastMessageAt,
-        long unreadCount
+        long unreadCount,
+        Long lastClinicSenderId,
+        String lastClinicSenderRole,
+        String lastClinicSenderName,
+        String lastClinicSenderPhoneNumber
 ) {}

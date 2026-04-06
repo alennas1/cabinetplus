@@ -93,6 +93,8 @@ public class SecurityConfig {
                     "/api/hand-payments/user/**",
                     "/api/hand-payments/confirm/**",
                     "/api/hand-payments/reject/**",
+                    "/api/admin/**",
+                    "/api/users/admin/**",
                     "/api/users/dentists",
                     "/api/users/admins",
                     "/admin/**"

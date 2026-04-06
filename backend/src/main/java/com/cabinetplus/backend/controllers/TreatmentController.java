@@ -136,7 +136,7 @@ public class TreatmentController {
         User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         User currentUser = userService.resolveClinicOwner(actor);
-        String reason = cancellationSecurityService.requirePinAndReason(currentUser, payload.pin(), payload.reason());
+        String reason = cancellationSecurityService.requirePinAndReason(actor, payload.pin(), payload.reason());
         Treatment cancelled = treatmentService.cancelTreatment(id, currentUser, actor, reason);
 
         String acte = cancelled.getTreatmentCatalog() != null ? cancelled.getTreatmentCatalog().getName() : null;

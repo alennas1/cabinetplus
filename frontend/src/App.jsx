@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+﻿import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { ToastContainer } from "react-toastify";
@@ -71,13 +71,14 @@ import Fournisseurs from "./pages/Fournisseurs";
 import ArchivedFournisseurs from "./pages/ArchivedFournisseurs";
 import FournisseurDetails from "./pages/FournisseurDetails";
 // --- Components ---
-import Layout from "./components/Layout";
-import AdminLayout from "./components/AdminLayout";
-import RequireAuth from "./components/RequireAuth"; 
-import RequirePermission from "./components/RequirePermission";
-import GestionCabinetPinGuard from "./components/GestionCabinetPinGuard";
-import SessionExpiredModal from "./components/SessionExpiredModal";
-import OfflineScreen from "./components/OfflineScreen";
+  import Layout from "./components/Layout";
+  import AdminLayout from "./components/AdminLayout";
+  import RequireAuth from "./components/RequireAuth"; 
+  import RequirePermission from "./components/RequirePermission";
+  import RequireAnyPermission from "./components/RequireAnyPermission";
+  import GestionCabinetPinGuard from "./components/GestionCabinetPinGuard";
+  import SessionExpiredModal from "./components/SessionExpiredModal";
+  import OfflineScreen from "./components/OfflineScreen";
 import { CLINIC_ROLES, getClinicRole } from "./utils/clinicAccess";
 import { PERMISSIONS } from "./utils/permissions";
 import { isPlanActiveForAccess } from "./utils/planAccess";
@@ -296,21 +297,38 @@ const AppContent = () => {
               <Route path="/catalogue/allergies" element={<AllergyCatalog />} />
             </Route>
 
-            <Route element={<RequirePermission permission={PERMISSIONS.GESTION_CABINET} />}>
-              <Route element={<GestionCabinetPinGuard />}>
+            <Route element={<GestionCabinetPinGuard />}>
+              <Route element={<RequireAnyPermission permissions={[PERMISSIONS.GESTION_CABINET, PERMISSIONS.LABORATORIES, PERMISSIONS.FOURNISSEURS, PERMISSIONS.EXPENSES, PERMISSIONS.INVENTORY]} />}>
                 <Route path="/gestion-cabinet" element={<GestionCabinet />} />
-                <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
-                <Route path="/gestion-cabinet/laboratories/archived" element={<ArchivedLaboratories />} />
-                <Route path="/gestion-cabinet/laboratories/:id" element={<LaboratoryDetails />} />
-                <Route path="/gestion-cabinet/fournisseurs" element={<Fournisseurs />} />
-                <Route path="/gestion-cabinet/fournisseurs/archived" element={<ArchivedFournisseurs />} />
-                <Route path="/gestion-cabinet/fournisseurs/:id" element={<FournisseurDetails />} />
+                <Route path="/gestion-cabinet/finance-logistique" element={<GestionCabinet section="finance_logistique" />} />
+                <Route path="/gestion-cabinet/ressources-partenaires" element={<GestionCabinet section="ressources_partenaires" />} />
+              </Route>
+
+              <Route element={<RequirePermission permission={PERMISSIONS.GESTION_CABINET} />}>
                 <Route path="/gestion-cabinet/finance" element={<Finance />} />
-                <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
-                <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
                 <Route path="/gestion-cabinet/employees" element={<Employees />} />
                 <Route path="/gestion-cabinet/employees/archived" element={<ArchivedEmployees />} />
                 <Route path="/gestion-cabinet/employees/:id" element={<EmployeeDetails />} />
+              </Route>
+
+              <Route element={<RequirePermission permission={PERMISSIONS.LABORATORIES} />}>
+                <Route path="/gestion-cabinet/laboratories" element={<Laboratory />} />
+                <Route path="/gestion-cabinet/laboratories/archived" element={<ArchivedLaboratories />} />
+                <Route path="/gestion-cabinet/laboratories/:id" element={<LaboratoryDetails />} />
+              </Route>
+
+              <Route element={<RequirePermission permission={PERMISSIONS.FOURNISSEURS} />}>
+                <Route path="/gestion-cabinet/fournisseurs" element={<Fournisseurs />} />
+                <Route path="/gestion-cabinet/fournisseurs/archived" element={<ArchivedFournisseurs />} />
+                <Route path="/gestion-cabinet/fournisseurs/:id" element={<FournisseurDetails />} />
+              </Route>
+
+              <Route element={<RequirePermission permission={PERMISSIONS.EXPENSES} />}>
+                <Route path="/gestion-cabinet/expenses" element={<Expenses />} />
+              </Route>
+
+              <Route element={<RequirePermission permission={PERMISSIONS.INVENTORY} />}>
+                <Route path="/gestion-cabinet/inventory" element={<Inventory />} />
               </Route>
             </Route>
 
@@ -321,12 +339,15 @@ const AppContent = () => {
               <Route path="/settings/profile" element={<Profile />} />
               <Route path="/settings/security" element={<Security />} />
               <Route path="/settings/audit-logs" element={<AuditLogs />} />
+            </Route>
+
+            <Route element={<RequirePermission permission={PERMISSIONS.GESTION_CABINET} />}>
               <Route path="/settings/payments" element={<HandPaymentHistory />} />
             </Route>
-          </Route>
 
-          <Route element={<RequirePermission permission={PERMISSIONS.SUPPORT} />}>
-            <Route path="/support" element={<SupportCenter />} />
+            <Route element={<RequirePermission permission={PERMISSIONS.SUPPORT} />}>
+              <Route path="/support" element={<SupportCenter />} />
+            </Route>
           </Route>
 
           <Route element={<RequirePermission permission={PERMISSIONS.CATALOGUE} />}>
@@ -375,3 +396,4 @@ export default function App() {
     </Router>
   );
 }
+

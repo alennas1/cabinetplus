@@ -18,10 +18,10 @@ public interface DeviseRepository extends JpaRepository<Devise, Long> {
         select d
         from Devise d
         where d.practitioner = :practitioner
-          and (:fromDt is null or d.createdAt >= :fromDt)
-          and (:toDt is null or d.createdAt <= :toDt)
-          and (:amountFrom is null or d.totalAmount >= :amountFrom)
-          and (:amountTo is null or d.totalAmount <= :amountTo)
+          and d.createdAt >= coalesce(:fromDt, d.createdAt)
+          and d.createdAt <= coalesce(:toDt, d.createdAt)
+          and d.totalAmount >= coalesce(:amountFrom, d.totalAmount)
+          and d.totalAmount <= coalesce(:amountTo, d.totalAmount)
           and (
               coalesce(:qLike, '') = ''
               or lower(coalesce(d.title, '')) like :qLike

@@ -133,7 +133,7 @@ public class EmployeeService {
                     .filter(this::hasText)
                     .map(String::trim)
                     .collect(Collectors.toSet());
-            linkedUser.setPermissions(requested);
+            linkedUser.setPermissions(sanitizeEmployeePermissions(requested));
         }
 
         existing.setFirstName(dto.getFirstName());
@@ -249,6 +249,24 @@ public class EmployeeService {
                 });
     }
 
+    public Optional<EmployeeResponseDTO> getEmployeeByUser(User user) {
+        if (user == null) return Optional.empty();
+
+        return employeeRepository.findByUser(user)
+                .map(emp -> {
+                    List<EmployeeWorkingHours> hours = workingHoursRepository.findByEmployee(emp);
+                    List<EmployeeWorkingHoursDTO> schedules = hours.stream()
+                            .map(h -> EmployeeWorkingHoursDTO.builder()
+                                    .id(h.getId())
+                                    .dayOfWeek(h.getDayOfWeek())
+                                    .startTime(h.getStartTime())
+                                    .endTime(h.getEndTime())
+                                    .build())
+                            .collect(Collectors.toList());
+                    return mapToResponse(emp, schedules);
+                });
+    }
+
     // --- Delete ---
     public void archiveEmployee(Long id, User dentist) {
         Employee existing = employeeRepository.findByIdAndDentist(id, dentist)
@@ -334,9 +352,9 @@ public class EmployeeService {
                 ? dto.getPermissions().stream().filter(this::hasText).map(String::trim).collect(Collectors.toSet())
                 : Set.of();
         if (requested.isEmpty()) {
-            user.setPermissions(new java.util.HashSet<>(java.util.Set.of("APPOINTMENTS", "PATIENTS")));
+            user.setPermissions(new java.util.HashSet<>(sanitizeEmployeePermissions(java.util.Set.of("APPOINTMENTS", "PATIENTS"))));
         } else {
-            user.setPermissions(new java.util.HashSet<>(requested));
+            user.setPermissions(new java.util.HashSet<>(sanitizeEmployeePermissions(requested)));
         }
 
         return userRepository.save(user);
@@ -363,6 +381,64 @@ public class EmployeeService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private Set<String> sanitizeEmployeePermissions(Set<String> requested) {
+        // Employees/staff: support is always enabled and dashboard/gestion-cabinet are forbidden.
+        java.util.Set<String> allowedModules = java.util.Set.of(
+                "APPOINTMENTS",
+                "PATIENTS",
+                "DEVIS",
+                "SUPPORT",
+                "CATALOGUE",
+                "PROSTHESES",
+                "LABORATORIES",
+                "FOURNISSEURS",
+                "EXPENSES",
+                "INVENTORY"
+        );
+        java.util.Set<String> allowedActions = java.util.Set.of(
+                "CREATE",
+                "UPDATE",
+                "CANCEL",
+                "STATUS",
+                "ARCHIVE",
+                "DELETE"
+        );
+
+        java.util.Set<String> next = new java.util.HashSet<>();
+        if (requested != null) {
+            for (String p : requested) {
+                if (!hasText(p)) continue;
+                String key = p.trim();
+                if (allowedModules.contains(key)) {
+                    next.add(key);
+                    continue;
+                }
+                int idx = key.lastIndexOf('_');
+                if (idx > 0 && idx < key.length() - 1) {
+                    String module = key.substring(0, idx);
+                    String action = key.substring(idx + 1);
+                    if (allowedModules.contains(module) && allowedActions.contains(action)) {
+                        next.add(key);
+                        next.add(module); // keep module enabled when any action is selected
+                    }
+                }
+            }
+        }
+
+        boolean hadAny = !next.isEmpty();
+        next.add("SUPPORT");
+        if (!hadAny) {
+            next.add("APPOINTMENTS");
+            next.add("PATIENTS");
+            next.add("APPOINTMENTS_CREATE");
+            next.add("APPOINTMENTS_UPDATE");
+            next.add("APPOINTMENTS_CANCEL");
+            next.add("PATIENTS_CREATE");
+            next.add("PATIENTS_UPDATE");
+        }
+        return next;
     }
 
     private void assertDatesCoherent(LocalDate hireDate, LocalDate endDate) {

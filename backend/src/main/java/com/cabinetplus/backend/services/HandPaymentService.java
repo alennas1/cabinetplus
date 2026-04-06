@@ -375,7 +375,7 @@ public HandPayment confirmPayment(Long paymentId) {
     // 3. Apply renewal / plan change based on the requested start mode.
     user.setPlanStatus(UserPlanStatus.ACTIVE);
     
-    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime now = LocalDateTime.now(java.time.ZoneOffset.UTC);
 
     BillingCycle cycle = payment.getBillingCycle() != null ? payment.getBillingCycle() : BillingCycle.MONTHLY;
 
@@ -466,7 +466,7 @@ public HandPayment confirmPayment(Long paymentId) {
         User user = rejectedPayment.getUser();
         if (hasValidActiveSubscription(user)) {
             user.setPlanStatus(UserPlanStatus.ACTIVE);
-        } else if (user.getExpirationDate() != null && user.getExpirationDate().isBefore(LocalDateTime.now())) {
+        } else if (user.getExpirationDate() != null && user.getExpirationDate().isBefore(LocalDateTime.now(java.time.ZoneOffset.UTC))) {
             user.setPlanStatus(UserPlanStatus.INACTIVE);
         } else {
             user.setPlanStatus(UserPlanStatus.PENDING);
@@ -481,7 +481,7 @@ public HandPayment confirmPayment(Long paymentId) {
      * Should be called periodically or on login
      */
     public void checkAndUpdateExpiration(User user) {
-        if (user.getExpirationDate() != null && LocalDateTime.now().isAfter(user.getExpirationDate())) {
+        if (user.getExpirationDate() != null && LocalDateTime.now(java.time.ZoneOffset.UTC).isAfter(user.getExpirationDate())) {
             user.setPlanStatus(UserPlanStatus.INACTIVE);
             userRepository.save(user);
         }
@@ -489,11 +489,6 @@ public HandPayment confirmPayment(Long paymentId) {
 
     private static LocalDateTime computeExpiration(LocalDateTime startDate, com.cabinetplus.backend.models.Plan plan, BillingCycle cycle) {
         if (startDate == null || plan == null) return null;
-        Integer monthlyPrice = plan.getMonthlyPrice();
-        boolean isFree = monthlyPrice != null && monthlyPrice == 0;
-        if (isFree) {
-            return startDate.plusDays(7);
-        }
         return (cycle == BillingCycle.YEARLY) ? startDate.plusYears(1) : startDate.plusMonths(1);
     }
 

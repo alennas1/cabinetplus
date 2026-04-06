@@ -37,14 +37,18 @@ public class EmployeePermissionsFilter extends OncePerRequestFilter {
     private boolean isAlwaysAllowed(String path) {
         if (path == null) return true;
         return "/api/users/me".equals(path)
+                || path.startsWith("/api/users/me/")
                 || path.startsWith("/api/security/")
                 || path.startsWith("/api/verify/")
                 || path.startsWith("/api/plans")
                 || path.startsWith("/api/plan");
     }
 
-    private static String requiredPermissionForPath(String path) {
+    private static String requiredPermissionForRequest(HttpServletRequest request) {
+        if (request == null) return null;
+        String path = request.getRequestURI();
         if (path == null) return null;
+        String method = request.getMethod();
 
         // Core pages
         if (path.startsWith("/api/appointments")) return "APPOINTMENTS";
@@ -58,21 +62,28 @@ public class EmployeePermissionsFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/prothesis-catalog")) return "CATALOGUE";
         if (path.startsWith("/api/justification-content")) return "CATALOGUE";
         if (path.startsWith("/api/materials")) return "CATALOGUE";
-        if (path.startsWith("/api/items")) return "CATALOGUE";
-        if (path.startsWith("/api/item-defaults")) return "CATALOGUE";
+        // Inventory needs read access to item defaults, but writing remains "CATALOGUE".
+        if (path.startsWith("/api/item-defaults")) {
+            return "GET".equalsIgnoreCase(method) ? "CATALOGUE_OR_INVENTORY" : "CATALOGUE";
+        }
         if (path.startsWith("/api/disease-catalog")) return "CATALOGUE";
         if (path.startsWith("/api/allergy-catalog")) return "CATALOGUE";
 
+        // Inventory
+        if (path.startsWith("/api/items")) return "INVENTORY";
+
         // Patient dossier / prostheses tracking (allow if either module is enabled)
-        if (path.startsWith("/api/protheses")) return "PROTHESIS_ANY";
+        if (path.startsWith("/api/protheses")) {
+            return "GET".equalsIgnoreCase(method) ? "PROTHESIS_ANY" : "PROSTHESES";
+        }
         if (path.startsWith("/api/payments")) return "PATIENTS";
 
         // Gestion cabinet / back-office
         if (path.startsWith("/api/finance")) return "GESTION_CABINET";
-        if (path.startsWith("/api/expenses")) return "GESTION_CABINET";
         if (path.startsWith("/api/employees")) return "GESTION_CABINET";
-        if (path.startsWith("/api/laboratories")) return "GESTION_CABINET";
-        if (path.startsWith("/api/fournisseurs")) return "GESTION_CABINET";
+        if (path.startsWith("/api/expenses")) return "EXPENSES";
+        if (path.startsWith("/api/laboratories")) return "LABORATORIES";
+        if (path.startsWith("/api/fournisseurs")) return "FOURNISSEURS";
         if (path.startsWith("/api/hand-payments")) return "GESTION_CABINET";
 
         // Settings / audit
@@ -80,6 +91,34 @@ public class EmployeePermissionsFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/users/me/")) return "SETTINGS";
 
         return null;
+    }
+
+    private static String requiredActionForRequest(HttpServletRequest request) {
+        if (request == null) return null;
+        String method = request.getMethod();
+        if (method == null) return null;
+        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method) || "OPTIONS".equalsIgnoreCase(method)) {
+            return null;
+        }
+        String path = request.getRequestURI();
+        if (path != null) {
+            String p = path.toLowerCase();
+            // Some endpoints use POST as a read/query operation.
+            if (p.contains("/by-ids")) return null;
+            if (p.contains("/cancel")) return "CANCEL";
+            if (p.contains("/archive") || p.contains("/unarchive")) return "ARCHIVE";
+            if (p.contains("/status")) return "STATUS";
+        }
+        if ("POST".equalsIgnoreCase(method)) return "CREATE";
+        if ("DELETE".equalsIgnoreCase(method)) return "DELETE";
+        return "UPDATE"; // PUT/PATCH and any other mutating method
+    }
+
+    private static String moduleForAction(String required) {
+        if (required == null) return null;
+        if ("CATALOGUE_OR_INVENTORY".equals(required)) return "CATALOGUE";
+        if ("PROTHESIS_ANY".equals(required)) return "PROSTHESES";
+        return required;
     }
 
     private void deny(HttpServletResponse response) throws IOException {
@@ -144,21 +183,35 @@ public class EmployeePermissionsFilter extends OncePerRequestFilter {
             return;
         }
 
-        String required = requiredPermissionForPath(path);
+        String required = requiredPermissionForRequest(request);
         if (required == null) {
             filterChain.doFilter(request, response);
             return;
         }
 
         Set<String> permissions = user.getPermissions();
-        boolean allowed;
-        if ("PROTHESIS_ANY".equals(required)) {
-            allowed = permissions != null && (permissions.contains("PATIENTS") || permissions.contains("PROSTHESES"));
+        boolean allowedBase;
+        if ("SUPPORT".equals(required)) {
+            allowedBase = true; // Support is always enabled for employees/staff (not configurable).
+        } else if ("GESTION_CABINET".equals(required)) {
+            allowedBase = false; // Finance + employee management are forbidden for employees/staff.
+        } else if ("CATALOGUE_OR_INVENTORY".equals(required)) {
+            allowedBase = permissions != null && (permissions.contains("CATALOGUE") || permissions.contains("INVENTORY"));
+        } else if ("PROTHESIS_ANY".equals(required)) {
+            allowedBase = permissions != null && (permissions.contains("PATIENTS") || permissions.contains("PROSTHESES"));
         } else {
-            allowed = permissions != null && permissions.contains(required);
+            allowedBase = permissions != null && permissions.contains(required);
         }
 
-        if (!allowed) {
+        String action = requiredActionForRequest(request);
+        if (action != null && !"GESTION_CABINET".equals(required) && !"SUPPORT".equals(required)) {
+            String module = moduleForAction(required);
+            String actionKey = module != null ? (module + "_" + action) : null;
+            boolean hasAction = actionKey != null && permissions != null && permissions.contains(actionKey);
+            allowedBase = hasAction;
+        }
+
+        if (!allowedBase) {
             deny(response);
             return;
         }

@@ -284,4 +284,3 @@ public class SecurityPinController {
         return Map.of("valid", valid);
     }
 }
-

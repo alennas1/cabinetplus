@@ -21,7 +21,7 @@ public class Plan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // e.g., “FREE_TRIAL”, “BASIC”, “PRO”
+    // e.g., "BASIC", "PRO"
     @Column(unique = true, nullable = false)
     private String code;
 
@@ -33,7 +33,7 @@ public class Plan {
     // Reduced price when billed yearly
     private Integer yearlyMonthlyPrice;
 
-    // Duration in days for free trial or default period
+    // Optional fixed duration in days (for admin-granted access windows or custom plans).
     private Integer durationDays;
 
     @Column(nullable = false)

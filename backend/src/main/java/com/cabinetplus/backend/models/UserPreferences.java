@@ -1,6 +1,5 @@
 package com.cabinetplus.backend.models;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -19,12 +18,12 @@ import lombok.ToString;
 import org.hibernate.Hibernate;
 
 @Entity
-@Table(name = "dentist_profiles")
+@Table(name = "user_preferences")
 @Data
 @ToString(exclude = { "user" })
 @NoArgsConstructor
 @AllArgsConstructor
-public class DentistProfile {
+public class UserPreferences {
 
     @Id
     @Column(name = "user_id")
@@ -35,20 +34,6 @@ public class DentistProfile {
     @MapsId
     @JoinColumn(name = "user_id")
     private User user;
-
-    @Column(columnDefinition = "TEXT")
-    private String clinicName;
-
-    @Column(columnDefinition = "TEXT")
-    private String address;
-
-    private boolean gestionCabinetPinEnabled = false;
-
-    @JsonIgnore
-    @Column(length = 100)
-    private String gestionCabinetPinHash;
-
-    private LocalDateTime gestionCabinetPinUpdatedAt;
 
     @Column(length = 20)
     private String workingHoursMode = "standard";
@@ -71,19 +56,12 @@ public class DentistProfile {
     @Column(length = 5)
     private String currencyLabel = "DA";
 
-    private Integer patientCancelledAppointmentsThreshold = 0;
-
-    private Double patientMoneyOwedThreshold = 0.0;
-
-    // Auto-archive patients with no activity for X months (null or <= 0 = never)
-    private Integer patientAutoArchiveInactiveMonths;
-
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
         if (o == null) return false;
         if (Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
-        DentistProfile other = (DentistProfile) o;
+        UserPreferences other = (UserPreferences) o;
         return userId != null && Objects.equals(userId, other.userId);
     }
 
@@ -93,3 +71,4 @@ public class DentistProfile {
         return Hibernate.getClass(this).hashCode();
     }
 }
+

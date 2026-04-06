@@ -5,7 +5,7 @@ import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { getUserProfile, updateUserProfile } from "../services/userService";
+import { getMyEmployeeProfile, getUserProfile, updateUserProfile } from "../services/userService";
 import { formatPhoneNumber as formatPhoneNumberDisplay, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { getApiErrorMessage, getApiFieldErrors } from "../utils/error";
 import { confirmPhoneChangeOtp, sendPhoneChangeOtp } from "../services/securityService";
@@ -14,6 +14,8 @@ import PasswordInput from "../components/PasswordInput";
 import FieldError from "../components/FieldError";
 import { getCurrentUser } from "../services/authService";
 import { setCredentials } from "../store/authSlice";
+import { formatDateByPreference } from "../utils/dateFormat";
+import { formatMoneyWithLabel } from "../utils/format";
 import "./Profile.css";
 
 const fieldLabels = {
@@ -43,6 +45,9 @@ const Profile = () => {
   const passwordProtectedFields = new Set(["firstname", "lastname", "clinicName", "address"]);
 
   const [profile, setProfile] = useState({ profession: "Dentiste" });
+  const [employeeProfile, setEmployeeProfile] = useState(null);
+  const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [employeeActiveTab, setEmployeeActiveTab] = useState("profile");
   const [editingField, setEditingField] = useState(null);
   const [tempValue, setTempValue] = useState("");
 
@@ -74,15 +79,50 @@ const Profile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await getUserProfile();
-        setProfile({ ...data, profession: "Dentiste" });
+        if (isClinicEmployeeAccount) {
+          setEmployeeLoading(true);
+          const data = await getMyEmployeeProfile();
+          setEmployeeProfile(data);
+        } else {
+          const data = await getUserProfile();
+          setProfile({ ...data, profession: "Dentiste" });
+        }
       } catch (err) {
         console.error(err);
         toast.error(getApiErrorMessage(err, "Erreur lors du chargement du profil"));
+      } finally {
+        setEmployeeLoading(false);
       }
     };
     fetchProfile();
-  }, []);
+  }, [isClinicEmployeeAccount]);
+
+  const formatEmployeeDate = (dateStr) => {
+    if (!dateStr) return "—";
+    const label = formatDateByPreference(dateStr);
+    return label === "-" ? "—" : label;
+  };
+
+  const translateEmployeeStatus = (status) => {
+    if (!status) return "—";
+    switch (String(status).toUpperCase()) {
+      case "ACTIVE":
+        return "Actif";
+      case "INACTIVE":
+        return "Inactif";
+      case "ON_LEAVE":
+        return "En congé";
+      default:
+        return status;
+    }
+  };
+
+  const renderEmployeeReadOnlyField = (label, value, key) => (
+    <div className="profile-field" key={key || label}>
+      <div className="field-label">{label}:</div>
+      <div className="field-value">{value || "—"}</div>
+    </div>
+  );
 
   const handleEdit = (field) => {
     setEditingField(field);
@@ -320,12 +360,74 @@ const Profile = () => {
   return (
     <div className="profile-container">
       <BackButton fallbackTo="/settings" />
-      <PageHeader title="Profil" subtitle="Gérer vos informations personnelles" />
-      <div className="profile-content">
-        {Object.keys(fieldLabels).map(renderField)}
-      </div>
+      <PageHeader
+        title="Profil"
+        subtitle={isClinicEmployeeAccount ? "Consulter vos informations" : "Gérer vos informations personnelles"}
+      />
 
-      {showPhoneModal ? (
+      {isClinicEmployeeAccount ? (
+        <>
+          <div className="tab-buttons">
+            <button
+              className={employeeActiveTab === "profile" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setEmployeeActiveTab("profile")}
+              type="button"
+            >
+              <User size={16} /> Profil
+            </button>
+            <button
+              className={employeeActiveTab === "personal" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setEmployeeActiveTab("personal")}
+              type="button"
+            >
+              <User size={16} /> Informations personnelles
+            </button>
+          </div>
+
+          {employeeLoading ? (
+            <div className="profile-content">
+              <div className="profile-field">
+                <div className="field-value">Chargement...</div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {employeeActiveTab === "profile" ? (
+                <div className="profile-content">
+                  {renderEmployeeReadOnlyField("Prénom", employeeProfile?.firstName)}
+                  {renderEmployeeReadOnlyField("Nom", employeeProfile?.lastName)}
+                  {renderEmployeeReadOnlyField(
+                    "Téléphone",
+                    employeeProfile?.phone ? formatPhoneNumber(employeeProfile.phone) : "—"
+                  )}
+                  {renderEmployeeReadOnlyField("Email", employeeProfile?.email)}
+                  {renderEmployeeReadOnlyField("Type de contrat", employeeProfile?.contractType)}
+                  {renderEmployeeReadOnlyField(
+                    "Salaire",
+                    employeeProfile?.salary != null ? formatMoneyWithLabel(employeeProfile.salary) : "—"
+                  )}
+                  {renderEmployeeReadOnlyField("Statut", translateEmployeeStatus(employeeProfile?.status))}
+                </div>
+              ) : null}
+
+              {employeeActiveTab === "personal" ? (
+                <div className="profile-content">
+                  {renderEmployeeReadOnlyField("Genre", employeeProfile?.gender)}
+                  {renderEmployeeReadOnlyField("Date de naissance", formatEmployeeDate(employeeProfile?.dateOfBirth))}
+                  {renderEmployeeReadOnlyField("Numéro identité nationale", employeeProfile?.nationalId)}
+                  {renderEmployeeReadOnlyField("Adresse", employeeProfile?.address)}
+                  {renderEmployeeReadOnlyField("Date d'embauche", formatEmployeeDate(employeeProfile?.hireDate))}
+                  {renderEmployeeReadOnlyField("Date de fin", formatEmployeeDate(employeeProfile?.endDate))}
+                </div>
+              ) : null}
+            </>
+          )}
+        </>
+      ) : (
+        <div className="profile-content">{Object.keys(fieldLabels).map(renderField)}</div>
+      )}
+
+      {!isClinicEmployeeAccount && showPhoneModal ? (
         <div className="modal-overlay" onClick={closePhoneModal}>
           <div className="modal-content profile-phone-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Mettre à jour le numéro</h3>
@@ -419,7 +521,7 @@ const Profile = () => {
         </div>
       ) : null}
 
-      {showProfilePasswordModal ? (
+      {!isClinicEmployeeAccount && showProfilePasswordModal ? (
         <div className="modal-overlay" onClick={closeProfilePasswordModal}>
           <div className="modal-content profile-phone-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Confirmer avec votre mot de passe</h3>

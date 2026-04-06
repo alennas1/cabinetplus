@@ -36,6 +36,7 @@ import com.cabinetplus.backend.dto.UserDto;
 import com.cabinetplus.backend.dto.UserSessionResponse;
 import com.cabinetplus.backend.dto.PatientManagementSettingsRequest;
 import com.cabinetplus.backend.dto.PatientManagementSettingsResponse;
+import com.cabinetplus.backend.dto.EmployeeResponseDTO;
 import com.cabinetplus.backend.dto.UserPreferencesRequest;
 import com.cabinetplus.backend.dto.UserPreferencesResponse;
 import com.cabinetplus.backend.dto.PlanUsageDto;
@@ -55,6 +56,7 @@ import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.SubscriptionService;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.EmployeeService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 import com.cabinetplus.backend.util.PaginationUtil;
@@ -73,6 +75,7 @@ public class UserController {
     private final PlanLimitService planLimitService;
     private final SubscriptionService subscriptionService;
     private final AuditService auditService;
+    private final EmployeeService employeeService;
     private final PublicIdResolutionService publicIdResolutionService;
     private final RefreshTokenRepository refreshTokenRepository;
 
@@ -89,6 +92,7 @@ public class UserController {
             PlanLimitService planLimitService,
             SubscriptionService subscriptionService,
             AuditService auditService,
+            EmployeeService employeeService,
             RefreshTokenRepository refreshTokenRepository,
             PublicIdResolutionService publicIdResolutionService
     ) {
@@ -98,6 +102,7 @@ public class UserController {
         this.planLimitService = planLimitService;
         this.subscriptionService = subscriptionService;
         this.auditService = auditService;
+        this.employeeService = employeeService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.publicIdResolutionService = publicIdResolutionService;
     }
@@ -309,15 +314,39 @@ public class UserController {
         return user;
     }
 
+    @GetMapping("/me/employee")
+    public EmployeeResponseDTO getCurrentEmployeeProfile(
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
+    ) {
+        User user = userService.findByPhoneNumber(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
+
+        if (user.getRole() != UserRole.EMPLOYEE) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable");
+        }
+
+        EmployeeResponseDTO dto = employeeService.getEmployeeByUser(user)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employe introuvable"));
+
+        auditService.logSuccessAsUser(
+                user,
+                AuditEventType.EMPLOYEE_READ,
+                "EMPLOYEE",
+                dto.getId() != null ? String.valueOf(dto.getId()) : null,
+                "Profil employe consulte"
+        );
+
+        return dto;
+    }
+
     @GetMapping("/me/preferences")
     public UserPreferencesResponse getCurrentUserPreferences(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails
     ) {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
-        User owner = userService.resolveClinicOwner(user);
-        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(owner.getId()), "Preferences consultees");
-        return mapPreferences(owner);
+        auditService.logSuccessAsUser(user, AuditEventType.USER_READ, "USER", String.valueOf(user.getId()), "Preferences consultees");
+        return mapPreferences(user);
     }
 
     @PutMapping("/me/preferences")
@@ -327,17 +356,16 @@ public class UserController {
     ) {
         User user = userService.findByPhoneNumber(userDetails.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable"));
-        User owner = userService.resolveClinicOwner(user);
 
-        owner.setWorkingHoursMode(request.workingHoursMode());
-        owner.setWorkingHoursStart(request.workingHoursStart());
-        owner.setWorkingHoursEnd(request.workingHoursEnd());
-        owner.setTimeFormat(request.timeFormat());
-        owner.setDateFormat(request.dateFormat());
-        owner.setMoneyFormat(request.moneyFormat());
-        owner.setCurrencyLabel(request.currencyLabel());
+        user.setWorkingHoursMode(request.workingHoursMode());
+        user.setWorkingHoursStart(request.workingHoursStart());
+        user.setWorkingHoursEnd(request.workingHoursEnd());
+        user.setTimeFormat(request.timeFormat());
+        user.setDateFormat(request.dateFormat());
+        user.setMoneyFormat(request.moneyFormat());
+        user.setCurrencyLabel(request.currencyLabel());
 
-        User saved = userService.save(owner);
+        User saved = userService.save(user);
         auditService.logSuccess(
                 AuditEventType.SETTINGS_PREFERENCES_UPDATE,
                 "USER",
@@ -369,9 +397,11 @@ public class UserController {
 
         Integer cancelledThreshold = request != null ? request.cancelledAppointmentsThreshold() : null;
         Double owedThreshold = request != null ? request.moneyOwedThreshold() : null;
+        Integer autoArchiveInactiveMonths = request != null ? request.autoArchiveInactiveMonths() : null;
 
         owner.setPatientCancelledAppointmentsThreshold(cancelledThreshold != null ? Math.max(0, cancelledThreshold) : 0);
         owner.setPatientMoneyOwedThreshold(owedThreshold != null ? Math.max(0.0, owedThreshold) : 0.0);
+        owner.setPatientAutoArchiveInactiveMonths(normalizeAutoArchiveMonths(autoArchiveInactiveMonths));
 
         User saved = userService.save(owner);
         auditService.logSuccess(
@@ -439,13 +469,20 @@ public class UserController {
         // Re-check limits at activation time (usage may have changed since scheduling).
         planLimitService.assertUsageFitsPlan(owner, owner.getNextPlan());
 
-        LocalDateTime now = LocalDateTime.now();
-        BillingCycle cycle = owner.getNextPlanBillingCycle() != null ? owner.getNextPlanBillingCycle() : BillingCycle.MONTHLY;
+        LocalDateTime now = LocalDateTime.now(java.time.ZoneOffset.UTC);
+        BillingCycle requestedCycle = owner.getNextPlanBillingCycle();
+        LocalDateTime nextExpiration = owner.getNextPlanExpirationDate();
+        boolean isLifetime = requestedCycle == null && nextExpiration == null;
+        BillingCycle appliedCycle = isLifetime ? null : (requestedCycle != null ? requestedCycle : BillingCycle.MONTHLY);
+        BillingCycle cycle = appliedCycle != null ? appliedCycle : BillingCycle.MONTHLY;
 
         owner.setPlan(owner.getNextPlan());
-        owner.setPlanBillingCycle(cycle);
+        owner.setPlanBillingCycle(appliedCycle);
         owner.setPlanStartDate(now);
-        owner.setExpirationDate(computeExpiration(now, owner.getPlan(), cycle));
+        if (nextExpiration == null && !isLifetime) {
+            nextExpiration = computeExpiration(now, owner.getPlan(), cycle);
+        }
+        owner.setExpirationDate(nextExpiration);
 
         owner.setNextPlan(null);
         owner.setNextPlanBillingCycle(null);
@@ -467,11 +504,6 @@ public class UserController {
 
     private static LocalDateTime computeExpiration(LocalDateTime startDate, Plan plan, BillingCycle cycle) {
         if (startDate == null || plan == null) return null;
-        Integer monthlyPrice = plan.getMonthlyPrice();
-        boolean isFree = monthlyPrice != null && monthlyPrice == 0;
-        if (isFree) {
-            return startDate.plusDays(7);
-        }
         return (cycle == BillingCycle.YEARLY) ? startDate.plusYears(1) : startDate.plusMonths(1);
     }
 
@@ -874,10 +906,20 @@ public User verifyPhone(@AuthenticationPrincipal org.springframework.security.co
     private PatientManagementSettingsResponse mapPatientManagement(User user) {
         Integer cancelled = user.getPatientCancelledAppointmentsThreshold();
         Double owed = user.getPatientMoneyOwedThreshold();
+        Integer months = normalizeAutoArchiveMonths(user.getPatientAutoArchiveInactiveMonths());
         return new PatientManagementSettingsResponse(
                 cancelled != null ? Math.max(0, cancelled) : 0,
-                owed != null ? Math.max(0.0, owed) : 0.0
+                owed != null ? Math.max(0.0, owed) : 0.0,
+                months
         );
+    }
+
+    private static Integer normalizeAutoArchiveMonths(Integer value) {
+        if (value == null) return null;
+        int v = Math.max(0, value);
+        if (v == 0) return null;
+        if (v == 12 || v == 24 || v == 60) return v;
+        throw new BadRequestException(Map.of("autoArchiveInactiveMonths", "Valeur invalide (12, 24, 60 ou 0)."));
     }
 
     private boolean shouldLogoutAll(Object value) {

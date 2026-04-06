@@ -1,13 +1,18 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { User, Lock, Activity, Settings as Gear, CreditCard, AlertTriangle } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
+import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+  const clinicRole = getClinicRole(user);
+  const isEmployee = clinicRole === CLINIC_ROLES.EMPLOYEE;
 
-  const settingsGroups = [
+  const dentistSettingsGroups = [
     {
       title: "Compte",
       options: [
@@ -55,6 +60,39 @@ const Settings = () => {
       ],
     },
   ];
+
+  const employeeSettingsGroups = [
+    {
+      title: "Compte",
+      options: [
+        {
+          title: "Profil",
+          desc: "Modifier votre nom et informations personnelles",
+          icon: <User />,
+          path: "/settings/profile",
+        },
+        {
+          title: "Securite",
+          desc: "Changer mot de passe et code PIN",
+          icon: <Lock />,
+          path: "/settings/security",
+        },
+      ],
+    },
+    {
+      title: "Preferences",
+      options: [
+        {
+          title: "Preferences",
+          desc: "Personnaliser l'application selon vos besoins",
+          icon: <Gear />,
+          path: "/settings/preferences",
+        },
+      ],
+    },
+  ];
+
+  const settingsGroups = isEmployee ? employeeSettingsGroups : dentistSettingsGroups;
 
   return (
     <div className="settings-container">

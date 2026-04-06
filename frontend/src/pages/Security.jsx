@@ -90,6 +90,11 @@ const Security = () => {
   }, [resetSendCooldown]);
 
   useEffect(() => {
+    if (!userKey || isClinicEmployeeAccount) {
+      setSessions([]);
+      setSessionsLoading(false);
+      return;
+    }
     let cancelled = false;
     const loadSessions = async () => {
       if (!userKey) return;
@@ -160,7 +165,7 @@ const Security = () => {
     return () => {
       cancelled = true;
     };
-  }, [userKey]);
+  }, [userKey, isClinicEmployeeAccount]);
 
   const resetGcPinFields = () => {
     setGcPinPassword("");
@@ -183,7 +188,7 @@ const Security = () => {
 
   const handleEnableGcPin = async () => {
     if (gcPinSubmitting) return;
-    if (isClinicEmployeeAccount) {
+    if (false && isClinicEmployeeAccount) {
       toast.error("Seul le dentiste propriétaire peut activer le PIN.");
       return;
     }
@@ -216,7 +221,7 @@ const Security = () => {
 
   const handleChangeGcPin = async () => {
     if (gcPinSubmitting) return;
-    if (isClinicEmployeeAccount) {
+    if (false && isClinicEmployeeAccount) {
       toast.error("Seul le dentiste propriétaire peut modifier le PIN.");
       return;
     }
@@ -691,7 +696,7 @@ const Security = () => {
   return (
     <div className="settings-container">
       <BackButton fallbackTo="/settings" />
-      <PageHeader title="Sécurité" subtitle="Mot de passe et sessions." />
+      <PageHeader title="Sécurité" subtitle="Mot de passe et sécurité." />
 
       <div className="security-content">
         <div className="tab-buttons">
@@ -702,13 +707,15 @@ const Security = () => {
           >
             Compte
           </button>
-          <button
-            type="button"
-            className={activeTab === "sessions" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("sessions")}
-          >
-            Sessions
-          </button>
+          {!isClinicEmployeeAccount ? (
+            <button
+              type="button"
+              className={activeTab === "sessions" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setActiveTab("sessions")}
+            >
+              Sessions
+            </button>
+          ) : null}
           <button
             type="button"
             className={activeTab === "pin" ? "tab-btn active" : "tab-btn"}
@@ -737,7 +744,7 @@ const Security = () => {
                 </div>
               </div>
 
-              {isClinicEmployeeAccount ? (
+              {false && isClinicEmployeeAccount ? (
                 <div className="session-empty">Votre mot de passe est géré par le propriétaire du cabinet.</div>
               ) : (
                 <>
@@ -849,7 +856,7 @@ const Security = () => {
               <div className="session-empty">Chargement...</div>
             ) : (
               <>
-                {isClinicEmployeeAccount ? (
+                {false && isClinicEmployeeAccount ? (
                   <div className="session-empty">
                     Vous pouvez utiliser le PIN du cabinet, mais seul le dentiste propriétaire peut le modifier.
                   </div>
@@ -866,7 +873,7 @@ const Security = () => {
                   />
                 </div>
 
-                {gcPinSet ? (
+                {gcPinSet && !isClinicEmployeeAccount ? (
                   <div className="security-switch-row" style={{ marginBottom: 16 }}>
                     <div className="security-switch-text">
                       <div className="security-switch-title">Exiger le PIN pour accéder à Gestion cabinet+</div>
@@ -880,7 +887,7 @@ const Security = () => {
                         type="checkbox"
                         checked={gcPinRequireForAccess}
                         onChange={(e) => handleToggleGcPinRequirement(e.target.checked)}
-                        disabled={gcPinSubmitting || isClinicEmployeeAccount}
+                        disabled={gcPinSubmitting}
                       />
                       <span className="security-switch-slider" />
                     </label>
@@ -918,7 +925,7 @@ const Security = () => {
                       type="button"
                       className="security-btn"
                       onClick={gcPinSet ? handleChangeGcPin : handleEnableGcPin}
-                      disabled={gcPinSubmitting || isClinicEmployeeAccount}
+                      disabled={gcPinSubmitting}
                     >
                       {gcPinSubmitting ? "..." : gcPinSet ? "Mettre à jour" : "Configurer"}
                     </button>
@@ -929,7 +936,7 @@ const Security = () => {
           </div>
         ) : null}
 
-        {activeTab === "sessions" ? (
+        {activeTab === "sessions" && !isClinicEmployeeAccount ? (
             <div className="security-card security-sessions">
               <div className="security-card-header">
                 <div>

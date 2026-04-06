@@ -655,8 +655,14 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
     }
 
     private Prothesis requireProthesisOwnedBy(Long id, User user) {
-        return repository.findById(id)
-                .filter(item -> item.getPractitioner().equals(user) || user.getRole() == UserRole.ADMIN)
+        // Use the lightweight fetch graph to avoid Postgres "target lists can have at most 1664 columns"
+        // (caused by eager-join explosion on User -> profiles/subscriptions/permissions).
+        return repository.findForResponseById(id)
+                .filter(item -> user.getRole() == UserRole.ADMIN
+                        || (item.getPractitioner() != null
+                            && item.getPractitioner().getId() != null
+                            && user.getId() != null
+                            && item.getPractitioner().getId().equals(user.getId())))
                 .orElseThrow(() -> new NotFoundException("Prothese introuvable"));
     }
 

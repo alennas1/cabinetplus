@@ -13,8 +13,9 @@ import {
   BookOpen,
   Layers,
   Headphones,
+  CreditCard,
 } from "react-feather";
-import { PERMISSIONS, userHasPermission } from "../utils/permissions";
+import { PERMISSIONS, isClinicEmployeeAccount, userHasPermission } from "../utils/permissions";
 
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
@@ -28,6 +29,7 @@ const Sidebar = () => {
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.phoneNumber;
+  const isStaffAccount = isClinicEmployeeAccount(user);
   const canAccessDashboard = userHasPermission(user, PERMISSIONS.DASHBOARD);
   const canAccessAppointments = userHasPermission(user, PERMISSIONS.APPOINTMENTS);
   const canAccessPatients = userHasPermission(user, PERMISSIONS.PATIENTS);
@@ -36,9 +38,23 @@ const Sidebar = () => {
   const canAccessCatalogues = userHasPermission(user, PERMISSIONS.CATALOGUE);
   const canAccessProstheses = userHasPermission(user, PERMISSIONS.PROSTHESES);
   const canAccessGestionCabinet = userHasPermission(user, PERMISSIONS.GESTION_CABINET);
+  const canAccessLaboratories = userHasPermission(user, PERMISSIONS.LABORATORIES);
+  const canAccessFournisseurs = userHasPermission(user, PERMISSIONS.FOURNISSEURS);
+  const canAccessExpenses = userHasPermission(user, PERMISSIONS.EXPENSES);
+  const canAccessInventory = userHasPermission(user, PERMISSIONS.INVENTORY);
   const canAccessSettings = userHasPermission(user, PERMISSIONS.SETTINGS);
 
-  const showAdminGroup = canAccessGestionCabinet || canAccessCatalogues || canAccessProstheses || canAccessSettings;
+  const canAccessGestionCabinetHub = canAccessGestionCabinet && !isStaffAccount;
+  const showStaffCabinetLinks = isStaffAccount && (canAccessLaboratories || canAccessFournisseurs || canAccessExpenses || canAccessInventory);
+  const canAccessFinanceLogistiqueHub = isStaffAccount && (canAccessExpenses || canAccessInventory);
+  const canAccessRessourcesPartenairesHub = isStaffAccount && (canAccessLaboratories || canAccessFournisseurs);
+
+  const showAdminGroup =
+    canAccessGestionCabinetHub ||
+    showStaffCabinetLinks ||
+    canAccessCatalogues ||
+    canAccessProstheses ||
+    canAccessSettings;
   const isInSupport = useMemo(() => location.pathname.startsWith("/support"), [location.pathname]);
 
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
@@ -94,6 +110,24 @@ const Sidebar = () => {
     if (exact) return location.pathname === path;
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
+
+  const isFinanceLogistiqueActive = useMemo(() => {
+    const p = location.pathname;
+    return (
+      p.startsWith("/gestion-cabinet/finance-logistique") ||
+      p.startsWith("/gestion-cabinet/expenses") ||
+      p.startsWith("/gestion-cabinet/inventory")
+    );
+  }, [location.pathname]);
+
+  const isRessourcesPartenairesActive = useMemo(() => {
+    const p = location.pathname;
+    return (
+      p.startsWith("/gestion-cabinet/ressources-partenaires") ||
+      p.startsWith("/gestion-cabinet/laboratories") ||
+      p.startsWith("/gestion-cabinet/fournisseurs")
+    );
+  }, [location.pathname]);
 
   return (
     <div className="sidebar">
@@ -169,7 +203,7 @@ const Sidebar = () => {
         {/* --- Administration Group --- */}
         {showAdminGroup && <li className="sidebar-group-title admin">Administration</li>}
 
-        {canAccessGestionCabinet && <li className="admin-link">
+        {canAccessGestionCabinetHub && <li className="admin-link">
             <Link
               to="/gestion-cabinet"
               className={
@@ -184,6 +218,34 @@ const Sidebar = () => {
             </Link>
           </li>}
 
+
+        {isStaffAccount && showStaffCabinetLinks && (
+          <>
+            {canAccessFinanceLogistiqueHub && (
+              <li className="admin-link">
+                <Link
+                  to="/gestion-cabinet/finance-logistique"
+                  className={isFinanceLogistiqueActive ? "active" : ""}
+                >
+                  <CreditCard size={20} />
+                  <span className="link-text">Finance</span>
+                </Link>
+              </li>
+            )}
+
+            {canAccessRessourcesPartenairesHub && (
+              <li className="admin-link">
+                <Link
+                  to="/gestion-cabinet/ressources-partenaires"
+                  className={isRessourcesPartenairesActive ? "active" : ""}
+                >
+                  <Briefcase size={20} />
+                  <span className="link-text">Ressources</span>
+                </Link>
+              </li>
+            )}
+          </>
+        )}
         {canAccessCatalogues && <li className="admin-link">
           <Link
             to="/catalogue"
@@ -432,6 +494,7 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
 
 
 

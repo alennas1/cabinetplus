@@ -26,20 +26,10 @@ import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import FieldError from "../components/FieldError";
+import EmployeePermissionPicker from "../components/EmployeePermissionPicker";
+import { normalizeEmployeePermissions } from "../utils/employeePermissions";
 import "./Patient.css";
 import "./Profile.css";
-
-const EMPLOYEE_PERMISSION_OPTIONS = [
-  { key: "DASHBOARD", label: "Tableau de bord" },
-  { key: "APPOINTMENTS", label: "Rendez-vous" },
-  { key: "PATIENTS", label: "Patients" },
-  { key: "DEVIS", label: "Devis" },
-  { key: "SUPPORT", label: "Support" },
-  { key: "CATALOGUE", label: "Catalogues" },
-  { key: "PROSTHESES", label: "Protheses" },
-  { key: "GESTION_CABINET", label: "Gestion cabinet" },
-  { key: "SETTINGS", label: "Parametres" },
-];
 
 const EmployeeDetails = () => {
   const { id } = useParams();
@@ -180,7 +170,7 @@ const EmployeeDetails = () => {
         const data = await getEmployeeById(id);
         setEmployee(data);
         setWorkingHours(data.workingHours || []);
-        setPermissionsDraft(Array.isArray(data?.permissions) ? data.permissions : []);
+        setPermissionsDraft(normalizeEmployeePermissions(data?.permissions));
       } catch (err) {
         toast.error(getApiErrorMessage(err, "Erreur chargement employe"));
       } finally {
@@ -393,15 +383,6 @@ const EmployeeDetails = () => {
     }
   };
 
-  const togglePermissionDraft = (key) => {
-    if (!key) return;
-    setPermissionsDraft((prev) => {
-      const current = Array.isArray(prev) ? prev : [];
-      const has = current.includes(key);
-      return has ? current.filter((p) => p !== key) : [...current, key];
-    });
-  };
-
   const savePermissions = async () => {
     if (!employee) return;
     if (isArchived) {
@@ -409,10 +390,11 @@ const EmployeeDetails = () => {
       return;
     }
     try {
-      const draft = { ...employee, permissions: permissionsDraft };
-      const updated = await updateEmployee(id, toUpdatePayload(draft, permissionsDraft));
+      const nextPermissions = normalizeEmployeePermissions(permissionsDraft);
+      const draft = { ...employee, permissions: nextPermissions };
+      const updated = await updateEmployee(id, toUpdatePayload(draft, nextPermissions));
       setEmployee(updated);
-      setPermissionsDraft(Array.isArray(updated?.permissions) ? updated.permissions : []);
+      setPermissionsDraft(normalizeEmployeePermissions(updated?.permissions));
       toast.success("Acces mis a jour");
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur mise a jour acces"));
@@ -559,17 +541,6 @@ const EmployeeDetails = () => {
           {renderEditableField("email", "Email", "email")}
           {renderEditableField("contractType", "Type de contrat")}
           {renderEditableField("salary", "Salaire", "number", null, employee.salary ? formatMoneyWithLabel(employee.salary) : "—")}
-          {renderEditableField(
-            "status",
-            "Statut",
-            "text",
-            [
-              { value: "ACTIVE", label: "Actif" },
-              { value: "INACTIVE", label: "Inactif" },
-              { value: "ON_LEAVE", label: "En conge" },
-            ],
-            translateStatus(employee.status)
-          )}
         </div>
       )}
 
@@ -625,22 +596,14 @@ const EmployeeDetails = () => {
           <div className="profile-field">
             <div className="field-label">Acces:</div>
             <div className="field-value" style={{ flex: 1 }}>
-              <div className="flex flex-col gap-2">
-                {EMPLOYEE_PERMISSION_OPTIONS.map((opt) => {
-                  const checked = Array.isArray(permissionsDraft) && permissionsDraft.includes(opt.key);
-                  return (
-                    <label key={opt.key} className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => togglePermissionDraft(opt.key)}
-                        disabled={isArchived}
-                      />
-                      <span>{opt.label}</span>
-                    </label>
-                  );
-                })}
+              <div className="text-xs text-gray-600 mb-2">
+                Activez une section, puis choisissez les actions autorisées (sinon: lecture seule).
               </div>
+              <EmployeePermissionPicker
+                value={permissionsDraft}
+                onChange={setPermissionsDraft}
+                disabled={isArchived}
+              />
 
               <button
                 type="button"

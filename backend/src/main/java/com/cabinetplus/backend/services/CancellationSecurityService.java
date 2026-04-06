@@ -46,17 +46,17 @@ public class CancellationSecurityService {
         return normalizeReason(reason);
     }
 
-    public String requirePinAndReason(User clinicOwner, String pin, String reason) {
-        if (clinicOwner == null) {
+    public String requirePinAndReason(User actor, String pin, String reason) {
+        if (actor == null) {
             throw new BadRequestException(Map.of("_", "Utilisateur introuvable"));
         }
 
-        if (clinicOwner.getGestionCabinetPinHash() == null) {
+        if (actor.getGestionCabinetPinHash() == null) {
             throw new BadRequestException(Map.of("pin", "Activez d'abord le code PIN (Paramètres → Sécurité)."));
         }
 
         String normalizedPin = normalizePin(pin);
-        if (!passwordEncoder.matches(normalizedPin, clinicOwner.getGestionCabinetPinHash())) {
+        if (!passwordEncoder.matches(normalizedPin, actor.getGestionCabinetPinHash())) {
             throw new BadRequestException(Map.of("pin", "Code PIN incorrect"));
         }
 

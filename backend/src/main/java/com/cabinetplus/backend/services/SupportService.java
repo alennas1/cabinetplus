@@ -330,6 +330,14 @@ public class SupportService {
         String ownerName = owner != null ? (nullToEmpty(owner.getFirstname()) + " " + nullToEmpty(owner.getLastname())).trim() : "";
         String clinicName = owner != null ? owner.getClinicName() : null;
         String phone = owner != null ? owner.getPhoneNumber() : null;
+
+        SupportMessage lastClinicMessage = thread != null && thread.getId() != null
+                ? messageRepository.findFirstByThreadIdAndSender_RoleNotOrderByCreatedAtDesc(thread.getId(), UserRole.ADMIN)
+                : null;
+        User lastClinicSender = lastClinicMessage != null ? lastClinicMessage.getSender() : null;
+        String lastClinicSenderName = lastClinicSender != null
+                ? (nullToEmpty(lastClinicSender.getFirstname()) + " " + nullToEmpty(lastClinicSender.getLastname())).trim()
+                : "";
         long unreadCount = countUnreadForViewer(thread, viewerIsAdmin);
         return new SupportThreadSummaryResponse(
                 thread.getId(),
@@ -342,7 +350,11 @@ public class SupportService {
                 thread.getFirstMessageAt(),
                 thread.getLastMessagePreview(),
                 thread.getLastMessageAt(),
-                unreadCount
+                unreadCount,
+                lastClinicSender != null ? lastClinicSender.getId() : null,
+                lastClinicSender != null && lastClinicSender.getRole() != null ? lastClinicSender.getRole().name() : null,
+                lastClinicSenderName.isBlank() ? null : lastClinicSenderName,
+                lastClinicSender != null ? lastClinicSender.getPhoneNumber() : null
         );
     }
 

@@ -626,6 +626,10 @@ const HandPaymentHistory = () => {
                   <strong>{formatStorageUsage(planUsage.storageUsedBytes, planUsage.storageMaxGb)}</strong>
                 </div>
               </section>
+
+              <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+                Patient actif = patient non archivé (champ <code>archivedAt</code> vide). Les patients archivés ne sont pas comptés.
+              </div>
             </div>
           ) : null}
 

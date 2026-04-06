@@ -30,6 +30,7 @@ import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { createFournisseur, getAllFournisseurs } from "../services/fournisseurService";
 import useDebouncedValue from "../hooks/useDebouncedValue";
+import { PERMISSIONS, userHasPermission } from "../utils/permissions";
 import "./Patients.css"; // Reuse the same CSS as Items
 
 const EXPENSE_CATEGORIES = {
@@ -45,6 +46,9 @@ const isExpenseCancelled = (expense) => String(expense?.recordStatus || "").toUp
 
 const Expenses = () => {
   const location = useLocation();
+  const { user } = useSelector((state) => state.auth);
+  const canAccessFournisseurs = userHasPermission(user, PERMISSIONS.FOURNISSEURS);
+  const canManageEmployees = userHasPermission(user, PERMISSIONS.GESTION_CABINET);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -118,6 +122,10 @@ const Expenses = () => {
   }, [debouncedSearch, filterBy]);
 
   const fetchFournisseurs = async () => {
+    if (!canAccessFournisseurs) {
+      setFournisseurs([]);
+      return;
+    }
     try {
       setLoadingFournisseurs(true);
       const data = await getAllFournisseurs();
@@ -131,6 +139,7 @@ const Expenses = () => {
   };
 
   const fetchEmployeesIfNeeded = async (category) => {
+    if (!canManageEmployees) return;
     if (category !== "SALARY") return;
     setLoadingEmployees(true);
     try {
@@ -146,7 +155,7 @@ const Expenses = () => {
 
   useEffect(() => {
     if (!showModal) return;
-    fetchFournisseurs();
+    if (canAccessFournisseurs) fetchFournisseurs();
     fetchEmployeesIfNeeded(formData.category);
   }, [showModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,6 +260,13 @@ const Expenses = () => {
     // Fetch employees if category = SALARY
     if (name === "category") {
       if (value === "SALARY") {
+        if (!canManageEmployees) {
+          toast.info("Catégorie non autorisée.");
+          setEmployees([]);
+          setSelectedEmployeeId("");
+          setFormData((prev) => ({ ...prev, category: "SUPPLIES", employeeId: "" }));
+          return;
+        }
         setLoadingEmployees(true);
         try {
           const data = await getEmployees();
@@ -308,8 +324,12 @@ const Expenses = () => {
       if (otherLabelError) nextErrors.otherCategoryLabel = otherLabelError;
     }
     if (formData.category === "SALARY") {
-      const employeeId = selectedEmployeeId || formData.employeeId;
-      if (!String(employeeId || "").trim()) nextErrors.employeeId = "Selectionnez un employe.";
+      if (!canManageEmployees) {
+        nextErrors.category = "Catégorie non autorisée.";
+      } else {
+        const employeeId = selectedEmployeeId || formData.employeeId;
+        if (!String(employeeId || "").trim()) nextErrors.employeeId = "Selectionnez un employe.";
+      }
     }
     if (Object.keys(nextErrors).length) {
       setFieldErrors(nextErrors);
@@ -319,12 +339,12 @@ const Expenses = () => {
       setIsSubmitting(true);
       const rawEmployeeId = selectedEmployeeId || formData.employeeId;
       const employeeId =
-        formData.category === "SALARY" && String(rawEmployeeId || "").trim()
+        canManageEmployees && formData.category === "SALARY" && String(rawEmployeeId || "").trim()
           ? Number(rawEmployeeId)
           : null;
 
       const fournisseurIdValue = String(formData.fournisseurId || "").trim();
-      const fournisseurId = fournisseurIdValue ? Number(fournisseurIdValue) : null;
+      const fournisseurId = canAccessFournisseurs && fournisseurIdValue ? Number(fournisseurIdValue) : null;
       const otherCategoryLabel =
         formData.category === "OTHER" ? String(formData.otherCategoryLabel || "").trim() : null;
 
@@ -598,21 +618,25 @@ const Expenses = () => {
               <FieldError message={fieldErrors.title} />
 
               <span className="field-label">Catégorie</span>
-              <ModernDropdown
-                value={formData.category}
-                onChange={(v) => handleChange({ target: { name: "category", value: v } })}
-                options={Object.entries(EXPENSE_CATEGORIES).map(([key, label]) => ({
-                  value: key,
-                  label,
-                }))}
-                ariaLabel="Categorie"
-                fullWidth
-              />
-              <select name="category" value={formData.category} onChange={handleChange} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
-                {Object.entries(EXPENSE_CATEGORIES).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
+                <ModernDropdown
+                  value={formData.category}
+                  onChange={(v) => handleChange({ target: { name: "category", value: v } })}
+                  options={Object.entries(EXPENSE_CATEGORIES)
+                    .filter(([key]) => canManageEmployees || key !== "SALARY")
+                    .map(([key, label]) => ({
+                    value: key,
+                    label,
+                  }))}
+                  ariaLabel="Categorie"
+                  fullWidth
+                />
+                <select name="category" value={formData.category} onChange={handleChange} required aria-hidden="true" tabIndex={-1} style={{ display: "none" }}>
+                  {Object.entries(EXPENSE_CATEGORIES)
+                    .filter(([key]) => canManageEmployees || key !== "SALARY")
+                    .map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
 
               {formData.category === "OTHER" ? (
                 <>
@@ -675,6 +699,7 @@ const Expenses = () => {
                 </>
               ) : null}
 
+              {canAccessFournisseurs ? (
               <div className="flex items-end justify-between gap-3 mb-3">
                 <div style={{ flex: 1 }}>
                   <span className="field-label">Fournisseur (optionnel)</span>
@@ -719,6 +744,7 @@ const Expenses = () => {
                   <Plus size={16} /> Créer
                 </button>
               </div>
+              ) : null}
 
               <span className="field-label">Montant</span>
               <MoneyInput
@@ -796,7 +822,7 @@ const Expenses = () => {
 	        </div>
 	      )}
 
-	      {showCreateFournisseurModal && (
+	      {canAccessFournisseurs && showCreateFournisseurModal && (
 	        <div
 	          className="modal-overlay"
 	          style={{ zIndex: 10000 }}

@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.cabinetplus.backend.enums.RecordStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -78,6 +79,7 @@ public class Prothesis {
     private String notes;
 
     @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
     @CollectionTable(
         name = "prothesis_teeth",
         joinColumns = @JoinColumn(name = "prothesis_id")

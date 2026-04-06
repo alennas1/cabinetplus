@@ -36,7 +36,7 @@ import org.hibernate.Hibernate;
 @Entity
 @Table(name = "users")
 @Data
-@ToString(exclude = { "passwordHash", "ownerDentist", "dentistProfile", "dentistSubscription" })
+@ToString(exclude = { "passwordHash", "ownerDentist", "userPreferences", "dentistProfile", "dentistSubscription" })
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
@@ -102,6 +102,11 @@ public class User {
     @Column(name = "permission", length = 50)
     private Set<String> permissions = new HashSet<>();
 
+    // Per-user UI preferences (used primarily for EMPLOYEE accounts).
+    @JsonIgnore
+    @OneToOne(mappedBy = "user", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    private UserPreferences userPreferences;
+
     // Dentist-only data (split into dedicated tables)
     @JsonIgnore
     @OneToOne(mappedBy = "user", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
@@ -152,6 +157,15 @@ public class User {
             this.dentistProfile = profile;
         }
         return dentistProfile;
+    }
+
+    private UserPreferences ensureUserPreferences() {
+        if (userPreferences == null) {
+            UserPreferences prefs = new UserPreferences();
+            prefs.setUser(this);
+            this.userPreferences = prefs;
+        }
+        return userPreferences;
     }
 
     private DentistSubscription ensureDentistSubscription() {
@@ -247,78 +261,113 @@ public class User {
     }
 
     public String getWorkingHoursMode() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getWorkingHoursMode();
+        if (isEmployee()) {
+            return userPreferences != null ? userPreferences.getWorkingHoursMode() : "standard";
+        }
         return dentistProfile != null ? dentistProfile.getWorkingHoursMode() : "standard";
     }
 
     public void setWorkingHoursMode(String mode) {
+        if (isEmployee()) {
+            ensureUserPreferences().setWorkingHoursMode(mode);
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setWorkingHoursMode(mode);
     }
 
     public String getWorkingHoursStart() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getWorkingHoursStart();
+        if (isEmployee()) {
+            return userPreferences != null ? userPreferences.getWorkingHoursStart() : "08:00";
+        }
         return dentistProfile != null ? dentistProfile.getWorkingHoursStart() : "08:00";
     }
 
     public void setWorkingHoursStart(String start) {
+        if (isEmployee()) {
+            ensureUserPreferences().setWorkingHoursStart(start);
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setWorkingHoursStart(start);
     }
 
     public String getWorkingHoursEnd() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getWorkingHoursEnd();
+        if (isEmployee()) {
+            return userPreferences != null ? userPreferences.getWorkingHoursEnd() : "17:00";
+        }
         return dentistProfile != null ? dentistProfile.getWorkingHoursEnd() : "17:00";
     }
 
     public void setWorkingHoursEnd(String end) {
+        if (isEmployee()) {
+            ensureUserPreferences().setWorkingHoursEnd(end);
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setWorkingHoursEnd(end);
     }
 
     public String getTimeFormat() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getTimeFormat();
+        if (isEmployee()) {
+            return userPreferences != null ? userPreferences.getTimeFormat() : "24h";
+        }
         return dentistProfile != null ? dentistProfile.getTimeFormat() : "24h";
     }
 
     public void setTimeFormat(String format) {
+        if (isEmployee()) {
+            ensureUserPreferences().setTimeFormat(format);
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setTimeFormat(format);
     }
 
     public String getDateFormat() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getDateFormat();
+        if (isEmployee()) {
+            return userPreferences != null ? userPreferences.getDateFormat() : "dd/mm/yyyy";
+        }
         return dentistProfile != null ? dentistProfile.getDateFormat() : "dd/mm/yyyy";
     }
 
     public void setDateFormat(String format) {
+        if (isEmployee()) {
+            ensureUserPreferences().setDateFormat(format);
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setDateFormat(format);
     }
 
     public String getMoneyFormat() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getMoneyFormat();
+        if (isEmployee()) {
+            return userPreferences != null ? userPreferences.getMoneyFormat() : "space";
+        }
         return dentistProfile != null ? dentistProfile.getMoneyFormat() : "space";
     }
 
     public void setMoneyFormat(String format) {
+        if (isEmployee()) {
+            ensureUserPreferences().setMoneyFormat(format);
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setMoneyFormat(format);
     }
 
     public String getCurrencyLabel() {
-        User owner = resolveClinicOwner();
-        if (owner != this) return owner.getCurrencyLabel();
+        if (isEmployee()) {
+            return userPreferences != null ? userPreferences.getCurrencyLabel() : "DA";
+        }
         return dentistProfile != null ? dentistProfile.getCurrencyLabel() : "DA";
     }
 
     public void setCurrencyLabel(String label) {
+        if (isEmployee()) {
+            ensureUserPreferences().setCurrencyLabel(label);
+            return;
+        }
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setCurrencyLabel(label);
     }
@@ -343,6 +392,17 @@ public class User {
     public void setPatientMoneyOwedThreshold(Double threshold) {
         DentistProfile profile = ensureDentistProfile();
         if (profile != null) profile.setPatientMoneyOwedThreshold(threshold);
+    }
+
+    public Integer getPatientAutoArchiveInactiveMonths() {
+        User owner = resolveClinicOwner();
+        if (owner != this) return owner.getPatientAutoArchiveInactiveMonths();
+        return dentistProfile != null ? dentistProfile.getPatientAutoArchiveInactiveMonths() : null;
+    }
+
+    public void setPatientAutoArchiveInactiveMonths(Integer months) {
+        DentistProfile profile = ensureDentistProfile();
+        if (profile != null) profile.setPatientAutoArchiveInactiveMonths(months);
     }
 
     @PrePersist

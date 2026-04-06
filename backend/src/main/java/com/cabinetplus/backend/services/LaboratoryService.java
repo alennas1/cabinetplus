@@ -163,11 +163,15 @@ public class LaboratoryService {
             return Page.empty(pageable);
         }
 
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
         return laboratoryPaymentRepository.searchPaymentsPaged(
                         laboratory.getId(),
                         user,
                         RecordStatus.ARCHIVED,
+                        fromEnabled,
                         from,
+                        toEnabled,
                         to,
                         pageable
                 )
@@ -195,12 +199,16 @@ public class LaboratoryService {
             return new CountTotalResponseDTO(0, 0.0);
         }
 
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
         Object[] row = laboratoryPaymentRepository.getPaymentsSummary(
                 laboratory.getId(),
                 user,
                 RecordStatus.ARCHIVED,
                 RecordStatus.CANCELLED,
+                fromEnabled,
                 from,
+                toEnabled,
                 to
         );
 
@@ -275,20 +283,26 @@ public class LaboratoryService {
 
         String safeKey = sortKey != null ? sortKey.trim() : "";
         Page<Prothesis> page;
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
         if (safeKey.isBlank() || "billingDate".equalsIgnoreCase(safeKey)) {
             Pageable noSort = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
             page = desc
                     ? prothesisRepository.searchBillingProthesesByPractitionerAndLaboratoryOrderByBillingDateDesc(
                         user,
                         laboratory.getId(),
+                        fromEnabled,
                         from,
+                        toEnabled,
                         to,
                         noSort
                     )
                     : prothesisRepository.searchBillingProthesesByPractitionerAndLaboratoryOrderByBillingDateAsc(
                         user,
                         laboratory.getId(),
+                        fromEnabled,
                         from,
+                        toEnabled,
                         to,
                         noSort
                     );
@@ -296,7 +310,9 @@ public class LaboratoryService {
             page = prothesisRepository.searchBillingProthesesByPractitionerAndLaboratory(
                     user,
                     laboratory.getId(),
+                    fromEnabled,
                     from,
+                    toEnabled,
                     to,
                     pageable
             );
@@ -344,7 +360,9 @@ public class LaboratoryService {
         Object[] row = prothesisRepository.getBillingEntriesSummaryByPractitionerAndLaboratory(
                 user,
                 laboratory.getId(),
+                from != null,
                 from,
+                to != null,
                 to
         );
 

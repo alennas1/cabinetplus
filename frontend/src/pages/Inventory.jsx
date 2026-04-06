@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { Plus, Search, Edit2, Filter, X } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -31,6 +32,7 @@ import PhoneInput from "../components/PhoneInput";
 import { isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
+import { PERMISSIONS, userHasPermission } from "../utils/permissions";
 import "./Patients.css";
 
 const ITEM_CATEGORIES = {
@@ -49,6 +51,9 @@ const isInventoryItemCancelled = (item) => String(item?.recordStatus || "").toUp
 const Inventory = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useSelector((state) => state.auth);
+  const canAccessCatalogue = userHasPermission(user, PERMISSIONS.CATALOGUE);
+  const canAccessFournisseurs = userHasPermission(user, PERMISSIONS.FOURNISSEURS);
 
   const focusItemId = useMemo(() => {
     const sp = new URLSearchParams(location.search || "");
@@ -120,8 +125,9 @@ const Inventory = () => {
 
   useEffect(() => {
     fetchItemDefaults();
-    fetchFournisseurs();
-  }, []);
+    if (canAccessFournisseurs) fetchFournisseurs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccessFournisseurs]);
 
   const fetchItemDefaults = async () => {
     try {
@@ -179,6 +185,7 @@ const Inventory = () => {
   }, [search, filterBy]);
 
   const fetchFournisseurs = async () => {
+    if (!canAccessFournisseurs) return;
     try {
       const data = await getAllFournisseurs();
       setFournisseurs(Array.isArray(data) ? data : []);
@@ -335,9 +342,10 @@ const Inventory = () => {
     try {
       setIsSubmitting(true);
       const fournisseurIdValue = String(formData.fournisseurId || "").trim();
+      const fournisseurId = canAccessFournisseurs && fournisseurIdValue ? Number(fournisseurIdValue) : null;
       const payload = {
         itemDefaultId: Number(formData.itemDefaultId),
-        fournisseurId: fournisseurIdValue ? Number(fournisseurIdValue) : null,
+        fournisseurId,
         quantity,
         unitPrice,
         expiryDate: formData.expiryDate || null,
@@ -586,7 +594,7 @@ const Inventory = () => {
             >
               <td>{i.itemDefaultName}</td>
               <td>
-                {i.fournisseurName && i.fournisseurId ? (
+                {i.fournisseurName && canAccessFournisseurs && i.fournisseurId ? (
                   <button
                     type="button"
                     className="table-link"
@@ -596,7 +604,7 @@ const Inventory = () => {
                     {i.fournisseurName}
                   </button>
                 ) : (
-                  "—"
+                  i.fournisseurName || "—"
                 )}
               </td>
               <td>{i.quantity}</td>
@@ -685,20 +693,22 @@ const Inventory = () => {
                   required
                 />
 
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setNewItemDefaultForm((s) => ({ ...s, name: itemDefaultQuery }));
-                    setItemDefaultErrors({});
-                    setShowCreateItemDefaultModal(true);
-                  }}
-                  className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  aria-label="Ajouter au catalogue"
-                  title="Ajouter au catalogue"
-                >
-                  <Plus size={16} />
-                </button>
+                {canAccessCatalogue && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setNewItemDefaultForm((s) => ({ ...s, name: itemDefaultQuery }));
+                      setItemDefaultErrors({});
+                      setShowCreateItemDefaultModal(true);
+                    }}
+                    className="absolute right-2 top-1/2 z-10 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-label="Ajouter au catalogue"
+                    title="Ajouter au catalogue"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
 
                 {showItemDefaultSuggestions && filteredItemDefaultOptions.length > 0 && (
                   <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 shadow-xl max-h-48 overflow-auto">
@@ -720,10 +730,13 @@ const Inventory = () => {
                 )}
               </div>
               <FieldError message={fieldErrors.itemDefaultId} />
-              <div className="mt-1 mb-3 text-[11px] text-gray-500">
-                Le bouton + ajoute un article au <span className="font-medium">catalogue</span>.
-              </div>
+              {canAccessCatalogue && (
+                <div className="mt-1 mb-3 text-[11px] text-gray-500">
+                  Le bouton + ajoute un article au <span className="font-medium">catalogue</span>.
+                </div>
+              )}
 
+              {canAccessFournisseurs ? (
               <div className="flex items-end justify-between gap-3 mb-3">
                 <div style={{ flex: 1 }}>
                   <span className="field-label">Fournisseur (optionnel)</span>
@@ -763,6 +776,7 @@ const Inventory = () => {
                   <Plus size={16} /> Créer
                 </button>
               </div>
+              ) : null}
 
               <span className="field-label">Quantité</span>
               <input
@@ -808,7 +822,7 @@ const Inventory = () => {
         </div>
       )}
 
-      {showCreateItemDefaultModal && (
+      {canAccessCatalogue && showCreateItemDefaultModal && (
         <div
           className="modal-overlay"
           style={{ zIndex: 10000 }}
@@ -910,7 +924,7 @@ const Inventory = () => {
         </div>
       )}
 
-      {showCreateFournisseurModal && (
+      {canAccessFournisseurs && showCreateFournisseurModal && (
         <div
           className="modal-overlay"
           style={{ zIndex: 10000 }}

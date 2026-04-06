@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import PinCodeInput from "./PinCodeInput";
 import DentistPageSkeleton from "./DentistPageSkeleton";
+import { PERMISSIONS, userHasPermission } from "../utils/permissions";
 import {
   clearGestionCabinetUnlocked,
   getCachedGestionCabinetPinEnabled,
@@ -25,6 +26,7 @@ const GestionCabinetPinGuard = () => {
   const [enabled, setEnabled] = useState(cachedEnabled ?? false);
   const unlocked = isGestionCabinetUnlocked(userKey);
   const showGate = enabled && !unlocked;
+  const backPath = userHasPermission(user, PERMISSIONS.DASHBOARD) ? "/dashboard" : "/appointments";
 
   const [pin, setPin] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -58,7 +60,7 @@ const GestionCabinetPinGuard = () => {
       cancelled = true;
       window.removeEventListener("gcPinStatusChanged", onChanged);
     };
-  }, [userKey, location.key]);
+  }, [userKey]);
 
   useEffect(() => {
     return () => {
@@ -159,7 +161,7 @@ const GestionCabinetPinGuard = () => {
 
             <button
               type="button"
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate(backPath)}
               className="px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-50"
             >
               Retour

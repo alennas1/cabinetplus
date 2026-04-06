@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Clock, Moon, Settings as SettingsIcon } from "react-feather";
 import { useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import BackButton from "../components/BackButton";
 import { toast } from "react-toastify";
 import { getApiErrorMessage } from "../utils/error";
+import { CLINIC_ROLES, getClinicRole } from "../utils/clinicAccess";
 import {
   DATE_FORMATS,
   DEFAULT_TIME_FORMAT,
@@ -32,8 +34,11 @@ import "./Preference.css";
 
 const Preference = ({ showWorkingHours = true }) => {
   const location = useLocation();
+  const user = useSelector((state) => state?.auth?.user);
+  const isEmployee = getClinicRole(user) === CLINIC_ROLES.EMPLOYEE;
+  const canShowWorkingHours = showWorkingHours && !isEmployee;
   const showBackButton = location.pathname.startsWith("/settings/");
-  const [activeTab, setActiveTab] = useState(showWorkingHours ? "planning" : "heures");
+  const [activeTab, setActiveTab] = useState(() => (canShowWorkingHours ? "planning" : "heures"));
   const initialPreference = useMemo(() => getWorkingHoursPreference(), []);
   const [mode, setMode] = useState(initialPreference.mode);
   const [startTime, setStartTime] = useState(initialPreference.startTime);
@@ -45,6 +50,12 @@ const Preference = ({ showWorkingHours = true }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const moneySample = 2500;
+
+  useEffect(() => {
+    if (!canShowWorkingHours) {
+      setActiveTab((prev) => (prev === "planning" ? "heures" : prev));
+    }
+  }, [canShowWorkingHours]);
 
   useEffect(() => {
     const loadPreferences = async () => {
@@ -101,30 +112,33 @@ const Preference = ({ showWorkingHours = true }) => {
   ];
 
   const isInvalidCustomRange =
-    showWorkingHours &&
+    canShowWorkingHours &&
     mode === WORKING_HOURS_MODES.CUSTOM &&
     (!startTime || !endTime || startTime >= endTime);
 
   const handleSave = async () => {
-    if (saving || isInvalidCustomRange) return;
-
-    const nextPreference =
-      mode === WORKING_HOURS_MODES.STANDARD
-        ? DEFAULT_WORKING_HOURS
-        : mode === WORKING_HOURS_MODES.FULL_DAY
-          ? { mode, startTime: "00:00", endTime: "23:59" }
-          : { mode, startTime, endTime };
+    if (saving || (canShowWorkingHours && isInvalidCustomRange)) return;
 
     const payload = {
       ...buildPreferencePayload(),
-      workingHoursMode: nextPreference.mode,
-      workingHoursStart: nextPreference.startTime,
-      workingHoursEnd: nextPreference.endTime,
       timeFormat: timeFormat || DEFAULT_TIME_FORMAT,
       dateFormat: dateFormat || DEFAULT_DATE_FORMAT,
       moneyFormat: moneyFormat || DEFAULT_MONEY_FORMAT,
       currencyLabel: currencyLabel || DEFAULT_CURRENCY_LABEL,
     };
+
+    if (canShowWorkingHours) {
+      const nextPreference =
+        mode === WORKING_HOURS_MODES.STANDARD
+          ? DEFAULT_WORKING_HOURS
+          : mode === WORKING_HOURS_MODES.FULL_DAY
+            ? { mode, startTime: "00:00", endTime: "23:59" }
+            : { mode, startTime, endTime };
+
+      payload.workingHoursMode = nextPreference.mode;
+      payload.workingHoursStart = nextPreference.startTime;
+      payload.workingHoursEnd = nextPreference.endTime;
+    }
 
     try {
       setSaving(true);
@@ -160,36 +174,36 @@ const Preference = ({ showWorkingHours = true }) => {
       {showBackButton && <BackButton fallbackTo="/settings" />}
       <div className="preference-topbar">
         <div className="preference-topbar-left">
-          <PageHeader
-            title="Preferences"
-            subtitle={
-              showWorkingHours
-                ? "Definissez l'horaire du travail et le format d'affichage."
-                : "Definissez le format d'affichage des dates, heures, montants et devise."
-            }
-            align="left"
-          />
+            <PageHeader
+              title="Preferences"
+              subtitle={
+                canShowWorkingHours
+                  ? "Definissez l'horaire du travail et le format d'affichage."
+                  : "Definissez le format d'affichage des dates, heures, montants et devise."
+              }
+              align="left"
+            />
         </div>
         <button
-          type="button"
-          className="preference-save-btn preference-save-btn-top"
-          onClick={handleSave}
-          disabled={isInvalidCustomRange || saving}
-        >
-          {saving ? "Enregistrement..." : "Enregistrer"}
-        </button>
-      </div>
-
-      <div className="tab-buttons">
-        {showWorkingHours ? (
-          <button
             type="button"
-            className={activeTab === "planning" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("planning")}
+            className="preference-save-btn preference-save-btn-top"
+            onClick={handleSave}
+            disabled={(canShowWorkingHours ? isInvalidCustomRange : false) || saving}
           >
-            Planning
+            {saving ? "Enregistrement..." : "Enregistrer"}
           </button>
-        ) : null}
+        </div>
+
+        <div className="tab-buttons">
+          {canShowWorkingHours ? (
+            <button
+              type="button"
+              className={activeTab === "planning" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setActiveTab("planning")}
+            >
+              Planning
+            </button>
+          ) : null}
         <button
           type="button"
           className={activeTab === "heures" ? "tab-btn active" : "tab-btn"}
@@ -222,7 +236,7 @@ const Preference = ({ showWorkingHours = true }) => {
 
       <div className="preference-section">
         <div className="preference-card preference-card-main">
-          {showWorkingHours && activeTab === "planning" ? (
+          {canShowWorkingHours && activeTab === "planning" ? (
             <div className="preference-block">
               <div className="preference-card-header">
                 <div>

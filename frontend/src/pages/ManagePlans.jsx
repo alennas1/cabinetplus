@@ -119,7 +119,7 @@ const PlanFormModal = ({
         <FieldError message={fieldErrors?.yearlyMonthlyPrice} />
         <small className='form-small-text'>Prix mensuel si facturé annuellement (doit être $\le$ au prix mensuel).</small>
 
-        <span className="field-label">Durée Jours (pour essai/défaut)</span>
+        <span className="field-label">Durée (jours)</span>
         <input
           type="number"
           name="durationDays"

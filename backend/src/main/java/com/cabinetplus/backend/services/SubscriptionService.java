@@ -1,6 +1,7 @@
 package com.cabinetplus.backend.services;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import org.springframework.stereotype.Service;
 
@@ -29,7 +30,7 @@ public class SubscriptionService {
     public User refreshSubscription(User user) {
         if (user == null) return null;
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         boolean changed = false;
 
         if (user.getNextPlan() != null
@@ -43,15 +44,20 @@ public class SubscriptionService {
             }
 
             if (canActivateNext) {
-                BillingCycle cycle = user.getNextPlanBillingCycle() != null ? user.getNextPlanBillingCycle() : BillingCycle.MONTHLY;
+                BillingCycle requestedCycle = user.getNextPlanBillingCycle();
                 LocalDateTime start = user.getNextPlanStartDate();
 
                 user.setPlan(user.getNextPlan());
-                user.setPlanBillingCycle(cycle);
                 user.setPlanStartDate(start);
 
                 LocalDateTime nextExpiration = user.getNextPlanExpirationDate();
-                if (nextExpiration == null) {
+                boolean isLifetime = requestedCycle == null && nextExpiration == null;
+                BillingCycle appliedCycle = isLifetime ? null : (requestedCycle != null ? requestedCycle : BillingCycle.MONTHLY);
+                BillingCycle cycle = appliedCycle != null ? appliedCycle : BillingCycle.MONTHLY;
+
+                user.setPlanBillingCycle(appliedCycle);
+
+                if (nextExpiration == null && !isLifetime) {
                     nextExpiration = computeExpiration(start, user.getPlan(), cycle);
                 }
                 user.setExpirationDate(nextExpiration);
@@ -79,11 +85,6 @@ public class SubscriptionService {
 
     private static LocalDateTime computeExpiration(LocalDateTime startDate, Plan plan, BillingCycle cycle) {
         if (startDate == null || plan == null) return null;
-        Integer monthlyPrice = plan.getMonthlyPrice();
-        boolean isFree = monthlyPrice != null && monthlyPrice == 0;
-        if (isFree) {
-            return startDate.plusDays(7);
-        }
         return (cycle == BillingCycle.YEARLY) ? startDate.plusYears(1) : startDate.plusMonths(1);
     }
 }

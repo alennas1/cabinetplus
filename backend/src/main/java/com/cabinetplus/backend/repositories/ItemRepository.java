@@ -102,12 +102,12 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
                     where e.fournisseur_id = :fournisseurId
                       and e.created_by = :createdById
                       and coalesce(e.record_status, 'ACTIVE') <> 'ARCHIVED'
-                ) entries
-                where (:fromDt is null or entries.billing_date >= :fromDt)
-                  and (:toDt is null or entries.billing_date <= :toDt)
-            """,
-            countQuery = """
-                select count(*)
+                 ) entries
+                where (:fromEnabled = false or entries.billing_date >= :fromDt)
+                  and (:toEnabled = false or entries.billing_date <= :toDt)
+             """,
+             countQuery = """
+                 select count(*)
                 from (
                     select
                         i.id as reference_id,
@@ -137,19 +137,21 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
                     where e.fournisseur_id = :fournisseurId
                       and e.created_by = :createdById
                       and coalesce(e.record_status, 'ACTIVE') <> 'ARCHIVED'
-                ) entries
-                where (:fromDt is null or entries.billing_date >= :fromDt)
-                  and (:toDt is null or entries.billing_date <= :toDt)
-            """,
-            nativeQuery = true
-    )
-    Page<Object[]> findFournisseurBillingEntries(
-            @Param("fournisseurId") Long fournisseurId,
-            @Param("createdById") Long createdById,
-            @Param("fromDt") LocalDateTime fromDt,
-            @Param("toDt") LocalDateTime toDt,
-            Pageable pageable
-    );
+                 ) entries
+                where (:fromEnabled = false or entries.billing_date >= :fromDt)
+                  and (:toEnabled = false or entries.billing_date <= :toDt)
+             """,
+             nativeQuery = true
+     )
+     Page<Object[]> findFournisseurBillingEntries(
+             @Param("fournisseurId") Long fournisseurId,
+             @Param("createdById") Long createdById,
+             @Param("fromEnabled") boolean fromEnabled,
+             @Param("fromDt") LocalDateTime fromDt,
+             @Param("toEnabled") boolean toEnabled,
+             @Param("toDt") LocalDateTime toDt,
+             Pageable pageable
+     );
 
     @Query(
             value = """
@@ -174,16 +176,18 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
                     where e.fournisseur_id = :fournisseurId
                       and e.created_by = :createdById
                       and coalesce(e.record_status, 'ACTIVE') <> 'ARCHIVED'
-                ) entries
-                where (:fromDt is null or entries.billing_date >= :fromDt)
-                  and (:toDt is null or entries.billing_date <= :toDt)
-            """,
-            nativeQuery = true
-    )
-    Object[] getFournisseurBillingEntriesSummary(
-            @Param("fournisseurId") Long fournisseurId,
-            @Param("createdById") Long createdById,
-            @Param("fromDt") LocalDateTime fromDt,
-            @Param("toDt") LocalDateTime toDt
-    );
+                 ) entries
+                where (:fromEnabled = false or entries.billing_date >= :fromDt)
+                  and (:toEnabled = false or entries.billing_date <= :toDt)
+             """,
+             nativeQuery = true
+     )
+     Object[] getFournisseurBillingEntriesSummary(
+             @Param("fournisseurId") Long fournisseurId,
+             @Param("createdById") Long createdById,
+             @Param("fromEnabled") boolean fromEnabled,
+             @Param("fromDt") LocalDateTime fromDt,
+             @Param("toEnabled") boolean toEnabled,
+             @Param("toDt") LocalDateTime toDt
+     );
 }

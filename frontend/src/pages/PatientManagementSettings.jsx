@@ -18,6 +18,7 @@ const PatientManagementSettings = () => {
   const [savedMessage, setSavedMessage] = useState("");
   const [cancelledThreshold, setCancelledThreshold] = useState("0");
   const [owedThreshold, setOwedThreshold] = useState("0");
+  const [autoArchiveMonths, setAutoArchiveMonths] = useState("NEVER");
 
   useEffect(() => {
     const load = async () => {
@@ -26,9 +27,12 @@ const PatientManagementSettings = () => {
         const data = await getPatientManagementSettings();
         setCancelledThreshold(String(data?.cancelledAppointmentsThreshold ?? 0));
         setOwedThreshold(String(data?.moneyOwedThreshold ?? 0));
+        const months = Number(data?.autoArchiveInactiveMonths || 0);
+        setAutoArchiveMonths(months === 12 ? "12" : months === 24 ? "24" : months === 60 ? "60" : "NEVER");
       } catch (error) {
         setCancelledThreshold("0");
         setOwedThreshold("0");
+        setAutoArchiveMonths("NEVER");
       } finally {
         setLoading(false);
       }
@@ -42,6 +46,7 @@ const PatientManagementSettings = () => {
     const payload = {
       cancelledAppointmentsThreshold: Math.max(0, Number.parseInt(cancelledThreshold || "0", 10) || 0),
       moneyOwedThreshold: Math.max(0, Number(owedThreshold || 0) || 0),
+      autoArchiveInactiveMonths: autoArchiveMonths === "NEVER" ? 0 : Number(autoArchiveMonths || 0) || 0,
     };
 
     try {
@@ -49,6 +54,8 @@ const PatientManagementSettings = () => {
       const saved = await updatePatientManagementSettings(payload);
       setCancelledThreshold(String(saved?.cancelledAppointmentsThreshold ?? payload.cancelledAppointmentsThreshold));
       setOwedThreshold(String(saved?.moneyOwedThreshold ?? payload.moneyOwedThreshold));
+      const savedMonths = Number(saved?.autoArchiveInactiveMonths || 0);
+      setAutoArchiveMonths(savedMonths === 12 ? "12" : savedMonths === 24 ? "24" : savedMonths === 60 ? "60" : "NEVER");
       setSavedMessage("Paramètres enregistrés.");
       window.setTimeout(() => setSavedMessage(""), 2200);
     } catch (error) {
@@ -116,6 +123,23 @@ const PatientManagementSettings = () => {
               />
               <div style={{ fontSize: 12, color: "#64748b" }}>
                 Devise: {currencyLabel}
+              </div>
+            </div>
+
+            <div className="preference-input-group">
+              <label htmlFor="auto-archive">Archivage automatique (patients inactifs)</label>
+              <select
+                id="auto-archive"
+                value={autoArchiveMonths}
+                onChange={(e) => setAutoArchiveMonths(e.target.value)}
+              >
+                <option value="NEVER">Jamais</option>
+                <option value="12">12 mois</option>
+                <option value="24">24 mois</option>
+                <option value="60">5 ans</option>
+              </select>
+              <div style={{ fontSize: 12, color: "#64748b" }}>
+                Si aucune activité liée au patient pendant cette période, il sera archivé automatiquement.
               </div>
             </div>
           </div>

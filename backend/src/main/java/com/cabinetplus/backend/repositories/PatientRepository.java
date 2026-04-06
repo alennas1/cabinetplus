@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Pageable;
 
 import com.cabinetplus.backend.models.Patient;
 import com.cabinetplus.backend.models.User;
@@ -124,6 +125,42 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
               )
             """)
     long countIfActiveByIdAndCreatedBy(@Param("patientId") Long patientId, @Param("owner") User owner, @Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+            select p.id
+            from Patient p
+            where p.createdBy = :owner
+              and p.archivedAt is null
+              and coalesce(p.updatedAt, p.createdAt) < :cutoff
+              and not exists (select 1 from Appointment a where a.patient = p and coalesce(a.updatedAt, a.createdAt, a.dateTimeStart) >= :cutoff)
+              and not exists (select 1 from Treatment t where t.patient = p and coalesce(t.updatedAt, t.date) >= :cutoff)
+              and not exists (select 1 from Document d where d.patient = p and coalesce(d.cancelledAt, d.uploadedAt) >= :cutoff)
+              and not exists (select 1 from Payment pay where pay.patient = p and coalesce(pay.cancelledAt, pay.date) >= :cutoff)
+              and not exists (select 1 from Prescription pr where pr.patient = p and coalesce(pr.cancelledAt, pr.date) >= :cutoff)
+              and not exists (select 1 from Prothesis prt where prt.patient = p and coalesce(prt.updatedAt, prt.dateCreated) >= :cutoff)
+              and not exists (select 1 from Justification j where j.patient = p and coalesce(j.cancelledAt, j.date) >= :cutoff)
+            order by p.id asc
+            """)
+    List<Long> findInactivePatientIdsByCreatedBy(@Param("owner") User owner, @Param("cutoff") LocalDateTime cutoff, Pageable pageable);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query("""
+            update Patient p
+            set p.archivedAt = :archivedAt,
+                p.archivedBy = :archivedBy,
+                p.updatedAt = :archivedAt,
+                p.updatedBy = :archivedBy
+            where p.createdBy = :owner
+              and p.archivedAt is null
+              and p.id in :patientIds
+            """)
+    int archivePatientsByIds(
+            @Param("owner") User owner,
+            @Param("archivedBy") User archivedBy,
+            @Param("archivedAt") LocalDateTime archivedAt,
+            @Param("patientIds") List<Long> patientIds
+    );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional

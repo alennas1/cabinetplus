@@ -931,6 +931,30 @@
   color: #991b1b;
 }
 
+.action-btn.deactivate {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.action-btn.deactivate:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.action-btn.activate {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.action-btn.activate:hover {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #166534;
+}
+
 .context-badges {
   display: flex;
   flex-wrap: wrap;

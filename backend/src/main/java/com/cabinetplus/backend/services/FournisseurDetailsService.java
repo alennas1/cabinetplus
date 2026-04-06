@@ -76,11 +76,15 @@ public class FournisseurDetailsService {
             return Page.empty(pageable);
         }
 
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
         return fournisseurPaymentRepository.searchPaymentsPaged(
                         fournisseur.getId(),
                         user,
                         RecordStatus.ARCHIVED,
+                        fromEnabled,
                         from,
+                        toEnabled,
                         to,
                         pageable
                 )
@@ -108,12 +112,16 @@ public class FournisseurDetailsService {
             return new CountTotalResponseDTO(0, 0.0);
         }
 
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
         Object[] row = fournisseurPaymentRepository.getPaymentsSummary(
                 fournisseur.getId(),
                 user,
                 RecordStatus.ARCHIVED,
                 RecordStatus.CANCELLED,
+                fromEnabled,
                 from,
+                toEnabled,
                 to
         );
 
@@ -178,10 +186,14 @@ public class FournisseurDetailsService {
             return Page.empty(pageable);
         }
 
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
         Page<Object[]> raw = itemRepository.findFournisseurBillingEntries(
                 fournisseur.getId(),
                 user.getId(),
+                fromEnabled,
                 from,
+                toEnabled,
                 to,
                 pageable
         );
@@ -220,10 +232,14 @@ public class FournisseurDetailsService {
             return new CountTotalResponseDTO(0, 0.0);
         }
 
+        boolean fromEnabled = from != null;
+        boolean toEnabled = to != null;
         Object[] row = itemRepository.getFournisseurBillingEntriesSummary(
                 fournisseur.getId(),
                 user.getId(),
+                fromEnabled,
                 from,
+                toEnabled,
                 to
         );
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+﻿import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Search, ChevronDown, Send, Edit2, X, ArrowUpRight, DownloadCloud, Check } from "react-feather";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -147,7 +147,7 @@ const Prosthetics = () => {
         setLaboratories(Array.isArray(lData) ? lData : []);
         setProthesisCatalog(Array.isArray(catalogData) ? catalogData : []);
       } catch (err) {
-        toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
+        toast.error(getApiErrorMessage(err, "Erreur de chargement des donnÃ©es"));
       }
     };
 
@@ -241,7 +241,7 @@ const Prosthetics = () => {
       }
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
-      toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
+      toast.error(getApiErrorMessage(err, "Erreur de chargement des donnÃ©es"));
     } finally {
       if (requestId !== requestIdRef.current) return;
       setLoading(false);
@@ -454,7 +454,7 @@ const Prosthetics = () => {
       setIsCancellingProthesis(true);
       await cancelProthetics(prothesisToCancel.id, { pin, reason });
       setSelectedIds((current) => current.filter((id) => id !== prothesisToCancel.id));
-      toast.success("Travail annulé");
+      toast.success("Travail annulÃ©");
       await loadProthesesPage();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
@@ -641,7 +641,7 @@ const Prosthetics = () => {
                   className="btn-primary"
                   onClick={handleBulkReturn}
                   disabled={isReturningBulk}
-                  title="Marquer comme reçu"
+                  title="Marquer comme reÃ§u"
                 >
                   {isReturningBulk ? `Retour... (${selectedIds.length})` : `Retour (${selectedIds.length})`}
                 </button>
@@ -649,7 +649,7 @@ const Prosthetics = () => {
 
               {!canBulkSendToLab && !canBulkReturn ? (
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Actions disponibles seulement si les travaux sélectionnés ont le même statut.
+                  Actions disponibles seulement si les travaux sÃ©lectionnÃ©s ont le mÃªme statut.
                 </div>
               ) : null}
             </div>
@@ -798,7 +798,7 @@ const Prosthetics = () => {
                 ref={selectAllRef}
                 type="checkbox"
                 className="prothesis-select-checkbox"
-                aria-label="Sélectionner tout (page)"
+                aria-label="SÃ©lectionner tout (page)"
                 checked={isAllCurrentSelected}
                 disabled={currentPageIds.length === 0}
                 onChange={() => {
@@ -814,12 +814,12 @@ const Prosthetics = () => {
                 }}
               />
             </th>
-            <SortableTh label="Travail / Matériau" sortKey="work" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Travail / MatÃ©riau" sortKey="work" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Code" sortKey="code" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Dents" sortKey="teeth" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Laboratoire" sortKey="lab" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Coût labo" sortKey="labCost" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Dates" sortKey="dates" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="CoÃ»t labo" sortKey="labCost" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Créé le" sortKey="dates" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
@@ -871,16 +871,16 @@ const Prosthetics = () => {
                       onClick={() =>
                         setTeethPreview({
                           teeth: p.teeth,
-                          title: `Prothèse: ${p.prothesisName || ""}`,
+                          title: `ProthÃ¨se: ${p.prothesisName || ""}`,
                         })
                       }
                       title={p.teeth.join(", ")}
-                      aria-label="Voir le schéma dentaire"
+                      aria-label="Voir le schÃ©ma dentaire"
                     >
                       <FaTooth size={16} />
                     </button>
                   ) : (
-                    "—"
+                    "â€”"
                   )}
                 </td>
                 <td style={{ fontWeight: "500" }}>
@@ -920,15 +920,7 @@ const Prosthetics = () => {
                   {p.labCost ? formatMoneyWithLabel(p.labCost) : "-"}
                 </td>
                 <td>
-                  <div className="flex items-start justify-between gap-2" style={{ fontSize: "11px", color: "#666", lineHeight: "1.4" }}>
-                      <div>
-                        <div>C: {formatDateLabel(p.dateCreated)}</div>
-                        <div style={{ color: "#3498db" }}>E: {formatDateLabel(p.sentToLabDate)}</div>
-                        <div style={{ color: "#27ae60" }}>R: {formatDateLabel(p.actualReturnDate)}</div>
-                        <div style={{ color: "#8e44ad" }}>P: {formatDateLabel(p.posedAt)}</div>
-                      </div>
-                      <MetadataInfo entity={p} />
-                    </div>
+                  <div className="flex items-center justify-between gap-2"><div style={{ fontWeight: "600" }}>{formatDateLabel(p.dateCreated)}</div><MetadataInfo entity={p} /></div>
                   </td>
                 <td>
                   <span className={`status-chip ${p.status?.toLowerCase()}`} style={{ cursor: "default" }}>
@@ -948,9 +940,9 @@ const Prosthetics = () => {
                       nextStatus === "SENT_TO_LAB"
                         ? "Envoyer au labo"
                         : nextStatus === "RECEIVED"
-                        ? "Reçu"
+                        ? "ReÃ§u"
                         : nextStatus === "FITTED"
-                        ? "Posé"
+                        ? "PosÃ©"
                         : "Suivant";
 
                     const NextIcon =
@@ -1019,9 +1011,9 @@ const Prosthetics = () => {
           <div className="modal-content relative" style={{ maxWidth: "820px" }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 style={{ margin: 0 }}>{teethPreview.title || "Schéma dentaire"}</h2>
+                  <h2 style={{ margin: 0 }}>{teethPreview.title || "SchÃ©ma dentaire"}</h2>
                   <p className="text-sm text-gray-600 mb-4">
-                    Les dents sélectionnées sont mises en évidence.
+                    Les dents sÃ©lectionnÃ©es sont mises en Ã©vidence.
                   </p>
                 </div>
                 <X size={20} className="cursor-pointer" onClick={() => setTeethPreview(null)} />
@@ -1069,7 +1061,7 @@ const Prosthetics = () => {
 
                 const nextErrors = {};
                 if (!(editingProthesis.teeth || []).length) {
-                  nextErrors.teeth = "Sélectionnez au moins une dent.";
+                  nextErrors.teeth = "SÃ©lectionnez au moins une dent.";
                 }
                 nextErrors.labCost = validateNumber(editingProthesis.labCost, {
                   label: "Cout Labo",
@@ -1341,7 +1333,7 @@ const Prosthetics = () => {
         open={showConfirmCancel && !!prothesisToCancel}
         busy={isCancellingProthesis}
         title="Annuler le travail ?"
-        subtitle="Motif + PIN requis. Le travail sera conservé dans l'historique (lecture seule)."
+        subtitle="Motif + PIN requis. Le travail sera conservÃ© dans l'historique (lecture seule)."
         confirmLabel="Annuler"
         onClose={() => {
           if (isCancellingProthesis) return;
@@ -1369,7 +1361,7 @@ const Prosthetics = () => {
               />
             </div>
             <p className="text-gray-600 mb-6">
-              Voulez-vous vraiment annuler ce travail ? Il sera conservÃ© dans l'historique (lecture seule).
+              Voulez-vous vraiment annuler ce travail ? Il sera conservÃƒÂ© dans l'historique (lecture seule).
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -1414,13 +1406,13 @@ const Prosthetics = () => {
                 className={`status-chip ${String(confirmStatusTarget?.status || "").toLowerCase()}`}
                 style={{ cursor: "default" }}
               >
-                {prothesisStatusLabels[confirmStatusTarget?.status] || confirmStatusTarget?.status || "—"}
+                {prothesisStatusLabels[confirmStatusTarget?.status] || confirmStatusTarget?.status || "â€”"}
               </span>
               <span className="text-gray-400" aria-hidden="true">
-                →
+                â†’
               </span>
               <span className={`status-chip ${String(confirmNextStatus || "").toLowerCase()}`} style={{ cursor: "default" }}>
-                {prothesisStatusLabels[confirmNextStatus] || confirmNextStatus || "—"}
+                {prothesisStatusLabels[confirmNextStatus] || confirmNextStatus || "â€”"}
               </span>
             </div>
             <div className="flex justify-end gap-3">
@@ -1449,6 +1441,9 @@ const Prosthetics = () => {
 };
 
 export default Prosthetics;
+
+
+
 
 
 

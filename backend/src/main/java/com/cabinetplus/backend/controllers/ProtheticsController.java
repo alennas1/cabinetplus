@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -79,6 +80,7 @@ public class ProtheticsController {
     }
 
     @GetMapping("/paged")
+    @Transactional(readOnly = true)
     public ResponseEntity<PageResponse<ProthesisResponse>> getAllPaged(
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
@@ -173,16 +175,20 @@ public class ProtheticsController {
     public ResponseEntity<ProthesisResponse> cancel(@PathVariable Long id, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User actor = getActor(principal);
         User user = userService.resolveClinicOwner(actor);
-        String reason = cancellationSecurityService.requirePinAndReason(user, payload.pin(), payload.reason());
+        String reason = cancellationSecurityService.requirePinAndReason(actor, payload.pin(), payload.reason());
 
-        Prothesis existing = prothesisRepository.findById(id)
-                .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
+        Prothesis existing = prothesisRepository.findForResponseById(id)
+                .filter(p -> user.getRole() == UserRole.ADMIN
+                        || (p.getPractitioner() != null && p.getPractitioner().getId() != null
+                            && user.getId() != null && p.getPractitioner().getId().equals(user.getId())))
                 .orElse(null);
 
         service.delete(id, user, actor, reason);
 
-        Prothesis refreshed = prothesisRepository.findById(id)
-                .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
+        Prothesis refreshed = prothesisRepository.findForResponseById(id)
+                .filter(p -> user.getRole() == UserRole.ADMIN
+                        || (p.getPractitioner() != null && p.getPractitioner().getId() != null
+                            && user.getId() != null && p.getPractitioner().getId().equals(user.getId())))
                 .orElseThrow(() -> new com.cabinetplus.backend.exceptions.NotFoundException("Prothese introuvable"));
 
         String acte = refreshed.getProthesisCatalog() != null ? refreshed.getProthesisCatalog().getName() : null;
@@ -201,8 +207,10 @@ public class ProtheticsController {
         User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         User user = userService.resolveClinicOwner(actor);
-        Prothesis existing = prothesisRepository.findById(id)
-                .filter(p -> user.getRole() == UserRole.ADMIN || (p.getPractitioner() != null && p.getPractitioner().equals(user)))
+        Prothesis existing = prothesisRepository.findForResponseById(id)
+                .filter(p -> user.getRole() == UserRole.ADMIN
+                        || (p.getPractitioner() != null && p.getPractitioner().getId() != null
+                            && user.getId() != null && p.getPractitioner().getId().equals(user.getId())))
                 .orElse(null);
         service.delete(id, user, actor, null);
         auditService.logSuccess(
@@ -230,6 +238,8 @@ public class ProtheticsController {
   private ProthesisResponse mapToResponse(Prothesis p) {
     String patientFullName = p.getPatient().getFirstname() + " " + p.getPatient().getLastname();
     String safeStatus = p.getRecordStatus() == com.cabinetplus.backend.enums.RecordStatus.CANCELLED ? "CANCELLED" : p.getStatus();
+    // Avoid leaking Hibernate collections into the DTO (open-in-view=false) and ensure eager serialization.
+    java.util.List<Integer> safeTeeth = p.getTeeth() != null ? new java.util.ArrayList<>(p.getTeeth()) : java.util.List.of();
 
     String createdByName = null;
     if (p.getPractitioner() != null) {
@@ -286,7 +296,7 @@ public class ProtheticsController {
         patientFullName,
         p.getProthesisCatalog().getName(),
         (p.getProthesisCatalog().getMaterial() != null) ? p.getProthesisCatalog().getMaterial().getName() : "N/A",
-        p.getTeeth(),
+        safeTeeth,
         p.getFinalPrice(),
         p.getLabCost(),
         p.getCode(),
@@ -361,6 +371,7 @@ public ResponseEntity<List<ProthesisResponse>> getByPatient(
 }
 
     @GetMapping("/patient/{patientId}/paged")
+    @Transactional(readOnly = true)
     public ResponseEntity<PageResponse<ProthesisResponse>> getByPatientPaged(
             @PathVariable String patientId,
             @RequestParam(name = "page", defaultValue = "0") int page,

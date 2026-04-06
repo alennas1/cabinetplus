@@ -10,6 +10,7 @@ import {
   Phone,
   Shield,
   User,
+  X,
   XCircle,
 } from "react-feather";
 import { toast } from "react-toastify";
@@ -17,6 +18,8 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
 import { getHandPaymentsByUserIdPage, getHandPaymentsByUserIdSummary } from "../services/handPaymentService";
+import { getAllPlansAdmin } from "../services/adminPlanService";
+import { grantUserPlan } from "../services/adminSubscriptionService";
 import { getUserById } from "../services/userService";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { getApiErrorMessage } from "../utils/error";
@@ -47,6 +50,17 @@ const DentistDetails = () => {
   const [dentist, setDentist] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
+  const [showGrantModal, setShowGrantModal] = useState(false);
+  const [grantPlans, setGrantPlans] = useState([]);
+  const [grantPlansLoading, setGrantPlansLoading] = useState(false);
+  const [grantSubmitting, setGrantSubmitting] = useState(false);
+  const [grantError, setGrantError] = useState(null);
+  const [grantForm, setGrantForm] = useState({
+    planId: "",
+    duration: "MONTH_1",
+    startMode: "NOW",
+    startsAt: "",
+  });
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [isFetchingPayments, setIsFetchingPayments] = useState(false);
@@ -105,6 +119,76 @@ const DentistDetails = () => {
 
     loadDentist();
   }, [id]);
+
+  useEffect(() => {
+    if (!showGrantModal) return;
+    if (grantPlansLoading) return;
+    if (grantPlans.length > 0) return;
+
+    const loadPlans = async () => {
+      try {
+        setGrantPlansLoading(true);
+        const data = await getAllPlansAdmin();
+        setGrantPlans(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setGrantPlans([]);
+        toast.error(getApiErrorMessage(err, "Impossible de charger les plans"));
+      } finally {
+        setGrantPlansLoading(false);
+      }
+    };
+
+    loadPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGrantModal]);
+
+  const closeGrantModal = () => {
+    setShowGrantModal(false);
+    setGrantError(null);
+  };
+
+  const handleGrantSubmit = async (e) => {
+    e.preventDefault();
+    if (!dentist?.id) return;
+
+    try {
+      setGrantSubmitting(true);
+      setGrantError(null);
+
+      const planId = Number(grantForm.planId);
+      if (!planId) {
+        setGrantError("Sélectionnez un plan.");
+        return;
+      }
+
+      const payload = {
+        planId,
+        duration: grantForm.duration,
+        startMode: grantForm.startMode,
+        startsAt: null,
+      };
+
+      if (grantForm.startMode === "CUSTOM_DATE") {
+        if (!grantForm.startsAt) {
+          setGrantError("Choisissez une date de début.");
+          return;
+        }
+        payload.startsAt = new Date(grantForm.startsAt).toISOString();
+      }
+
+      const updated = await grantUserPlan(dentist.id, payload);
+      setDentist(updated);
+      toast.success("Plan attribué.");
+      closeGrantModal();
+    } catch (err) {
+      console.error("Grant plan error:", err);
+      const message = getApiErrorMessage(err, "Impossible d'attribuer le plan");
+      setGrantError(message);
+      toast.error(message);
+    } finally {
+      setGrantSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== "payments") return;
@@ -383,6 +467,124 @@ const DentistDetails = () => {
               <User size={16} /> Propriétaire
             </div>
             <div className="field-value">{computed.ownerName}</div>
+          </div>
+
+          {dentist?.nextPlan ? (
+            <>
+              <div className="profile-field">
+                <div className="field-label">
+                  <CreditCard size={16} /> Prochain plan
+                </div>
+                <div className="field-value">{dentist.nextPlan?.name || "—"}</div>
+              </div>
+
+              <div className="profile-field">
+                <div className="field-label">
+                  <Calendar size={16} /> Début prochain
+                </div>
+                <div className="field-value">{formatDateTime(dentist.nextPlanStartDate)}</div>
+              </div>
+
+              <div className="profile-field">
+                <div className="field-label">
+                  <Calendar size={16} /> Fin prochain
+                </div>
+                <div className="field-value">{formatDateTime(dentist.nextPlanExpirationDate)}</div>
+              </div>
+            </>
+          ) : null}
+
+          <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn-primary2"
+              onClick={() => setShowGrantModal(true)}
+              disabled={!dentist?.id}
+            >
+              Attribuer un plan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showGrantModal && (
+        <div className="modal-overlay" onClick={closeGrantModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-2">
+              <h2>Attribuer un plan</h2>
+              <X className="cursor-pointer" onClick={closeGrantModal} />
+            </div>
+
+            <form noValidate onSubmit={handleGrantSubmit} className="modal-form">
+              {grantError ? (
+                <div style={{ color: "#dc2626", fontWeight: 600, marginBottom: 10 }}>{grantError}</div>
+              ) : null}
+
+              <span className="field-label">Plan</span>
+              <select
+                value={grantForm.planId}
+                onChange={(e) => setGrantForm((prev) => ({ ...prev, planId: e.target.value }))}
+                disabled={grantPlansLoading || grantSubmitting}
+                required
+              >
+                <option value="">-- Sélectionner --</option>
+                {grantPlans
+                  .filter((p) => p && p.id)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code})
+                    </option>
+                  ))}
+              </select>
+
+              <span className="field-label">Durée</span>
+              <select
+                value={grantForm.duration}
+                onChange={(e) => setGrantForm((prev) => ({ ...prev, duration: e.target.value }))}
+                disabled={grantSubmitting}
+                required
+              >
+                <option value="DAYS_7">+7 jours</option>
+                <option value="DAYS_14">+14 jours</option>
+                <option value="MONTH_1">+1 mois</option>
+                <option value="YEAR_1">+1 an</option>
+                <option value="LIFETIME">Lifetime</option>
+              </select>
+
+              <span className="field-label">Début</span>
+              <select
+                value={grantForm.startMode}
+                onChange={(e) => setGrantForm((prev) => ({ ...prev, startMode: e.target.value }))}
+                disabled={grantSubmitting}
+                required
+              >
+                <option value="NOW">Maintenant</option>
+                <option value="AT_END_OF_CURRENT">À la fin du plan actuel</option>
+                <option value="CUSTOM_DATE">Date personnalisée</option>
+              </select>
+
+              {grantForm.startMode === "CUSTOM_DATE" ? (
+                <>
+                  <span className="field-label">Date de début</span>
+                  <input
+                    type="datetime-local"
+                    value={grantForm.startsAt}
+                    onChange={(e) => setGrantForm((prev) => ({ ...prev, startsAt: e.target.value }))}
+                    disabled={grantSubmitting}
+                    required
+                  />
+                </>
+              ) : null}
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+                <button type="button" className="btn-cancel" onClick={closeGrantModal} disabled={grantSubmitting}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn-primary2" disabled={grantSubmitting || grantPlansLoading}>
+                  {grantSubmitting ? "Envoi..." : "Valider"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

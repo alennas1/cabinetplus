@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Eye, Search, X, Archive, RotateCcw } from "react-feather";
+import { Plus, Eye, Search, X, Archive, RotateCcw, UserX, UserCheck } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
@@ -16,8 +16,10 @@ import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } fr
 import { FIELD_LIMITS, validateText } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import DateInput from "../components/DateInput";
+import EmployeePermissionPicker from "../components/EmployeePermissionPicker";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import useDebouncedValue from "../hooks/useDebouncedValue";
+import { normalizeEmployeePermissions } from "../utils/employeePermissions";
 
 import {
   getEmployeesPage,
@@ -29,24 +31,13 @@ import {
 } from "../services/employeeService";
 import "./Patients.css"; // reuse same CSS as Patients
 
-const EMPLOYEE_PERMISSION_OPTIONS = [
-  { key: "DASHBOARD", label: "Tableau de bord" },
-  { key: "APPOINTMENTS", label: "Rendez-vous" },
-  { key: "PATIENTS", label: "Patients" },
-  { key: "DEVIS", label: "Devis" },
-  { key: "SUPPORT", label: "Support" },
-  { key: "CATALOGUE", label: "Catalogues" },
-  { key: "PROSTHESES", label: "Protheses" },
-  { key: "GESTION_CABINET", label: "Gestion cabinet" },
-  { key: "SETTINGS", label: "Parametres" },
-];
-
 const Employees = ({ view = "active" }) => {
   const token = useSelector((state) => state.auth.token);
   const navigate = useNavigate();
 
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statusChangingId, setStatusChangingId] = useState(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -76,7 +67,15 @@ const Employees = ({ view = "active" }) => {
     status: "ACTIVE", // default enum
     salary: "",
     contractType: "",
-    permissions: ["APPOINTMENTS", "PATIENTS"],
+    permissions: normalizeEmployeePermissions([
+      "APPOINTMENTS",
+      "PATIENTS",
+      "APPOINTMENTS_CREATE",
+      "APPOINTMENTS_UPDATE",
+      "APPOINTMENTS_CANCEL",
+      "PATIENTS_CREATE",
+      "PATIENTS_UPDATE",
+    ]),
   });
   const [isEditing, setIsEditing] = useState(false);
   const [formStep, setFormStep] = useState(1);
@@ -147,14 +146,8 @@ const Employees = ({ view = "active" }) => {
     if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const togglePermission = (key) => {
-    if (!key) return;
-    setFormData((prev) => {
-      const current = Array.isArray(prev?.permissions) ? prev.permissions : [];
-      const has = current.includes(key);
-      const next = has ? current.filter((p) => p !== key) : [...current, key];
-      return { ...prev, permissions: next };
-    });
+  const setPermissions = (permissions) => {
+    setFormData((prev) => ({ ...prev, permissions }));
   };
 
   // Add / update
@@ -205,7 +198,7 @@ const Employees = ({ view = "active" }) => {
       status: formData.status || "ACTIVE", // must match enum
       salary: formData.salary ? Number(formData.salary) : null,
       contractType: formData.contractType,
-      permissions: Array.isArray(formData.permissions) ? formData.permissions : [],
+      permissions: normalizeEmployeePermissions(formData.permissions),
     };
 
     try {
@@ -232,7 +225,11 @@ const Employees = ({ view = "active" }) => {
   };
 
   const handleEdit = (emp) => {
-    setFormData({ ...emp, phone: formatPhoneNumber(emp.phone) || "" });
+    setFormData({
+      ...emp,
+      phone: formatPhoneNumber(emp.phone) || "",
+      permissions: normalizeEmployeePermissions(emp?.permissions),
+    });
     setFieldErrors({});
     setIsEditing(true);
     setFormStep(1);
@@ -272,6 +269,41 @@ const Employees = ({ view = "active" }) => {
     }
   };
 
+  const toggleEmployeeActiveStatus = async (emp) => {
+    if (!emp?.id) return;
+    if (statusChangingId === emp.id) return;
+    const currentStatus = String(emp.status || "").toUpperCase();
+    const nextStatus = currentStatus === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+
+    const payload = {
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      gender: emp.gender,
+      dateOfBirth: emp.dateOfBirth || null,
+      nationalId: emp.nationalId || "",
+      phone: normalizePhoneInput(emp.phone),
+      email: emp.email || "",
+      address: emp.address || "",
+      hireDate: emp.hireDate || null,
+      endDate: emp.endDate || null,
+      status: nextStatus,
+      salary: emp.salary != null && emp.salary !== "" ? Number(emp.salary) : null,
+      contractType: emp.contractType || "",
+      permissions: normalizeEmployeePermissions(emp.permissions),
+    };
+
+    try {
+      setStatusChangingId(emp.id);
+      await updateEmployee(emp.publicId || emp.id, payload, token);
+      await fetchEmployees();
+      toast.success(nextStatus === "ACTIVE" ? "Employé activé" : "Employé désactivé");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors de la mise à jour du statut"));
+    } finally {
+      setStatusChangingId(null);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       id: null,
@@ -288,7 +320,15 @@ const Employees = ({ view = "active" }) => {
       status: "ACTIVE",
       salary: "",
       contractType: "",
-      permissions: ["APPOINTMENTS", "PATIENTS"],
+      permissions: normalizeEmployeePermissions([
+        "APPOINTMENTS",
+        "PATIENTS",
+        "APPOINTMENTS_CREATE",
+        "APPOINTMENTS_UPDATE",
+        "APPOINTMENTS_CANCEL",
+        "PATIENTS_CREATE",
+        "PATIENTS_UPDATE",
+      ]),
     });
     setIsEditing(false);
     setFieldErrors({});
@@ -402,6 +442,25 @@ const Employees = ({ view = "active" }) => {
                 }} title={view === "archived" ? "Voir" : "Voir / Modifier"}>
                   <Eye size={16} />
                 </button>
+                {view !== "archived" && (
+                  <button
+                    type="button"
+                    className={`action-btn ${String(emp.status || "").toUpperCase() === "INACTIVE" ? "activate" : "deactivate"}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleEmployeeActiveStatus(emp);
+                    }}
+                    disabled={statusChangingId === emp.id}
+                    title={String(emp.status || "").toUpperCase() === "INACTIVE" ? "Activer" : "Désactiver"}
+                    aria-label={String(emp.status || "").toUpperCase() === "INACTIVE" ? "Activer" : "Désactiver"}
+                  >
+                    {String(emp.status || "").toUpperCase() === "INACTIVE" ? (
+                      <UserCheck size={16} />
+                    ) : (
+                      <UserX size={16} />
+                    )}
+                  </button>
+                )}
                 {view !== "archived" && (
                   <button className="action-btn delete" onClick={(e) => {
                     e.stopPropagation();
@@ -651,22 +710,15 @@ const Employees = ({ view = "active" }) => {
                     L'employe va configurer son mot de passe et son PIN lui-meme via l'ID de setup.
                   </div>
 
-                  <span className="field-label">Acces</span>
-                  <div className="flex flex-col gap-2">
-                    {EMPLOYEE_PERMISSION_OPTIONS.map((opt) => {
-                      const checked = Array.isArray(formData.permissions) && formData.permissions.includes(opt.key);
-                      return (
-                        <label key={opt.key} className="inline-flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => togglePermission(opt.key)}
-                          />
-                          <span>{opt.label}</span>
-                        </label>
-                      );
-                    })}
+                  <span className="field-label">Accès</span>
+                  <div className="text-xs text-gray-600 mb-2">
+                    Activez une section, puis choisissez les actions autorisées (sinon: lecture seule).
                   </div>
+                  <EmployeePermissionPicker
+                    value={formData.permissions}
+                    onChange={setPermissions}
+                    disabled={isSubmitting}
+                  />
                 </>
               )}
 

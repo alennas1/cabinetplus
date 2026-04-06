@@ -127,7 +127,7 @@ public class ExpenseController {
         User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         User clinicOwner = userService.resolveClinicOwner(actor);
-        String reason = cancellationSecurityService.requirePinAndReason(clinicOwner, payload.pin(), payload.reason());
+        String reason = cancellationSecurityService.requirePinAndReason(actor, payload.pin(), payload.reason());
 
         Expense cancelled = expenseService.cancelExpense(id, clinicOwner, actor, reason);
         auditService.logSuccess(

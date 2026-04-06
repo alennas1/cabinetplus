@@ -1,0 +1,153 @@
+.epp {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.epp-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #374151;
+  text-transform: uppercase;
+  margin: 4px 0 8px;
+}
+
+.epp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.epp-card {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.epp-card:hover {
+  border-color: #c7d2fe;
+  box-shadow: 0 1px 10px rgba(0, 0, 0, 0.06);
+}
+
+.epp-card.is-on {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.epp-card:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.epp-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  color: #111827;
+  flex: 0 0 auto;
+}
+
+.epp-card.is-on .epp-icon {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.epp-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.epp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.epp-chip {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.epp-chip:hover {
+  border-color: #c7d2fe;
+  box-shadow: 0 1px 10px rgba(0, 0, 0, 0.05);
+}
+
+.epp-chip.is-on {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.epp-chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.epp-readonly {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px dashed #d1d5db;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.epp-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #111827;
+}
+
+.epp-desc {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+.epp-check {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 9px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.epp-card.is-on .epp-check {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+@media (max-width: 560px) {
+  .epp-grid {
+    grid-template-columns: 1fr;
+  }
+}

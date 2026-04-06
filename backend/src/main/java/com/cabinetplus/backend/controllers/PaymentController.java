@@ -152,8 +152,7 @@ public class PaymentController {
     public ResponseEntity<Payment> cancel(@PathVariable Long paymentId, @Valid @RequestBody CancellationRequest payload, Principal principal) {
         User actor = userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
-        User clinicOwner = userService.resolveClinicOwner(actor);
-        String reason = cancellationSecurityService.requirePinAndReason(clinicOwner, payload.pin(), payload.reason());
+        String reason = cancellationSecurityService.requirePinAndReason(actor, payload.pin(), payload.reason());
         Payment existing = paymentRepository.findById(paymentId).orElse(null);
         Payment cancelled = paymentService.cancel(paymentId, actor, reason);
         auditService.logSuccess(

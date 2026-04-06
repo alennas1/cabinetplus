@@ -578,10 +578,10 @@ if (deviceId == null || deviceId.isBlank()) {
                                        HttpServletResponse response) {
         if (refreshTokenCookie != null) {
             String tokenHash = RefreshTokenHash.hash(refreshTokenCookie);
-            var byHash = refreshRepo.findByToken(tokenHash);
+            var byHash = refreshRepo.findByTokenWithUser(tokenHash);
             var tokenLookup = byHash.isPresent()
                     ? byHash
-                    : refreshRepo.findByToken(refreshTokenCookie).map(tokenEntity -> {
+                    : refreshRepo.findByTokenWithUser(refreshTokenCookie).map(tokenEntity -> {
                         tokenEntity.setToken(tokenHash);
                         return refreshRepo.save(tokenEntity);
                     });

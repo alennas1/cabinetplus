@@ -449,3 +449,21 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 050-user-preferences
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 050-user-preferences.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 051-patient-auto-archive-settings
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 051-patient-auto-archive-settings.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

@@ -371,8 +371,10 @@ public class FournisseurController {
 
     @PutMapping("/{id}/payments/{paymentId}/cancel")
     public ResponseEntity<Void> cancelPayment(@PathVariable String id, @PathVariable Long paymentId, @Valid @RequestBody CancellationRequest payload, Principal principal) {
-        User user = getCurrentUser(principal);
-        String reason = cancellationSecurityService.requirePinAndReason(user, payload.pin(), payload.reason());
+        User actor = userService.findByPhoneNumber(principal.getName())
+                .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
+        User user = userService.resolveClinicOwner(actor);
+        String reason = cancellationSecurityService.requirePinAndReason(actor, payload.pin(), payload.reason());
         Long internalId = publicIdResolutionService.requireFournisseurOwnedBy(id, user).getId();
         if (!detailsService.deletePayment(internalId, paymentId, user)) {
             throw new NotFoundException("Paiement introuvable");

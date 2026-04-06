@@ -269,16 +269,14 @@ const PlanPage = () => {
                 variant="full"
                 className="is-modal"
                 buttonVariant="primary"
-                buttonLabel={
-                  confirmSubmitting
-                    ? "Envoi..."
-                    : selectedPlan.monthlyPrice === 0
-                    ? "Activer l'essai"
-                    : "Valider le paiement"
-                }
-                onSelect={handleHandPayment}
-              />
-            </div>
+                 buttonLabel={
+                   confirmSubmitting
+                     ? "Envoi..."
+                     : "Valider le paiement"
+                 }
+                 onSelect={handleHandPayment}
+               />
+             </div>
           </div>
         )}
       </div>

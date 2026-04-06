@@ -23,21 +23,23 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
 
     List<LaboratoryPayment> findByLaboratoryIdAndCreatedByOrderByPaymentDateDesc(Long laboratoryId, User createdBy);
 
-    @EntityGraph(attributePaths = {"createdBy"})
+    @EntityGraph(attributePaths = {"createdBy.firstname", "createdBy.lastname"})
     @Query("""
         select lp
         from LaboratoryPayment lp
         where lp.laboratory.id = :laboratoryId
           and lp.createdBy = :createdBy
           and lp.recordStatus <> :archivedStatus
-          and (:fromDt is null or lp.paymentDate >= :fromDt)
-          and (:toDt is null or lp.paymentDate <= :toDt)
+          and (:fromEnabled = false or lp.paymentDate >= :fromDt)
+          and (:toEnabled = false or lp.paymentDate <= :toDt)
     """)
     Page<LaboratoryPayment> searchPaymentsPaged(
             @Param("laboratoryId") Long laboratoryId,
             @Param("createdBy") User createdBy,
             @Param("archivedStatus") RecordStatus archivedStatus,
+            @Param("fromEnabled") boolean fromEnabled,
             @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt,
             Pageable pageable
     );
@@ -49,15 +51,17 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
         where lp.laboratory.id = :laboratoryId
           and lp.createdBy = :createdBy
           and lp.recordStatus <> :archivedStatus
-          and (:fromDt is null or lp.paymentDate >= :fromDt)
-          and (:toDt is null or lp.paymentDate <= :toDt)
+          and (:fromEnabled = false or lp.paymentDate >= :fromDt)
+          and (:toEnabled = false or lp.paymentDate <= :toDt)
     """)
     Object[] getPaymentsSummary(
             @Param("laboratoryId") Long laboratoryId,
             @Param("createdBy") User createdBy,
             @Param("archivedStatus") RecordStatus archivedStatus,
             @Param("cancelledStatus") RecordStatus cancelledStatus,
+            @Param("fromEnabled") boolean fromEnabled,
             @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt
     );
 

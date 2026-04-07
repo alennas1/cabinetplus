@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -145,9 +145,9 @@ const LaboratoryDetails = () => {
   const formatCurrency = (value) => formatMoneyWithLabel(value);
 
   const formatDateTime = (value) => {
-    if (!value) return "â€”";
+    if (!value) return "—";
     const label = formatDateTimeByPreference(value);
-    return label === "-" ? "â€”" : label;
+    return label === "-" ? "—" : label;
   };
 
   const formatPhoneNumber = (phone) => {
@@ -546,7 +546,7 @@ const LaboratoryDetails = () => {
       ) : (
         <>
           <span className="field-value">
-            {field === "phoneNumber" ? formatPhoneNumber(laboratory[field]) || "â€”" : laboratory[field] || "â€”"}
+            {field === "phoneNumber" ? formatPhoneNumber(laboratory[field]) || "—" : laboratory[field] || "—"}
           </span>
           {isEditable && <Edit2 size={18} className="icon action edit" onClick={() => handleEditField(field)} />}
         </>
@@ -560,7 +560,11 @@ const LaboratoryDetails = () => {
 
     const value = String(connectLabPublicId || "").trim();
     if (!value) {
-      toast.info("Entrez l'ID du laboratoire.");
+      toast.info("Entrez l'ID d'invitation du laboratoire.");
+      return;
+    }
+    if (!/^[0-9]{4,12}$/.test(value)) {
+      toast.error("ID invitation invalide (chiffres uniquement).");
       return;
     }
     if (isConnectingLab) return;
@@ -568,7 +572,7 @@ const LaboratoryDetails = () => {
     try {
       setIsConnectingLab(true);
       await inviteLaboratoryConnection({
-        labPublicId: value,
+        labInviteCode: value,
         mergeFromLaboratoryId: String(laboratory?.publicId || laboratory?.id || id),
       });
       toast.success("Invitation envoyée au laboratoire");
@@ -893,7 +897,7 @@ const LaboratoryDetails = () => {
                         <MetadataInfo entity={payment} />
                       </div>
                     </td>
-                    <td>{payment.notes || "â€”"}</td>
+                    <td>{payment.notes || "—"}</td>
                     <td className="actions-cell">
                       {isPaymentCancelled(payment) ? (
                         <span className="context-badge cancelled">Annulé</span>
@@ -967,8 +971,8 @@ const LaboratoryDetails = () => {
                     style={{ cursor: "pointer" }}
                     title="Voir dans le suivi prothèses"
                   >
-                    <td>{entry.patientName || "â€”"}</td>
-                    <td style={{ fontWeight: 700 }}>{entry.prothesisName || "â€”"}</td>
+                    <td>{entry.patientName || "—"}</td>
+                    <td style={{ fontWeight: 700 }}>{entry.prothesisName || "—"}</td>
                     <td>{formatCurrency(entry.amount)}</td>
                     <td>
                       <div className="flex items-center gap-2">
@@ -1085,16 +1089,16 @@ const LaboratoryDetails = () => {
             </div>
 
             <p className="text-sm text-gray-600 mb-4">
-              Entrez l&apos;ID fourni par le laboratoire. Après acceptation, les prothèses et paiements seront associés au laboratoire connecté.
+              Entrez l&apos;ID d'invitation fourni par le laboratoire. Après acceptation, les prothèses et paiements seront associés au laboratoire connecté.
             </p>
 
             <form noValidate onSubmit={submitConnect} className="modal-form">
-              <label className="field-label">ID du laboratoire</label>
+              <label className="field-label">ID d'invitation</label>
               <input
                 type="text"
                 value={connectLabPublicId}
                 onChange={(e) => setConnectLabPublicId(e.target.value)}
-                placeholder="Ex: 9b7e2d2f-..."
+                placeholder="Ex: 12345678"
                 disabled={isConnectingLab}
               />
 

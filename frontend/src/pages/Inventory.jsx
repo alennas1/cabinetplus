@@ -408,7 +408,7 @@ const Inventory = () => {
     try {
       setIsCancellingItem(true);
       await cancelInventoryItem(cancelItemId, { pin, reason });
-      toast.success("Article annulÃ©");
+      toast.success("Article annulé");
       await fetchInventoryItems();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
@@ -618,7 +618,7 @@ const Inventory = () => {
               <td>{i.expiryDate || "—"}</td>
               <td className="actions-cell">
                 {isInventoryItemCancelled(i) ? (
-                  <span className="context-badge cancelled">AnnulÃ©</span>
+                  <span className="context-badge cancelled">Annulé</span>
                 ) : (
                   <>
                     <button className="action-btn edit" onClick={() => handleEdit(i)} title="Modifier"><Edit2 size={16} /></button>
@@ -1099,7 +1099,7 @@ const Inventory = () => {
         open={cancelItemId != null}
         busy={isCancellingItem}
         title="Annuler l'article ?"
-        subtitle="Motif + PIN requis. L'article restera visible dans l'historique mais ne sera plus comptabilisÃ©."
+        subtitle="Motif + PIN requis. L'article restera visible dans l'historique mais ne sera plus comptabilisé."
         confirmLabel="Annuler l'article"
         onClose={() => {
           if (isCancellingItem) return;

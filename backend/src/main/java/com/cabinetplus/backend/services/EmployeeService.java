@@ -40,6 +40,7 @@ public class EmployeeService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final PlanLimitService planLimitService;
+    private final EmployeeSetupCodeService employeeSetupCodeService;
 
     // --- Create ---
     public EmployeeResponseDTO saveEmployee(EmployeeRequestDTO dto, User dentist) {
@@ -65,6 +66,7 @@ public class EmployeeService {
                 .contractType(dto.getContractType())
                 .dentist(dentist)
                 .user(linkedUser)
+                .setupCode(employeeSetupCodeService.nextSetupCode())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .recordStatus(RecordStatus.ACTIVE)
@@ -301,9 +303,12 @@ public class EmployeeService {
         String dentistName = employee.getDentist().getFirstname() + " " + employee.getDentist().getLastname();
         User user = employee.getUser();
 
+        ensureSetupCode(employee, user);
+
         return EmployeeResponseDTO.builder()
                 .id(employee.getId())
                 .publicId(employee.getPublicId())
+                .setupCode(employee.getSetupCode())
                 .firstName(employee.getFirstName())
                 .lastName(employee.getLastName())
                 .gender(employee.getGender())
@@ -330,9 +335,19 @@ public class EmployeeService {
                 .build();
     }
 
+    private void ensureSetupCode(Employee employee, User linkedUser) {
+        if (employee == null) return;
+        if (hasText(employee.getSetupCode())) return;
+        // Generate only when the linked user still needs to complete onboarding.
+        if (linkedUser != null && linkedUser.isAccountSetupCompleted()) return;
+        employee.setSetupCode(employeeSetupCodeService.nextSetupCode());
+        employee.setUpdatedAt(LocalDateTime.now());
+        employeeRepository.save(employee);
+    }
+
     private User createLinkedUser(User ownerDentist, EmployeeRequestDTO dto, String normalizedPhone) {
         User user = new User();
-        // Employee will set password during onboarding using the shared employee publicId.
+        // Employee will set password during onboarding using the shared setup code.
         // Use a random password to keep the account non-guessable before setup.
         user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setRole(UserRole.EMPLOYEE);

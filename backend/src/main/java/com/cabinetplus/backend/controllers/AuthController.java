@@ -50,6 +50,7 @@ import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.security.RefreshTokenHash;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.LaboratoryService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import com.cabinetplus.backend.util.PhoneNumberUtil;
 import com.twilio.exception.ApiException;
@@ -70,6 +71,7 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepo;
     private final LaboratoryRepository laboratoryRepository;
+    private final LaboratoryService laboratoryService;
     private final RefreshTokenRepository refreshRepo;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
@@ -101,7 +103,7 @@ public class AuthController {
     private boolean bypassLoginTwoFactorLocal;
 
     public AuthController(AuthenticationManager authManager, JwtUtil jwtUtil,
-                          UserRepository userRepo, LaboratoryRepository laboratoryRepository, RefreshTokenRepository refreshRepo,
+                          UserRepository userRepo, LaboratoryRepository laboratoryRepository, LaboratoryService laboratoryService, RefreshTokenRepository refreshRepo,
                           PasswordEncoder passwordEncoder, AuditService auditService,
                           PhoneVerificationService phoneVerificationService,
                           Environment environment) {
@@ -109,6 +111,7 @@ public class AuthController {
         this.jwtUtil = jwtUtil;
         this.userRepo = userRepo;
         this.laboratoryRepository = laboratoryRepository;
+        this.laboratoryService = laboratoryService;
         this.refreshRepo = refreshRepo;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
@@ -570,7 +573,7 @@ if (deviceId == null || deviceId.isBlank()) {
         laboratory.setPhoneNumber(request.phoneNumber());
         laboratory.setAddress(request.address());
         laboratory.setCreatedBy(saved);
-        laboratoryRepository.save(laboratory);
+        laboratoryService.save(laboratory);
 
         String accessToken = jwtUtil.generateAccessToken(saved);
 

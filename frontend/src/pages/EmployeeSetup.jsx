@@ -8,7 +8,7 @@ import { setCredentials } from "../store/authSlice";
 import { getApiErrorMessage } from "../utils/error";
 
 export default function EmployeeSetup() {
-  const { employeeId } = useParams();
+  const { setupCode } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -25,10 +25,10 @@ export default function EmployeeSetup() {
   const normalizedConfirmPin = useMemo(() => String(confirmPin || "").replaceAll(/\D/g, ""), [confirmPin]);
 
   const sendCode = async () => {
-    if (!employeeId || sending) return;
+    if (!setupCode || sending) return;
     try {
       setSending(true);
-      const data = await startEmployeeAccountSetup(employeeId);
+      const data = await startEmployeeAccountSetup(setupCode);
       if (data?.maskedPhone) setMaskedPhone(data.maskedPhone);
       toast.info(data?.message || "Code SMS envoye");
     } catch (err) {
@@ -41,12 +41,12 @@ export default function EmployeeSetup() {
   useEffect(() => {
     sendCode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId]);
+  }, [setupCode]);
 
   const handleConfirm = async () => {
     if (submitting) return;
-    if (!employeeId) {
-      toast.error("ID employe manquant");
+    if (!setupCode) {
+      toast.error("ID d'invitation manquant");
       return;
     }
     if (!String(code || "").trim()) {
@@ -69,7 +69,7 @@ export default function EmployeeSetup() {
     try {
       setSubmitting(true);
       await confirmEmployeeAccountSetup({
-        employeeId,
+        employeeSetupCode: setupCode,
         code: String(code || "").trim(),
         newPassword: password,
         pin: normalizedPin,
@@ -176,4 +176,3 @@ export default function EmployeeSetup() {
     </div>
   );
 }
-

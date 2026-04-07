@@ -46,7 +46,7 @@ public class LaboratoryConnectionController {
 
         LaboratoryConnection connection = laboratoryConnectionService.invite(
                 dentist,
-                payload.labPublicId(),
+                payload.labInviteCode(),
                 payload.mergeFromLaboratoryId()
         );
 
@@ -65,4 +65,3 @@ public class LaboratoryConnectionController {
         ));
     }
 }
-

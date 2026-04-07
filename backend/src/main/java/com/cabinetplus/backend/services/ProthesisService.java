@@ -26,7 +26,7 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class ProthesisService {
-    private static final Set<String> ALLOWED_STATUSES = Set.of("PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED");
+    private static final Set<String> ALLOWED_STATUSES = Set.of("PENDING", "SENT_TO_LAB", "PRETE", "RECEIVED", "FITTED");
 
     private final ProthesisRepository repository;
     private final ProthesisCatalogRepository catalogRepository;
@@ -636,7 +636,7 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
     public void delete(Long id, User user, User actor, String reason) {
         Prothesis p = requireProthesisOwnedBy(id, user);
         if (p.getPatient() != null && p.getPatient().getArchivedAt() != null) {
-            throw new BadRequestException(java.util.Map.of("_", "Patient archivÃ© : lecture seule."));
+            throw new BadRequestException(java.util.Map.of("_", "Patient archivé : lecture seule."));
         }
         // If this prothesis is assigned to a connected lab account, the lab must confirm cancellation.
         if (p.getLaboratory() != null
@@ -789,7 +789,8 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
 
         return switch (current) {
             case "PENDING" -> "SENT_TO_LAB".equals(next);
-            case "SENT_TO_LAB" -> "RECEIVED".equals(next);
+            case "SENT_TO_LAB" -> "PRETE".equals(next) || "RECEIVED".equals(next);
+            case "PRETE" -> "RECEIVED".equals(next);
             case "RECEIVED" -> "FITTED".equals(next);
             case "FITTED" -> false;
             default -> false;

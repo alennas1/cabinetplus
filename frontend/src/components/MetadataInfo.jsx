@@ -144,6 +144,9 @@ const buildDefaultEntries = (entity) => {
   );
   push("Envoyé au labo", sentToLabAt, sentToLabBy || updatedBy || createdBy);
 
+  const readyAt = firstValue(entity.readyAt, entity.ready_at, entity.readyOn, entity.readyDate);
+  push("Prête", readyAt, updatedBy || createdBy);
+
   const receivedAt = firstValue(
     entity.receivedAt,
     entity.receivedDate,
@@ -190,7 +193,7 @@ const buildDefaultEntries = (entity) => {
   return entries;
 };
 
-const MetadataInfo = ({ entity, entries, iconSize = 18, className = "" }) => {
+const MetadataInfo = ({ entity, entries, iconSize = 18, className = "", hideByLine = false, byPrefix = "par " }) => {
   const triggerRef = useRef(null);
   const tooltipRef = useRef(null);
   const closeTimerRef = useRef(null);
@@ -346,7 +349,9 @@ const MetadataInfo = ({ entity, entries, iconSize = 18, className = "" }) => {
                     <span className="text-gray-600">{e.label}</span>
                     <span className="text-right">
                       <div className="text-gray-900">{formatDateTimeByPreference(e.at)}</div>
-                      <div className="text-gray-500">par {e.by || "—"}</div>
+                      {!hideByLine ? (
+                        <div className="text-gray-500">{byPrefix ? `${byPrefix}${e.by || "—"}` : e.by || "—"}</div>
+                      ) : null}
                       {e.note ? <div className="text-gray-500">motif : {e.note}</div> : null}
                     </span>
                   </div>

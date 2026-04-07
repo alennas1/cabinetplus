@@ -15,6 +15,7 @@ import lombok.Data;
 public class EmployeeResponseDTO {
     private Long id;
     private UUID publicId;
+    private String setupCode;
 
     private String firstName;
     private String lastName;

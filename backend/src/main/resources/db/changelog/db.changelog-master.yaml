@@ -476,3 +476,57 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 053-protheses-add-prete-status
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 053-protheses-add-prete-status.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 054-protheses-ready-at
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 054-protheses-ready-at.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 055-labs-invite-code
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 055-labs-invite-code.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 056-employees-setup-code
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 056-employees-setup-code.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 057-protheses-stl-file
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 057-protheses-stl-file.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 058-prothesis-files
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 058-prothesis-files.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

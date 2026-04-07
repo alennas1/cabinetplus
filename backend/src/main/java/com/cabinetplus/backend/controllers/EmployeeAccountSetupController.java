@@ -99,8 +99,8 @@ public class EmployeeAccountSetupController {
             @Valid @RequestBody EmployeeAccountSetupStartRequest body,
             HttpServletRequest request
     ) {
-        UUID employeePublicId = parseEmployeeId(body.employeeId());
-        Employee employee = employeeRepository.findByPublicId(employeePublicId)
+        String setupCode = parseSetupCode(body.employeeSetupCode());
+        Employee employee = employeeRepository.findBySetupCode(setupCode)
                 .orElseThrow(() -> new NotFoundException("Employe introuvable"));
         if (employee.getArchivedAt() != null) {
             throw new BadRequestException(Map.of("_", "Employe archive"));
@@ -196,8 +196,8 @@ public class EmployeeAccountSetupController {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        UUID employeePublicId = parseEmployeeId(body.employeeId());
-        Employee employee = employeeRepository.findByPublicId(employeePublicId)
+        String setupCode = parseSetupCode(body.employeeSetupCode());
+        Employee employee = employeeRepository.findBySetupCode(setupCode)
                 .orElseThrow(() -> new NotFoundException("Employe introuvable"));
         if (employee.getArchivedAt() != null) {
             throw new BadRequestException(Map.of("_", "Employe archive"));
@@ -285,12 +285,15 @@ public class EmployeeAccountSetupController {
         ));
     }
 
-    private UUID parseEmployeeId(String value) {
-        try {
-            return UUID.fromString(String.valueOf(value).trim());
-        } catch (Exception e) {
-            throw new BadRequestException(Map.of("employeeId", "ID employe invalide"));
+    private String parseSetupCode(String value) {
+        String code = value != null ? value.trim() : "";
+        if (code.isBlank()) {
+            throw new BadRequestException(Map.of("employeeSetupCode", "ID d'invitation obligatoire"));
         }
+        if (!code.matches("\\d{4,12}")) {
+            throw new BadRequestException(Map.of("employeeSetupCode", "ID d'invitation invalide"));
+        }
+        return code;
     }
 
     private Long checkCooldown(LocalDateTime lastSentAt) {

@@ -75,10 +75,12 @@ import FournisseurDetails from "./pages/FournisseurDetails";
 // --- Lab Portal Pages ---
 import LabProsthetics from "./pages/LabProsthetics";
 import LabPayments from "./pages/LabPayments";
+import LabPending from "./pages/LabPending";
   import LabDentists from "./pages/LabDentists";
   import LabDentistDetails from "./pages/LabDentistDetails";
   import LabInvitations from "./pages/LabInvitations";
   import LabSettings from "./pages/LabSettings";
+  import LabSettingsHome from "./pages/LabSettingsHome";
 // --- Components ---
   import Layout from "./components/Layout";
   import AdminLayout from "./components/AdminLayout";
@@ -260,7 +262,7 @@ const AppContent = () => {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/register-lab" element={<RegisterLabPage />} />
-        <Route path="/employee-setup/:employeeId" element={<EmployeeSetup />} />
+        <Route path="/employee-setup/:setupCode" element={<EmployeeSetup />} />
         <Route path="/unauthorized" element={<CatchAllRedirect />} />
 
         {/* Shared Protected Routes (Dentist + Employee + Lab) */}
@@ -381,11 +383,15 @@ const AppContent = () => {
           <Route element={<LabLayout />}>
             <Route path="/lab" element={<Navigate to="/lab/prosthetics" replace />} />
             <Route path="/lab/prosthetics" element={<LabProsthetics />} />
+            <Route path="/lab/pending" element={<LabPending />} />
             <Route path="/lab/payments" element={<LabPayments />} />
             <Route path="/lab/dentists" element={<LabDentists />} />
             <Route path="/lab/dentists/:id" element={<LabDentistDetails />} />
             <Route path="/lab/invitations" element={<LabInvitations />} />
-            <Route path="/lab/settings" element={<LabSettings />} />
+            <Route path="/lab/settings" element={<LabSettingsHome />} />
+            <Route path="/lab/settings/profile" element={<LabSettings />} />
+            <Route path="/lab/settings/security" element={<Security basePath="/lab/settings" />} />
+            <Route path="/lab/settings/preferences" element={<Preference basePath="/lab/settings" showWorkingHours={false} />} />
           </Route>
         </Route>
 

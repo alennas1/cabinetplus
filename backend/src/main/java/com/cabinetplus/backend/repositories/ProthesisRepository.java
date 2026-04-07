@@ -200,6 +200,15 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
             Pageable pageable
     );
 
+    @Query("""
+            select coalesce(sum(p.stlFileSizeBytes), 0)
+            from Prothesis p
+            where p.practitioner = :owner
+              and p.recordStatus = 'ACTIVE'
+              and p.stlFileSizeBytes is not null
+            """)
+    long sumStlFileSizeBytesByOwner(@Param("owner") User owner);
+
     @EntityGraph(attributePaths = {
             "patient.firstname",
             "patient.lastname",
@@ -981,23 +990,34 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     @Query("""
         select p
         from Prothesis p
-        left join p.patient patient
         left join p.prothesisCatalog catalog
         left join p.practitioner pract
         where p.laboratory = :laboratory
           and p.recordStatus <> :archivedStatus
           and (:dentistPublicId is null or pract.publicId = :dentistPublicId)
-          and (:statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
-          and (:fromEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) >= :fromDt)
-          and (:toEnabled = false or coalesce(p.sentToLabDate, p.dateCreated) <= :toDt)
-          and (
-            :qLike = ''
-            or lower(coalesce(patient.firstname, '')) like :qLike
-            or lower(coalesce(patient.lastname, '')) like :qLike
-            or lower(coalesce(catalog.name, '')) like :qLike
-            or lower(coalesce(p.code, '')) like :qLike
-            or lower(coalesce(p.notes, '')) like :qLike
-            or lower(concat(coalesce(pract.firstname, ''), ' ', coalesce(pract.lastname, ''))) like :qLike
+           and (:statusNorm = '' or upper(coalesce(p.status, 'PENDING')) = :statusNorm)
+           and (
+                 :fromEnabled = false
+                 or ((:dateType is null or :dateType = '' or :dateType = 'sentToLabDate') and p.sentToLabDate >= :fromDt)
+                 or (:dateType = 'readyAt' and p.readyAt >= :fromDt)
+                 or (:dateType = 'actualReturnDate' and p.actualReturnDate >= :fromDt)
+           )
+           and (
+                 :toEnabled = false
+                 or ((:dateType is null or :dateType = '' or :dateType = 'sentToLabDate') and p.sentToLabDate <= :toDt)
+                 or (:dateType = 'readyAt' and p.readyAt <= :toDt)
+                 or (:dateType = 'actualReturnDate' and p.actualReturnDate <= :toDt)
+           )
+           and (
+             :qLike = ''
+             or (:filterKey = 'work' and lower(coalesce(catalog.name, '')) like :qLike)
+            or (:filterKey = 'code' and lower(coalesce(p.code, '')) like :qLike)
+            or (:filterKey = 'dentist' and lower(concat(coalesce(pract.firstname, ''), ' ', coalesce(pract.lastname, ''))) like :qLike)
+            or (:filterKey = '' and (
+                    lower(coalesce(catalog.name, '')) like :qLike
+                    or lower(coalesce(p.code, '')) like :qLike
+                    or lower(concat(coalesce(pract.firstname, ''), ' ', coalesce(pract.lastname, ''))) like :qLike
+            ))
           )
     """)
     Page<Prothesis> searchForLabPortal(
@@ -1005,12 +1025,37 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
             @Param("archivedStatus") RecordStatus archivedStatus,
             @Param("dentistPublicId") UUID dentistPublicId,
             @Param("statusNorm") String statusNorm,
+            @Param("filterKey") String filterKey,
+            @Param("dateType") String dateType,
             @Param("fromEnabled") boolean fromEnabled,
             @Param("fromDt") LocalDateTime fromDt,
             @Param("toEnabled") boolean toEnabled,
             @Param("toDt") LocalDateTime toDt,
             @Param("qLike") String qLike,
             Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {
+            "prothesisCatalog.name",
+            "practitioner.publicId",
+            "practitioner.firstname",
+            "practitioner.lastname",
+            "laboratory.id",
+            "laboratory.name"
+    })
+    @Query("""
+            select p
+            from Prothesis p
+            left join p.practitioner pract
+            left join p.prothesisCatalog catalog
+            where p.laboratory = :laboratory
+              and p.recordStatus <> :archivedStatus
+              and p.cancelRequestDecision = com.cabinetplus.backend.enums.CancellationRequestDecision.PENDING
+            order by p.cancelRequestedAt desc nulls last, p.id desc
+            """)
+    List<Prothesis> findPendingCancellationForLabPortal(
+            @Param("laboratory") com.cabinetplus.backend.models.Laboratory laboratory,
+            @Param("archivedStatus") RecordStatus archivedStatus
     );
 
     @Modifying
@@ -1024,4 +1069,40 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
     int migrateLaboratoryForDentist(@Param("dentist") User dentist,
                                     @Param("source") com.cabinetplus.backend.models.Laboratory source,
                                     @Param("target") com.cabinetplus.backend.models.Laboratory target);
+
+    @Modifying
+    @Transactional
+    @Query("""
+        update Prothesis p
+        set p.updatedBy = :updatedBy,
+            p.updatedAt = :updatedAt
+        where p.id = :id
+    """)
+    int touchUpdatedBy(@Param("id") Long id,
+                       @Param("updatedBy") User updatedBy,
+                       @Param("updatedAt") LocalDateTime updatedAt);
+
+    @Modifying
+    @Transactional
+    @Query("""
+        update Prothesis p
+        set p.stlFilename = :stlFilename,
+            p.stlFileType = :stlFileType,
+            p.stlFileSizeBytes = :stlFileSizeBytes,
+            p.stlUploadedAt = :stlUploadedAt,
+            p.stlPathOrUrl = :stlPathOrUrl,
+            p.stlUploadedBy = :stlUploadedBy,
+            p.updatedBy = :updatedBy,
+            p.updatedAt = :updatedAt
+        where p.id = :id
+    """)
+    int updateStlAttachment(@Param("id") Long id,
+                            @Param("stlFilename") String stlFilename,
+                            @Param("stlFileType") String stlFileType,
+                            @Param("stlFileSizeBytes") Long stlFileSizeBytes,
+                            @Param("stlUploadedAt") LocalDateTime stlUploadedAt,
+                            @Param("stlPathOrUrl") String stlPathOrUrl,
+                            @Param("stlUploadedBy") User stlUploadedBy,
+                            @Param("updatedBy") User updatedBy,
+                            @Param("updatedAt") LocalDateTime updatedAt);
 }

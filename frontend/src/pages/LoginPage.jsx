@@ -664,33 +664,37 @@ const LoginPage = () => {
         <div className="login-reset-overlay" onClick={closeEmployeeSetupModal}>
           <div className="login-reset-card" onClick={(e) => e.stopPropagation()}>
             <h3>Nouvel employe</h3>
-            <p className="login-reset-sub">Entrez l'ID recu du dentiste pour configurer votre compte.</p>
+            <p className="login-reset-sub">Entrez l'ID d'invitation recu du dentiste pour configurer votre compte.</p>
 
             <div className="login-reset-form">
-              <input
-                type="text"
-                placeholder="ID employe"
-                value={employeeSetupId}
-                onChange={(e) => {
-                  setEmployeeSetupId(e.target.value);
-                  if (employeeSetupError) setEmployeeSetupError("");
-                }}
-              />
+                <input
+                  type="text"
+                  placeholder="ID d'invitation"
+                  value={employeeSetupId}
+                  onChange={(e) => {
+                    setEmployeeSetupId(e.target.value);
+                    if (employeeSetupError) setEmployeeSetupError("");
+                  }}
+                />
 
               {employeeSetupError ? <p className="login-reset-error">{employeeSetupError}</p> : null}
 
               <button
                 type="button"
-                onClick={() => {
-                  const id = String(employeeSetupId || "").trim();
-                  if (!id) {
-                    setEmployeeSetupError("ID obligatoire");
-                    return;
-                  }
-                  closeEmployeeSetupModal();
-                  navigate(`/employee-setup/${encodeURIComponent(id)}`);
-                }}
-              >
+                  onClick={() => {
+                    const id = String(employeeSetupId || "").trim();
+                    if (!id) {
+                      setEmployeeSetupError("ID obligatoire");
+                      return;
+                    }
+                    if (!/^\d{4,12}$/.test(id)) {
+                      setEmployeeSetupError("ID invalide (chiffres uniquement)");
+                      return;
+                    }
+                    closeEmployeeSetupModal();
+                    navigate(`/employee-setup/${encodeURIComponent(id)}`);
+                  }}
+                >
                 Configurer mon compte
               </button>
 

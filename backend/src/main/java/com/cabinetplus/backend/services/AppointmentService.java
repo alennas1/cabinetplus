@@ -121,7 +121,7 @@ public class AppointmentService {
 
         Appointment existing = requireByIdForPractitioner(id, practitioner);
         if (existing.getStatus() == AppointmentStatus.CANCELLED) {
-            throw new BadRequestException(java.util.Map.of("_", "Rendez-vous annulÃ© : lecture seule."));
+            throw new BadRequestException(java.util.Map.of("_", "Rendez-vous annulé : lecture seule."));
         }
 
         Patient patient = patientRepository.findByIdAndCreatedBy(request.patientId(), practitioner)

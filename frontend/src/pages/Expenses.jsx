@@ -418,7 +418,7 @@ const Expenses = () => {
     try {
       setIsCancellingExpense(true);
       await cancelExpense(cancelExpenseId, { pin, reason });
-      toast.success("DÃ©pense annulÃ©e");
+      toast.success("Dépense annulée");
       await fetchExpenses();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
@@ -557,7 +557,7 @@ const Expenses = () => {
               <td>{e.description || "—"}</td>
               <td className="actions-cell">
                 {isExpenseCancelled(e) ? (
-                  <span className="context-badge cancelled">AnnulÃ©</span>
+                  <span className="context-badge cancelled">Annulé</span>
                 ) : (
                   <>
                     <button className="action-btn edit" onClick={() => handleEdit(e)} title="Modifier"> <Edit2 size={16} /> </button>
@@ -983,9 +983,9 @@ const Expenses = () => {
       <CancelWithPinModal
         open={cancelExpenseId != null}
         busy={isCancellingExpense}
-        title="Annuler la dÃ©pense ?"
-        subtitle="Motif + PIN requis. La dÃ©pense restera visible dans l'historique mais ne sera plus comptabilisÃ©e."
-        confirmLabel="Annuler la dÃ©pense"
+        title="Annuler la dépense ?"
+        subtitle="Motif + PIN requis. La dépense restera visible dans l'historique mais ne sera plus comptabilisée."
+        confirmLabel="Annuler la dépense"
         onClose={() => {
           if (isCancellingExpense) return;
           setCancelExpenseId(null);

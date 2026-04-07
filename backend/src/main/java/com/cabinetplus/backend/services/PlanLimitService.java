@@ -7,6 +7,8 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.DocumentRepository;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
+import com.cabinetplus.backend.repositories.ProthesisFileRepository;
+import com.cabinetplus.backend.repositories.ProthesisRepository;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -16,15 +18,21 @@ public class PlanLimitService {
     private final EmployeeRepository employeeRepository;
     private final PatientRepository patientRepository;
     private final DocumentRepository documentRepository;
+    private final ProthesisRepository prothesisRepository;
+    private final ProthesisFileRepository prothesisFileRepository;
 
     public PlanLimitService(
             EmployeeRepository employeeRepository,
             PatientRepository patientRepository,
-            DocumentRepository documentRepository
+            DocumentRepository documentRepository,
+            ProthesisRepository prothesisRepository,
+            ProthesisFileRepository prothesisFileRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.patientRepository = patientRepository;
         this.documentRepository = documentRepository;
+        this.prothesisRepository = prothesisRepository;
+        this.prothesisFileRepository = prothesisFileRepository;
     }
 
     public void assertPatientLimitNotReached(User ownerDentist) {
@@ -65,7 +73,9 @@ public class PlanLimitService {
 
     public long getCurrentStorageBytes(User ownerDentist) {
         requirePlan(ownerDentist);
-        return documentRepository.sumFileSizeBytesByOwner(ownerDentist);
+        return documentRepository.sumFileSizeBytesByOwner(ownerDentist)
+                + prothesisRepository.sumStlFileSizeBytesByOwner(ownerDentist)
+                + prothesisFileRepository.sumFileSizeBytesByOwner(ownerDentist);
     }
 
     public PlanUsageDto getUsage(User ownerDentist) {
@@ -78,7 +88,9 @@ public class PlanLimitService {
                 ? patientRepository.countByCreatedByAndArchivedAtIsNull(ownerDentist)
                 : 0;
         long storageUsedBytes = ownerDentist != null
-                ? documentRepository.sumFileSizeBytesByOwner(ownerDentist)
+                ? (documentRepository.sumFileSizeBytesByOwner(ownerDentist)
+                    + prothesisRepository.sumStlFileSizeBytesByOwner(ownerDentist)
+                    + prothesisFileRepository.sumFileSizeBytesByOwner(ownerDentist))
                 : 0;
 
         return new PlanUsageDto(
@@ -109,6 +121,8 @@ public class PlanLimitService {
         long employeesUsed = employeeRepository.countByDentistAndArchivedAtIsNullAndRecordStatus(ownerDentist, RecordStatus.ACTIVE);
         long patientsUsed = patientRepository.countByCreatedByAndArchivedAtIsNull(ownerDentist);
         long storageUsedBytes = documentRepository.sumFileSizeBytesByOwner(ownerDentist);
+        storageUsedBytes += prothesisRepository.sumStlFileSizeBytesByOwner(ownerDentist);
+        storageUsedBytes += prothesisFileRepository.sumFileSizeBytesByOwner(ownerDentist);
 
         Long maxDentists = normalizeLimit(targetPlan.getMaxDentists());
         if (maxDentists != null && maxDentists >= 0 && dentistsUsed > maxDentists) {
@@ -157,4 +171,3 @@ public class PlanLimitService {
         return value;
     }
 }
-

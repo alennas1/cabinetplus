@@ -1,461 +1,454 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Check, Edit2, Hash, Home, Phone, User, X } from "react-feather";
 import { toast } from "react-toastify";
-import BackButton from "../components/BackButton";
-import PasswordInput from "../components/PasswordInput";
-import FieldError from "../components/FieldError";
-import { getApiErrorMessage } from "../utils/error";
-import { isStrongPassword } from "../utils/validation";
-import {
-  getActiveSessions,
-  revokeAllSessions,
-  revokeSession,
-  updatePassword,
-} from "../services/securityService";
+import { useDispatch } from "react-redux";
 
-const formatDateTime = (value) => {
-  if (!value) return "-";
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return "-";
-  }
+import BackButton from "../components/BackButton";
+import FieldError from "../components/FieldError";
+import PageHeader from "../components/PageHeader";
+import PhoneInput from "../components/PhoneInput";
+import PasswordInput from "../components/PasswordInput";
+
+import { getLabMe, updateLabMe } from "../services/labPortalService";
+import { getCurrentUser } from "../services/authService";
+import { confirmPhoneChangeOtp, sendPhoneChangeOtp } from "../services/securityService";
+import { setCredentials } from "../store/authSlice";
+import { getApiErrorMessage, getApiFieldErrors } from "../utils/error";
+import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../utils/phone";
+
+import "./Profile.css";
+
+const fieldLabels = {
+  inviteCode: "ID d'invitation",
+  name: "Laboratoire",
+  contactPerson: "Contact",
+  phoneNumber: "Téléphone",
+  address: "Adresse",
 };
 
+const fieldIcons = {
+  inviteCode: <Hash size={16} />,
+  name: <Home size={16} />,
+  contactPerson: <User size={16} />,
+  phoneNumber: <Phone size={16} />,
+  address: <Home size={16} />,
+};
+
+const editableFields = new Set(["name", "contactPerson", "address"]);
+
 const LabSettings = () => {
-  const [activeTab, setActiveTab] = useState("password");
+  const dispatch = useDispatch();
+  const [lab, setLab] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [editingField, setEditingField] = useState(null);
+  const [tempValue, setTempValue] = useState("");
 
-  // Password form
-  const [passwordForm, setPasswordForm] = useState({
-    oldPassword: "",
-    newPassword: "",
-    confirmNewPassword: "",
-    logoutAll: false,
-  });
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordFieldErrors, setPasswordFieldErrors] = useState({});
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [profileUpdatePassword, setProfileUpdatePassword] = useState("");
+  const [profileUpdatePasswordError, setProfileUpdatePasswordError] = useState("");
+  const [profileUpdateBusy, setProfileUpdateBusy] = useState(false);
+  const [pendingProfileUpdate, setPendingProfileUpdate] = useState(null); // { field, value }
 
-  // Sessions
-  const [sessions, setSessions] = useState([]);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [sessionsError, setSessionsError] = useState("");
-  const [sessionsBusy, setSessionsBusy] = useState(null); // null | "all" | sessionId
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneChangeNumber, setPhoneChangeNumber] = useState("");
+  const [phoneChangeCode, setPhoneChangeCode] = useState("");
+  const [phoneChangePassword, setPhoneChangePassword] = useState("");
+  const [phoneChangeErrors, setPhoneChangeErrors] = useState({});
+  const [phoneChangeOtpSent, setPhoneChangeOtpSent] = useState(false);
+  const [phoneChangeBusy, setPhoneChangeBusy] = useState(false);
+  const [phoneChangeCooldown, setPhoneChangeCooldown] = useState(0);
 
-  // Confirm revoke modal
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmMode, setConfirmMode] = useState(null); // "one" | "all"
-  const [confirmSession, setConfirmSession] = useState(null);
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [confirmError, setConfirmError] = useState("");
+  useEffect(() => {
+    if (phoneChangeCooldown <= 0) return;
+    const t = setTimeout(() => {
+      setPhoneChangeCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [phoneChangeCooldown]);
 
-  const loadSessions = async () => {
-    setSessionsLoading(true);
-    setSessionsError("");
+  const load = async () => {
+    setLoading(true);
     try {
-      const data = await getActiveSessions();
-      setSessions(Array.isArray(data) ? data : []);
+      const data = await getLabMe();
+      setLab(data || null);
     } catch (err) {
-      setSessions([]);
-      setSessionsError(getApiErrorMessage(err, "Impossible de charger les sessions."));
+      toast.error(getApiErrorMessage(err, "Erreur lors du chargement du profil"));
+      setLab(null);
     } finally {
-      setSessionsLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSessions();
+    load();
   }, []);
 
-  const validatePasswordForm = () => {
-    const next = {};
-    if (!passwordForm.oldPassword) next.oldPassword = "Ancien mot de passe requis.";
-
-    const newPassword = String(passwordForm.newPassword || "");
-    if (!newPassword) next.newPassword = "Nouveau mot de passe requis.";
-    else if (!isStrongPassword(newPassword)) {
-      next.newPassword = "Mot de passe invalide : minimum 8 caractères avec majuscule, minuscule, chiffre et symbole.";
-    }
-
-    if (String(passwordForm.confirmNewPassword || "") !== newPassword) {
-      next.confirmNewPassword = "Les mots de passe ne correspondent pas.";
-    }
-
-    return next;
+  const resetPhoneModal = () => {
+    setPhoneChangeNumber("");
+    setPhoneChangeCode("");
+    setPhoneChangePassword("");
+    setPhoneChangeErrors({});
+    setPhoneChangeOtpSent(false);
+    setPhoneChangeBusy(false);
+    setPhoneChangeCooldown(0);
   };
 
-  const passwordPayload = useMemo(
-    () => ({
-      oldPassword: String(passwordForm.oldPassword || ""),
-      newPassword: String(passwordForm.newPassword || ""),
-      logoutAll: !!passwordForm.logoutAll,
-    }),
-    [passwordForm]
-  );
+  const closePhoneModal = () => {
+    setShowPhoneModal(false);
+    resetPhoneModal();
+  };
 
-  const submitPassword = async (e) => {
-    e.preventDefault();
-    setPasswordError("");
-    setPasswordFieldErrors({});
+  const openPhoneModal = () => {
+    setShowPhoneModal(true);
+    resetPhoneModal();
+  };
 
-    const nextErrors = validatePasswordForm();
-    if (Object.keys(nextErrors).length) {
-      setPasswordFieldErrors(nextErrors);
-      setPasswordError("Veuillez corriger les champs en rouge.");
+  const handleSendPhoneChangeOtp = async () => {
+    const nextErrors = {};
+    if (!String(phoneChangeNumber || "").trim()) nextErrors.phoneChangeNumber = "Champ obligatoire.";
+    else if (!isValidPhoneNumber(phoneChangeNumber)) nextErrors.phoneChangeNumber = "Téléphone invalide.";
+    setPhoneChangeErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+    if (phoneChangeBusy || phoneChangeCooldown > 0) return;
+
+    try {
+      setPhoneChangeBusy(true);
+      await sendPhoneChangeOtp(normalizePhoneInput(phoneChangeNumber));
+      setPhoneChangeOtpSent(true);
+      setPhoneChangeCooldown(60);
+      toast.success("Code SMS envoyé");
+    } catch (err) {
+      const retryAfter = Number(err?.response?.data?.retryAfterSeconds);
+      if (err?.response?.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+        setPhoneChangeCooldown(retryAfter);
+        toast.info(getApiErrorMessage(err, "Veuillez patienter avant de renvoyer un code."));
+      } else {
+        toast.error(getApiErrorMessage(err, "Impossible d'envoyer le code SMS"));
+      }
+    } finally {
+      setPhoneChangeBusy(false);
+    }
+  };
+
+  const handleConfirmPhoneChangeOtp = async () => {
+    if (!phoneChangeOtpSent) return;
+    const nextErrors = {};
+    if (!String(phoneChangeCode || "").trim()) nextErrors.phoneChangeCode = "Champ obligatoire.";
+    if (!String(phoneChangePassword || "").trim()) nextErrors.phoneChangePassword = "Champ obligatoire.";
+    setPhoneChangeErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+    if (phoneChangeBusy) return;
+
+    try {
+      setPhoneChangeBusy(true);
+      await confirmPhoneChangeOtp({
+        phoneNumber: normalizePhoneInput(phoneChangeNumber),
+        code: phoneChangeCode.trim(),
+        password: phoneChangePassword.trim(),
+      });
+
+      try {
+        const refreshed = await getCurrentUser();
+        dispatch(setCredentials({ user: refreshed, token: true }));
+      } catch {
+        // ignore
+      }
+
+      toast.success("Numéro de téléphone mis à jour");
+      await load();
+      closePhoneModal();
+    } catch (err) {
+      setPhoneChangeErrors((prev) => ({
+        ...prev,
+        phoneChangeCode: getApiErrorMessage(err, "Code SMS invalide"),
+      }));
+    } finally {
+      setPhoneChangeBusy(false);
+    }
+  };
+
+  const handleEdit = (field) => {
+    if (!editableFields.has(field)) return;
+    setEditingField(field);
+    setTempValue(lab?.[field] || "");
+  };
+
+  const handleCancel = () => {
+    setEditingField(null);
+    setTempValue("");
+  };
+
+  const closePasswordModal = () => {
+    if (profileUpdateBusy) return;
+    setShowPasswordModal(false);
+    setProfileUpdatePassword("");
+    setProfileUpdatePasswordError("");
+    setPendingProfileUpdate(null);
+  };
+
+  const handleSave = async (field) => {
+    if (!editableFields.has(field)) return;
+    const valueToSave = String(tempValue ?? "");
+    if (valueToSave === String(lab?.[field] ?? "")) {
+      setEditingField(null);
+      setTempValue("");
       return;
     }
 
-    setPasswordLoading(true);
-    try {
-      await updatePassword(passwordPayload);
-      toast.success("Mot de passe modifié");
-      setPasswordForm({ oldPassword: "", newPassword: "", confirmNewPassword: "", logoutAll: false });
-      await loadSessions();
-    } catch (err) {
-      const data = err?.response?.data;
-      if (data?.fieldErrors && typeof data.fieldErrors === "object") {
-        const next = {};
-        if (data.fieldErrors.oldPassword) next.oldPassword = data.fieldErrors.oldPassword;
-        if (data.fieldErrors.newPassword) next.newPassword = data.fieldErrors.newPassword;
-        setPasswordFieldErrors(next);
-        setPasswordError(Object.values(next).find(Boolean) || getApiErrorMessage(err, "Erreur."));
-      } else {
-        setPasswordError(getApiErrorMessage(err, "Impossible de modifier le mot de passe."));
-      }
-    } finally {
-      setPasswordLoading(false);
-    }
+    setPendingProfileUpdate({ field, value: valueToSave });
+    setShowPasswordModal(true);
+    setProfileUpdatePassword("");
+    setProfileUpdatePasswordError("");
   };
 
-  const openConfirmOne = (session) => {
-    setConfirmMode("one");
-    setConfirmSession(session);
-    setConfirmPassword("");
-    setConfirmError("");
-    setConfirmOpen(true);
-  };
+  const confirmProfileUpdate = async () => {
+    if (!pendingProfileUpdate) return;
+    if (profileUpdateBusy) return;
 
-  const openConfirmAll = () => {
-    setConfirmMode("all");
-    setConfirmSession(null);
-    setConfirmPassword("");
-    setConfirmError("");
-    setConfirmOpen(true);
-  };
-
-  const closeConfirm = () => {
-    if (sessionsBusy) return;
-    setConfirmOpen(false);
-    setConfirmMode(null);
-    setConfirmSession(null);
-    setConfirmPassword("");
-    setConfirmError("");
-  };
-
-  const confirmRevoke = async () => {
-    const pw = String(confirmPassword || "");
-    if (!pw) {
-      setConfirmError("Mot de passe requis.");
+    const password = String(profileUpdatePassword || "").trim();
+    if (!password) {
+      setProfileUpdatePasswordError("Champ obligatoire.");
       return;
     }
 
-    setConfirmError("");
-    setSessionsBusy(confirmMode === "all" ? "all" : confirmSession?.id);
-
     try {
-      if (confirmMode === "all") {
-        await revokeAllSessions(pw);
-        toast.success("Toutes les sessions ont été révoquées.");
-      } else {
-        await revokeSession(confirmSession?.id, pw);
-        toast.success("Session révoquée.");
-      }
-      await loadSessions();
-      setConfirmOpen(false);
-      setConfirmMode(null);
-      setConfirmSession(null);
-      setConfirmPassword("");
+      setProfileUpdateBusy(true);
+      setProfileUpdatePasswordError("");
+
+      const { field, value } = pendingProfileUpdate;
+      const payload = { password };
+      if (field === "name") payload.name = value;
+      if (field === "contactPerson") payload.contactPerson = value;
+      if (field === "address") payload.address = value;
+
+      const updated = await updateLabMe(payload);
+      setLab(updated || null);
+      setEditingField(null);
+      setTempValue("");
+      closePasswordModal();
+      toast.success(`${fieldLabels[field]} mis à jour avec succès`);
     } catch (err) {
-      setConfirmError(getApiErrorMessage(err, "Impossible de révoquer la session."));
+      const fieldErrors = getApiFieldErrors(err);
+      setProfileUpdatePasswordError(fieldErrors?.password || getApiErrorMessage(err, "Mot de passe incorrect"));
     } finally {
-      setSessionsBusy(null);
+      setProfileUpdateBusy(false);
     }
+  };
+
+  const renderField = (field) => {
+    const label = fieldLabels[field] || field;
+    const icon = fieldIcons[field] || null;
+
+    const isEditing = editingField === field;
+    const isEditable = editableFields.has(field);
+
+    const value = lab?.[field];
+
+    return (
+      <div className="profile-field" key={field}>
+        <div className="field-label">
+          {icon} {label}:
+        </div>
+
+        {field === "inviteCode" ? (
+          <>
+            <div className="field-value">{value || "—"}</div>
+            {value ? (
+              <button
+                type="button"
+                className="btn-primary2 profile-phone-btn"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard?.writeText(String(value));
+                    toast.success("ID copié");
+                  } catch {
+                    toast.info(String(value));
+                  }
+                }}
+              >
+                Copier
+              </button>
+            ) : null}
+          </>
+        ) : field === "phoneNumber" ? (
+          <>
+            <div className="field-value">{formatPhoneNumber(value) || "—"}</div>
+            <button type="button" className="btn-primary2 profile-phone-btn" onClick={openPhoneModal}>
+              Mettre à jour
+            </button>
+          </>
+        ) : isEditing ? (
+          <input value={tempValue} onChange={(e) => setTempValue(e.target.value)} autoFocus />
+        ) : (
+          <div className="field-value">{value || "—"}</div>
+        )}
+
+        <div className="profile-field-actions">
+          {isEditable ? (
+            isEditing ? (
+              <>
+                <button type="button" className="action-btn complete" onClick={() => handleSave(field)} disabled={profileUpdateBusy}>
+                  <Check size={16} />
+                </button>
+                <button type="button" className="action-btn cancel" onClick={handleCancel} disabled={profileUpdateBusy}>
+                  <X size={16} />
+                </button>
+              </>
+            ) : (
+              <button type="button" className="action-btn edit" onClick={() => handleEdit(field)} disabled={loading}>
+                <Edit2 size={16} />
+              </button>
+            )
+          ) : null}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-5">
-      <BackButton fallbackTo="/lab" />
+    <div className="profile-container">
+      <BackButton fallbackTo="/lab/settings" />
+      <PageHeader title="Profil" subtitle="Modifier les informations de votre laboratoire." align="left" />
 
-      <div className="mt-1">
-        <h1 className="text-2xl font-semibold text-slate-900">Paramètres</h1>
-        <p className="mt-1 text-sm text-slate-600">Gérez votre mot de passe et vos sessions actives.</p>
+      <div className="profile-content">
+        {loading ? <div style={{ padding: "16px", color: "#6b7280" }}>Chargement...</div> : null}
+
+        {renderField("inviteCode")}
+        {renderField("name")}
+        {renderField("contactPerson")}
+        {renderField("phoneNumber")}
+        {renderField("address")}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-            activeTab === "password" ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-          }`}
-          onClick={() => setActiveTab("password")}
-        >
-          Mot de passe
-        </button>
-        <button
-          type="button"
-          className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-            activeTab === "sessions" ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-          }`}
-          onClick={() => setActiveTab("sessions")}
-        >
-          Sessions
-        </button>
-      </div>
+      {showPasswordModal ? (
+        <div className="modal-overlay" onClick={closePasswordModal}>
+          <div className="modal-content profile-phone-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Confirmer avec votre mot de passe</h3>
+            <p className="profile-modal-subtitle">Pour modifier ces informations, veuillez saisir votre mot de passe.</p>
 
-      {activeTab === "password" ? (
-        <div className="mt-4 max-w-2xl rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          {passwordError ? (
-            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{passwordError}</div>
-          ) : null}
-
-          <form noValidate onSubmit={submitPassword} className="space-y-3">
-            <div>
-              <label htmlFor="oldPassword" className="block text-sm font-semibold text-slate-700">
-                Ancien mot de passe
-              </label>
+            <div className="profile-modal-field">
+              <label>Mot de passe</label>
               <PasswordInput
-                id="oldPassword"
-                name="oldPassword"
+                placeholder="Entrez votre mot de passe"
+                value={profileUpdatePassword}
+                onChange={(e) => {
+                  setProfileUpdatePassword(e.target.value);
+                  if (profileUpdatePasswordError) setProfileUpdatePasswordError("");
+                }}
                 autoComplete="current-password"
-                value={passwordForm.oldPassword}
-                onChange={(e) => {
-                  setPasswordForm((p) => ({ ...p, oldPassword: e.target.value }));
-                  if (passwordFieldErrors.oldPassword) setPasswordFieldErrors((p) => ({ ...p, oldPassword: "" }));
-                  if (passwordError) setPasswordError("");
-                }}
-                disabled={passwordLoading}
-                inputClassName={passwordFieldErrors.oldPassword ? "invalid" : ""}
+                disabled={profileUpdateBusy}
+                inputClassName={profileUpdatePasswordError ? "invalid" : ""}
               />
-              <FieldError message={passwordFieldErrors.oldPassword} />
+              <FieldError message={profileUpdatePasswordError} />
             </div>
 
-            <div>
-              <label htmlFor="newPassword" className="block text-sm font-semibold text-slate-700">
-                Nouveau mot de passe
-              </label>
-              <PasswordInput
-                id="newPassword"
-                name="newPassword"
-                autoComplete="new-password"
-                value={passwordForm.newPassword}
-                onChange={(e) => {
-                  setPasswordForm((p) => ({ ...p, newPassword: e.target.value }));
-                  if (passwordFieldErrors.newPassword) setPasswordFieldErrors((p) => ({ ...p, newPassword: "" }));
-                  if (passwordError) setPasswordError("");
-                }}
-                disabled={passwordLoading}
-                inputClassName={passwordFieldErrors.newPassword ? "invalid" : ""}
-              />
-              <FieldError message={passwordFieldErrors.newPassword} />
-            </div>
-
-            <div>
-              <label htmlFor="confirmNewPassword" className="block text-sm font-semibold text-slate-700">
-                Confirmer le nouveau mot de passe
-              </label>
-              <PasswordInput
-                id="confirmNewPassword"
-                name="confirmNewPassword"
-                autoComplete="new-password"
-                value={passwordForm.confirmNewPassword}
-                onChange={(e) => {
-                  setPasswordForm((p) => ({ ...p, confirmNewPassword: e.target.value }));
-                  if (passwordFieldErrors.confirmNewPassword)
-                    setPasswordFieldErrors((p) => ({ ...p, confirmNewPassword: "" }));
-                  if (passwordError) setPasswordError("");
-                }}
-                disabled={passwordLoading}
-                inputClassName={passwordFieldErrors.confirmNewPassword ? "invalid" : ""}
-              />
-              <FieldError message={passwordFieldErrors.confirmNewPassword} />
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={!!passwordForm.logoutAll}
-                onChange={(e) => setPasswordForm((p) => ({ ...p, logoutAll: e.target.checked }))}
-                disabled={passwordLoading}
-              />
-              Déconnecter tous les appareils
-            </label>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="submit"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                disabled={passwordLoading}
-              >
-                {passwordLoading ? "Enregistrement..." : "Modifier le mot de passe"}
+            <div className="modal-actions">
+              <button type="button" className="btn-primary2" onClick={confirmProfileUpdate} disabled={profileUpdateBusy}>
+                {profileUpdateBusy ? "Vérification..." : "Confirmer"}
               </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      {activeTab === "sessions" ? (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Sessions actives</h2>
-              <p className="mt-0.5 text-sm text-slate-600">Vous pouvez révoquer une session avec votre mot de passe.</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                onClick={loadSessions}
-                disabled={sessionsLoading || !!sessionsBusy}
-              >
-                Rafraîchir
-              </button>
-              <button
-                type="button"
-                className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-                onClick={openConfirmAll}
-                disabled={sessionsLoading || !!sessionsBusy}
-              >
-                Tout déconnecter
-              </button>
-            </div>
-          </div>
-
-          {sessionsError ? (
-            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sessionsError}</div>
-          ) : null}
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-[900px] w-full text-sm">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold">Appareil</th>
-                  <th className="px-3 py-2 text-left font-semibold">IP</th>
-                  <th className="px-3 py-2 text-left font-semibold">Dernière activité</th>
-                  <th className="px-3 py-2 text-left font-semibold">Expire</th>
-                  <th className="px-3 py-2 text-right font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {sessionsLoading ? (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
-                      Chargement...
-                    </td>
-                  </tr>
-                ) : sessions.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
-                      Aucune session active.
-                    </td>
-                  </tr>
-                ) : (
-                  sessions.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50">
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-slate-900">{s.userAgent || "Appareil inconnu"}</span>
-                          {s.current ? (
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                              Actuelle
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-0.5 text-xs text-slate-500">
-                          Créée: {formatDateTime(s.createdAt)} • ID: {s.deviceId || "-"}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        <div>{s.ipAddress || "-"}</div>
-                        <div className="text-xs text-slate-500">{s.location || "-"}</div>
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">{formatDateTime(s.lastUsedAt)}</td>
-                      <td className="px-3 py-2 text-slate-700">{formatDateTime(s.expiresAt)}</td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                          onClick={() => openConfirmOne(s)}
-                          disabled={sessionsBusy === s.id || sessionsBusy === "all" || sessionsLoading}
-                        >
-                          {sessionsBusy === s.id ? "..." : "Révoquer"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
-      {confirmOpen ? (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">
-              {confirmMode === "all" ? "Tout déconnecter" : "Révoquer la session"}
-            </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              {confirmMode === "all"
-                ? "Confirmez avec votre mot de passe pour révoquer toutes vos sessions."
-                : "Confirmez avec votre mot de passe pour révoquer cette session."}
-            </p>
-
-            {confirmMode === "one" && confirmSession ? (
-              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                <div className="font-semibold text-slate-900">{confirmSession.userAgent || "Appareil inconnu"}</div>
-                <div className="mt-0.5 text-xs text-slate-600">
-                  Dernière activité: {formatDateTime(confirmSession.lastUsedAt)} • IP: {confirmSession.ipAddress || "-"}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-3">
-              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-slate-700">
-                Mot de passe
-              </label>
-              <PasswordInput
-                id="confirmPassword"
-                name="confirmPassword"
-                autoComplete="current-password"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (confirmError) setConfirmError("");
-                }}
-                disabled={!!sessionsBusy}
-              />
-              <FieldError message={confirmError} />
-            </div>
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                onClick={closeConfirm}
-                disabled={!!sessionsBusy}
-              >
+              <button type="button" className="btn-cancel" onClick={closePasswordModal} disabled={profileUpdateBusy}>
                 Annuler
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showPhoneModal ? (
+        <div className="modal-overlay" onClick={closePhoneModal}>
+          <div className="modal-content profile-phone-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Mettre à jour le numéro</h3>
+            <p className="profile-modal-subtitle">Entrez votre nouveau numéro puis recevez un code SMS.</p>
+
+            <div className="profile-modal-field">
+              <label>Nouveau numéro</label>
+              <PhoneInput
+                placeholder="Ex: 05 51 51 51 51"
+                value={phoneChangeNumber}
+                onChangeValue={(v) => {
+                  setPhoneChangeNumber(v);
+                  if (phoneChangeErrors.phoneChangeNumber) {
+                    setPhoneChangeErrors((prev) => ({ ...prev, phoneChangeNumber: "" }));
+                  }
+                }}
+                className={phoneChangeErrors.phoneChangeNumber ? "invalid" : ""}
+                disabled={phoneChangeBusy}
+              />
+              <FieldError message={phoneChangeErrors.phoneChangeNumber} />
+            </div>
+
+            <div className="modal-actions profile-modal-actions-split">
               <button
                 type="button"
-                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                onClick={confirmRevoke}
-                disabled={!!sessionsBusy}
+                className="btn-primary2"
+                onClick={handleSendPhoneChangeOtp}
+                disabled={phoneChangeBusy || phoneChangeCooldown > 0}
               >
-                Confirmer
+                {phoneChangeBusy
+                  ? "Envoi..."
+                  : phoneChangeCooldown > 0
+                  ? `Renvoyer dans ${phoneChangeCooldown}s`
+                  : phoneChangeOtpSent
+                  ? "Renvoyer le code"
+                  : "Envoyer le code"}
+              </button>
+
+              <button type="button" className="btn-cancel" onClick={closePhoneModal} disabled={phoneChangeBusy}>
+                Annuler
               </button>
             </div>
+
+            {phoneChangeOtpSent ? (
+              <>
+                <div className="profile-modal-field">
+                  <label>Code SMS</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Entrez le code"
+                    value={phoneChangeCode}
+                    onChange={(e) => {
+                      setPhoneChangeCode(e.target.value);
+                      if (phoneChangeErrors.phoneChangeCode) {
+                        setPhoneChangeErrors((prev) => ({ ...prev, phoneChangeCode: "" }));
+                      }
+                    }}
+                    className={phoneChangeErrors.phoneChangeCode ? "invalid" : ""}
+                    disabled={phoneChangeBusy}
+                  />
+                  <FieldError message={phoneChangeErrors.phoneChangeCode} />
+                </div>
+
+                <div className="profile-modal-field">
+                  <label>Mot de passe</label>
+                  <PasswordInput
+                    placeholder="Entrez votre mot de passe"
+                    value={phoneChangePassword}
+                    onChange={(e) => {
+                      setPhoneChangePassword(e.target.value);
+                      if (phoneChangeErrors.phoneChangePassword) {
+                        setPhoneChangeErrors((prev) => ({ ...prev, phoneChangePassword: "" }));
+                      }
+                    }}
+                    autoComplete="current-password"
+                    disabled={phoneChangeBusy}
+                    inputClassName={phoneChangeErrors.phoneChangePassword ? "invalid" : ""}
+                  />
+                  <FieldError message={phoneChangeErrors.phoneChangePassword} />
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="btn-primary2"
+                    onClick={handleConfirmPhoneChangeOtp}
+                    disabled={phoneChangeBusy}
+                  >
+                    {phoneChangeBusy ? "Vérification..." : "Vérifier et enregistrer"}
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -464,4 +457,3 @@ const LabSettings = () => {
 };
 
 export default LabSettings;
-

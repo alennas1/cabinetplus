@@ -5,18 +5,26 @@ import com.cabinetplus.backend.enums.AuditEventType;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.*;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
+import com.cabinetplus.backend.repositories.ProthesisFileRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.*;
 import com.cabinetplus.backend.util.PagedQueryUtil;
 import com.cabinetplus.backend.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,15 +33,20 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/protheses")
 @RequiredArgsConstructor
 public class ProtheticsController {
     private final ProthesisService service;
+    private final ProthesisStlService prothesisStlService;
+    private final ProthesisFilesService prothesisFilesService;
     private final UserService userService;
     private final AuditService auditService;
     private final ProthesisRepository prothesisRepository;
+    private final ProthesisFileRepository prothesisFileRepository;
     private final PublicIdResolutionService publicIdResolutionService;
     private final CancellationSecurityService cancellationSecurityService;
 
@@ -138,6 +151,145 @@ public class ProtheticsController {
                 "Prothese modifiee"
         );
         return ResponseEntity.ok(mapToResponse(updated));
+    }
+
+    @PostMapping(value = "/{id}/stl", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ProthesisResponse> uploadStl(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            Principal principal
+    ) {
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        Prothesis updated = prothesisStlService.uploadForDentist(id, file, user, actor);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_UPDATE,
+                "PROTHESIS",
+                id != null ? String.valueOf(id) : null,
+                "Fichier STL televerse"
+        );
+        return ResponseEntity.ok(mapToResponse(updated));
+    }
+
+    @PostMapping(value = "/{id}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ProthesisResponse> uploadFiles(
+            @PathVariable Long id,
+            @RequestParam("files") MultipartFile[] files,
+            @RequestParam(name = "paths", required = false) List<String> paths,
+            Principal principal
+    ) {
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        Prothesis updated = prothesisFilesService.uploadForDentist(id, files, paths, user, actor);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_UPDATE,
+                "PROTHESIS",
+                id != null ? String.valueOf(id) : null,
+                "Fichiers televerses"
+        );
+        return ResponseEntity.ok(mapToResponse(updated));
+    }
+
+    @PostMapping(value = "/{id}/files/item", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ProthesisFileItemResponse> uploadFileItem(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "path", required = false) String path,
+            Principal principal
+    ) {
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        ProthesisFileItemResponse created = prothesisFilesService.uploadItemForDentist(id, file, path, user, actor);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_UPDATE,
+                "PROTHESIS",
+                id != null ? String.valueOf(id) : null,
+                "Fichier televerse"
+        );
+        return ResponseEntity.ok(created);
+    }
+
+    @GetMapping("/{id}/files")
+    public ResponseEntity<List<ProthesisFileItemResponse>> listFiles(@PathVariable Long id, Principal principal) {
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        List<ProthesisFileItemResponse> files = prothesisFilesService.listForDentist(id, user);
+        return ResponseEntity.ok(files);
+    }
+
+    @DeleteMapping("/{id}/files/{fileId}")
+    public ResponseEntity<Void> deleteFile(@PathVariable Long id, @PathVariable Long fileId, Principal principal) {
+        User actor = getActor(principal);
+        User user = userService.resolveClinicOwner(actor);
+        prothesisFilesService.deleteFileForDentist(id, fileId, user, actor);
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_UPDATE,
+                "PROTHESIS",
+                id != null ? String.valueOf(id) : null,
+                "Fichier supprime"
+        );
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/files.zip")
+    public ResponseEntity<StreamingResponseBody> downloadFilesZip(@PathVariable Long id, Principal principal) {
+        User user = getClinicUser(principal);
+        String filename = prothesisFilesService.buildZipFilename(id);
+        var sources = prothesisFilesService.buildZipSourcesForDentist(id, user);
+
+        StreamingResponseBody body = outputStream -> {
+            try (ZipOutputStream zipOut = new ZipOutputStream(outputStream, StandardCharsets.UTF_8)) {
+                for (var source : sources) {
+                    String entryName = source.entryName() != null && !source.entryName().isBlank()
+                            ? source.entryName()
+                            : ("file-" + System.nanoTime());
+                    ZipEntry entry = new ZipEntry(entryName);
+                    zipOut.putNextEntry(entry);
+                    try (var in = prothesisFilesService.openDecryptedStream(source.encryptedPath())) {
+                        in.transferTo(zipOut);
+                    }
+                    zipOut.closeEntry();
+                }
+                zipOut.finish();
+            }
+        };
+
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(filename, StandardCharsets.UTF_8)
+                .build();
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(body);
+    }
+
+    @GetMapping("/{id}/stl")
+    public ResponseEntity<Resource> downloadStl(
+            @PathVariable Long id,
+            @RequestParam(name = "download", defaultValue = "true") boolean download,
+            Principal principal
+    ) {
+        User user = getClinicUser(principal);
+        Resource resource = prothesisStlService.getResourceForDentist(id, user);
+        MediaType mediaType = prothesisStlService.getMediaTypeForDentist(id, user);
+        String filename = prothesisStlService.getFilenameForDentist(id, user);
+
+        auditService.logSuccess(
+                AuditEventType.PROTHESIS_READ,
+                "PROTHESIS",
+                id != null ? String.valueOf(id) : null,
+                "Fichier STL telecharge"
+        );
+
+        ContentDisposition disposition = (download ? ContentDisposition.attachment() : ContentDisposition.inline())
+                .filename(filename, StandardCharsets.UTF_8)
+                .build();
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(resource);
     }
 
     @PutMapping("/{id}/assign-lab")
@@ -305,10 +457,10 @@ public class ProtheticsController {
         cancelRequestDecidedByName = combined.isBlank() ? null : combined;
     }
       
-    return new ProthesisResponse(
-        p.getId(),
-        p.getProthesisCatalog().getId(),
-        p.getPatient().getId(),
+        return new ProthesisResponse(
+            p.getId(),
+            p.getProthesisCatalog().getId(),
+            p.getPatient().getId(),
         patientFullName,
         p.getProthesisCatalog().getName(),
         (p.getProthesisCatalog().getMaterial() != null) ? p.getProthesisCatalog().getMaterial().getName() : "N/A",
@@ -337,9 +489,22 @@ public class ProtheticsController {
         p.getCancelRequestReason(),
         p.getCancelRequestDecision() != null ? p.getCancelRequestDecision().name() : null,
         p.getCancelRequestDecidedAt(),
-        cancelRequestDecidedByName
+        cancelRequestDecidedByName,
+        p.getStlFilename(),
+        p.getStlUploadedAt(),
+        computeFilesCount(p)
     );
 }
+
+    private Integer computeFilesCount(Prothesis p) {
+        if (p == null || p.getId() == null) return 0;
+        long count = prothesisFileRepository.countByProthesisId(p.getId());
+        if (p.getStlPathOrUrl() != null && !p.getStlPathOrUrl().isBlank()) {
+            count += 1;
+        }
+        if (count > Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        return (int) count;
+    }
 
     private static LocalDateTime parseDateStart(String value) {
         if (value == null || value.isBlank()) return null;

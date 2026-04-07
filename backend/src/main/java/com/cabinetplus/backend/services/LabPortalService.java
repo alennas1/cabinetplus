@@ -1,5 +1,7 @@
 package com.cabinetplus.backend.services;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.UUID;
@@ -15,6 +17,8 @@ import com.cabinetplus.backend.enums.CancellationRequestDecision;
 import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.dto.LabDentistFinancialSummaryResponse;
+import com.cabinetplus.backend.dto.CountTotalResponseDTO;
 import com.cabinetplus.backend.models.Laboratory;
 import com.cabinetplus.backend.models.LaboratoryPayment;
 import com.cabinetplus.backend.models.Prothesis;
@@ -39,10 +43,30 @@ public class LabPortalService {
         this.laboratoryPaymentRepository = laboratoryPaymentRepository;
     }
 
-    public Page<Prothesis> getMyProthesesPaged(User labUser, String q, String status, UUID dentistPublicId, LocalDateTime from, LocalDateTime to, Pageable pageable) {
+    public Page<Prothesis> getMyProthesesPaged(
+            User labUser,
+            String q,
+            String status,
+            String filterBy,
+            String dateType,
+            UUID dentistPublicId,
+            LocalDateTime from,
+            LocalDateTime to,
+            Pageable pageable
+    ) {
         Laboratory lab = laboratoryAccessService.requireMyLab(labUser);
 
         String statusNorm = status != null ? status.trim().toUpperCase(Locale.ROOT) : "";
+        String filterKey = filterBy != null ? filterBy.trim().toLowerCase(Locale.ROOT) : "";
+        if (!java.util.Set.of("", "work", "code", "dentist").contains(filterKey)) {
+            filterKey = "";
+        }
+
+        String dateTypeKey = dateType != null ? dateType.trim() : "";
+        if (!java.util.Set.of("", "sentToLabDate", "readyAt", "actualReturnDate").contains(dateTypeKey)) {
+            dateTypeKey = "";
+        }
+
         String qNorm = q != null ? q.trim().toLowerCase(Locale.ROOT) : "";
         String qLike = qNorm.isBlank() ? "" : "%" + qNorm + "%";
 
@@ -51,13 +75,25 @@ public class LabPortalService {
                 RecordStatus.ARCHIVED,
                 dentistPublicId,
                 statusNorm,
+                filterKey,
+                dateTypeKey,
                 from != null,
                 from,
                 to != null,
                 to,
                 qLike,
-                pageable
-        );
+                 pageable
+         );
+     }
+
+    public List<Prothesis> getMyPendingProthesisCancellations(User labUser) {
+        Laboratory lab = laboratoryAccessService.requireMyLab(labUser);
+        return prothesisRepository.findPendingCancellationForLabPortal(lab, RecordStatus.ARCHIVED);
+    }
+
+    public List<LaboratoryPayment> getMyPendingPaymentCancellations(User labUser) {
+        Laboratory lab = laboratoryAccessService.requireMyLab(labUser);
+        return laboratoryPaymentRepository.findPendingCancellationForLabPortal(lab, RecordStatus.ARCHIVED);
     }
 
     public Page<LaboratoryPayment> getMyPaymentsPaged(User labUser, String q, UUID dentistPublicId, LocalDateTime from, LocalDateTime to, Pageable pageable) {
@@ -78,13 +114,57 @@ public class LabPortalService {
         );
     }
 
+    public CountTotalResponseDTO getMyPaymentsSummary(User labUser, String q, UUID dentistPublicId, LocalDateTime from, LocalDateTime to) {
+        Laboratory lab = laboratoryAccessService.requireMyLab(labUser);
+        String qNorm = q != null ? q.trim().toLowerCase(Locale.ROOT) : "";
+        String qLike = qNorm.isBlank() ? "" : "%" + qNorm + "%";
+
+        Object[] row = laboratoryPaymentRepository.getPaymentsSummaryForLabPortal(
+                lab,
+                RecordStatus.ARCHIVED,
+                dentistPublicId,
+                from != null,
+                from,
+                to != null,
+                to,
+                qLike
+        );
+
+        long count = 0L;
+        double total = 0.0;
+        if (row != null && row.length >= 2) {
+            Object countObj = row[0];
+            Object totalObj = row[1];
+            if (countObj instanceof Number n) count = n.longValue();
+            if (totalObj instanceof Number n) total = n.doubleValue();
+        }
+        return new CountTotalResponseDTO(count, total);
+    }
+
+    public LabDentistFinancialSummaryResponse getDentistFinancialSummary(User labUser, User dentist) {
+        if (labUser == null || dentist == null) {
+            return new LabDentistFinancialSummaryResponse(0.0, 0.0, 0.0);
+        }
+
+        Laboratory lab = laboratoryAccessService.requireMyLab(labUser);
+        Double owed = prothesisRepository.sumLabCostByPractitionerAndLaboratory(dentist, lab.getId());
+        Double paid = laboratoryPaymentRepository.sumAmountByLaboratoryIdAndCreatedBy(lab.getId(), dentist);
+
+        double totalOwed = owed != null ? owed : 0.0;
+        double totalPaid = paid != null ? paid : 0.0;
+        double remainingToPay = totalOwed - totalPaid;
+
+        return new LabDentistFinancialSummaryResponse(totalOwed, totalPaid, remainingToPay);
+    }
+
     @Transactional
     public Prothesis decideProthesisCancellation(User labUser, Long prothesisId, boolean approve) {
         if (prothesisId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Prothese introuvable");
         }
         Laboratory lab = laboratoryAccessService.requireMyLab(labUser);
-        Prothesis p = prothesisRepository.findById(prothesisId)
+        // Use lightweight fetch graph to avoid Hibernate eager-join explosion on User -> permissions/preferences/etc.
+        Prothesis p = prothesisRepository.findForResponseById(prothesisId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Prothese introuvable"));
 
         if (p.getLaboratory() == null || p.getLaboratory().getId() == null || !p.getLaboratory().getId().equals(lab.getId())) {
@@ -140,5 +220,50 @@ public class LabPortalService {
         }
 
         return laboratoryPaymentRepository.save(payment);
+    }
+
+    @Transactional
+    public List<Prothesis> updateMyProthesesStatus(User labUser, List<Long> prothesisIds, String status) {
+        if (prothesisIds == null || prothesisIds.isEmpty()) {
+            throw new BadRequestException(java.util.Map.of("ids", "Aucune prothèse sélectionnée"));
+        }
+
+        String statusNorm = status != null ? status.trim().toUpperCase(Locale.ROOT) : "";
+        if (!"PRETE".equals(statusNorm)) {
+            throw new BadRequestException(java.util.Map.of("status", "Statut invalide"));
+        }
+
+        Laboratory lab = laboratoryAccessService.requireMyLab(labUser);
+        List<Prothesis> updated = new ArrayList<>();
+
+        for (Long id : prothesisIds) {
+            if (id == null) continue;
+            // Use lightweight fetch graph to avoid Hibernate eager-join explosion on User -> permissions/preferences/etc.
+            Prothesis p = prothesisRepository.findForResponseById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Prothese introuvable"));
+
+            if (p.getLaboratory() == null || p.getLaboratory().getId() == null || !p.getLaboratory().getId().equals(lab.getId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
+            }
+            if (p.getRecordStatus() == RecordStatus.CANCELLED) {
+                throw new BadRequestException(java.util.Map.of("_", "Prothèse annulée : lecture seule."));
+            }
+
+            String currentStatus = p.getStatus() != null ? p.getStatus().trim().toUpperCase(Locale.ROOT) : "PENDING";
+            boolean allowed = "SENT_TO_LAB".equals(currentStatus) || "PRETE".equals(currentStatus);
+            if (!allowed) {
+                throw new BadRequestException(java.util.Map.of("status", "Transition de statut invalide"));
+            }
+
+            p.setStatus(statusNorm);
+            if ("PRETE".equals(statusNorm) && p.getReadyAt() == null) {
+                p.setReadyAt(LocalDateTime.now());
+            }
+            p.setUpdatedBy(labUser);
+            updated.add(p);
+        }
+
+        // Entities are managed (@Transactional), changes will flush on commit.
+        return updated;
     }
 }

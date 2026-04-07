@@ -61,6 +61,9 @@ public class Prothesis {
 
     private LocalDateTime actualReturnDate;
 
+    @Column(name = "ready_at")
+    private LocalDateTime readyAt;
+
     @ManyToOne
     @JoinColumn(name = "received_by")
     private User receivedBy;
@@ -78,6 +81,26 @@ public class Prothesis {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // --- Optional STL attachment (encrypted on disk) ---
+    @Column(name = "stl_filename")
+    private String stlFilename;
+
+    @Column(name = "stl_file_type")
+    private String stlFileType;
+
+    @Column(name = "stl_file_size_bytes")
+    private Long stlFileSizeBytes;
+
+    @Column(name = "stl_uploaded_at")
+    private LocalDateTime stlUploadedAt;
+
+    @Column(name = "stl_path_or_url", columnDefinition = "TEXT")
+    private String stlPathOrUrl;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "stl_uploaded_by")
+    private User stlUploadedBy;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @BatchSize(size = 50)

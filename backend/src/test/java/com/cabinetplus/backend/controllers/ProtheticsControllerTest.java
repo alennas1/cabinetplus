@@ -16,8 +16,12 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
+import com.cabinetplus.backend.repositories.ProthesisFileRepository;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.ProthesisService;
+import com.cabinetplus.backend.services.ProthesisFilesService;
+import com.cabinetplus.backend.services.ProthesisStlService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
 
@@ -34,13 +38,21 @@ class ProtheticsControllerTest {
         AuditService auditService = mock(AuditService.class);
         ProthesisRepository prothesisRepository = mock(ProthesisRepository.class);
         PublicIdResolutionService publicIdResolutionService = mock(PublicIdResolutionService.class);
+        CancellationSecurityService cancellationSecurityService = mock(CancellationSecurityService.class);
+        ProthesisStlService prothesisStlService = mock(ProthesisStlService.class);
+        ProthesisFilesService prothesisFilesService = mock(ProthesisFilesService.class);
+        ProthesisFileRepository prothesisFileRepository = mock(ProthesisFileRepository.class);
 
         ProtheticsController controller = new ProtheticsController(
                 prothesisService,
+                prothesisStlService,
+                prothesisFilesService,
                 userService,
                 auditService,
                 prothesisRepository,
-                publicIdResolutionService
+                prothesisFileRepository,
+                publicIdResolutionService,
+                cancellationSecurityService
         );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();

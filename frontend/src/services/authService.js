@@ -26,6 +26,8 @@ const notifyOffline = () => {
   window.dispatchEvent(new Event("appOffline"));
 };
 
+const shouldNotifySessionExpired = () => !isLoggingOut && !hasManualLogout();
+
 const markManualLogout = () => {
   try {
     localStorage.setItem(MANUAL_LOGOUT_KEY, String(Date.now()));
@@ -64,13 +66,14 @@ export const setAccessToken = (token, expiresInMs = DEFAULT_ACCESS_TOKEN_MS) => 
         setAccessToken(data.accessToken, expiresInMs);
       } else {
         clearAccessToken();
-if (!isLoggingOut) {
-  window.dispatchEvent(new Event("sessionExpired"));
-}      }
+        if (shouldNotifySessionExpired()) {
+          window.dispatchEvent(new Event("sessionExpired"));
+        }
+      }
     } catch (error) {
       if (!isNetworkError(error)) {
         clearAccessToken();
-        if (!isLoggingOut) {
+        if (shouldNotifySessionExpired()) {
           window.dispatchEvent(new Event("sessionExpired"));
         }
       } else {
@@ -109,7 +112,8 @@ api.interceptors.response.use(
     const isAuthEntryRequest =
       requestUrl.includes("/auth/login") ||
       requestUrl.includes("/auth/register") ||
-      requestUrl.includes("/auth/session");
+      requestUrl.includes("/auth/session") ||
+      requestUrl.includes("/auth/logout");
 
     // Invalid credentials should stay as local form errors, not session-expired modal.
     if (isAuthEntryRequest) {
@@ -139,14 +143,18 @@ api.interceptors.response.use(
         } else {
           processQueue(null, null);
           clearAccessToken();
-          window.dispatchEvent(new Event("sessionExpired"));
+          if (shouldNotifySessionExpired()) {
+            window.dispatchEvent(new Event("sessionExpired"));
+          }
           return Promise.reject(error);
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
         if (!isNetworkError(refreshError)) {
           clearAccessToken();
-          window.dispatchEvent(new Event("sessionExpired"));
+          if (shouldNotifySessionExpired()) {
+            window.dispatchEvent(new Event("sessionExpired"));
+          }
         } else {
           notifyOffline();
         }
@@ -231,14 +239,14 @@ export const registerLab = async (labData) => {
 };
 
 // Employee onboarding (public)
-export const startEmployeeAccountSetup = async (employeeId) => {
-  const { data } = await api.post("/auth/employee-setup/start", { employeeId });
+export const startEmployeeAccountSetup = async (employeeSetupCode) => {
+  const { data } = await api.post("/auth/employee-setup/start", { employeeSetupCode });
   return data; // { maskedPhone, message }
 };
 
-export const confirmEmployeeAccountSetup = async ({ employeeId, code, newPassword, pin }) => {
+export const confirmEmployeeAccountSetup = async ({ employeeSetupCode, code, newPassword, pin }) => {
   clearManualLogout();
-  const { data } = await api.post("/auth/employee-setup/confirm", { employeeId, code, newPassword, pin });
+  const { data } = await api.post("/auth/employee-setup/confirm", { employeeSetupCode, code, newPassword, pin });
   if (data?.accessToken) {
     setAccessToken(data.accessToken, DEFAULT_ACCESS_TOKEN_MS);
   }

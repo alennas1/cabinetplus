@@ -115,7 +115,7 @@ public class EmployeeController {
                 .map(employeeService::toListResponse)
                 .toList();
 
-        auditService.logSuccess(AuditEventType.EMPLOYEE_READ, "EMPLOYEE", null, "EmployÃ©s consultÃ©s (page)");
+        auditService.logSuccess(AuditEventType.EMPLOYEE_READ, "EMPLOYEE", null, "Employés consultés (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
                 employeesPage.getNumber(),

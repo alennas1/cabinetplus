@@ -88,7 +88,7 @@ public class MedicationController {
                 ))
                 .toList();
 
-        auditService.logSuccess(AuditEventType.MEDICATION_READ, "MEDICATION", null, "MÃ©dicaments consultÃ©s (page)");
+        auditService.logSuccess(AuditEventType.MEDICATION_READ, "MEDICATION", null, "Médicaments consultés (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
                 medsPage.getNumber(),

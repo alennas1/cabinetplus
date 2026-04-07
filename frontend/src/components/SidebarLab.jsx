@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { Clipboard, CreditCard, Layers, LogOut, PlusSquare, Settings, Users } from "react-feather";
+import { Clipboard, Clock, CreditCard, Layers, LogOut, PlusSquare, Settings, Users } from "react-feather";
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
 import "./Sidebar.css";
@@ -45,6 +45,13 @@ const SidebarLab = () => {
           <Link to="/lab/prosthetics" className={isActivePath("/lab/prosthetics") ? "active" : ""}>
             <Layers size={20} />
             <span className="link-text">Prothèses</span>
+          </Link>
+        </li>
+
+        <li>
+          <Link to="/lab/pending" className={isActivePath("/lab/pending") ? "active" : ""}>
+            <Clock size={20} />
+            <span className="link-text">En attente</span>
           </Link>
         </li>
 

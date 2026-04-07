@@ -58,13 +58,13 @@ const Catalogue = () => {
         },
         {
           title: "Maladies",
-          desc: "GÃ©rer le catalogue des maladies (liste globale)",
+          desc: "Gérer le catalogue des maladies (liste globale)",
           icon: <Activity />,
           path: "/catalogue/diseases",
         },
         {
           title: "Allergies",
-          desc: "GÃ©rer le catalogue des allergies (liste globale)",
+          desc: "Gérer le catalogue des allergies (liste globale)",
           icon: <AlertTriangle />,
           path: "/catalogue/allergies",
         },

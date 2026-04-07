@@ -10,6 +10,7 @@ import Pagination from "../components/Pagination";
 import ModernDropdown from "../components/ModernDropdown";
 import CancelWithPinModal from "../components/CancelWithPinModal";
 import MetadataInfo from "../components/MetadataInfo";
+import DownloadIcon from "../components/DownloadIcon";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import {
   downloadPatientFiche,
@@ -19,7 +20,7 @@ import {
   updatePatient,
 } from "../services/patientService";
 import { QRCodeCanvas } from "qrcode.react";
-import { DownloadCloud, Send, X, Smartphone } from "react-feather";
+import { DownloadCloud, Send, X, Smartphone, Upload } from "react-feather";
 import { Maximize, Layers } from "react-feather";
 import { 
   getTreatmentsByPatientPage,
@@ -70,10 +71,13 @@ import {
   updateProtheticsStatus,
   assignProtheticsToLab,
   cancelProthetics,
+  uploadProthesisFiles,
+  downloadProthesisFilesZip,
 } from "../services/prostheticsService";
 import { getAllProstheticsCatalogue, createProstheticCatalogue } from "../services/prostheticsCatalogueService";
 import { createMaterial, getAllMaterials } from "../services/materialService";
 import { getAllLaboratories } from "../services/laboratoryService";
+import ProthesisFilesUploadModal from "../components/ProthesisFilesUploadModal";
 import {
   getDocumentBlobUrl,
   getDocumentsByPatientPage,
@@ -397,11 +401,12 @@ import PatientActivityLogTab from "../components/PatientActivityLogTab";
 const prothesisStatusLabels = {
   PENDING: "En attente",
   SENT_TO_LAB: "Au labo",
+  PRETE: "Prête",
   RECEIVED: "Recu",
   FITTED: "Posee",
   CANCELLED: "Annulé",
 };
-const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"];
+const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "PRETE", "RECEIVED", "FITTED"];
 const isProthesisCancelled = (p) => String(p?.status || "").toUpperCase() === "CANCELLED";
 const isPaymentCancelled = (p) => String(p?.recordStatus || "").toUpperCase() === "CANCELLED";
   const statusLabels = {
@@ -635,6 +640,13 @@ const [busyTreatmentStatusId, setBusyTreatmentStatusId] = useState(null);
 
 const [laboratories, setLaboratories] = useState([]);
 const [labsLoading, setLabsLoading] = useState(false);
+const labsLoadRequestIdRef = useRef(0);
+const isMountedRef = useRef(true);
+useEffect(() => {
+  return () => {
+    isMountedRef.current = false;
+  };
+}, []);
 const [showProthesisSendToLabModal, setShowProthesisSendToLabModal] = useState(false);
 const [prothesisSendToLabTarget, setProthesisSendToLabTarget] = useState(null);
 const [prothesisSendToLabData, setProthesisSendToLabData] = useState({ labId: "", labCost: "" });
@@ -666,8 +678,8 @@ const [newProthesisCatalogForm, setNewProthesisCatalogForm] = useState({
 const [newProthesisCatalogErrors, setNewProthesisCatalogErrors] = useState({});
 const [materialCreateErrors, setMaterialCreateErrors] = useState({});
 // REPLACE your current prothesisForm state with this:
- const [prothesisForm, setProthesisForm] = useState({ 
-   id: null, 
+const [prothesisForm, setProthesisForm] = useState({ 
+  id: null, 
   catalogId: "", 
   price: "", 
   notes: "", 
@@ -675,6 +687,8 @@ const [materialCreateErrors, setMaterialCreateErrors] = useState({});
   paid: false 
 });
 const [prothesisFieldErrors, setProthesisFieldErrors] = useState({});
+const [showProthesisFilesModal, setShowProthesisFilesModal] = useState(false);
+const [prothesisFilesTargetId, setProthesisFilesTargetId] = useState(null);
 
 // ADD this function near your other handlers:
 const handleProthesisChange = (e) => {
@@ -727,6 +741,13 @@ const handleEditProthesis = (p) => {
   setIsEditingProthesis(true);
   setProthesisFieldErrors({});
   setShowProthesisModal(true);
+};
+
+const openProthesisFilesModal = (prothesisId) => {
+  if (!assertPatientEditable()) return;
+  if (!prothesisId) return;
+  setProthesisFilesTargetId(prothesisId);
+  setShowProthesisFilesModal(true);
 };
 const handleCancelAppointment = (a) => {
   if (busyAppointmentStatusId === a.id) return;
@@ -975,29 +996,29 @@ useEffect(() => {
 
 useEffect(() => {
   if (!showProthesisSendToLabModal) return;
-  if (labsLoading) return;
   if (laboratories.length) return;
 
-  let cancelled = false;
   const loadLabs = async () => {
+    const reqId = ++labsLoadRequestIdRef.current;
     try {
       setLabsLoading(true);
       const data = await getAllLaboratories();
-      if (!cancelled) setLaboratories(Array.isArray(data) ? data : []);
+      if (!isMountedRef.current) return;
+      if (labsLoadRequestIdRef.current !== reqId) return;
+      setLaboratories(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      if (!cancelled) setLaboratories([]);
+      if (isMountedRef.current) setLaboratories([]);
       toast.error(getApiErrorMessage(err, "Impossible de charger les laboratoires"));
     } finally {
-      if (!cancelled) setLabsLoading(false);
+      if (!isMountedRef.current) return;
+      if (labsLoadRequestIdRef.current !== reqId) return;
+      setLabsLoading(false);
     }
   };
 
   loadLabs();
-  return () => {
-    cancelled = true;
-  };
-}, [showProthesisSendToLabModal, labsLoading, laboratories.length]);
+}, [showProthesisSendToLabModal, laboratories.length]);
 
 useEffect(() => {
   if (!id) return;
@@ -1189,50 +1210,54 @@ useEffect(() => {
    });
    if (notesError) nextErrors.notes = notesError;
 
-   setProthesisFieldErrors(nextErrors);
-   if (Object.keys(nextErrors).length) return;
-   setProthesisFieldErrors({});
+    setProthesisFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+    setProthesisFieldErrors({});
 
-    if (isSavingProthesis) return;
-    setIsSavingProthesis(true);
-    try {
-     // 1. Prepare the payload
-     const prothesisTeethCount = Array.isArray(prothesisForm.teeth) ? prothesisForm.teeth.length : 0;
-      const selectedProthesisCatalogItem = (prothesisCatalog || []).find(
-        (item) => Number(item?.id) === Number(prothesisForm.catalogId)
-      );
-      const prothesisIsFlatFee = !!selectedProthesisCatalogItem?.isFlatFee;
-      const prothesisIsMultiUnit = !!selectedProthesisCatalogItem?.isMultiUnit;
+    const prothesisTeethCount = Array.isArray(prothesisForm.teeth) ? prothesisForm.teeth.length : 0;
+    const selectedProthesisCatalogItem = (prothesisCatalog || []).find(
+      (item) => Number(item?.id) === Number(prothesisForm.catalogId)
+    );
+    const prothesisIsFlatFee = !!selectedProthesisCatalogItem?.isFlatFee;
+    const prothesisIsMultiUnit = !!selectedProthesisCatalogItem?.isMultiUnit;
+     const willSplitIntoMultiple =
+       !isEditingProthesis && !prothesisIsFlatFee && !prothesisIsMultiUnit && prothesisTeethCount > 1;
 
-      if (isEditingProthesis && !prothesisIsFlatFee && !prothesisIsMultiUnit && prothesisTeethCount > 1) {
-        setProthesisFieldErrors((prev) => ({
-          ...prev,
-          teeth: "Pour unitaire, veuillez sélectionner une seule dent.",
-        }));
-        return;
-      }
+      if (isSavingProthesis) return;
+      setIsSavingProthesis(true);
+      let createdProthesisId = null;
+      try {
+       // 1. Prepare the payload
+
+       if (isEditingProthesis && !prothesisIsFlatFee && !prothesisIsMultiUnit && prothesisTeethCount > 1) {
+         setProthesisFieldErrors((prev) => ({
+           ...prev,
+           teeth: "Pour unitaire, veuillez sélectionner une seule dent.",
+         }));
+         return;
+       }
 
       const perToothPrice =
         !prothesisIsFlatFee && !prothesisIsMultiUnit && prothesisTeethCount > 1
           ? parsedPrice / prothesisTeethCount
           : parsedPrice;
 
-     let saved;
-     if (isEditingProthesis) {
-       const payload = {
-         patientId: patient?.id,
+      let saved;
+      if (isEditingProthesis) {
+        const payload = {
+          patientId: patient?.id,
          catalogId: prothesisForm.catalogId,
          teeth: prothesisForm.teeth,
          notes: prothesisForm.notes,
          finalPrice: parsedPrice,
-       };
-
-       saved = await updateProthetics(prothesisForm.id, payload);
-       toast.success("Prothèse mise à jour");
-      } else {
-        if (!prothesisIsFlatFee && !prothesisIsMultiUnit && prothesisTeethCount > 1) {
-          await Promise.all(
-            prothesisForm.teeth.map((tooth) =>
+        };
+ 
+         saved = await updateProthetics(prothesisForm.id, payload);
+         toast.success("Prothèse mise à jour");
+        } else {
+         if (!prothesisIsFlatFee && !prothesisIsMultiUnit && prothesisTeethCount > 1) {
+           await Promise.all(
+             prothesisForm.teeth.map((tooth) =>
               createProthetics({
                 patientId: patient?.id,
                catalogId: prothesisForm.catalogId,
@@ -1251,11 +1276,12 @@ useEffect(() => {
            notes: prothesisForm.notes,
            finalPrice: parsedPrice,
          };
-
-         saved = await createProthetics(payload);
-         toast.success("Prothèse ajoutée");
+ 
+           saved = await createProthetics(payload);
+           toast.success("Prothèse ajoutée");
+           createdProthesisId = saved?.id ?? null;
+         }
        }
-     }
 
      // 2. Handle Automatic Payment (Mirroring Treatment)
       if (prothesisForm.paid && !isEditingProthesis) {
@@ -1269,22 +1295,33 @@ useEffect(() => {
        toast.success("Versement auto ajouté !");
      }
  
-      // 3. Refresh and Close
-      bumpTabReload("protheses");
-      await refreshFinancialStats();
-      setShowProthesisModal(false);
-   } catch (err) {
-     toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
-  } finally {
-    setIsSavingProthesis(false);
-  }
-};
+       // 3. Refresh and Close
+        bumpTabReload("protheses");
+        await refreshFinancialStats();
+        setShowProthesisModal(false);
+        if (createdProthesisId) {
+          setProthesisFilesTargetId(createdProthesisId);
+          setShowProthesisFilesModal(true);
+        } else if (willSplitIntoMultiple) {
+          toast.info("Ajout multiple terminé. Ouvrez une prothèse pour ajouter des fichiers.");
+        }
+     } catch (err) {
+       toast.error(getApiErrorMessage(err, "Erreur lors de l'enregistrement"));
+    } finally {
+      setIsSavingProthesis(false);
+   }
+ };
 
 
 
 const getNextProthesisStatus = (currentStatus) => {
-  if (String(currentStatus || "").toUpperCase() === "CANCELLED") return null;
-  const currentIndex = prothesisStatusOrder.indexOf(currentStatus);
+  const normalized = String(currentStatus || "").toUpperCase();
+  if (normalized === "CANCELLED") return null;
+
+  // Dentist-side workflow: lab marks PRETE, so we skip that step when advancing from SENT_TO_LAB.
+  if (normalized === "SENT_TO_LAB" || normalized === "PRETE") return "RECEIVED";
+
+  const currentIndex = prothesisStatusOrder.indexOf(normalized);
   if (currentIndex < 0) return prothesisStatusOrder[0] || null;
   if (currentIndex >= prothesisStatusOrder.length - 1) return null;
   return prothesisStatusOrder[currentIndex + 1] || null;
@@ -3713,16 +3750,16 @@ const handleCreateOrUpdateAppointment = async (e) => {
 
 {activeTab === "protheses" && (
   <>
-    {renderTabToolbar("protheses", {
-      onAdd: () => {
-        setProthesisForm({ id: null, catalogId: "", price: "", notes: "", teeth: [], paid: false });
-        setIsEditingProthesis(false);
+     {renderTabToolbar("protheses", {
+       onAdd: () => {
+         setProthesisForm({ id: null, catalogId: "", price: "", notes: "", teeth: [], paid: false });
+         setIsEditingProthesis(false);
         setProthesisQuery("");
         setShowProthesisSuggestions(false);
         setProthesisFieldErrors({});
         setShowProthesisModal(true);
-      },
-    })}
+       },
+     })}
     <table className="treatment-table">
       <thead>
         <tr>
@@ -3874,6 +3911,36 @@ const handleCreateOrUpdateAppointment = async (e) => {
                 }}
               >
                 <NextStatusIcon size={16} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="action-btn view"
+              onClick={(e) => {
+                e.stopPropagation();
+                openProthesisFilesModal(p.id);
+              }}
+              title="Uploader des fichiers"
+              aria-label="Uploader des fichiers"
+            >
+              <Upload size={16} />
+            </button>
+            {p?.filesCount ? (
+              <button
+                type="button"
+                className="action-btn view"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await downloadProthesisFilesZip(p.id);
+                  } catch (err) {
+                    toast.error(getApiErrorMessage(err, "Erreur de téléchargement ZIP"));
+                  }
+                }}
+                title="Télécharger ZIP"
+                aria-label="Télécharger ZIP"
+              >
+                <DownloadIcon size={16} />
               </button>
             ) : null}
             <button
@@ -4963,6 +5030,10 @@ const handleCreateOrUpdateAppointment = async (e) => {
           />
           {prothesisFieldErrors.notes ? <FieldError message={prothesisFieldErrors.notes} /> : null}
 
+          <div className="text-[11px] text-gray-500" style={{ marginTop: 6 }}>
+            Après l’enregistrement, une fenêtre s’ouvrira pour uploader des fichiers (fichiers ou dossier).
+          </div>
+
           <div className="modal-actions">
             <button type="submit" className="btn-primary2" disabled={isSavingProthesis}>
               {isSavingProthesis ? "Enregistrement..." : isEditingProthesis ? "Mettre à jour" : "Enregistrer"}
@@ -4985,6 +5056,24 @@ const handleCreateOrUpdateAppointment = async (e) => {
     </div>
   </div>
 )}
+
+<ProthesisFilesUploadModal
+  open={showProthesisFilesModal}
+  prothesisId={prothesisFilesTargetId}
+  title="Uploader des fichiers prothèse"
+  onClose={() => setShowProthesisFilesModal(false)}
+  onUploaded={() => bumpTabReload("protheses")}
+  onUpload={async (files) => {
+    try {
+      await uploadProthesisFiles(prothesisFilesTargetId, files);
+      toast.success("Fichiers uploadés");
+      await refreshFinancialStats();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur upload fichiers"));
+      throw err;
+    }
+  }}
+/>
 
 {showCreateTreatmentCatalogModal && (
   <div

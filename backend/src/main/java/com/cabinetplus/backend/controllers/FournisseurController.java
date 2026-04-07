@@ -122,7 +122,7 @@ public class FournisseurController {
         var fournisseursPage = service.searchByUser(user, q, pageable);
         var items = fournisseursPage.getContent().stream().map(this::mapToResponse).toList();
 
-        auditService.logSuccess(AuditEventType.SUPPLIER_READ, "SUPPLIER", null, "Fournisseurs consultÃ©s (page)");
+        auditService.logSuccess(AuditEventType.SUPPLIER_READ, "SUPPLIER", null, "Fournisseurs consultés (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
                 fournisseursPage.getNumber(),

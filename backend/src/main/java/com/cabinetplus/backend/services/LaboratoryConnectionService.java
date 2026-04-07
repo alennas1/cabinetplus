@@ -2,7 +2,6 @@ package com.cabinetplus.backend.services;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -47,22 +46,20 @@ public class LaboratoryConnectionService {
     }
 
     @Transactional
-    public LaboratoryConnection invite(User dentist, String labPublicId, String mergeFromLabIdOrPublicId) {
+    public LaboratoryConnection invite(User dentist, String labInviteCode, String mergeFromLabIdOrPublicId) {
         if (dentist == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
         }
-        if (labPublicId == null || labPublicId.isBlank()) {
+        if (labInviteCode == null || labInviteCode.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ID laboratoire invalide");
         }
 
-        UUID publicId;
-        try {
-            publicId = UUID.fromString(labPublicId.trim());
-        } catch (Exception e) {
+        String code = labInviteCode.trim();
+        if (!code.matches("\\d{4,12}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ID laboratoire invalide");
         }
 
-        Laboratory target = laboratoryRepository.findByPublicId(publicId)
+        Laboratory target = laboratoryRepository.findByInviteCodeAndArchivedAtIsNullAndRecordStatus(code, RecordStatus.ACTIVE)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Laboratoire introuvable"));
 
         if (target.getCreatedBy() == null || target.getCreatedBy().getRole() != UserRole.LAB) {
@@ -153,4 +150,3 @@ public class LaboratoryConnectionService {
         return laboratoryConnectionRepository.save(connection);
     }
 }
-

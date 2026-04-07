@@ -26,6 +26,9 @@ public class Laboratory {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
+    @Column(name = "invite_code", nullable = false, unique = true, updatable = false, length = 12)
+    private String inviteCode;
+
     @NotBlank(message = "Le nom du laboratoire est obligatoire")
     @Column(nullable = false)
     private String name;

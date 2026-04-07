@@ -495,9 +495,6 @@ const EmployeeDetails = () => {
             </div>
           </div>
           <div className="patient-details">
-            <div>
-              <span className="employee-role-pill">Employe</span>
-            </div>
             <div>{employee.contractType || "—"}</div>
             <div>{formatPhoneNumber(employee.phone) || "—"}</div>
             <div>{employee.email || "—"}</div>
@@ -566,16 +563,16 @@ const EmployeeDetails = () => {
       {activeTab === "account" && (
         <div className="profile-content">
           <div className="profile-field">
-            <div className="field-label">ID setup:</div>
+            <div className="field-label">ID d'invitation:</div>
             <div className="field-value" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span>{employee.publicId || "—"}</span>
-              {employee.publicId ? (
+              <span>{employee.setupCode || "—"}</span>
+              {employee.setupCode ? (
                 <button
                   type="button"
                   className="btn-secondary-app"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(String(employee.publicId));
+                      await navigator.clipboard.writeText(String(employee.setupCode));
                       toast.success("ID copie");
                     } catch {
                       toast.error("Impossible de copier");

@@ -30,6 +30,9 @@ public class Employee {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
+    @Column(name = "setup_code", unique = true, length = 12)
+    private String setupCode;
+
     // --- Basic Info ---
     @Column(columnDefinition = "TEXT")
     private String firstName;

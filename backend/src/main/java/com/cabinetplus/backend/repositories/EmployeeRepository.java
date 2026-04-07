@@ -75,6 +75,11 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Optional<Employee> findByIdAndDentist(Long id, User dentist);
     Optional<Employee> findByPublicIdAndDentist(UUID publicId, User dentist);
     Optional<Employee> findByPublicId(UUID publicId);
+
+    Optional<Employee> findBySetupCode(String setupCode);
+
+    boolean existsBySetupCode(String setupCode);
+
     Optional<Employee> findByUser(User user);
 
     long countByDentistAndArchivedAtIsNullAndRecordStatus(User dentist, RecordStatus recordStatus);

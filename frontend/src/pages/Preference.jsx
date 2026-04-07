@@ -32,12 +32,12 @@ import { getUserPreferences, updateUserPreferences } from "../services/userPrefe
 import "./Settings.css";
 import "./Preference.css";
 
-const Preference = ({ showWorkingHours = true }) => {
+const Preference = ({ showWorkingHours = true, basePath = "/settings" } = {}) => {
   const location = useLocation();
   const user = useSelector((state) => state?.auth?.user);
   const isEmployee = getClinicRole(user) === CLINIC_ROLES.EMPLOYEE;
   const canShowWorkingHours = showWorkingHours && !isEmployee;
-  const showBackButton = location.pathname.startsWith("/settings/");
+  const showBackButton = location.pathname.startsWith(`${basePath}/`);
   const [activeTab, setActiveTab] = useState(() => (canShowWorkingHours ? "planning" : "heures"));
   const initialPreference = useMemo(() => getWorkingHoursPreference(), []);
   const [mode, setMode] = useState(initialPreference.mode);
@@ -171,7 +171,7 @@ const Preference = ({ showWorkingHours = true }) => {
 
   return (
     <div className="settings-container">
-      {showBackButton && <BackButton fallbackTo="/settings" />}
+      {showBackButton && <BackButton fallbackTo={basePath} />}
       <div className="preference-topbar">
         <div className="preference-topbar-left">
             <PageHeader

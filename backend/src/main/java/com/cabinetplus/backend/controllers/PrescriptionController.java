@@ -148,7 +148,7 @@ public class PrescriptionController {
     public ResponseEntity<?> deletePrescription(@PathVariable String id, Principal principal) {
         if (id != null) {
             // Strict no-delete policy: prescriptions are immutable history.
-            return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body("Suppression non autorisÃ©e");
+            return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body("Suppression non autorisée");
         }
         User practitioner = getPractitioner(principal);
         Prescription existing = publicIdResolutionService.requirePrescriptionForPractitionerWithMedications(id, practitioner);

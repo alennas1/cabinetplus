@@ -70,7 +70,7 @@ public class ItemController {
         var itemsPage = itemService.searchItemsForDentist(dentist, q, pageable);
         var items = itemsPage.getContent().stream().map(itemService::toDTO).toList();
 
-        auditService.logSuccess(AuditEventType.ITEM_READ, "ITEM", null, "Articles consultÃ©s (page)");
+        auditService.logSuccess(AuditEventType.ITEM_READ, "ITEM", null, "Articles consultés (page)");
         return ResponseEntity.ok(new PageResponse<>(
                 items,
                 itemsPage.getNumber(),
@@ -121,7 +121,7 @@ public ResponseEntity<ItemDTO> update(@PathVariable Long id,
                 AuditEventType.ITEM_CANCEL,
                 "ITEM",
                 String.valueOf(cancelled.getId()),
-                "Article annulÃ©. Motif: " + reason
+                "Article annulé. Motif: " + reason
         );
         return ResponseEntity.ok(itemService.toDTO(cancelled));
     }

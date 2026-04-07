@@ -26,6 +26,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        // Required for StreamingResponseBody/SseEmitter endpoints: Spring MVC performs an ASYNC dispatch,
+        // and we must re-populate SecurityContext from the JWT on that dispatch as well.
+        return false;
+    }
+
+    @Override
     protected void doFilterInternal(
             @org.springframework.lang.NonNull HttpServletRequest request,
             @org.springframework.lang.NonNull HttpServletResponse response,

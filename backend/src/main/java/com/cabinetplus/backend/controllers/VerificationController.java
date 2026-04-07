@@ -23,6 +23,7 @@ import com.cabinetplus.backend.dto.EmployeePhoneVerificationSendRequest;
 import com.cabinetplus.backend.dto.PhoneChangeConfirmRequest;
 import com.cabinetplus.backend.dto.PhoneChangeSendRequest;
 import com.cabinetplus.backend.enums.AuditEventType;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.BadGatewayException;
@@ -32,6 +33,7 @@ import com.cabinetplus.backend.exceptions.TooManyRequestsException;
 import com.cabinetplus.backend.exceptions.UnauthorizedException;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.EmployeeRepository;
+import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
@@ -49,6 +51,7 @@ public class VerificationController {
 
     private final UserRepository userRepo;
     private final EmployeeRepository employeeRepository;
+    private final LaboratoryRepository laboratoryRepository;
     private final PhoneVerificationService phoneVerificationService;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
@@ -59,12 +62,14 @@ public class VerificationController {
 
     public VerificationController(UserRepository userRepo,
                                   EmployeeRepository employeeRepository,
+                                  LaboratoryRepository laboratoryRepository,
                                   PhoneVerificationService phoneVerificationService,
                                   PasswordEncoder passwordEncoder,
                                   AuditService auditService,
                                   Environment environment) {
         this.userRepo = userRepo;
         this.employeeRepository = employeeRepository;
+        this.laboratoryRepository = laboratoryRepository;
         this.phoneVerificationService = phoneVerificationService;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
@@ -415,6 +420,7 @@ public class VerificationController {
         user.setPhoneVerified(true);
         userRepo.save(user);
         syncEmployeePhoneIfLinked(user);
+        syncLaboratoryPhoneIfLinked(user);
         auditService.logSuccessAsUser(user, AuditEventType.PHONE_CHANGE_CONFIRM, "USER", String.valueOf(user.getId()), "Telephone mis a jour");
 
         return ResponseEntity.ok(Map.of("updated", true));
@@ -427,6 +433,16 @@ public class VerificationController {
             employee.setUpdatedAt(LocalDateTime.now());
             employeeRepository.save(employee);
         });
+    }
+
+    private void syncLaboratoryPhoneIfLinked(User user) {
+        if (user == null || user.getRole() != UserRole.LAB) return;
+        laboratoryRepository
+                .findFirstByCreatedByAndArchivedAtIsNullAndRecordStatusOrderByIdAsc(user, RecordStatus.ACTIVE)
+                .ifPresent(lab -> {
+                    lab.setPhoneNumber(user.getPhoneNumber());
+                    laboratoryRepository.save(lab);
+                });
     }
 
     // ------------------- HELPER METHODS -------------------

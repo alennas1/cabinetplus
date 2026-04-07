@@ -303,7 +303,7 @@ const Fournisseurs = ({ view = "active" }) => {
               <td>{f.address || "—"}</td>
               <td>
                 <div className="flex items-center gap-2">
-                  <span>{formatDateTimeByPreference(f.createdAt) || "â€”"}</span>
+                  <span>{formatDateTimeByPreference(f.createdAt) || "—"}</span>
                   <MetadataInfo entity={f} />
                 </div>
               </td>

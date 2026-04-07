@@ -117,10 +117,11 @@ const Profile = () => {
     }
   };
 
-  const renderEmployeeReadOnlyField = (label, value, key) => (
+  const renderEmployeeReadOnlyField = (label, value, key, actions = null) => (
     <div className="profile-field" key={key || label}>
       <div className="field-label">{label}:</div>
       <div className="field-value">{value || "—"}</div>
+      {actions ? <div className="profile-field-actions">{actions}</div> : null}
     </div>
   );
 
@@ -226,10 +227,6 @@ const Profile = () => {
   };
 
   const openPhoneModal = () => {
-    if (isClinicEmployeeAccount) {
-      toast.info("Votre téléphone est géré par le propriétaire du cabinet.");
-      return;
-    }
     setShowPhoneModal(true);
     resetPhoneModal();
   };
@@ -282,6 +279,7 @@ const Profile = () => {
       const refreshed = await getCurrentUser();
       dispatch(setCredentials({ user: refreshed, token: true }));
       setProfile((prev) => ({ ...prev, phoneNumber: refreshed?.phoneNumber ?? prev.phoneNumber }));
+      setEmployeeProfile((prev) => (prev ? { ...prev, phone: refreshed?.phoneNumber ?? prev.phone } : prev));
       toast.success("Numéro de téléphone mis à jour");
       closePhoneModal();
     } catch (err) {
@@ -398,7 +396,11 @@ const Profile = () => {
                   {renderEmployeeReadOnlyField("Nom", employeeProfile?.lastName)}
                   {renderEmployeeReadOnlyField(
                     "Téléphone",
-                    employeeProfile?.phone ? formatPhoneNumber(employeeProfile.phone) : "—"
+                    employeeProfile?.phone ? formatPhoneNumber(employeeProfile.phone) : "—",
+                    "employee-phone",
+                    <button type="button" className="btn-primary2 profile-phone-btn" onClick={openPhoneModal}>
+                      Mettre à jour
+                    </button>
                   )}
                   {renderEmployeeReadOnlyField("Email", employeeProfile?.email)}
                   {renderEmployeeReadOnlyField("Type de contrat", employeeProfile?.contractType)}
@@ -427,7 +429,7 @@ const Profile = () => {
         <div className="profile-content">{Object.keys(fieldLabels).map(renderField)}</div>
       )}
 
-      {!isClinicEmployeeAccount && showPhoneModal ? (
+      {showPhoneModal ? (
         <div className="modal-overlay" onClick={closePhoneModal}>
           <div className="modal-content profile-phone-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Mettre à jour le numéro</h3>

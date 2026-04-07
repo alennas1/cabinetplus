@@ -26,6 +26,10 @@ public interface LaboratoryRepository extends JpaRepository<Laboratory, Long> {
 
     Optional<Laboratory> findByPublicId(UUID publicId);
 
+    Optional<Laboratory> findByInviteCodeAndArchivedAtIsNullAndRecordStatus(String inviteCode, RecordStatus recordStatus);
+
+    boolean existsByInviteCode(String inviteCode);
+
     Optional<Laboratory> findFirstByCreatedByAndArchivedAtIsNullAndRecordStatusOrderByIdAsc(User user, RecordStatus recordStatus);
 
     @Query("""

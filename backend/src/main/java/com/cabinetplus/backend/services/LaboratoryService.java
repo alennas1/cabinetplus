@@ -29,15 +29,18 @@ public class LaboratoryService {
     private final LaboratoryRepository repository;
     private final ProthesisRepository prothesisRepository;
     private final LaboratoryPaymentRepository laboratoryPaymentRepository;
+    private final LaboratoryInviteCodeService laboratoryInviteCodeService;
 
     public LaboratoryService(
             LaboratoryRepository repository,
             ProthesisRepository prothesisRepository,
-            LaboratoryPaymentRepository laboratoryPaymentRepository
+            LaboratoryPaymentRepository laboratoryPaymentRepository,
+            LaboratoryInviteCodeService laboratoryInviteCodeService
     ) {
         this.repository = repository;
         this.prothesisRepository = prothesisRepository;
         this.laboratoryPaymentRepository = laboratoryPaymentRepository;
+        this.laboratoryInviteCodeService = laboratoryInviteCodeService;
     }
 
     public List<Laboratory> findAllByUser(User user) {
@@ -72,6 +75,11 @@ public class LaboratoryService {
 
         String name = lab.getName() != null ? lab.getName().trim() : null;
         lab.setName(name);
+
+        if (lab.getInviteCode() == null || lab.getInviteCode().isBlank()) {
+            lab.setInviteCode(laboratoryInviteCodeService.nextInviteCode());
+        }
+
         if (name != null && !name.isBlank()) {
             boolean exists = lab.getId() == null
                     ? repository.existsByCreatedByAndNameIgnoreCase(lab.getCreatedBy(), name)
@@ -416,7 +424,7 @@ public class LaboratoryService {
             throw new BadRequestException(java.util.Map.of("_", "Laboratoire introuvable"));
         }
         if (laboratory.getArchivedAt() != null || laboratory.getRecordStatus() != RecordStatus.ACTIVE) {
-            throw new BadRequestException(java.util.Map.of("_", "Laboratoire archivÃ© : lecture seule."));
+            throw new BadRequestException(java.util.Map.of("_", "Laboratoire archivé : lecture seule."));
         }
 
         if (request == null || request.amount() == null || request.amount() <= 0) {

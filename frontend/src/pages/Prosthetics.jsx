@@ -1,6 +1,6 @@
-﻿import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Search, ChevronDown, Send, Edit2, X, ArrowUpRight, DownloadCloud, Check } from "react-feather";
+import { Search, ChevronDown, Send, Edit2, X, ArrowUpRight, DownloadCloud, Check, Upload } from "react-feather";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -22,6 +22,8 @@ import {
   assignProtheticsToLab,
   cancelProthetics,
   updateProthetics,
+  uploadProthesisFiles,
+  downloadProthesisFilesZip,
 } from "../services/prostheticsService";
 import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
 import { getAllLaboratories } from "../services/laboratoryService";
@@ -32,18 +34,21 @@ import { getCurrencyLabelPreference } from "../utils/workingHours";
 import { FIELD_LIMITS, validateNumber, validateText } from "../utils/validation";
 import { SORT_DIRECTIONS } from "../utils/tableSort";
 import useDebouncedValue from "../hooks/useDebouncedValue";
+import DownloadIcon from "../components/DownloadIcon";
+import ProthesisFilesUploadModal from "../components/ProthesisFilesUploadModal";
 
 import "./Patients.css";
+import "./Patient.css";
 import "./Finance.css";
 
 const prothesisStatusLabels = {
   PENDING: "En attente",
   SENT_TO_LAB: "Au labo",
+  PRETE: "Prête",
   RECEIVED: "Recu",
   FITTED: "Posee",
+  CANCELLED: "Annulé",
 };
-
-const prothesisStatusOrder = ["PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"];
 
 const Prosthetics = () => {
   const token = useSelector((state) => state.auth.token);
@@ -103,6 +108,8 @@ const Prosthetics = () => {
   const [assignErrors, setAssignErrors] = useState({});
   const [editingProthesis, setEditingProthesis] = useState(null);
   const [editErrors, setEditErrors] = useState({});
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [filesTargetId, setFilesTargetId] = useState(null);
   const [prothesisToCancel, setProthesisToCancel] = useState(null);
   const [teethPreview, setTeethPreview] = useState(null);
   const [highlightedProthesisId, setHighlightedProthesisId] = useState(null);
@@ -147,7 +154,7 @@ const Prosthetics = () => {
         setLaboratories(Array.isArray(lData) ? lData : []);
         setProthesisCatalog(Array.isArray(catalogData) ? catalogData : []);
       } catch (err) {
-        toast.error(getApiErrorMessage(err, "Erreur de chargement des donnÃ©es"));
+        toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
       }
     };
 
@@ -241,7 +248,7 @@ const Prosthetics = () => {
       }
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
-      toast.error(getApiErrorMessage(err, "Erreur de chargement des donnÃ©es"));
+      toast.error(getApiErrorMessage(err, "Erreur de chargement des données"));
     } finally {
       if (requestId !== requestIdRef.current) return;
       setLoading(false);
@@ -319,7 +326,9 @@ const Prosthetics = () => {
   const selectedProtheses = protheses.filter((p) => selectedIds.includes(p.id));
   const hasSelection = selectedProtheses.length > 0;
   const canBulkSendToLab = hasSelection && selectedProtheses.every((p) => p.status === "PENDING");
-  const canBulkReturn = hasSelection && selectedProtheses.every((p) => p.status === "SENT_TO_LAB");
+  const canBulkReturnReady = hasSelection && selectedProtheses.every((p) => p.status === "PRETE");
+  const canBulkReturnLegacy = hasSelection && selectedProtheses.every((p) => p.status === "SENT_TO_LAB");
+  const canBulkReturn = canBulkReturnReady || canBulkReturnLegacy;
 
   const toggleSelection = (id) => {
     setSelectedIds((current) =>
@@ -340,7 +349,7 @@ const Prosthetics = () => {
     if (isReturningBulk) return;
 
     if (!canBulkReturn) {
-      toast.error("Selectionnez uniquement des travaux au labo pour effectuer le retour.");
+      toast.error("Selectionnez uniquement des travaux prets (ou au labo) pour effectuer le retour.");
       return;
     }
 
@@ -357,6 +366,13 @@ const Prosthetics = () => {
     }
   };
 
+  const getNextDentistProthesisStatus = (currentStatus) => {
+    const normalized = String(currentStatus || "PENDING").toUpperCase();
+    if (normalized === "PENDING") return "SENT_TO_LAB";
+    if (normalized === "SENT_TO_LAB" || normalized === "PRETE") return "RECEIVED";
+    if (normalized === "RECEIVED") return "FITTED";
+    return null;
+  };
 
   const handleCycleProthesisStatus = async (p) => {
     if (busyStatusId === p.id) return;
@@ -367,9 +383,7 @@ const Prosthetics = () => {
       return;
     }
 
-    const currentIndex = prothesisStatusOrder.indexOf(p.status);
-    if (currentIndex < 0) return;
-    const nextStatus = currentIndex >= prothesisStatusOrder.length - 1 ? null : prothesisStatusOrder[currentIndex + 1];
+    const nextStatus = getNextDentistProthesisStatus(p.status);
     if (!nextStatus) return;
 
     if (nextStatus === "SENT_TO_LAB") {
@@ -437,9 +451,17 @@ const Prosthetics = () => {
       code: p.code || "",
       notes: p.notes || "",
       teeth: p.teeth || [],
+      stlFilename: p.stlFilename || null,
+      filesCount: p.filesCount || 0,
     });
     setEditErrors({});
     setShowEditModal(true);
+  };
+
+  const openFilesUploadModal = (prothesisId) => {
+    if (!prothesisId) return;
+    setFilesTargetId(prothesisId);
+    setShowFilesModal(true);
   };
 
   const handleCancelClick = (p) => {
@@ -454,7 +476,7 @@ const Prosthetics = () => {
       setIsCancellingProthesis(true);
       await cancelProthetics(prothesisToCancel.id, { pin, reason });
       setSelectedIds((current) => current.filter((id) => id !== prothesisToCancel.id));
-      toast.success("Travail annulÃ©");
+      toast.success("Travail annulé");
       await loadProthesesPage();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Erreur lors de l'annulation"));
@@ -636,20 +658,20 @@ const Prosthetics = () => {
                 </button>
               ) : null}
 
-              {canBulkReturn ? (
-                <button
-                  className="btn-primary"
-                  onClick={handleBulkReturn}
-                  disabled={isReturningBulk}
-                  title="Marquer comme reÃ§u"
-                >
-                  {isReturningBulk ? `Retour... (${selectedIds.length})` : `Retour (${selectedIds.length})`}
-                </button>
-              ) : null}
+               {canBulkReturn ? (
+                 <button
+                   className="btn-primary"
+                   onClick={handleBulkReturn}
+                   disabled={isReturningBulk}
+                   title={canBulkReturnReady ? "Marquer comme reçu (travaux prêts)" : "Marquer comme reçu"}
+                 >
+                   {isReturningBulk ? `Retour... (${selectedIds.length})` : `Retour (${selectedIds.length})`}
+                 </button>
+               ) : null}
 
               {!canBulkSendToLab && !canBulkReturn ? (
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Actions disponibles seulement si les travaux sÃ©lectionnÃ©s ont le mÃªme statut.
+                  Actions disponibles seulement si les travaux sélectionnés ont le même statut.
                 </div>
               ) : null}
             </div>
@@ -798,7 +820,7 @@ const Prosthetics = () => {
                 ref={selectAllRef}
                 type="checkbox"
                 className="prothesis-select-checkbox"
-                aria-label="SÃ©lectionner tout (page)"
+                aria-label="Sélectionner tout (page)"
                 checked={isAllCurrentSelected}
                 disabled={currentPageIds.length === 0}
                 onChange={() => {
@@ -814,11 +836,11 @@ const Prosthetics = () => {
                 }}
               />
             </th>
-            <SortableTh label="Travail / MatÃ©riau" sortKey="work" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Travail / Matériau" sortKey="work" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Code" sortKey="code" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Dents" sortKey="teeth" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Laboratoire" sortKey="lab" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="CoÃ»t labo" sortKey="labCost" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Coût labo" sortKey="labCost" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Créé le" sortKey="dates" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
@@ -871,16 +893,16 @@ const Prosthetics = () => {
                       onClick={() =>
                         setTeethPreview({
                           teeth: p.teeth,
-                          title: `ProthÃ¨se: ${p.prothesisName || ""}`,
+                          title: `Prothèse: ${p.prothesisName || ""}`,
                         })
                       }
                       title={p.teeth.join(", ")}
-                      aria-label="Voir le schÃ©ma dentaire"
+                      aria-label="Voir le schéma dentaire"
                     >
                       <FaTooth size={16} />
                     </button>
                   ) : (
-                    "â€”"
+                    "—"
                   )}
                 </td>
                 <td style={{ fontWeight: "500" }}>
@@ -932,17 +954,16 @@ const Prosthetics = () => {
                 <td className="actions-cell">
                   {(() => {
                     const currentStatus = p.status || "PENDING";
-                    const idx = prothesisStatusOrder.indexOf(currentStatus);
-                    const nextStatus = idx < 0 || idx >= prothesisStatusOrder.length - 1 ? null : prothesisStatusOrder[idx + 1];
+                    const nextStatus = getNextDentistProthesisStatus(currentStatus);
                     if (!nextStatus) return null;
 
                     const nextActionLabel =
                       nextStatus === "SENT_TO_LAB"
                         ? "Envoyer au labo"
                         : nextStatus === "RECEIVED"
-                        ? "ReÃ§u"
+                        ? "Reçu"
                         : nextStatus === "FITTED"
-                        ? "PosÃ©"
+                        ? "Posé"
                         : "Suivant";
 
                     const NextIcon =
@@ -972,7 +993,55 @@ const Prosthetics = () => {
                         <NextIcon size={16} />
                       </button>
                     );
-                  })()}
+                   })()}
+                  {p.status !== "CANCELLED" ? (
+                    <button
+                      type="button"
+                      className="action-btn view"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openFilesUploadModal(p.id);
+                      }}
+                      title="Uploader des fichiers"
+                      aria-label="Uploader des fichiers"
+                    >
+                      <Upload size={16} />
+                    </button>
+                  ) : null}
+                  {p?.filesCount ? (
+                    <button
+                      type="button"
+                      className="action-btn view"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await downloadProthesisFilesZip(p.id);
+                        } catch (err) {
+                          toast.error(getApiErrorMessage(err, "Erreur de téléchargement ZIP"));
+                        }
+                      }}
+                      title="Télécharger ZIP"
+                      aria-label="Télécharger ZIP"
+                    >
+                      <DownloadIcon size={16} />
+                    </button>
+                  ) : null}
+                  {p.stlFilename ? (
+                    <button
+                      className="action-btn view"
+                      onClick={async () => {
+                        try {
+                          await downloadProthesisStl(p.id);
+                        } catch (err) {
+                          toast.error(getApiErrorMessage(err, "Erreur de tÃ©lÃ©chargement STL"));
+                        }
+                      }}
+                      title="TÃ©lÃ©charger STL"
+                      aria-label="TÃ©lÃ©charger STL"
+                    >
+                      <DownloadIcon size={16} />
+                    </button>
+                  ) : null}
                   <button className="action-btn edit" onClick={(e) => {
                     handleEditClick(p);
                   }}>
@@ -1011,9 +1080,9 @@ const Prosthetics = () => {
           <div className="modal-content relative" style={{ maxWidth: "820px" }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 style={{ margin: 0 }}>{teethPreview.title || "SchÃ©ma dentaire"}</h2>
+                  <h2 style={{ margin: 0 }}>{teethPreview.title || "Schéma dentaire"}</h2>
                   <p className="text-sm text-gray-600 mb-4">
-                    Les dents sÃ©lectionnÃ©es sont mises en Ã©vidence.
+                    Les dents sélectionnées sont mises en évidence.
                   </p>
                 </div>
                 <X size={20} className="cursor-pointer" onClick={() => setTeethPreview(null)} />
@@ -1061,7 +1130,7 @@ const Prosthetics = () => {
 
                 const nextErrors = {};
                 if (!(editingProthesis.teeth || []).length) {
-                  nextErrors.teeth = "SÃ©lectionnez au moins une dent.";
+                  nextErrors.teeth = "Sélectionnez au moins une dent.";
                 }
                 nextErrors.labCost = validateNumber(editingProthesis.labCost, {
                   label: "Cout Labo",
@@ -1184,6 +1253,28 @@ const Prosthetics = () => {
                 />
                 <FieldError message={editErrors.notes} />
 
+                <label className="field-label">Fichier STL (optionnel)</label>
+                <input
+                  key={editStlInputKey}
+                  type="file"
+                  accept=".stl"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setEditStlFile(file);
+                  }}
+                  disabled={isSavingEdit}
+                />
+                {editingProthesis?.stlFilename && !editStlFile ? (
+                  <div className="text-[11px] text-gray-500" style={{ marginTop: 4 }}>
+                    STL actuel: <span style={{ fontWeight: 600 }}>{editingProthesis.stlFilename}</span>
+                  </div>
+                ) : null}
+                {editStlFile ? (
+                  <div className="text-[11px] text-gray-500" style={{ marginTop: 4 }}>
+                    Nouveau STL: <span style={{ fontWeight: 600 }}>{editStlFile.name}</span>
+                  </div>
+                ) : null}
+
                 <div className="modal-actions">
                   <button type="submit" className="btn-primary2" disabled={isSavingEdit}>
                     {isSavingEdit ? "Enregistrement..." : "Enregistrer"}
@@ -1205,6 +1296,23 @@ const Prosthetics = () => {
           </div>
         </div>
       )}
+
+      <ProthesisFilesUploadModal
+        open={showFilesModal}
+        prothesisId={filesTargetId}
+        title="Uploader des fichiers prothèse"
+        onClose={() => setShowFilesModal(false)}
+        onUploaded={loadProthesesPage}
+        onUpload={async (files) => {
+          try {
+            await uploadProthesisFiles(filesTargetId, files);
+            toast.success("Fichiers uploadés");
+          } catch (err) {
+            toast.error(getApiErrorMessage(err, "Erreur upload fichiers"));
+            throw err;
+          }
+        }}
+      />
 
       {showAssignModal && (
         <div className="modal-overlay" onClick={resetAssignModal}>
@@ -1333,7 +1441,7 @@ const Prosthetics = () => {
         open={showConfirmCancel && !!prothesisToCancel}
         busy={isCancellingProthesis}
         title="Annuler le travail ?"
-        subtitle="Motif + PIN requis. Le travail sera conservÃ© dans l'historique (lecture seule)."
+        subtitle="Motif + PIN requis. Le travail sera conservé dans l'historique (lecture seule)."
         confirmLabel="Annuler"
         onClose={() => {
           if (isCancellingProthesis) return;
@@ -1361,7 +1469,7 @@ const Prosthetics = () => {
               />
             </div>
             <p className="text-gray-600 mb-6">
-              Voulez-vous vraiment annuler ce travail ? Il sera conservÃƒÂ© dans l'historique (lecture seule).
+              Voulez-vous vraiment annuler ce travail ? Il sera conservé dans l'historique (lecture seule).
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -1406,13 +1514,13 @@ const Prosthetics = () => {
                 className={`status-chip ${String(confirmStatusTarget?.status || "").toLowerCase()}`}
                 style={{ cursor: "default" }}
               >
-                {prothesisStatusLabels[confirmStatusTarget?.status] || confirmStatusTarget?.status || "â€”"}
+                {prothesisStatusLabels[confirmStatusTarget?.status] || confirmStatusTarget?.status || "—"}
               </span>
               <span className="text-gray-400" aria-hidden="true">
                 â†’
               </span>
               <span className={`status-chip ${String(confirmNextStatus || "").toLowerCase()}`} style={{ cursor: "default" }}>
-                {prothesisStatusLabels[confirmNextStatus] || confirmNextStatus || "â€”"}
+                {prothesisStatusLabels[confirmNextStatus] || confirmNextStatus || "—"}
               </span>
             </div>
             <div className="flex justify-end gap-3">

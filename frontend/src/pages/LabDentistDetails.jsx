@@ -1,26 +1,34 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import BackButton from "../components/BackButton";
-import { getApiErrorMessage } from "../utils/error";
-import { getLabDentists } from "../services/labPortalService";
-import LabProsthetics from "./LabProsthetics";
-import LabPayments from "./LabPayments";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, CreditCard, Layers, Phone, User } from "react-feather";
 
-const tabButtonClass = (active) =>
-  [
-    "rounded-md px-3 py-2 text-sm font-semibold transition-colors",
-    active ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100",
-  ].join(" ");
+import { getApiErrorMessage } from "../utils/error";
+import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
+import { getLabDentistSummary, getLabDentists } from "../services/labPortalService";
+import { formatMoneyWithLabel } from "../utils/format";
+
+import LabPayments from "./LabPayments";
+import LabProsthetics from "./LabProsthetics";
+
+import "./Patient.css";
+import "./Profile.css";
 
 const LabDentistDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const dentistId = String(id || "");
+
   const [tab, setTab] = useState("info");
   const [dentist, setDentist] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [summary, setSummary] = useState({ totalOwed: 0, totalPaid: 0, remainingToPay: 0 });
+  const statsRequestIdRef = useRef(0);
 
-  const load = async () => {
+  const formatPhoneNumber = (phone) => formatPhoneNumberDisplay(phone) || "Aucun téléphone";
+
+  const loadDentist = async () => {
     setLoading(true);
     setError("");
     try {
@@ -36,62 +44,144 @@ const LabDentistDetails = () => {
     }
   };
 
+  const loadSummary = async () => {
+    if (!dentistId) return;
+    const reqId = ++statsRequestIdRef.current;
+    try {
+      const data = await getLabDentistSummary(dentistId);
+      if (reqId !== statsRequestIdRef.current) return;
+      setSummary({
+        totalOwed: Number(data?.totalOwed || 0),
+        totalPaid: Number(data?.totalPaid || 0),
+        remainingToPay: Number(data?.remainingToPay || 0),
+      });
+    } catch {
+      if (reqId !== statsRequestIdRef.current) return;
+      setSummary({ totalOwed: 0, totalPaid: 0, remainingToPay: 0 });
+    }
+  };
+
   useEffect(() => {
-    load();
+    loadDentist();
+    loadSummary();
   }, [dentistId]);
 
+  const focusParams = useMemo(() => new URLSearchParams(location.search || ""), [location.search]);
+  const focusTab = String(focusParams.get("tab") || "").trim().toLowerCase();
+  const focusProthesisId = focusParams.get("focusProthesisId");
+  const focusPaymentId = focusParams.get("focusPaymentId");
+
+  useEffect(() => {
+    if (focusTab === "prosthetics" || focusTab === "payments" || focusTab === "info") {
+      setTab(focusTab);
+    }
+  }, [focusTab, dentistId]);
+
   const title = useMemo(() => dentist?.clinicName || dentist?.dentistName || "Dentiste", [dentist]);
+  const remainingToPayValue = Number(summary?.remainingToPay || 0);
+  const hasCredit = remainingToPayValue < 0;
+  const displayRemaining = Math.abs(remainingToPayValue);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-5">
-      <BackButton fallbackTo="/lab/dentists" />
-      <div className="mt-1">
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        <p className="mt-1 text-sm text-slate-600">Détails du dentiste et historique (prothèses / paiements).</p>
+    <div className="patient-container">
+      <div style={{ marginBottom: "16px" }}>
+        <button
+          className="btn-secondary-app"
+          onClick={() => {
+            if (window.history.length > 1) navigate(-1);
+            else navigate("/lab/dentists", { replace: true });
+          }}
+        >
+          <ArrowLeft size={16} /> Retour
+        </button>
+      </div>
+
+      <div className="patient-top">
+        <div className="patient-info-left">
+          <div className="patient-name">
+            <div className="patient-name-row">
+              <span className="patient-name-text">{title}</span>
+              <span className="context-badge">Dentiste</span>
+            </div>
+          </div>
+          <div className="patient-details">
+            <div>{dentist?.dentistName || "—"}</div>
+            <div>{formatPhoneNumber(dentist?.phoneNumber)}</div>
+          </div>
+        </div>
+
+        <div className="patient-right">
+          <div className="patient-stats">
+            <div className="stat-box stat-facture">Facture: {formatMoneyWithLabel(summary.totalOwed)}</div>
+            <div className="stat-box stat-paiement">Payé: {formatMoneyWithLabel(summary.totalPaid)}</div>
+            <div className="stat-box stat-reste">
+              {hasCredit ? "Crédit" : "Reste"}: {formatMoneyWithLabel(displayRemaining)}
+            </div>
+          </div>
+        </div>
       </div>
 
       {error ? (
-        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        <div
+          style={{
+            marginTop: 10,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            color: "#991b1b",
+          }}
+        >
+          {error}
+        </div>
       ) : null}
 
-      <div className="mt-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-        <button type="button" className={tabButtonClass(tab === "info")} onClick={() => setTab("info")}>
-          Infos
+      <div className="tab-buttons">
+        <button className={tab === "info" ? "tab-btn active" : "tab-btn"} onClick={() => setTab("info")}>
+          <User size={16} /> Profil
         </button>
-        <button type="button" className={tabButtonClass(tab === "prosthetics")} onClick={() => setTab("prosthetics")}>
-          Prothèses
+        <button className={tab === "prosthetics" ? "tab-btn active" : "tab-btn"} onClick={() => setTab("prosthetics")}>
+          <Layers size={16} /> Prothèses
         </button>
-        <button type="button" className={tabButtonClass(tab === "payments")} onClick={() => setTab("payments")}>
-          Paiements
+        <button className={tab === "payments" ? "tab-btn active" : "tab-btn"} onClick={() => setTab("payments")}>
+          <CreditCard size={16} /> Paiements
         </button>
       </div>
 
-      {loading ? <div className="mt-4 text-slate-600">Chargement...</div> : null}
+      {loading ? <div style={{ marginTop: 12, color: "#64748b" }}>Chargement...</div> : null}
 
       {!loading && tab === "info" ? (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-2 text-sm text-slate-700">
-            <div>
-              <span className="font-semibold text-slate-900">Cabinet:</span> {dentist?.clinicName || "-"}
+        <div className="profile-content">
+          <div className="profile-field">
+            <div className="field-label">
+              <User size={16} /> Cabinet
             </div>
-            <div>
-              <span className="font-semibold text-slate-900">Dentiste:</span> {dentist?.dentistName || "-"}
-            </div>
-            <div>
-              <span className="font-semibold text-slate-900">Téléphone:</span> {dentist?.phoneNumber || "-"}
-            </div>
+            <div className="field-value">{dentist?.clinicName || "—"}</div>
           </div>
-          <div className="mt-3 text-sm text-slate-600">
+          <div className="profile-field">
+            <div className="field-label">
+              <User size={16} /> Dentiste
+            </div>
+            <div className="field-value">{dentist?.dentistName || "—"}</div>
+          </div>
+          <div className="profile-field">
+            <div className="field-label">
+              <Phone size={16} /> Téléphone
+            </div>
+            <div className="field-value">{formatPhoneNumber(dentist?.phoneNumber)}</div>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 13, color: "#64748b" }}>
             Les onglets Prothèses et Paiements affichent uniquement les éléments liés à ce dentiste.
           </div>
         </div>
       ) : null}
 
-      {!loading && tab === "prosthetics" ? <LabProsthetics dentistId={dentistId} embedded /> : null}
-      {!loading && tab === "payments" ? <LabPayments dentistId={dentistId} embedded /> : null}
+      {!loading && tab === "prosthetics" ? (
+        <LabProsthetics dentistId={dentistId} embedded focusId={focusProthesisId} />
+      ) : null}
+      {!loading && tab === "payments" ? <LabPayments dentistId={dentistId} embedded focusId={focusPaymentId} /> : null}
     </div>
   );
 };
 
 export default LabDentistDetails;
-

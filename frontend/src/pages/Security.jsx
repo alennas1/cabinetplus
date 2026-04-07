@@ -31,11 +31,12 @@ import {
 import "./Settings.css";
 import "./Security.css";
 
-const Security = () => {
+const Security = ({ basePath = "/settings" } = {}) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, token } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.phoneNumber;
+  const isLabAccount = user?.role === "LAB" || String(basePath || "").startsWith("/lab");
   const isClinicEmployeeAccount =
     user?.role === "EMPLOYEE" || !!user?.ownerDentist || !!user?.ownerDentistId;
 
@@ -49,6 +50,11 @@ const Security = () => {
   const [sessionsBusy, setSessionsBusy] = useState(null);
 
   const [activeTab, setActiveTab] = useState("account");
+
+  useEffect(() => {
+    if (isLabAccount && activeTab === "pin") setActiveTab("account");
+    if (isClinicEmployeeAccount && activeTab === "sessions") setActiveTab("account");
+  }, [activeTab, isClinicEmployeeAccount, isLabAccount]);
 
   const [gcPinChecking, setGcPinChecking] = useState(false);
   const [gcPinSet, setGcPinSet] = useState(false);
@@ -695,35 +701,37 @@ const Security = () => {
 
   return (
     <div className="settings-container">
-      <BackButton fallbackTo="/settings" />
+      <BackButton fallbackTo={basePath} />
       <PageHeader title="Sécurité" subtitle="Mot de passe et sécurité." />
 
-      <div className="security-content">
-        <div className="tab-buttons">
-          <button
-            type="button"
-            className={activeTab === "account" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("account")}
-          >
-            Compte
-          </button>
-          {!isClinicEmployeeAccount ? (
+        <div className="security-content">
+          <div className="tab-buttons">
             <button
               type="button"
-              className={activeTab === "sessions" ? "tab-btn active" : "tab-btn"}
-              onClick={() => setActiveTab("sessions")}
+              className={activeTab === "account" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setActiveTab("account")}
             >
-              Sessions
+              Compte
             </button>
-          ) : null}
-          <button
-            type="button"
-            className={activeTab === "pin" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("pin")}
-          >
-            PIN
-          </button>
-        </div>
+            {!isClinicEmployeeAccount || isLabAccount ? (
+              <button
+                type="button"
+                className={activeTab === "sessions" ? "tab-btn active" : "tab-btn"}
+                onClick={() => setActiveTab("sessions")}
+              >
+                Sessions
+              </button>
+            ) : null}
+            {!isLabAccount ? (
+              <button
+                type="button"
+                className={activeTab === "pin" ? "tab-btn active" : "tab-btn"}
+                onClick={() => setActiveTab("pin")}
+              >
+                PIN
+              </button>
+            ) : null}
+          </div>
 
         {activeTab === "account" ? (
           <div className="security-account-grid">
@@ -843,7 +851,7 @@ const Security = () => {
           </div>
         ) : null}
 
-        {activeTab === "pin" ? (
+        {!isLabAccount && activeTab === "pin" ? (
           <div className="security-card">
             <div className="security-card-header">
               <div>

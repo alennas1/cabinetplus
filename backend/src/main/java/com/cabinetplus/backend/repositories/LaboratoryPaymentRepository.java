@@ -128,6 +128,48 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
             Pageable pageable
     );
 
+    @EntityGraph(attributePaths = {"createdBy.publicId", "createdBy.firstname", "createdBy.lastname"})
+    @Query("""
+            select lp
+            from LaboratoryPayment lp
+            left join lp.createdBy dentist
+            where lp.laboratory = :laboratory
+              and lp.recordStatus <> :archivedStatus
+              and lp.cancelRequestDecision = com.cabinetplus.backend.enums.CancellationRequestDecision.PENDING
+            order by lp.cancelRequestedAt desc nulls last, lp.id desc
+            """)
+    List<LaboratoryPayment> findPendingCancellationForLabPortal(
+            @Param("laboratory") com.cabinetplus.backend.models.Laboratory laboratory,
+            @Param("archivedStatus") RecordStatus archivedStatus
+    );
+
+    @Query("""
+        select count(lp),
+               coalesce(sum(lp.amount), 0)
+        from LaboratoryPayment lp
+        left join lp.createdBy dentist
+        where lp.laboratory = :laboratory
+          and lp.recordStatus <> :archivedStatus
+          and (:dentistPublicId is null or dentist.publicId = :dentistPublicId)
+          and (:fromEnabled = false or lp.paymentDate >= :fromDt)
+          and (:toEnabled = false or lp.paymentDate <= :toDt)
+          and (
+            :qLike = ''
+            or lower(coalesce(lp.notes, '')) like :qLike
+            or lower(concat(coalesce(dentist.firstname, ''), ' ', coalesce(dentist.lastname, ''))) like :qLike
+          )
+    """)
+    Object[] getPaymentsSummaryForLabPortal(
+            @Param("laboratory") com.cabinetplus.backend.models.Laboratory laboratory,
+            @Param("archivedStatus") RecordStatus archivedStatus,
+            @Param("dentistPublicId") UUID dentistPublicId,
+            @Param("fromEnabled") boolean fromEnabled,
+            @Param("fromDt") LocalDateTime fromDt,
+            @Param("toEnabled") boolean toEnabled,
+            @Param("toDt") LocalDateTime toDt,
+            @Param("qLike") String qLike
+    );
+
     @Modifying
     @Transactional
     @Query("""

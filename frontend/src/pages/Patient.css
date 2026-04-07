@@ -1362,6 +1362,12 @@
   border-color: #93c5fd;
 }
 
+.status-chip.prete {
+  background-color: #ede9fe;
+  color: #6d28d9;
+  border-color: #c4b5fd;
+}
+
 .status-chip.in_progress {
   background-color: #cffafe;
   color: #0369a1;
@@ -1639,6 +1645,48 @@
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #f9fafb;
+}
+
+.uploading-bar {
+  position: relative;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.uploading-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -40%;
+  height: 100%;
+  width: 40%;
+  background: #2563eb;
+  animation: uploading-bar-move 1s ease-in-out infinite;
+}
+
+@keyframes uploading-bar-move {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.upload-progress {
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.upload-progress > div {
+  height: 100%;
+  background: #2563eb;
+  width: 0%;
+  transition: width 0.2s linear;
 }
 
 .btn-primary2:disabled {

@@ -36,6 +36,10 @@ public record ProthesisResponse(
         String cancelRequestReason,
         String cancelRequestDecision,
         LocalDateTime cancelRequestDecidedAt,
-        String cancelRequestDecidedByName
+        String cancelRequestDecidedByName,
+
+        String stlFilename,
+        LocalDateTime stlUploadedAt,
+        Integer filesCount
 ) {
 }

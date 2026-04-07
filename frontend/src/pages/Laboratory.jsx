@@ -135,13 +135,17 @@ const Laboratories = ({ view = "active" }) => {
   const submitInvite = async () => {
     const value = String(inviteLabPublicId || "").trim();
     if (!value) {
-      toast.info("Entrez l'ID du laboratoire.");
+      toast.info("Entrez l'ID d'invitation du laboratoire.");
+      return;
+    }
+    if (!/^[0-9]{4,12}$/.test(value)) {
+      toast.error("ID invitation invalide (chiffres uniquement).");
       return;
     }
     if (isInvitingLab) return;
     try {
       setIsInvitingLab(true);
-      await inviteLaboratoryConnection({ labPublicId: value });
+      await inviteLaboratoryConnection({ labInviteCode: value });
       toast.success("Invitation envoyée au laboratoire");
       setShowInviteModal(false);
       setInviteLabPublicId("");
@@ -363,7 +367,7 @@ const Laboratories = ({ view = "active" }) => {
                 <td>{lab.address || "—"}</td>
                 <td>
                   <div className="flex items-center gap-2">
-                    <span>{formatDateTimeByPreference(lab.createdAt) || "â€”"}</span>
+                    <span>{formatDateTimeByPreference(lab.createdAt) || "—"}</span>
                     <MetadataInfo entity={lab} />
                   </div>
                 </td>
@@ -538,16 +542,16 @@ const Laboratories = ({ view = "active" }) => {
             </div>
 
             <p className="text-sm text-gray-600 mb-4">
-              Collez l'ID fourni par le laboratoire (menu Invitations du laboratoire). Après acceptation, le laboratoire apparaîtra dans votre liste.
+              Entrez l'ID d'invitation fourni par le laboratoire. Après acceptation, le laboratoire apparaîtra dans votre liste.
             </p>
 
             <div className="field-group">
-              <span className="field-label">ID laboratoire *</span>
+              <span className="field-label">ID d'invitation *</span>
               <input
                 type="text"
                 value={inviteLabPublicId}
                 onChange={(e) => setInviteLabPublicId(e.target.value)}
-                placeholder="Ex: 018f9a1b-..."
+                placeholder="Ex: 12345678"
                 disabled={isInvitingLab}
               />
             </div>

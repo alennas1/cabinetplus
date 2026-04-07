@@ -7,6 +7,7 @@ import {
   Package,
   CreditCard,
   Briefcase,
+  BookOpen,
 } from "react-feather";
 import "./Settings.css";
 import PageHeader from "../components/PageHeader";
@@ -29,6 +30,7 @@ const GestionCabinet = ({ section = null }) => {
     const canAccessFournisseurs = userHasPermission(user, PERMISSIONS.FOURNISSEURS);
     const canAccessExpenses = userHasPermission(user, PERMISSIONS.EXPENSES);
     const canAccessInventory = userHasPermission(user, PERMISSIONS.INVENTORY);
+    const canAccessCatalogues = userHasPermission(user, PERMISSIONS.CATALOGUE);
 
     const groups = [
       {
@@ -56,6 +58,19 @@ const GestionCabinet = ({ section = null }) => {
                 desc: "Gérer la liste des fournisseurs pour les achats et l'inventaire",
                 icon: <Briefcase />,
                 path: "/gestion-cabinet/fournisseurs",
+              }
+            : null,
+        ].filter(Boolean),
+      },
+      {
+        title: "Catalogues & Tarifs",
+        options: [
+          canAccessCatalogues
+            ? {
+                title: "Catalogues & Tarifs",
+                desc: "Gérer les catalogues et les prix (actes, matériaux, articles...)",
+                icon: <BookOpen />,
+                path: "/gestion-cabinet/catalogue",
               }
             : null,
         ].filter(Boolean),

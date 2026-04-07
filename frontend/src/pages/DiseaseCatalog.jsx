@@ -148,7 +148,7 @@ const DiseaseCatalog = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/catalogue" />
+      <BackButton fallbackTo="/gestion-cabinet/catalogue" />
       <PageHeader title="Maladies" subtitle="Gérez le catalogue des maladies" align="left" />
 
       <div className="patients-controls">
@@ -248,4 +248,3 @@ const DiseaseCatalog = () => {
 };
 
 export default DiseaseCatalog;
-

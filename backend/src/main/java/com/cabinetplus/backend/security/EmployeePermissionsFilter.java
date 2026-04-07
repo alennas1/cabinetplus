@@ -55,6 +55,7 @@ public class EmployeePermissionsFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/patients")) return "PATIENTS";
         if (path.startsWith("/api/devises")) return "DEVIS";
         if (path.startsWith("/api/support")) return "SUPPORT";
+        if (path.startsWith("/api/messaging")) return "MESSAGING";
 
         // Catalogue
         if (path.startsWith("/api/medications")) return "CATALOGUE";
@@ -191,8 +192,8 @@ public class EmployeePermissionsFilter extends OncePerRequestFilter {
 
         Set<String> permissions = user.getPermissions();
         boolean allowedBase;
-        if ("SUPPORT".equals(required)) {
-            allowedBase = true; // Support is always enabled for employees/staff (not configurable).
+        if ("SUPPORT".equals(required) || "MESSAGING".equals(required)) {
+            allowedBase = true; // Support + messaging are always enabled for employees/staff (not configurable).
         } else if ("GESTION_CABINET".equals(required)) {
             allowedBase = false; // Finance + employee management are forbidden for employees/staff.
         } else if ("CATALOGUE_OR_INVENTORY".equals(required)) {
@@ -204,7 +205,7 @@ public class EmployeePermissionsFilter extends OncePerRequestFilter {
         }
 
         String action = requiredActionForRequest(request);
-        if (action != null && !"GESTION_CABINET".equals(required) && !"SUPPORT".equals(required)) {
+        if (action != null && !"GESTION_CABINET".equals(required) && !"SUPPORT".equals(required) && !"MESSAGING".equals(required)) {
             String module = moduleForAction(required);
             String actionKey = module != null ? (module + "_" + action) : null;
             boolean hasAction = actionKey != null && permissions != null && permissions.contains(actionKey);

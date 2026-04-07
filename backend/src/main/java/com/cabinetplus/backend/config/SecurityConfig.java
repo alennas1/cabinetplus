@@ -107,6 +107,9 @@ public class SecurityConfig {
                 // 3b. LAB PORTAL ENDPOINTS
                 .requestMatchers("/api/lab/**").hasRole("LAB")
 
+                // Messaging (dentist + employees + labs)
+                .requestMatchers("/api/messaging/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")
+
                 // Dentist-only operational endpoints
                 .requestMatchers("/api/employees/**").hasRole("DENTIST")
 

@@ -314,6 +314,70 @@ html, body {
   padding-bottom: 10px;
 }
 
+.sidebar-bottom-link {
+  display: flex;
+  align-items: center;
+  padding: 14px 20px;
+  color: #444;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  position: relative;
+  transition: background 0.25s ease, padding 0.35s ease;
+}
+
+.sidebar-bottom-link::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+  border-radius: 0 4px 4px 0;
+  background: #3498db;
+}
+
+.sidebar-bottom-link:hover::before {
+  transform: scaleY(1);
+}
+
+.sidebar-bottom-link:hover {
+  background: #f9f9f9;
+  color: #444;
+}
+
+.sidebar-bottom-link.active::before {
+  transform: scaleY(1);
+}
+
+.sidebar-bottom-link.active {
+  background: #f9f9f9;
+  color: #444;
+}
+
+.sidebar-bottom-link svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: 0;
+  color: #666;
+  transition: margin 0.35s ease;
+}
+
+.sidebar:hover .sidebar-bottom-link svg {
+  margin-right: 14px;
+}
+
+.sidebar:hover .sidebar-bottom-link .cp-sidebar-icon {
+  margin-right: 14px;
+}
+
+.sidebar:hover .sidebar-bottom-link .cp-sidebar-icon svg {
+  margin-right: 0;
+}
+
 .sidebar-bottom .logout-btn,
 .sidebar-bottom a.logout-btn {
   display: flex;

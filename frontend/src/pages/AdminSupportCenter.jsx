@@ -311,7 +311,7 @@ const AdminSupportCenter = () => {
 
       <div className="tab-buttons" style={{ marginBottom: 14 }}>
         <button className={activeTab === "support" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("support")}>
-          <MessageSquare size={16} /> Customer support
+          <MessageSquare size={16} /> Support
         </button>
         <button className={activeTab === "feedback" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("feedback")}>
           <Edit3 size={16} /> Feedback

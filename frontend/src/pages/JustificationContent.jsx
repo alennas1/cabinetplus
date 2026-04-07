@@ -269,7 +269,7 @@ const JustificationContentPage = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/catalogue" />
+      <BackButton fallbackTo="/gestion-cabinet/catalogue" />
       <PageHeader title="Modèles de Justification" subtitle="Gérez vos documents types" align="left" />
 
       <div className="patients-controls">

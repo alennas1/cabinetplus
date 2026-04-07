@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import {
   User,
@@ -22,6 +22,12 @@ import "./Sidebar.css";
 const SidebarAdmin = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isActivePath = (path, { exact = false } = {}) => {
+    if (exact) return location.pathname === path;
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
 
  const handleLogout = async (e) => {
     // Safety: avoid accidental <form> submit -> full page reload.
@@ -83,12 +89,6 @@ const SidebarAdmin = () => {
 
         <li className="sidebar-group-title">Systeme</li>
         <li>
-          <Link to="/settings-admin">
-            <Settings size={20} />
-            <span className="link-text">Parametres</span>
-          </Link>
-        </li>
-        <li>
           <Link to="/admin/preferences">
             <Sliders size={20} />
             <span className="link-text">Preferences</span>
@@ -100,20 +100,28 @@ const SidebarAdmin = () => {
             <span className="link-text">Journal admin</span>
           </Link>
         </li>
-
-        <li className="sidebar-group-title">Support</li>
-        <li>
-          <Link to="/admin/support">
-            <Headphones size={20} />
-            <span className="link-text">Support & Feedback</span>
-          </Link>
-        </li>
       </ul>
 
-      <div className="sidebar-logout">
+      <div className="sidebar-bottom">
+        <Link
+          to="/admin/support"
+          className={`sidebar-bottom-link ${isActivePath("/admin/support") ? "active" : ""}`.trim()}
+        >
+          <Headphones size={20} />
+          <span className="link-text">Support & Feedback</span>
+        </Link>
+
+        <Link
+          to="/settings-admin"
+          className={`sidebar-bottom-link ${isActivePath("/settings-admin") ? "active" : ""}`.trim()}
+        >
+          <Settings size={20} />
+          <span className="link-text">Paramètres</span>
+        </Link>
+
         <button type="button" onClick={handleLogout} className="logout-btn">
           <LogOut size={20} />
-          <span className="link-text">Se deconnecter</span>
+          <span className="link-text">Se déconnecter</span>
         </button>
       </div>
     </div>

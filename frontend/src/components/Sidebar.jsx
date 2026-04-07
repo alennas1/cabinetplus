@@ -10,9 +10,9 @@ import {
   FileText,
   Settings,
   Briefcase,
-  BookOpen,
   Layers,
   Headphones,
+  MessageSquare,
   CreditCard,
 } from "react-feather";
 import { PERMISSIONS, isClinicEmployeeAccount, userHasPermission } from "../utils/permissions";
@@ -20,6 +20,7 @@ import { PERMISSIONS, isClinicEmployeeAccount, userHasPermission } from "../util
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
 import { listMySupportThreads } from "../services/supportService";
+import { listMessagingThreads } from "../services/messagingService";
 
 import "./Sidebar.css";
 
@@ -35,6 +36,7 @@ const Sidebar = () => {
   const canAccessPatients = userHasPermission(user, PERMISSIONS.PATIENTS);
   const canAccessDevis = userHasPermission(user, PERMISSIONS.DEVIS);
   const canAccessSupport = userHasPermission(user, PERMISSIONS.SUPPORT);
+  const canAccessMessaging = userHasPermission(user, PERMISSIONS.MESSAGING);
   const canAccessCatalogues = userHasPermission(user, PERMISSIONS.CATALOGUE);
   const canAccessProstheses = userHasPermission(user, PERMISSIONS.PROSTHESES);
   const canAccessGestionCabinet = userHasPermission(user, PERMISSIONS.GESTION_CABINET);
@@ -44,7 +46,7 @@ const Sidebar = () => {
   const canAccessInventory = userHasPermission(user, PERMISSIONS.INVENTORY);
   const canAccessSettings = userHasPermission(user, PERMISSIONS.SETTINGS);
 
-  const canAccessGestionCabinetHub = canAccessGestionCabinet && !isStaffAccount;
+  const canAccessGestionCabinetHub = !isStaffAccount && (canAccessGestionCabinet || canAccessCatalogues);
   const showStaffCabinetLinks = isStaffAccount && (canAccessLaboratories || canAccessFournisseurs || canAccessExpenses || canAccessInventory);
   const canAccessFinanceLogistiqueHub = isStaffAccount && (canAccessExpenses || canAccessInventory);
   const canAccessRessourcesPartenairesHub = isStaffAccount && (canAccessLaboratories || canAccessFournisseurs);
@@ -52,12 +54,12 @@ const Sidebar = () => {
   const showAdminGroup =
     canAccessGestionCabinetHub ||
     showStaffCabinetLinks ||
-    canAccessCatalogues ||
-    canAccessProstheses ||
-    canAccessSettings;
+    canAccessProstheses;
   const isInSupport = useMemo(() => location.pathname.startsWith("/support"), [location.pathname]);
+  const isInMessaging = useMemo(() => location.pathname.startsWith("/messagerie"), [location.pathname]);
 
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+  const [messagingUnreadCount, setMessagingUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!userKey) return;
@@ -91,6 +93,38 @@ const Sidebar = () => {
       clearInterval(id);
     };
   }, [userKey, location.pathname, isInSupport]);
+
+  useEffect(() => {
+    if (!userKey) return;
+    if (!canAccessMessaging) return;
+    let cancelled = false;
+
+    const fetchUnread = async () => {
+      if (isInMessaging) return;
+      try {
+        const data = await listMessagingThreads();
+        if (cancelled) return;
+        const total = (Array.isArray(data) ? data : []).reduce((sum, t) => sum + Number(t?.unreadCount || 0), 0);
+        setMessagingUnreadCount(total);
+      } catch {
+        if (!cancelled) setMessagingUnreadCount(0);
+      }
+    };
+
+    if (isInMessaging) {
+      setMessagingUnreadCount(0);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetchUnread();
+    const id = setInterval(fetchUnread, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [userKey, canAccessMessaging, isInMessaging, location.pathname]);
 
   const handleLogout = async (e) => {
     // Safety: if this button ever ends up inside a <form>, don't submit and trigger a full page refresh.
@@ -183,20 +217,17 @@ const Sidebar = () => {
           </Link>
         </li>}
 
-        {canAccessSupport && <li>
-          <Link
-            to="/support"
-            className={isActivePath("/support") ? "active" : ""}
-          >
+        {canAccessMessaging && <li>
+          <Link to="/messagerie" className={isActivePath("/messagerie") ? "active" : ""}>
             <span className="cp-sidebar-icon">
-              <Headphones size={20} />
-              {supportUnreadCount > 0 ? (
-                <span className="cp-sidebar-badge" aria-label={`${supportUnreadCount} message(s) non lu(s)`}>
-                  {supportUnreadCount > 99 ? "99+" : supportUnreadCount}
+              <MessageSquare size={20} />
+              {messagingUnreadCount > 0 ? (
+                <span className="cp-sidebar-badge" aria-label={`${messagingUnreadCount} message(s) non lu(s)`}>
+                  {messagingUnreadCount > 99 ? "99+" : messagingUnreadCount}
                 </span>
               ) : null}
             </span>
-            <span className="link-text">Support</span>
+            <span className="link-text">Messagerie</span>
           </Link>
         </li>}
 
@@ -207,8 +238,12 @@ const Sidebar = () => {
             <Link
               to="/gestion-cabinet"
               className={
-                location.pathname.startsWith("/gestion-cabinet") &&
-                !location.pathname.startsWith("/gestion-cabinet/prosthetics-tracking")
+                (
+                  (
+                    location.pathname.startsWith("/gestion-cabinet") &&
+                    !location.pathname.startsWith("/gestion-cabinet/prosthetics-tracking")
+                  )
+                )
                   ? "active"
                   : ""
               }
@@ -246,16 +281,6 @@ const Sidebar = () => {
             )}
           </>
         )}
-        {canAccessCatalogues && <li className="admin-link">
-          <Link
-            to="/catalogue"
-            className={isActivePath("/catalogue") ? "active" : ""}
-          >
-            <BookOpen size={20} />
-            <span className="link-text">Catalogues</span>
-          </Link>
-        </li>}
-
         {canAccessProstheses && <li className="admin-link">
           <Link
             to="/gestion-cabinet/prosthetics-tracking"
@@ -266,19 +291,36 @@ const Sidebar = () => {
           </Link>
         </li>}
 
-        {canAccessSettings && <li className="admin-link">
+      </ul>
+
+      <div className="sidebar-bottom">
+        {canAccessSupport ? (
+          <Link
+            to="/support"
+            className={`sidebar-bottom-link ${isActivePath("/support") ? "active" : ""}`.trim()}
+          >
+            <span className="cp-sidebar-icon">
+              <Headphones size={20} />
+              {supportUnreadCount > 0 ? (
+                <span className="cp-sidebar-badge" aria-label={`${supportUnreadCount} message(s) non lu(s)`}>
+                  {supportUnreadCount > 99 ? "99+" : supportUnreadCount}
+                </span>
+              ) : null}
+            </span>
+            <span className="link-text">Support</span>
+          </Link>
+        ) : null}
+
+        {canAccessSettings ? (
           <Link
             to="/settings"
-            className={isActivePath("/settings") ? "active" : ""}
+            className={`sidebar-bottom-link ${isActivePath("/settings") ? "active" : ""}`.trim()}
           >
             <Settings size={20} />
             <span className="link-text">Paramètres</span>
           </Link>
-        </li>}
-      </ul>
+        ) : null}
 
-      {/* --- Logout --- */}
-      <div className="sidebar-logout">
         <button type="button" onClick={handleLogout} className="logout-btn">
           <LogOut size={20} />
           <span className="link-text">Se déconnecter</span>

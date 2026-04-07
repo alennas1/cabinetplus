@@ -392,7 +392,7 @@ const ProstheticsSettings = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/catalogue" />
+      <BackButton fallbackTo="/gestion-cabinet/catalogue" />
       <PageHeader
         title="Catalogue des protheses"
         subtitle="Gerez les types de protheses proposees par le cabinet"

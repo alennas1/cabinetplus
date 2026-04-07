@@ -28,6 +28,7 @@ const FEEDBACK_CATEGORIES = [
 
 const SupportCenter = () => {
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("support");
 
   // Support chat
   const [threads, setThreads] = useState([]);
@@ -63,9 +64,40 @@ const SupportCenter = () => {
     try {
       if (!silent) setLoading(true);
       const data = await listMySupportThreads();
-      setThreads(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setThreads(list);
+      return list;
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Impossible de charger les conversations"));
+      toast.error(getApiErrorMessage(err, "Impossible de charger la conversation"));
+      return [];
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  const ensureSingleThread = async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      let list = await listMySupportThreads();
+      list = Array.isArray(list) ? list : [];
+      let thread = list?.[0] || null;
+      if (!thread) {
+        thread = await createMySupportThread();
+        list = thread ? [thread] : [];
+      }
+
+      setThreads(list);
+
+      const nextId = thread?.id || null;
+      if (nextId) {
+        setSelectedThreadId(nextId);
+        forceScrollOnceRef.current = true;
+        await loadSelectedMessages(nextId, { silent: true });
+      } else {
+        setSelectedThreadId(null);
+      }
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Impossible de charger la conversation"));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -95,17 +127,18 @@ const SupportCenter = () => {
       } catch {
         // ignore
       }
-      await loadThreads();
+      await ensureSingleThread();
     })();
   }, []);
 
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
-      await loadThreads({ silent: true });
-      if (selectedThreadId) {
-        await loadSelectedMessages(selectedThreadId, { silent: true });
+      if (!selectedThreadId) {
+        await ensureSingleThread({ silent: true });
+        return;
       }
+      await loadSelectedMessages(selectedThreadId, { silent: true });
     }, selectedThreadId ? 4000 : 12000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -240,7 +273,6 @@ const SupportCenter = () => {
         const replaced = list.map((m) => (String(m?.id) === String(tmpId) ? { ...saved, clientStatus: "SENT" } : m));
         return replaced;
       });
-      await loadThreads({ silent: true });
     } catch (err) {
       setMessages((prev) => (Array.isArray(prev) ? prev : []).filter((m) => String(m?.id) !== String(tmpId)));
       setChatText(content);
@@ -298,7 +330,6 @@ const SupportCenter = () => {
           return { ...saved, clientStatus: "SENT", attachmentLocalUrl: localUrl };
         });
       });
-      await loadThreads({ silent: true });
     } catch (err) {
       try {
         URL.revokeObjectURL(localUrl);
@@ -367,11 +398,25 @@ const SupportCenter = () => {
         subtitle="Contactez l’admin et envoyez vos suggestions"
       />
 
-      <div className="cp-support-grid">
+      <div className="cp-support-content">
+        <div className="tab-buttons" style={{ marginBottom: 14 }}>
+          <button
+            type="button"
+            className={activeTab === "support" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("support")}
+          >
+            Support
+          </button>
+          <button
+            type="button"
+            className={activeTab === "feedback" ? "tab-btn active" : "tab-btn"}
+            onClick={() => setActiveTab("feedback")}
+          >
+            Feedback
+          </button>
+        </div>
         {/* Support */}
-        <div className="controls-card cp-support-panel">
-          <div className="cp-support-panel-title">Customer support</div>
-
+        <div className="controls-card cp-support-panel" hidden={activeTab !== "support"}>
           <div className="cp-support-panel-body">
             {!selectedThreadId ? (
               <>
@@ -380,6 +425,7 @@ const SupportCenter = () => {
                 <button
                   type="button"
                   className="btn-primary2"
+                  style={{ display: "none" }}
                   onClick={async () => {
                     try {
                       const created = await createMySupportThread();
@@ -392,7 +438,7 @@ const SupportCenter = () => {
                     }
                   }}
                 >
-                  + Nouvelle
+                  + Nouvelle conversation
                 </button>
               </div>
 
@@ -439,7 +485,7 @@ const SupportCenter = () => {
               </>
             ) : (
               <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ display: "none", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <button
                   type="button"
                   className="btn-secondary-app"
@@ -497,11 +543,11 @@ const SupportCenter = () => {
                              maxWidth: "78%",
                              padding: "10px 12px",
                              borderRadius: 14,
-                              background: isMine ? "#dcf8c6" : "#ffffff",
-                              border: "1px solid " + (isMine ? "#b7e4a8" : "#e5e7eb"),
-                             color: "#111827",
-                             }}
-                           >
+                               background: isMine ? "#dcf8c6" : "#f3f4f6",
+                               border: "1px solid " + (isMine ? "#b7e4a8" : "#e5e7eb"),
+                              color: "#111827",
+                              }}
+                            >
                            {attachmentUrl ? (
                              <button
                                type="button"
@@ -584,7 +630,7 @@ const SupportCenter = () => {
         </div>
 
         {/* Feedback */}
-        <div className="controls-card cp-support-panel">
+        <div className="controls-card cp-support-panel" hidden={activeTab !== "feedback"}>
           <div className="cp-support-panel-title">Feedback</div>
 
           <div className="cp-support-panel-body">

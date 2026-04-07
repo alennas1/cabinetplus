@@ -6,6 +6,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.Comparator;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -76,6 +78,26 @@ public class SupportAttachmentStorageService {
             throw new IOException("Invalid path");
         }
         return Files.readAllBytes(p);
+    }
+
+    public void deleteThreadFolder(Long threadId) {
+        if (threadId == null) return;
+        Path base = Paths.get(System.getProperty("user.dir"), "uploads", "support").normalize();
+        Path dir = Paths.get(System.getProperty("user.dir"), "uploads", "support", "thread-" + threadId).normalize();
+        if (!dir.startsWith(base)) return;
+        if (!Files.exists(dir)) return;
+        try (Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException ignored) {
+                            // ignore
+                        }
+                    });
+        } catch (IOException ignored) {
+            // ignore
+        }
     }
 
     private String safeOriginalName(String name) {

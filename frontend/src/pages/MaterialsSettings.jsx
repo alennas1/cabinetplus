@@ -180,7 +180,7 @@ const MaterialsSettings = () => {
 
     return (
         <div className="patients-container">
-            <BackButton fallbackTo="/catalogue" />
+            <BackButton fallbackTo="/gestion-cabinet/catalogue" />
             <PageHeader 
                 title="Matériaux & Composants" 
                 subtitle="Gérez les matériaux utilisés pour la fabrication" 

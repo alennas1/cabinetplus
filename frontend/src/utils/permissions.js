@@ -4,6 +4,7 @@ export const PERMISSIONS = {
   PATIENTS: "PATIENTS",
   DEVIS: "DEVIS",
   SUPPORT: "SUPPORT",
+  MESSAGING: "MESSAGING",
   CATALOGUE: "CATALOGUE",
   PROSTHESES: "PROSTHESES",
   GESTION_CABINET: "GESTION_CABINET",
@@ -38,6 +39,8 @@ export const userHasPermission = (user, permission) => {
   if (isClinicEmployeeAccount(user) && permission === PERMISSIONS.GESTION_CABINET) return false;
   // Support is always enabled for employees/staff (not configurable).
   if (isClinicEmployeeAccount(user) && permission === PERMISSIONS.SUPPORT) return true;
+  // Messaging is always enabled for employees/staff (not configurable).
+  if (isClinicEmployeeAccount(user) && permission === PERMISSIONS.MESSAGING) return true;
   // Employees must always be able to access their own settings.
   if (isClinicEmployeeAccount(user) && permission === PERMISSIONS.SETTINGS) return true;
   return getUserPermissions(user).includes(permission);

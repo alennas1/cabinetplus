@@ -272,7 +272,7 @@ const Treatments = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/catalogue" />
+      <BackButton fallbackTo="/gestion-cabinet/catalogue" />
       <PageHeader title="Traitements" subtitle="Liste des traitements" align="left" />
 
       {/* Controls */}

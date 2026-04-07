@@ -530,3 +530,12 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 059-messaging
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 059-messaging.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

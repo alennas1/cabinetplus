@@ -148,7 +148,7 @@ const AllergyCatalog = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/catalogue" />
+      <BackButton fallbackTo="/gestion-cabinet/catalogue" />
       <PageHeader title="Allergies" subtitle="Gérez le catalogue des allergies" align="left" />
 
       <div className="patients-controls">
@@ -248,4 +248,3 @@ const AllergyCatalog = () => {
 };
 
 export default AllergyCatalog;
-

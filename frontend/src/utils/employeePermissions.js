@@ -5,6 +5,7 @@ export const EMPLOYEE_PERMISSION_ACTIONS = {
   STATUS: "STATUS",
   ARCHIVE: "ARCHIVE",
   DELETE: "DELETE",
+  MESSAGE: "MESSAGE",
 };
 
 export const buildEmployeeActionKey = (moduleKey, action) => `${moduleKey}_${action}`;
@@ -76,6 +77,7 @@ export const EMPLOYEE_PERMISSION_GROUPS = [
         label: "Laboratoires",
         description: "Gestion des laboratoires / partenaires.",
         actions: [
+          EMPLOYEE_PERMISSION_ACTIONS.MESSAGE,
           EMPLOYEE_PERMISSION_ACTIONS.CREATE,
           EMPLOYEE_PERMISSION_ACTIONS.UPDATE,
           EMPLOYEE_PERMISSION_ACTIONS.ARCHIVE,
@@ -125,16 +127,22 @@ export const normalizeEmployeePermissions = (permissions) => {
   const current = Array.isArray(permissions) ? permissions.filter(Boolean).map(String) : [];
   const baseKeys = EMPLOYEE_PERMISSION_GROUPS.flatMap((g) => (g.items || []).map((i) => i.key));
   const actionKeys = EMPLOYEE_PERMISSION_GROUPS.flatMap((g) =>
-    (g.items || []).flatMap((i) =>
-      (i.actions || []).map((a) => buildEmployeeActionKey(i.key, a)),
-    ),
+    (g.items || []).flatMap((i) => (i.actions || []).map((a) => buildEmployeeActionKey(i.key, a))),
   );
   const allowed = new Set([...baseKeys, ...actionKeys, "SUPPORT"]);
 
   const next = new Set();
   for (const raw of current) {
-    const key = String(raw || "").trim();
-    if (!key) continue;
+    const incoming = String(raw || "").trim();
+    if (!incoming) continue;
+
+    // Backward compatibility: previously, lab-messaging was stored as `MESSAGING_LABS`.
+    // It is now an action under `LABORATORIES`.
+    const key =
+      incoming === "MESSAGING_LABS"
+        ? buildEmployeeActionKey("LABORATORIES", EMPLOYEE_PERMISSION_ACTIONS.MESSAGE)
+        : incoming;
+
     if (!allowed.has(key)) continue;
     next.add(key);
   }

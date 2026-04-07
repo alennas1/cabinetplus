@@ -58,11 +58,12 @@ import AdminFinance from "./pages/AdminFinance";
 import ManageAdmins from "./pages/ManageAdmins";
 import AdminChangePassword from "./pages/AdminChangePassword";
 import ManagePlans from "./pages/ManagePlans";
-import AdminAuditLogs from "./pages/AdminAuditLogs";
-import SupportCenter from "./pages/SupportCenter";
-import AdminSupportCenter from "./pages/AdminSupportCenter";
-import AdminFeedbackDetails from "./pages/AdminFeedbackDetails";
-import Justification from "./pages/Justification";
+  import AdminAuditLogs from "./pages/AdminAuditLogs";
+  import SupportCenter from "./pages/SupportCenter";
+  import AdminSupportCenter from "./pages/AdminSupportCenter";
+  import AdminFeedbackDetails from "./pages/AdminFeedbackDetails";
+  import MessagingCenter from "./pages/MessagingCenter";
+  import Justification from "./pages/Justification";
 
 import Devis from "./pages/Devis"; 
 import Laboratory from "./pages/Laboratory";
@@ -304,22 +305,34 @@ const AppContent = () => {
             </Route>
 
             <Route element={<RequirePermission permission={PERMISSIONS.CATALOGUE} />}>
-              <Route path="/catalogue" element={<Catalogue />} />
-              <Route path="/catalogue/medications" element={<Medications />} />
-              <Route path="/catalogue/treatments" element={<TreatmentCatalog />} />
-              <Route path="/catalogue/justifications" element={<JustificationContent />} />
-              <Route path="/catalogue/prosthetics" element={<ProstheticsSettings />} />
-              <Route path="/catalogue/materials" element={<MaterialsSettings />} />
-              <Route path="/catalogue/items" element={<Items />} />
-              <Route path="/catalogue/diseases" element={<DiseaseCatalog />} />
-              <Route path="/catalogue/allergies" element={<AllergyCatalog />} />
+              <Route path="/catalogue" element={<Navigate to="/gestion-cabinet/catalogue" replace />} />
+              <Route path="/catalogue/medications" element={<Navigate to="/gestion-cabinet/catalogue/medications" replace />} />
+              <Route path="/catalogue/treatments" element={<Navigate to="/gestion-cabinet/catalogue/treatments" replace />} />
+              <Route path="/catalogue/justifications" element={<Navigate to="/gestion-cabinet/catalogue/justifications" replace />} />
+              <Route path="/catalogue/prosthetics" element={<Navigate to="/gestion-cabinet/catalogue/prosthetics" replace />} />
+              <Route path="/catalogue/materials" element={<Navigate to="/gestion-cabinet/catalogue/materials" replace />} />
+              <Route path="/catalogue/items" element={<Navigate to="/gestion-cabinet/catalogue/items" replace />} />
+              <Route path="/catalogue/diseases" element={<Navigate to="/gestion-cabinet/catalogue/diseases" replace />} />
+              <Route path="/catalogue/allergies" element={<Navigate to="/gestion-cabinet/catalogue/allergies" replace />} />
             </Route>
 
-            <Route element={<GestionCabinetPinGuard />}>
-              <Route element={<RequireAnyPermission permissions={[PERMISSIONS.GESTION_CABINET, PERMISSIONS.LABORATORIES, PERMISSIONS.FOURNISSEURS, PERMISSIONS.EXPENSES, PERMISSIONS.INVENTORY]} />}>
+              <Route element={<GestionCabinetPinGuard />}>
+              <Route element={<RequireAnyPermission permissions={[PERMISSIONS.GESTION_CABINET, PERMISSIONS.LABORATORIES, PERMISSIONS.FOURNISSEURS, PERMISSIONS.EXPENSES, PERMISSIONS.INVENTORY, PERMISSIONS.CATALOGUE]} />}>
                 <Route path="/gestion-cabinet" element={<GestionCabinet />} />
                 <Route path="/gestion-cabinet/finance-logistique" element={<GestionCabinet section="finance_logistique" />} />
                 <Route path="/gestion-cabinet/ressources-partenaires" element={<GestionCabinet section="ressources_partenaires" />} />
+              </Route>
+
+              <Route element={<RequirePermission permission={PERMISSIONS.CATALOGUE} />}>
+                <Route path="/gestion-cabinet/catalogue" element={<Catalogue />} />
+                <Route path="/gestion-cabinet/catalogue/medications" element={<Medications />} />
+                <Route path="/gestion-cabinet/catalogue/treatments" element={<TreatmentCatalog />} />
+                <Route path="/gestion-cabinet/catalogue/justifications" element={<JustificationContent />} />
+                <Route path="/gestion-cabinet/catalogue/prosthetics" element={<ProstheticsSettings />} />
+                <Route path="/gestion-cabinet/catalogue/materials" element={<MaterialsSettings />} />
+                <Route path="/gestion-cabinet/catalogue/items" element={<Items />} />
+                <Route path="/gestion-cabinet/catalogue/diseases" element={<DiseaseCatalog />} />
+                <Route path="/gestion-cabinet/catalogue/allergies" element={<AllergyCatalog />} />
               </Route>
 
               <Route element={<RequirePermission permission={PERMISSIONS.GESTION_CABINET} />}>
@@ -366,15 +379,19 @@ const AppContent = () => {
             <Route element={<RequirePermission permission={PERMISSIONS.SUPPORT} />}>
               <Route path="/support" element={<SupportCenter />} />
             </Route>
+
+            <Route element={<RequirePermission permission={PERMISSIONS.MESSAGING} />}>
+              <Route path="/messagerie" element={<MessagingCenter />} />
+            </Route>
           </Route>
 
           <Route element={<RequirePermission permission={PERMISSIONS.CATALOGUE} />}>
-            <Route path="/settings/medications" element={<Navigate to="/catalogue/medications" replace />} />
-            <Route path="/settings/treatments" element={<Navigate to="/catalogue/treatments" replace />} />
-            <Route path="/settings/justifications" element={<Navigate to="/catalogue/justifications" replace />} />
-            <Route path="/settings/prosthetics" element={<Navigate to="/catalogue/prosthetics" replace />} />
-            <Route path="/settings/materials" element={<Navigate to="/catalogue/materials" replace />} />
-            <Route path="/settings/items" element={<Navigate to="/catalogue/items" replace />} />
+            <Route path="/settings/medications" element={<Navigate to="/gestion-cabinet/catalogue/medications" replace />} />
+            <Route path="/settings/treatments" element={<Navigate to="/gestion-cabinet/catalogue/treatments" replace />} />
+            <Route path="/settings/justifications" element={<Navigate to="/gestion-cabinet/catalogue/justifications" replace />} />
+            <Route path="/settings/prosthetics" element={<Navigate to="/gestion-cabinet/catalogue/prosthetics" replace />} />
+            <Route path="/settings/materials" element={<Navigate to="/gestion-cabinet/catalogue/materials" replace />} />
+            <Route path="/settings/items" element={<Navigate to="/gestion-cabinet/catalogue/items" replace />} />
           </Route>
         </Route>
 
@@ -388,6 +405,8 @@ const AppContent = () => {
             <Route path="/lab/dentists" element={<LabDentists />} />
             <Route path="/lab/dentists/:id" element={<LabDentistDetails />} />
             <Route path="/lab/invitations" element={<LabInvitations />} />
+            <Route path="/lab/messagerie" element={<MessagingCenter subtitle="Discutez avec vos dentistes partenaires" />} />
+            <Route path="/lab/support" element={<SupportCenter />} />
             <Route path="/lab/settings" element={<LabSettingsHome />} />
             <Route path="/lab/settings/profile" element={<LabSettings />} />
             <Route path="/lab/settings/security" element={<Security basePath="/lab/settings" />} />

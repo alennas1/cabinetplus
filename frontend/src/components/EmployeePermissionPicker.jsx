@@ -32,6 +32,7 @@ const ICONS_BY_KEY = {
 };
 
 const ACTION_LABELS = {
+  [EMPLOYEE_PERMISSION_ACTIONS.MESSAGE]: "Messagerie",
   [EMPLOYEE_PERMISSION_ACTIONS.CREATE]: "Créer",
   [EMPLOYEE_PERMISSION_ACTIONS.UPDATE]: "Modifier",
   [EMPLOYEE_PERMISSION_ACTIONS.CANCEL]: "Annuler",
@@ -53,7 +54,8 @@ const EmployeePermissionPicker = ({ value, onChange, disabled = false }) => {
     if (!moduleKey) return;
     const moduleEnabled = enabledKeys.has(moduleKey);
     if (!moduleEnabled) {
-      update([...normalized, moduleKey]);
+      const actionKeys = (availableActions || []).map((a) => buildEmployeeActionKey(moduleKey, a));
+      update([...normalized, moduleKey, ...actionKeys]);
       return;
     }
 

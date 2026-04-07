@@ -259,7 +259,7 @@ const Items = () => {
 
   return (
     <div className="patients-container">
-      <BackButton fallbackTo="/catalogue" />
+      <BackButton fallbackTo="/gestion-cabinet/catalogue" />
       <PageHeader title="Articles" subtitle="Gérez vos articles par défaut" />
 
       {/* Controls */}

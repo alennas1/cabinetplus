@@ -710,11 +710,11 @@ const LabProsthetics = ({ dentistId: dentistIdProp, embedded = false, focusId } 
                           try {
                             await downloadLabProthesisStl(p.id);
                           } catch (err) {
-                            toast.error(getApiErrorMessage(err, "Erreur de tÃ©lÃ©chargement STL"));
+                            toast.error(getApiErrorMessage(err, "Erreur de téléchargement STL"));
                           }
                         }}
-                        title="TÃ©lÃ©charger STL"
-                        aria-label="TÃ©lÃ©charger STL"
+                        title="Télécharger STL"
+                        aria-label="Télécharger STL"
                       >
                         <DownloadIcon size={16} />
                       </button>

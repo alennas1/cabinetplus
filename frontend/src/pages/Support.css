@@ -1,3 +1,40 @@
+.cp-support-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+  width: 100%;
+}
+
+/* --- Tab buttons (same style as Security page) --- */
+.tab-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 12px;
+  background-color: #e5e7eb;
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background-color: #d1d5db;
+}
+
+.tab-btn.active {
+  background-color: #3498db;
+  color: #fff;
+}
+
 .cp-support-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -34,8 +71,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  background: #f9fbfd;
-  border: 1px solid #e5e7eb;
+  background: transparent;
+  border: none;
   border-radius: 16px;
   padding: 12px;
   position: relative;
@@ -228,6 +265,10 @@
   gap: 14px;
 }
 
+.cp-admin-support-grid--messaging {
+  grid-template-columns: 420px 1fr;
+}
+
 .cp-admin-support-panel {
   border: 1px solid #e5e7eb;
   border-radius: 16px;
@@ -243,7 +284,7 @@
 .cp-admin-support-panel-header {
   padding: 12px;
   border-bottom: 1px solid #e5e7eb;
-  background: #f9fbfd;
+  background: transparent;
 }
 
 .cp-admin-support-panel-body {
@@ -255,7 +296,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 12px;
-  background: #f9fbfd;
+  background: transparent;
 }
 
 .cp-admin-support-chat-footer {
@@ -277,6 +318,9 @@
     min-height: 420px;
   }
   .cp-admin-support-grid {
+    grid-template-columns: 1fr;
+  }
+  .cp-admin-support-grid--messaging {
     grid-template-columns: 1fr;
   }
   .cp-admin-support-panel {

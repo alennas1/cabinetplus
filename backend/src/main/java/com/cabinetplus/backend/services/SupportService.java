@@ -30,16 +30,20 @@ public class SupportService {
     private final UserService userService;
     private final SupportAttachmentStorageService attachmentStorageService;
 
+    @Transactional
     public List<SupportThreadSummaryResponse> listMyThreads(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
-        return threadRepository.findByClinicOwnerOrderByLastMessageAtDescUpdatedAtDescIdDesc(clinicOwner).stream()
-                .map(t -> toSummary(t, false))
-                .toList();
+        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        if (kept == null) return List.of();
+        return List.of(toSummary(kept, false));
     }
 
     @Transactional
     public SupportThreadSummaryResponse createMyThread(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
+        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        if (kept != null) return toSummary(kept, false);
+
         SupportThread thread = new SupportThread();
         thread.setClinicOwner(clinicOwner);
         thread.setCreatedAt(LocalDateTime.now());
@@ -52,12 +56,11 @@ public class SupportService {
     public void markAllMyThreadsRead(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
         LocalDateTime now = LocalDateTime.now();
-        List<SupportThread> threads = threadRepository.findByClinicOwnerOrderByLastMessageAtDescUpdatedAtDescIdDesc(clinicOwner);
-        for (SupportThread t : threads) {
-            t.setClinicLastReadAt(now);
-            t.setUpdatedAt(now);
-        }
-        threadRepository.saveAll(threads);
+        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        if (kept == null) return;
+        kept.setClinicLastReadAt(now);
+        kept.setUpdatedAt(now);
+        threadRepository.save(kept);
     }
 
     @Transactional
@@ -83,9 +86,9 @@ public class SupportService {
     @Transactional
     public List<SupportMessageResponse> getMyMessages(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
-        return threadRepository.findFirstByClinicOwnerOrderByLastMessageAtDescUpdatedAtDescIdDesc(clinicOwner)
-                .map(thread -> getMyThreadMessages(thread.getId(), actor))
-                .orElse(List.of());
+        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        if (kept == null) return List.of();
+        return getMyThreadMessages(kept.getId(), actor);
     }
 
     @Transactional
@@ -99,11 +102,14 @@ public class SupportService {
         User clinicOwner = userService.resolveClinicOwner(actor);
         SupportThread thread;
         if (threadId == null) {
-            thread = new SupportThread();
-            thread.setClinicOwner(clinicOwner);
-            thread.setCreatedAt(LocalDateTime.now());
-            thread.setUpdatedAt(LocalDateTime.now());
-            thread = threadRepository.save(thread);
+            thread = keepOnlyLatestThread(clinicOwner);
+            if (thread == null) {
+                thread = new SupportThread();
+                thread.setClinicOwner(clinicOwner);
+                thread.setCreatedAt(LocalDateTime.now());
+                thread.setUpdatedAt(LocalDateTime.now());
+                thread = threadRepository.save(thread);
+            }
         } else {
             thread = threadRepository.findById(threadId)
                     .orElseThrow(() -> new NotFoundException("Conversation introuvable"));
@@ -134,6 +140,27 @@ public class SupportService {
         threadRepository.save(thread);
 
         return toResponse(saved, thread, false);
+    }
+
+    private SupportThread keepOnlyLatestThread(User clinicOwner) {
+        if (clinicOwner == null || clinicOwner.getId() == null) return null;
+
+        List<SupportThread> threads = threadRepository.findByClinicOwnerOrderByLastMessageAtDescUpdatedAtDescIdDesc(clinicOwner);
+        if (threads == null || threads.isEmpty()) return null;
+
+        SupportThread kept = threads.get(0);
+        if (threads.size() <= 1) return kept;
+
+        List<SupportThread> extras = threads.subList(1, threads.size());
+        for (SupportThread t : extras) {
+            try {
+                if (t != null && t.getId() != null) attachmentStorageService.deleteThreadFolder(t.getId());
+            } catch (Exception ignored) {
+                // ignore
+            }
+        }
+        threadRepository.deleteAll(extras);
+        return kept;
     }
 
     @Transactional

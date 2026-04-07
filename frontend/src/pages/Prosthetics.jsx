@@ -1033,11 +1033,11 @@ const Prosthetics = () => {
                         try {
                           await downloadProthesisStl(p.id);
                         } catch (err) {
-                          toast.error(getApiErrorMessage(err, "Erreur de tÃ©lÃ©chargement STL"));
+                          toast.error(getApiErrorMessage(err, "Erreur de téléchargement STL"));
                         }
                       }}
-                      title="TÃ©lÃ©charger STL"
-                      aria-label="TÃ©lÃ©charger STL"
+                      title="Télécharger STL"
+                      aria-label="Télécharger STL"
                     >
                       <DownloadIcon size={16} />
                     </button>
@@ -1517,7 +1517,7 @@ const Prosthetics = () => {
                 {prothesisStatusLabels[confirmStatusTarget?.status] || confirmStatusTarget?.status || "—"}
               </span>
               <span className="text-gray-400" aria-hidden="true">
-                â†’
+                {"\u2192"}
               </span>
               <span className={`status-chip ${String(confirmNextStatus || "").toLowerCase()}`} style={{ cursor: "default" }}>
                 {prothesisStatusLabels[confirmNextStatus] || confirmNextStatus || "—"}

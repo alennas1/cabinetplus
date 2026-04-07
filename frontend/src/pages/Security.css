@@ -336,6 +336,21 @@
   padding: 0 16px;
 }
 
+.security-btn.security-btn-inline {
+  width: auto;
+  white-space: nowrap;
+}
+
+.security-btn.security-btn-grow {
+  flex: 1 1 auto;
+  min-width: 160px;
+}
+
+.security-btn.security-btn-shrink {
+  flex: 0 0 auto;
+  min-width: 110px;
+}
+
 .security-btn.security-btn-outline {
   background: transparent;
   color: var(--primary);

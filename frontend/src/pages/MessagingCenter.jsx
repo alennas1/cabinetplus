@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, Search, Send, X } from "react-feather";
+import { ChevronDown, ChevronUp, MoreVertical, Search, Send, X } from "react-feather";
 import { toast } from "react-toastify";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
@@ -39,10 +39,14 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
   const [contactType, setContactType] = useState("ALL"); // ALL | EMPLOYEE | LAB | DENTIST
   const [messageQuery, setMessageQuery] = useState("");
   const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [threadMenuOpen, setThreadMenuOpen] = useState(false);
 
   const pollRef = useRef(null);
   const chatEndRef = useRef(null);
   const messageRefs = useRef({});
+  const threadMenuRef = useRef(null);
+  const messageSearchInputRef = useRef(null);
 
   const formatDateTime = (value) => {
     if (!value) return "";
@@ -317,6 +321,45 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
     }
   }, [activeMatchIndex, matchMessageIds]);
 
+  useEffect(() => {
+    if (!threadMenuOpen) return;
+    const onMouseDown = (event) => {
+      if (!threadMenuRef.current) return;
+      if (!threadMenuRef.current.contains(event.target)) setThreadMenuOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setThreadMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [threadMenuOpen]);
+
+  useEffect(() => {
+    if (!messageSearchOpen) return;
+    try {
+      setTimeout(() => messageSearchInputRef.current?.focus?.(), 0);
+    } catch {
+      // ignore
+    }
+  }, [messageSearchOpen, selectedThreadId]);
+
+  const openMessageSearch = () => {
+    if (!selectedThreadId) {
+      toast.info("Choisissez une conversation");
+      return;
+    }
+    setMessageSearchOpen(true);
+  };
+
+  const closeMessageSearch = () => {
+    setMessageSearchOpen(false);
+    setMessageQuery("");
+  };
+
   const jumpMatch = (delta) => {
     if (!messageNeedle) return;
     const total = matchMessageIds.length;
@@ -402,7 +445,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
           <div className="cp-admin-support-panel-header">
             <div style={{ fontWeight: 800, marginBottom: 10 }}>Conversations</div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <div style={{ position: "relative", flex: 1 }}>
+                <div style={{ position: "relative", flex: 1 }}>
                 <Search
                   size={16}
                   style={{
@@ -446,7 +489,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
             </div>
             <div style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>{filteredContacts.length} résultat(s)</div>
           </div>
-          <div style={{ overflowY: "auto" }}>
+          <div className="cp-admin-support-panel-body">
             {(filteredContacts || []).length === 0 ? (
               <div style={{ padding: 12 }} className="text-sm text-gray-600">
                 Aucun résultat.
@@ -491,30 +534,73 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
         </div>
 
         <div className="cp-admin-support-panel">
-          <div className="cp-admin-support-panel-header">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              {otherDetailsPath ? (
-                <button
-                  type="button"
-                  onClick={() => navigate(otherDetailsPath)}
-                  style={{
-                    fontWeight: 800,
-                    background: "transparent",
-                    border: "none",
-                    padding: 0,
-                    textAlign: "left",
-                    color: "#111827",
-                    cursor: "pointer",
-                  }}
-                  title="Ouvrir le profil"
-                >
-                  {selectedThread?.otherName || "Conversation"}
-                </button>
-              ) : (
-                <div style={{ fontWeight: 800 }}>{selectedThread?.otherName || "Conversation"}</div>
-              )}
-              {selectedThread?.otherBadge ? <span className="context-badge">{selectedThread.otherBadge}</span> : null}
-            </div>
+            <div className="cp-admin-support-panel-header">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  {otherDetailsPath ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(otherDetailsPath)}
+                      style={{
+                        fontWeight: 800,
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                        textAlign: "left",
+                        color: "#111827",
+                        cursor: "pointer",
+                      }}
+                      title="Ouvrir le profil"
+                    >
+                      {selectedThread?.otherName || "Conversation"}
+                    </button>
+                  ) : (
+                    <div style={{ fontWeight: 800 }}>{selectedThread?.otherName || "Conversation"}</div>
+                  )}
+                  {selectedThread?.otherBadge ? <span className="context-badge">{selectedThread.otherBadge}</span> : null}
+                </div>
+
+                <div style={{ position: "relative" }} ref={threadMenuRef}>
+                  <button
+                    type="button"
+                    className="btn-secondary-app"
+                    aria-label="Options"
+                    onClick={() => setThreadMenuOpen((v) => !v)}
+                    style={{ padding: "8px 10px" }}
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+
+                  {threadMenuOpen ? (
+                    <ul
+                      className="dropdown-menu"
+                      role="menu"
+                      aria-label="Options messagerie"
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        right: 0,
+                        left: "auto",
+                        width: "auto",
+                        minWidth: 180,
+                        maxWidth: "calc(100vw - 24px)",
+                        zIndex: 50,
+                      }}
+                    >
+                      <li
+                        role="menuitem"
+                        onClick={() => {
+                          setThreadMenuOpen(false);
+                          openMessageSearch();
+                        }}
+                        style={!selectedThreadId ? { opacity: 0.5, pointerEvents: "none" } : undefined}
+                      >
+                        Rechercher
+                      </li>
+                    </ul>
+                  ) : null}
+                </div>
+              </div>
             {(() => {
               const otherId = selectedThread?.otherUserPublicId ? String(selectedThread.otherUserPublicId) : "";
               const c = otherId ? (contacts || []).find((x) => String(x?.userPublicId || "") === otherId) : null;
@@ -524,7 +610,8 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
               return <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>{meta}</div>;
             })()}
 
-            <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
+            {messageSearchOpen ? (
+              <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ position: "relative", flex: 1 }}>
                 <Search
                   size={16}
@@ -538,6 +625,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
                   }}
                 />
                 <input
+                  ref={messageSearchInputRef}
                   value={messageQuery}
                   onChange={(e) => setMessageQuery(e.target.value)}
                   placeholder="Rechercher…"
@@ -556,8 +644,19 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
                     <X size={16} />
                   </button>
                 ) : null}
-              </div>
-              {messageNeedle ? (
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-secondary-app"
+                  onClick={closeMessageSearch}
+                  aria-label="Fermer"
+                  style={{ padding: "8px 10px" }}
+                >
+                  <X size={16} />
+                </button>
+
+                {messageNeedle ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <button
                     type="button"
@@ -584,7 +683,8 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
                   </div>
                 </div>
               ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="cp-support-panel-body" style={{ padding: 12 }}>

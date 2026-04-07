@@ -7,7 +7,15 @@ const normalizePin = (raw, length) => {
   return digits;
 };
 
-const PinCodeInput = ({ value, onChange, length = 4, disabled = false, autoFocus = false, className = "" }) => {
+const PinCodeInput = ({
+  value,
+  onChange,
+  length = 4,
+  disabled = false,
+  autoFocus = false,
+  className = "",
+  inputClassName = "",
+}) => {
   const normalized = useMemo(() => normalizePin(value, length), [value, length]);
   const inputsRef = useRef([]);
 
@@ -73,7 +81,7 @@ const PinCodeInput = ({ value, onChange, length = 4, disabled = false, autoFocus
               if (e.key === "ArrowLeft" && index > 0) focusIndex(index - 1);
               if (e.key === "ArrowRight" && index < length - 1) focusIndex(index + 1);
             }}
-            className="w-12 h-12 text-center text-xl font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className={`w-12 h-12 text-center text-xl font-semibold rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200 ${inputClassName}`.trim()}
           />
         );
       })}

@@ -267,6 +267,14 @@
 
 .cp-admin-support-grid--messaging {
   grid-template-columns: 420px 1fr;
+  height: calc(100vh - 120px);
+  min-height: 0;
+}
+
+.cp-admin-support-grid--messaging .cp-admin-support-panel {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
 }
 
 .cp-admin-support-panel {
@@ -322,6 +330,7 @@
   }
   .cp-admin-support-grid--messaging {
     grid-template-columns: 1fr;
+    height: auto;
   }
   .cp-admin-support-panel {
     height: auto;

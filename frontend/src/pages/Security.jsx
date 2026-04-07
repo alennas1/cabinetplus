@@ -16,7 +16,7 @@ import {
   updateLoginTwoFactorSettings,
   updatePassword,
 } from "../services/securityService";
-import { getApiErrorMessage } from "../utils/error";
+import { getApiErrorMessage, getApiFieldErrors } from "../utils/error";
 import PasswordInput from "../components/PasswordInput";
 import PinCodeInput from "../components/PinCodeInput";
 import FieldError from "../components/FieldError";
@@ -63,6 +63,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
   const [gcPinPassword, setGcPinPassword] = useState("");
   const [gcNewPin, setGcNewPin] = useState("");
   const [gcConfirmPin, setGcConfirmPin] = useState("");
+  const [gcPinErrors, setGcPinErrors] = useState({ password: "", newPin: "", confirmPin: "", form: "" });
 
   const [login2faEnabled, setLogin2faEnabled] = useState(user?.loginTwoFactorEnabled ?? true);
   const [login2faLoading, setLogin2faLoading] = useState(false);
@@ -177,19 +178,47 @@ const Security = ({ basePath = "/settings" } = {}) => {
     setGcPinPassword("");
     setGcNewPin("");
     setGcConfirmPin("");
+    setGcPinErrors({ password: "", newPin: "", confirmPin: "", form: "" });
   };
 
   const validateGcPin = () => {
     const normalized = String(gcNewPin || "").replaceAll(/\D/g, "");
+    const confirmNormalized = String(gcConfirmPin || "").replaceAll(/\D/g, "");
+    const nextErrors = { newPin: "", confirmPin: "" };
+
     if (!/^\d{4}$/.test(normalized)) {
-      toast.error("Le PIN doit contenir 4 chiffres");
-      return null;
+      nextErrors.newPin = "Le PIN doit contenir 4 chiffres";
+    } else if (normalized !== confirmNormalized) {
+      nextErrors.confirmPin = "Les codes PIN ne correspondent pas";
     }
-    if (normalized !== String(gcConfirmPin || "").replaceAll(/\D/g, "")) {
-      toast.error("Les codes PIN ne correspondent pas");
-      return null;
-    }
+
+    setGcPinErrors((prev) => ({ ...prev, ...nextErrors, form: "" }));
+    if (nextErrors.newPin || nextErrors.confirmPin) return null;
     return normalized;
+  };
+
+  const handleGcPinApiError = (err, fallback) => {
+    const fieldErrors = getApiFieldErrors(err);
+    const message = getApiErrorMessage(err, fallback);
+    const status = err?.response?.status;
+
+    const fieldPassword =
+      fieldErrors.password || fieldErrors.currentPassword || fieldErrors.oldPassword || fieldErrors.motDePasse;
+    const inferredPasswordError =
+      fieldPassword || ((status === 401 || status === 403 || /mot de passe/i.test(message)) ? message : "");
+
+    const pinError = fieldErrors.pin || fieldErrors.newPin;
+    const confirmError = fieldErrors.confirmPin || fieldErrors.confirm || fieldErrors.confirmation;
+
+    setGcPinErrors((prev) => ({
+      ...prev,
+      password: inferredPasswordError ? inferredPasswordError : prev.password,
+      newPin: typeof pinError === "string" && pinError.trim() ? pinError : prev.newPin,
+      confirmPin: typeof confirmError === "string" && confirmError.trim() ? confirmError : prev.confirmPin,
+      form:
+        (typeof fieldErrors._ === "string" && fieldErrors._.trim() && !inferredPasswordError ? fieldErrors._.trim() : "") ||
+        (!inferredPasswordError && !pinError && !confirmError ? message : ""),
+    }));
   };
 
   const handleEnableGcPin = async () => {
@@ -199,7 +228,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
       return;
     }
     if (!gcPinPassword.trim()) {
-      toast.error("Entrez votre mot de passe");
+      setGcPinErrors((prev) => ({ ...prev, password: "Entrez votre mot de passe", form: "" }));
       return;
     }
     const pin = validateGcPin();
@@ -219,7 +248,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
       toast.success("PIN activé");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible d'activer le PIN"));
+      handleGcPinApiError(err, "Impossible d'activer le PIN");
     } finally {
       setGcPinSubmitting(false);
     }
@@ -232,7 +261,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
       return;
     }
     if (!gcPinPassword.trim()) {
-      toast.error("Entrez votre mot de passe");
+      setGcPinErrors((prev) => ({ ...prev, password: "Entrez votre mot de passe", form: "" }));
       return;
     }
     const pin = validateGcPin();
@@ -246,7 +275,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
       toast.success("PIN modifié");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible de modifier le PIN"));
+      handleGcPinApiError(err, "Impossible de modifier le PIN");
     } finally {
       setGcPinSubmitting(false);
     }
@@ -263,7 +292,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
       return;
     }
     if (!gcPinPassword.trim()) {
-      toast.error("Entrez votre mot de passe");
+      setGcPinErrors((prev) => ({ ...prev, password: "Entrez votre mot de passe", form: "" }));
       return;
     }
     try {
@@ -273,7 +302,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
       toast.success(!!res?.requirePin ? "Accès protégé par PIN" : "Accès sans PIN");
     } catch (err) {
       console.error(err);
-      toast.error(getApiErrorMessage(err, "Impossible de modifier ce paramètre"));
+      handleGcPinApiError(err, "Impossible de modifier ce paramètre");
     } finally {
       setGcPinSubmitting(false);
     }
@@ -875,10 +904,17 @@ const Security = ({ basePath = "/settings" } = {}) => {
                   <PasswordInput
                     placeholder="Entrez votre mot de passe"
                     value={gcPinPassword}
-                    onChange={(e) => setGcPinPassword(e.target.value)}
+                    onChange={(e) => {
+                      setGcPinPassword(e.target.value);
+                      if (gcPinErrors.password || gcPinErrors.form) {
+                        setGcPinErrors((prev) => ({ ...prev, password: "", form: "" }));
+                      }
+                    }}
                     autoComplete="current-password"
                     disabled={gcPinSubmitting}
+                    inputClassName={gcPinErrors.password ? "invalid" : ""}
                   />
+                  <FieldError message={gcPinErrors.password} />
                 </div>
 
                 {gcPinSet && !isClinicEmployeeAccount ? (
@@ -905,15 +941,37 @@ const Security = ({ basePath = "/settings" } = {}) => {
                 <div className="security-field">
                   <label>Nouveau PIN</label>
                   <div style={{ display: "flex", justifyContent: "center" }}>
-                    <PinCodeInput value={gcNewPin} onChange={setGcNewPin} disabled={gcPinSubmitting} />
+                    <PinCodeInput
+                      value={gcNewPin}
+                      onChange={(value) => {
+                        setGcNewPin(value);
+                        if (gcPinErrors.newPin || gcPinErrors.confirmPin || gcPinErrors.form) {
+                          setGcPinErrors((prev) => ({ ...prev, newPin: "", confirmPin: "", form: "" }));
+                        }
+                      }}
+                      disabled={gcPinSubmitting}
+                      inputClassName={gcPinErrors.newPin ? "invalid" : ""}
+                    />
                   </div>
+                  <FieldError message={gcPinErrors.newPin} />
                 </div>
 
                 <div className="security-field">
                   <label>Confirmer le PIN</label>
                   <div style={{ display: "flex", justifyContent: "center" }}>
-                    <PinCodeInput value={gcConfirmPin} onChange={setGcConfirmPin} disabled={gcPinSubmitting} />
+                    <PinCodeInput
+                      value={gcConfirmPin}
+                      onChange={(value) => {
+                        setGcConfirmPin(value);
+                        if (gcPinErrors.confirmPin || gcPinErrors.form) {
+                          setGcPinErrors((prev) => ({ ...prev, confirmPin: "", form: "" }));
+                        }
+                      }}
+                      disabled={gcPinSubmitting}
+                      inputClassName={gcPinErrors.confirmPin ? "invalid" : ""}
+                    />
                   </div>
+                  <FieldError message={gcPinErrors.confirmPin} />
                 </div>
 
                 <div className="modal-actions" style={{ justifyContent: "space-between" }}>
@@ -922,7 +980,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
                   <div style={{ display: "flex", gap: 12 }}>
                     <button
                       type="button"
-                      className="security-btn security-btn-outline"
+                      className="security-btn security-btn-outline security-btn-inline security-btn-shrink"
                       onClick={resetGcPinFields}
                       disabled={gcPinSubmitting}
                     >
@@ -931,7 +989,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
 
                     <button
                       type="button"
-                      className="security-btn"
+                      className="security-btn security-btn-inline security-btn-grow"
                       onClick={gcPinSet ? handleChangeGcPin : handleEnableGcPin}
                       disabled={gcPinSubmitting}
                     >
@@ -939,6 +997,7 @@ const Security = ({ basePath = "/settings" } = {}) => {
                     </button>
                   </div>
                 </div>
+                <FieldError message={gcPinErrors.form} />
               </>
             )}
           </div>

@@ -294,7 +294,10 @@ const Fournisseurs = ({ view = "active" }) => {
           {current.map((f) => (
             <tr
               key={f.id}
-              onClick={() => navigate(`/gestion-cabinet/fournisseurs/${f.publicId || f.id}`)}
+              onClick={() => {
+                if (!f?.publicId) return;
+                navigate(`/gestion-cabinet/fournisseurs/${String(f.publicId)}`);
+              }}
               style={{ cursor: "pointer" }}
             >
               <td style={{ fontWeight: 600 }}>{f.name}</td>
@@ -312,7 +315,8 @@ const Fournisseurs = ({ view = "active" }) => {
                   className="action-btn view"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/gestion-cabinet/fournisseurs/${f.publicId || f.id}`);
+                    if (!f?.publicId) return;
+                    navigate(`/gestion-cabinet/fournisseurs/${String(f.publicId)}`);
                   }}
                   title="Voir"
                 >

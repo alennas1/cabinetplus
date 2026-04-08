@@ -13,6 +13,9 @@ public record MessagingThreadSummaryResponse(
         Long otherOwnerDentistId,
         String lastMessagePreview,
         LocalDateTime lastMessageAt,
-        long unreadCount
+        long unreadCount,
+        boolean otherOnline,
+        LocalDateTime otherLastSeenAt,
+        boolean lastMessageFromViewer
 ) {
 }

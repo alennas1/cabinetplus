@@ -28,6 +28,7 @@ import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.Expense;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.ExpenseService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -39,6 +40,7 @@ class ExpenseControllerTest {
     private UserService userService;
     private PublicIdResolutionService publicIdResolutionService;
     private AuditService auditService;
+    private CancellationSecurityService cancellationSecurityService;
 
     @BeforeEach
     void setUp() {
@@ -46,8 +48,15 @@ class ExpenseControllerTest {
         userService = mock(UserService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
         auditService = mock(AuditService.class);
+        cancellationSecurityService = mock(CancellationSecurityService.class);
 
-        ExpenseController controller = new ExpenseController(expenseService, userService, publicIdResolutionService, auditService);
+        ExpenseController controller = new ExpenseController(
+                expenseService,
+                userService,
+                publicIdResolutionService,
+                auditService,
+                cancellationSecurityService
+        );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -169,10 +178,15 @@ class ExpenseControllerTest {
                 saved.getCategory(),
                 saved.getDate(),
                 saved.getDescription(),
-                null,
-                null,
-                null,
-                null
+                null, // otherCategoryLabel
+                null, // fournisseurId
+                null, // fournisseurName
+                null, // employeeId
+                null, // createdByName
+                null, // recordStatus
+                null, // cancelledAt
+                null, // cancelledByName
+                null  // cancelReason
         ));
 
         mockMvc.perform(post("/api/expenses")

@@ -14,6 +14,7 @@ import {
   Home,
   ChevronDown,
   Link2,
+  MessageCircle,
 } from "react-feather";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -826,6 +827,18 @@ const LaboratoryDetails = () => {
             </div>
           </div>
           <div className="patient-actions">
+            {laboratory.connected ? (
+              <button
+                type="button"
+                className="btn-secondary-app"
+                onClick={() => {
+                  if (!id) return;
+                  navigate(`/messagerie?role=LAB&details=${encodeURIComponent(String(id))}`);
+                }}
+              >
+                <MessageCircle size={16} /> Message
+              </button>
+            ) : null}
             {!isArchived && !laboratory.connected && laboratory.editable !== false && (
               <button className="btn-secondary-app" onClick={() => setShowConnectModal(true)}>
                 <Link2 size={16} /> Connecter un compte labo

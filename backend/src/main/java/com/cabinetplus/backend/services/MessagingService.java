@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.services;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -8,6 +9,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -15,19 +17,28 @@ import org.springframework.web.server.ResponseStatusException;
 import com.cabinetplus.backend.dto.MessagingContactResponse;
 import com.cabinetplus.backend.dto.MessagingMessageCreateRequest;
 import com.cabinetplus.backend.dto.MessagingMessageResponse;
+import com.cabinetplus.backend.dto.MessagingPresenceResponse;
 import com.cabinetplus.backend.dto.MessagingThreadSummaryResponse;
+import com.cabinetplus.backend.events.MessagingMessageCreatedEvent;
 import com.cabinetplus.backend.enums.LaboratoryConnectionStatus;
+import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
+import com.cabinetplus.backend.models.AdminGroupMessage;
+import com.cabinetplus.backend.models.Employee;
 import com.cabinetplus.backend.models.Laboratory;
 import com.cabinetplus.backend.models.LaboratoryConnection;
 import com.cabinetplus.backend.models.MessagingMessage;
 import com.cabinetplus.backend.models.MessagingThread;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.AdminGroupMessageRepository;
+import com.cabinetplus.backend.repositories.EmployeeRepository;
 import com.cabinetplus.backend.repositories.LaboratoryConnectionRepository;
 import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.repositories.MessagingMessageRepository;
 import com.cabinetplus.backend.repositories.MessagingThreadRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
+import com.cabinetplus.backend.websocket.MessagingRealtimeEvent;
+import com.cabinetplus.backend.websocket.MessagingWebSocketHandler;
 
 import lombok.RequiredArgsConstructor;
 
@@ -37,23 +48,33 @@ public class MessagingService {
 
     private static final String PERM_EMPLOYEE_MESSAGE_LABS = "LABORATORIES_MESSAGE";
     private static final String PERM_EMPLOYEE_MESSAGE_LABS_LEGACY = "MESSAGING_LABS";
+    private static final long PRESENCE_ONLINE_WINDOW_SECONDS = 60L;
 
     private final MessagingThreadRepository threadRepository;
     private final MessagingMessageRepository messageRepository;
+    private final AdminGroupMessageRepository adminGroupMessageRepository;
     private final UserRepository userRepository;
     private final UserService userService;
+    private final EmployeeRepository employeeRepository;
     private final LaboratoryRepository laboratoryRepository;
     private final LaboratoryConnectionRepository laboratoryConnectionRepository;
     private final LaboratoryAccessService laboratoryAccessService;
+    private final ApplicationEventPublisher eventPublisher;
+    private final MessagingWebSocketHandler messagingWebSocketHandler;
 
     @Transactional(readOnly = true)
     public List<MessagingContactResponse> listContacts(User actor) {
         if (actor == null || actor.getRole() == null) return List.of();
 
-        if (actor.getRole() == UserRole.LAB) {
-            return listLabContacts(actor);
+        if (actor.getRole() == UserRole.ADMIN) {
+            return listInternalAdminContacts(actor);
         }
-        return listClinicContacts(actor);
+
+        List<MessagingContactResponse> out = actor.getRole() == UserRole.LAB
+                ? listLabContacts(actor)
+                : listClinicContacts(actor);
+        out.sort(Comparator.comparing(MessagingContactResponse::name, String.CASE_INSENSITIVE_ORDER));
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +85,45 @@ public class MessagingService {
                 .filter(t -> canMessage(actor, resolveOtherParticipant(t, actor)))
                 .map(t -> toSummary(t, actor))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MessagingMessageResponse> listAdminGroupMessages(User actor) {
+        requireAdminActor(actor);
+        List<AdminGroupMessage> items = adminGroupMessageRepository.findTop200ByOrderByCreatedAtDescIdDesc();
+        items.sort(Comparator
+                .comparing(AdminGroupMessage::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(AdminGroupMessage::getId, Comparator.nullsLast(Comparator.naturalOrder())));
+        return items.stream().map(this::toAdminGroupMessageResponse).toList();
+    }
+
+    @Transactional
+    public MessagingMessageResponse sendAdminGroupMessage(MessagingMessageCreateRequest request, User actor) {
+        requireAdminActor(actor);
+        String content = request != null ? request.content() : null;
+        if (content == null || content.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message obligatoire");
+        }
+
+        AdminGroupMessage msg = new AdminGroupMessage();
+        msg.setSender(actor);
+        msg.setContent(content.trim());
+        msg.setCreatedAt(LocalDateTime.now());
+        msg = adminGroupMessageRepository.save(msg);
+
+        MessagingMessageResponse res = toAdminGroupMessageResponse(msg);
+
+        // Notify admins only (avoid leaking internal admin messages to non-admin websocket clients).
+        List<User> admins = userRepository.findByRole(UserRole.ADMIN);
+        MessagingRealtimeEvent event = new MessagingRealtimeEvent("ADMIN_GROUP_MESSAGE_CREATED", null, res, null);
+        for (User admin : admins) {
+            if (admin == null) continue;
+            String phone = admin.getPhoneNumber();
+            if (phone == null || phone.isBlank()) continue;
+            messagingWebSocketHandler.sendToUser(phone, event);
+        }
+
+        return res;
     }
 
     @Transactional
@@ -104,24 +164,90 @@ public class MessagingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message obligatoire");
         }
 
+        LocalDateTime now = LocalDateTime.now();
+
         MessagingMessage message = new MessagingMessage();
         message.setThread(thread);
         message.setSender(actor);
         message.setContent(content);
-        message.setCreatedAt(LocalDateTime.now());
+        message.setCreatedAt(now);
         MessagingMessage saved = messageRepository.save(message);
 
-        thread.setUpdatedAt(LocalDateTime.now());
+        thread.setUpdatedAt(now);
         if (thread.getFirstMessageAt() == null) {
             thread.setFirstMessageAt(saved.getCreatedAt());
         }
         thread.setLastMessageAt(saved.getCreatedAt());
         thread.setLastMessagePreview(truncatePreview(content));
-        setLastReadAtFor(thread, actor, LocalDateTime.now());
+        if (actor != null && actor.getId() != null) {
+            thread.setLastMessageSenderId(actor.getId());
+        }
+        setLastReadAtFor(thread, actor, now);
         threadRepository.save(thread);
 
+        if (actor != null) {
+            try {
+                actor.setMessagingLastSeenAt(now);
+                userRepository.save(actor);
+            } catch (Exception ignored) {
+                // ignore presence persistence failures
+            }
+
+            if (actor.getPublicId() != null) {
+                try {
+                    boolean onlineNow = messagingWebSocketHandler.isOnlineForDisplay(actor.getPhoneNumber());
+                    messagingWebSocketHandler.sendToAll(new MessagingRealtimeEvent(
+                            "PRESENCE_UPDATED",
+                            null,
+                            null,
+                            new MessagingPresenceResponse(actor.getPublicId(), onlineNow, now)
+                    ));
+                } catch (Exception ignored) {
+                    // ignore presence broadcast failures
+                }
+            }
+        }
+
+        User other = resolveOtherParticipant(thread, actor);
+
         LocalDateTime otherLastReadAt = otherLastReadAt(thread, actor);
-        return toResponse(saved, thread, actor, otherLastReadAt);
+        MessagingMessageResponse senderResponse = toResponse(saved, thread, actor, otherLastReadAt);
+
+        MessagingMessageResponse recipientResponse = null;
+        MessagingThreadSummaryResponse senderThread = toSummary(thread, actor);
+        MessagingThreadSummaryResponse recipientThread = null;
+
+        if (other != null) {
+            LocalDateTime otherViewOtherLastReadAt = otherLastReadAt(thread, other);
+            recipientResponse = toResponse(saved, thread, other, otherViewOtherLastReadAt);
+            recipientThread = toSummary(thread, other);
+        }
+
+        try {
+            eventPublisher.publishEvent(new MessagingMessageCreatedEvent(
+                    thread.getId(),
+                    actor != null ? actor.getId() : null,
+                    other != null ? other.getId() : null,
+                    actor != null ? actor.getPhoneNumber() : null,
+                    other != null ? other.getPhoneNumber() : null,
+                    senderThread,
+                    recipientThread,
+                    senderResponse,
+                    recipientResponse
+            ));
+        } catch (Exception ignored) {
+            // ignore realtime notification failures
+        }
+
+        return senderResponse;
+    }
+
+    @Transactional
+    public MessagingThreadSummaryResponse markThreadRead(Long threadId, User actor) {
+        MessagingThread thread = requireThreadForViewer(threadId, actor);
+        markRead(thread, actor);
+        threadRepository.save(thread);
+        return toSummary(thread, actor);
     }
 
     private List<MessagingContactResponse> listClinicContacts(User actor) {
@@ -176,7 +302,7 @@ public class MessagingService {
             User dentist = c != null ? c.getDentist() : null;
             if (dentist == null || dentist.getPublicId() == null) continue;
             if (seen.add(dentist.getPublicId())) {
-                out.add(new MessagingContactResponse(dentist.getPublicId(), dentist.getId(), fullName(dentist), "DENTIST", "Dentiste", null, null));
+                out.add(toContact(dentist, "Dentiste", null, null));
             }
 
             // Employees of connected dentists that are allowed to message labs.
@@ -187,8 +313,21 @@ public class MessagingService {
             for (User emp : employees) {
                 if (emp == null || emp.getPublicId() == null) continue;
                 if (!seen.add(emp.getPublicId())) continue;
-                out.add(new MessagingContactResponse(emp.getPublicId(), emp.getId(), fullName(emp), "EMPLOYEE", "Employé", employeeMeta(dentist), dentist.getId()));
+                out.add(toContact(emp, "Employé", employeeMeta(dentist), dentist.getId()));
             }
+        }
+        out.sort(Comparator.comparing(MessagingContactResponse::name, String.CASE_INSENSITIVE_ORDER));
+        return out;
+    }
+
+    private List<MessagingContactResponse> listInternalAdminContacts(User admin) {
+        List<User> users = userRepository.findByRole(UserRole.ADMIN);
+        List<MessagingContactResponse> out = new ArrayList<>();
+        for (User u : users) {
+            if (u == null || u.getRole() == null) continue;
+            if (u.getPublicId() == null) continue;
+            if (admin != null && admin.getId() != null && u.getId() != null && admin.getId().equals(u.getId())) continue;
+            out.add(toContact(u, "Admin", null, null));
         }
         out.sort(Comparator.comparing(MessagingContactResponse::name, String.CASE_INSENSITIVE_ORDER));
         return out;
@@ -196,6 +335,21 @@ public class MessagingService {
 
     private MessagingContactResponse toContact(User user, String badge, String meta, Long ownerDentistId) {
         if (user == null) return null;
+        LocalDateTime lastSeenAt = user.getMessagingLastSeenAt();
+        boolean online = messagingWebSocketHandler.isOnlineForDisplay(user.getPhoneNumber()) || isRecentlySeen(lastSeenAt);
+        UUID detailsPublicId = null;
+        try {
+            if (user.getRole() == UserRole.EMPLOYEE) {
+                detailsPublicId = employeeRepository.findByUser(user).map(Employee::getPublicId).orElse(null);
+            } else if (user.getRole() == UserRole.LAB) {
+                detailsPublicId = laboratoryRepository
+                        .findFirstByCreatedByAndArchivedAtIsNullAndRecordStatusOrderByIdAsc(user, RecordStatus.ACTIVE)
+                        .map(Laboratory::getPublicId)
+                        .orElse(null);
+            }
+        } catch (Exception ignored) {
+            detailsPublicId = null;
+        }
         return new MessagingContactResponse(
                 user.getPublicId(),
                 user.getId(),
@@ -203,7 +357,10 @@ public class MessagingService {
                 user.getRole() != null ? user.getRole().name() : null,
                 badge,
                 meta,
-                ownerDentistId
+                ownerDentistId,
+                online,
+                lastSeenAt,
+                detailsPublicId
         );
     }
 
@@ -305,6 +462,25 @@ public class MessagingService {
             unread = messageRepository.countByThreadIdAndSenderNotAndCreatedAtAfter(thread.getId(), viewer, lastRead);
         }
 
+        boolean otherOnline = other != null && messagingWebSocketHandler.isOnlineForDisplay(other.getPhoneNumber());
+        LocalDateTime otherLastSeenAt = other != null ? other.getMessagingLastSeenAt() : null;
+        if (!otherOnline) otherOnline = isRecentlySeen(otherLastSeenAt);
+
+        boolean lastMessageFromViewer = false;
+        if (thread.getLastMessageSenderId() != null && viewer.getId() != null) {
+            lastMessageFromViewer = thread.getLastMessageSenderId().equals(viewer.getId());
+        } else if (thread.getId() != null && viewer.getId() != null) {
+            // Backward-compat fallback for threads created before `last_message_sender_id` existed.
+            try {
+                var last = messageRepository.findFirstByThreadIdOrderByCreatedAtDescIdDesc(thread.getId());
+                if (last != null && last.getSender() != null && last.getSender().getId() != null) {
+                    lastMessageFromViewer = last.getSender().getId().equals(viewer.getId());
+                }
+            } catch (Exception ignored) {
+                // ignore
+            }
+        }
+
         return new MessagingThreadSummaryResponse(
                 thread.getId(),
                 other != null ? other.getPublicId() : null,
@@ -315,7 +491,10 @@ public class MessagingService {
                 otherOwnerDentistId,
                 thread.getLastMessagePreview(),
                 thread.getLastMessageAt(),
-                unread
+                unread,
+                otherOnline,
+                otherLastSeenAt,
+                lastMessageFromViewer
         );
     }
 
@@ -349,6 +528,29 @@ public class MessagingService {
         );
     }
 
+    private void requireAdminActor(User actor) {
+        if (actor == null || actor.getRole() != UserRole.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
+        }
+    }
+
+    private MessagingMessageResponse toAdminGroupMessageResponse(AdminGroupMessage message) {
+        if (message == null) return null;
+        User sender = message.getSender();
+        String badge = otherBadgeLabel(sender);
+        return new MessagingMessageResponse(
+                message.getId(),
+                null,
+                sender != null ? sender.getPublicId() : null,
+                sender != null && sender.getRole() != null ? sender.getRole().name() : null,
+                fullName(sender),
+                badge,
+                message.getContent(),
+                message.getCreatedAt(),
+                false
+        );
+    }
+
     private void requireCanMessage(User actor, User other) {
         if (actor == null || other == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur introuvable");
         if (actor.getId() != null && other.getId() != null && actor.getId().equals(other.getId())) {
@@ -358,6 +560,7 @@ public class MessagingService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
         }
         if (actor.getRole() == UserRole.ADMIN || other.getRole() == UserRole.ADMIN) {
+            if (actor.getRole() == UserRole.ADMIN && other.getRole() == UserRole.ADMIN) return;
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
         }
 
@@ -454,6 +657,7 @@ public class MessagingService {
             case DENTIST -> "Dentiste";
             case EMPLOYEE -> "Employé";
             case LAB -> "Laboratoire";
+            case ADMIN -> "Admin";
             default -> user.getRole().name().toUpperCase(Locale.ROOT);
         };
     }
@@ -509,7 +713,30 @@ public class MessagingService {
             User labUser = lab != null ? lab.getCreatedBy() : null;
             if (labUser == null || labUser.getPublicId() == null) continue;
             String label = (lab.getName() != null && !lab.getName().isBlank()) ? lab.getName().trim() : fullName(labUser);
-            out.add(new MessagingContactResponse(labUser.getPublicId(), labUser.getId(), label, "LAB", "Laboratoire", null, null));
+            LocalDateTime lastSeenAt = labUser.getMessagingLastSeenAt();
+            boolean online = messagingWebSocketHandler.isOnlineForDisplay(labUser.getPhoneNumber()) || isRecentlySeen(lastSeenAt);
+            out.add(new MessagingContactResponse(
+                    labUser.getPublicId(),
+                    labUser.getId(),
+                    label,
+                    "LAB",
+                    "Laboratoire",
+                    null,
+                    null,
+                    online,
+                    lastSeenAt,
+                    lab.getPublicId()
+            ));
+        }
+    }
+
+    private boolean isRecentlySeen(LocalDateTime at) {
+        if (at == null) return false;
+        try {
+            long seconds = Math.abs(Duration.between(at, LocalDateTime.now()).getSeconds());
+            return seconds < PRESENCE_ONLINE_WINDOW_SECONDS;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 }

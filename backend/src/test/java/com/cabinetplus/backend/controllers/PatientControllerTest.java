@@ -20,6 +20,9 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.repositories.PatientRepository;
+import com.cabinetplus.backend.repositories.PaymentRepository;
+import com.cabinetplus.backend.repositories.ProthesisRepository;
+import com.cabinetplus.backend.repositories.TreatmentRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PatientFichePdfService;
@@ -44,6 +47,9 @@ class PatientControllerTest {
         PatientService patientService = mock(PatientService.class);
         userService = mock(UserService.class);
         PatientRepository patientRepository = mock(PatientRepository.class);
+        TreatmentRepository treatmentRepository = mock(TreatmentRepository.class);
+        ProthesisRepository prothesisRepository = mock(ProthesisRepository.class);
+        PaymentRepository paymentRepository = mock(PaymentRepository.class);
         AuditService auditService = mock(AuditService.class);
         PatientRiskService patientRiskService = mock(PatientRiskService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
@@ -54,6 +60,9 @@ class PatientControllerTest {
                 patientService,
                 userService,
                 patientRepository,
+                treatmentRepository,
+                prothesisRepository,
+                paymentRepository,
                 auditService,
                 patientRiskService,
                 publicIdResolutionService,

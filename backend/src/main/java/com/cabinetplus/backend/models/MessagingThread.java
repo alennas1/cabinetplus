@@ -52,6 +52,9 @@ public class MessagingThread {
 
     private String lastMessagePreview;
 
+    @Column(name = "last_message_sender_id")
+    private Long lastMessageSenderId;
+
     @PrePersist
     private void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();

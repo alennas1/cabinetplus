@@ -15,6 +15,7 @@ import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.models.Prothesis;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.LaboratoryRepository;
+import com.cabinetplus.backend.repositories.LaboratoryConnectionRepository;
 import com.cabinetplus.backend.repositories.PatientRepository;
 import com.cabinetplus.backend.repositories.ProthesisCatalogRepository;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
@@ -25,6 +26,7 @@ class ProthesisServiceTest {
     private ProthesisCatalogRepository prothesisCatalogRepository;
     private PatientRepository patientRepository;
     private LaboratoryRepository laboratoryRepository;
+    private LaboratoryConnectionRepository laboratoryConnectionRepository;
     private ProthesisService prothesisService;
 
     @BeforeEach
@@ -33,11 +35,13 @@ class ProthesisServiceTest {
         prothesisCatalogRepository = mock(ProthesisCatalogRepository.class);
         patientRepository = mock(PatientRepository.class);
         laboratoryRepository = mock(LaboratoryRepository.class);
+        laboratoryConnectionRepository = mock(LaboratoryConnectionRepository.class);
         prothesisService = new ProthesisService(
                 prothesisRepository,
                 prothesisCatalogRepository,
                 patientRepository,
-                laboratoryRepository
+                laboratoryRepository,
+                laboratoryConnectionRepository
         );
     }
 
@@ -54,7 +58,7 @@ class ProthesisServiceTest {
         when(prothesisRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> prothesisService.updateStatus(10L, "INVALID_STATUS", practitioner));
+                () -> prothesisService.updateStatus(10L, "INVALID_STATUS", practitioner, practitioner));
         assertEquals("Statut invalide", ex.getFieldErrors().get("status"));
     }
 }

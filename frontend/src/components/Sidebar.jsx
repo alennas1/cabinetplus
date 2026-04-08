@@ -104,8 +104,9 @@ const Sidebar = () => {
       try {
         const data = await listMessagingThreads();
         if (cancelled) return;
-        const total = (Array.isArray(data) ? data : []).reduce((sum, t) => sum + Number(t?.unreadCount || 0), 0);
-        setMessagingUnreadCount(total);
+        const threads = Array.isArray(data) ? data : [];
+        const people = threads.filter((t) => Number(t?.unreadCount || 0) > 0).length;
+        setMessagingUnreadCount(people);
       } catch {
         if (!cancelled) setMessagingUnreadCount(0);
       }
@@ -223,7 +224,7 @@ const Sidebar = () => {
               <MessageSquare size={20} />
               {messagingUnreadCount > 0 ? (
                 <span className="cp-sidebar-badge" aria-label={`${messagingUnreadCount} message(s) non lu(s)`}>
-                  {messagingUnreadCount > 99 ? "99+" : messagingUnreadCount}
+                  {messagingUnreadCount > 99 ? "+99" : messagingUnreadCount}
                 </span>
               ) : null}
             </span>

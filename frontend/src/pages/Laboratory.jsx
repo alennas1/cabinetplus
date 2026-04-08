@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit2, Search, X, Eye, Archive, RotateCcw, Link2 } from "react-feather";
+import { Plus, Edit2, Search, X, Eye, Archive, RotateCcw, Link2, MessageCircle } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
@@ -353,7 +353,14 @@ const Laboratories = ({ view = "active" }) => {
             </tr>
           ) : (
             currentLabs.map((lab) => (
-              <tr key={lab.id} onClick={() => navigate(`/gestion-cabinet/laboratories/${lab.publicId || lab.id}`)} style={{ cursor: "pointer" }}>
+              <tr
+                key={lab.id}
+                onClick={() => {
+                  if (!lab?.publicId) return;
+                  navigate(`/gestion-cabinet/laboratories/${String(lab.publicId)}`);
+                }}
+                style={{ cursor: "pointer" }}
+              >
                 <td style={{ fontWeight: "bold" }}>
                   {lab.name}
                   {lab.connected ? (
@@ -376,12 +383,28 @@ const Laboratories = ({ view = "active" }) => {
                     className="action-btn view"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/gestion-cabinet/laboratories/${lab.publicId || lab.id}`);
+                      if (!lab?.publicId) return;
+                      navigate(`/gestion-cabinet/laboratories/${String(lab.publicId)}`);
                     }}
                     title="Voir"
                   >
                     <Eye size={16} />
                   </button>
+                  {lab?.connected ? (
+                    <button
+                      type="button"
+                      className="action-btn message"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!lab?.publicId) return;
+                        navigate(`/messagerie?role=LAB&details=${encodeURIComponent(String(lab.publicId))}`);
+                      }}
+                      title="Message"
+                      aria-label="Message"
+                    >
+                      <MessageCircle size={16} />
+                    </button>
+                  ) : null}
                   {view !== "archived" && lab.editable !== false && (
                     <>
                       <button

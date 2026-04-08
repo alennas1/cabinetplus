@@ -10,6 +10,9 @@ export default defineConfig({
       // We'll register manually so we can show an in-app "update available" prompt.
       injectRegister: null,
       registerType: 'prompt',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       includeAssets: [
         'logo.png',
         'apple-touch-icon.png',
@@ -43,9 +46,6 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
-      },
-      workbox: {
-        navigateFallback: '/index.html',
       },
       devOptions: {
         enabled: true,

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, Search } from "react-feather";
+import { ArrowUpRight, MessageCircle, Search } from "react-feather";
 
 import BackButton from "../components/BackButton";
 import ModernDropdown from "../components/ModernDropdown";
@@ -16,7 +16,7 @@ import "./Patients.css";
 const SEARCH_BY_OPTIONS = [
   { value: "dentist", label: "Dentiste" },
   { value: "clinic", label: "Cabinet" },
-  { value: "phone", label: "Téléphone" },
+  { value: "phone", label: "TÃ©lÃ©phone" },
   { value: "id", label: "ID" },
 ];
 
@@ -54,7 +54,12 @@ const LabDentists = () => {
     if (!query) return list;
     return list.filter((d) => {
       if (searchBy === "clinic") return String(d?.clinicName || "").toLowerCase().includes(query);
-      if (searchBy === "phone") return String(d?.phoneNumber || "").replaceAll(/\s/g, "").toLowerCase().includes(query.replaceAll(/\s/g, ""));
+      if (searchBy === "phone") {
+        return String(d?.phoneNumber || "")
+          .replaceAll(/\s/g, "")
+          .toLowerCase()
+          .includes(query.replaceAll(/\s/g, ""));
+      }
       if (searchBy === "id") return String(d?.dentistPublicId || "").toLowerCase().includes(query);
       return String(d?.dentistName || "").toLowerCase().includes(query);
     });
@@ -63,18 +68,13 @@ const LabDentists = () => {
   return (
     <div className="patients-container">
       <BackButton fallbackTo="/lab" />
-      <PageHeader title="Dentistes" subtitle="Liste des dentistes connectés à votre laboratoire." align="left" />
+      <PageHeader title="Dentistes" subtitle="Liste des dentistes connectÃ©s Ã  votre laboratoire." align="left" />
 
       <div className="patients-controls">
         <div className="controls-left">
           <div className="search-group">
             <Search className="search-icon" size={16} />
-            <input
-              type="text"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Rechercher..."
-            />
+            <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher..." />
           </div>
           <ModernDropdown value={searchBy} onChange={setSearchBy} options={SEARCH_BY_OPTIONS} ariaLabel="Filtrer la recherche" />
         </div>
@@ -91,8 +91,8 @@ const LabDentists = () => {
           <tr>
             <th>Cabinet</th>
             <th>Dentiste</th>
-            <th>Téléphone</th>
-            <th style={{ width: 90 }}>Actions</th>
+            <th>TÃ©lÃ©phone</th>
+            <th style={{ width: 130 }}>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -119,11 +119,24 @@ const LabDentists = () => {
                 <td>{d.dentistName || "-"}</td>
                 <td>{formatPhoneNumber(d.phoneNumber) || "-"}</td>
                 <td className="actions-cell">
+                  <button
+                    type="button"
+                    className="action-btn message"
+                    title="Message"
+                    aria-label="Message"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!d?.dentistPublicId) return;
+                      navigate(`/lab/messagerie?with=${encodeURIComponent(String(d.dentistPublicId))}`);
+                    }}
+                  >
+                    <MessageCircle size={16} />
+                  </button>
                   <Link
                     to={`/lab/dentists/${d.dentistPublicId}`}
                     className="action-btn view"
-                    title="Détails"
-                    aria-label="Détails"
+                    title="DÃ©tails"
+                    aria-label="DÃ©tails"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ArrowUpRight size={16} />

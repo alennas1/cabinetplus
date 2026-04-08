@@ -138,8 +138,8 @@ const Prosthetics = () => {
         .trim()
         .toLowerCase();
       if (!key) return;
-      if (!map.has(key) && lab?.id != null) {
-        map.set(key, lab.id);
+      if (!map.has(key) && lab?.publicId != null) {
+        map.set(key, String(lab.publicId));
       }
     });
     return map;

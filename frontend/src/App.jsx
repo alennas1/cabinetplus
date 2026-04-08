@@ -60,8 +60,11 @@ import AdminChangePassword from "./pages/AdminChangePassword";
 import ManagePlans from "./pages/ManagePlans";
   import AdminAuditLogs from "./pages/AdminAuditLogs";
   import SupportCenter from "./pages/SupportCenter";
+  import SupportChat from "./pages/SupportChat";
   import AdminSupportCenter from "./pages/AdminSupportCenter";
+  import AdminSupportChat from "./pages/AdminSupportChat";
   import AdminFeedbackDetails from "./pages/AdminFeedbackDetails";
+  import AdminMessagingCenter from "./pages/AdminMessagingCenter";
   import MessagingCenter from "./pages/MessagingCenter";
   import Justification from "./pages/Justification";
 
@@ -97,11 +100,12 @@ import { PERMISSIONS } from "./utils/permissions";
 import { isPlanActiveForAccess } from "./utils/planAccess";
 import { applyUserPreferences } from "./utils/workingHours";
 import { getUserPreferences } from "./services/userPreferenceService";
+import { heartbeatMessagingPresence } from "./services/messagingService";
 
 import "./index.css";
 
 const AppContent = () => {
-  const { isAuthenticated, user, loading } = useSelector((state) => state.auth); 
+  const { isAuthenticated, user, token, loading } = useSelector((state) => state.auth); 
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
@@ -109,6 +113,36 @@ const AppContent = () => {
   useEffect(() => {
     initPwaUpdatePrompt();
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    let disposed = false;
+
+    const HEARTBEAT_MS = 25000;
+    const heartbeat = async () => {
+      try {
+        await heartbeatMessagingPresence();
+      } catch {
+        // ignore
+      }
+    };
+
+    heartbeat();
+    const id = setInterval(() => {
+      if (!disposed) heartbeat();
+    }, HEARTBEAT_MS);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") heartbeat();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      disposed = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [isAuthenticated, token]);
 
   // Lock background scroll whenever a modal overlay is present.
   useEffect(() => {
@@ -378,6 +412,7 @@ const AppContent = () => {
 
             <Route element={<RequirePermission permission={PERMISSIONS.SUPPORT} />}>
               <Route path="/support" element={<SupportCenter />} />
+              <Route path="/support/chat" element={<SupportChat />} />
             </Route>
 
             <Route element={<RequirePermission permission={PERMISSIONS.MESSAGING} />}>
@@ -407,6 +442,7 @@ const AppContent = () => {
             <Route path="/lab/invitations" element={<LabInvitations />} />
             <Route path="/lab/messagerie" element={<MessagingCenter subtitle="Discutez avec vos dentistes partenaires" />} />
             <Route path="/lab/support" element={<SupportCenter />} />
+            <Route path="/lab/support/chat" element={<SupportChat />} />
             <Route path="/lab/settings" element={<LabSettingsHome />} />
             <Route path="/lab/settings/profile" element={<LabSettings />} />
             <Route path="/lab/settings/security" element={<Security basePath="/lab/settings" />} />
@@ -428,10 +464,12 @@ const AppContent = () => {
             <Route path="/admin/preferences" element={<Preference showWorkingHours={false} />} />
             <Route path="/admin/manage-admins" element={<ManageAdmins />} />
             <Route path="/admin/change-password" element={<AdminChangePassword />} />
-            <Route path="/admin/manage-plans" element={<ManagePlans />} />
-            <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
-            <Route path="/admin/support" element={<AdminSupportCenter />} />
-            <Route path="/admin/support/feedback/:id" element={<AdminFeedbackDetails />} />
+             <Route path="/admin/manage-plans" element={<ManagePlans />} />
+             <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
+             <Route path="/admin/messagerie" element={<AdminMessagingCenter />} />
+             <Route path="/admin/support" element={<AdminSupportCenter />} />
+             <Route path="/admin/support/chat" element={<AdminSupportChat />} />
+             <Route path="/admin/support/feedback/:id" element={<AdminFeedbackDetails />} />
           </Route>
         </Route>
 

@@ -47,7 +47,7 @@ class AppointmentServiceTest {
         AppointmentRequest request = new AppointmentRequest(start, end, AppointmentStatus.SCHEDULED, null, 5L);
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> appointmentService.createAppointment(request, practitioner));
+                () -> appointmentService.createAppointment(request, practitioner, practitioner));
         assertEquals("La date de fin doit etre apres la date de debut", ex.getFieldErrors().get("dateTimeEnd"));
     }
 
@@ -62,7 +62,7 @@ class AppointmentServiceTest {
 
         when(appointmentRepository.existsOverlapping(eq(practitioner), eq(start), eq(end), eq(null))).thenReturn(true);
 
-        assertThrows(ConflictException.class, () -> appointmentService.createAppointment(request, practitioner));
+        assertThrows(ConflictException.class, () -> appointmentService.createAppointment(request, practitioner, practitioner));
     }
 
     @Test
@@ -77,7 +77,7 @@ class AppointmentServiceTest {
         when(appointmentRepository.existsOverlapping(eq(practitioner), eq(start), eq(end), eq(null))).thenReturn(false);
         when(patientRepository.findByIdAndCreatedBy(99L, practitioner)).thenReturn(Optional.empty());
 
-        assertThrows(NotFoundException.class, () -> appointmentService.createAppointment(request, practitioner));
+        assertThrows(NotFoundException.class, () -> appointmentService.createAppointment(request, practitioner, practitioner));
     }
 
     @Test
@@ -96,7 +96,7 @@ class AppointmentServiceTest {
         when(patientRepository.findByIdAndCreatedBy(5L, practitioner)).thenReturn(Optional.of(patient));
         when(appointmentRepository.save(any(Appointment.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Appointment saved = appointmentService.createAppointment(request, practitioner);
+        Appointment saved = appointmentService.createAppointment(request, practitioner, practitioner);
         assertEquals(start, saved.getDateTimeStart());
         assertEquals(end, saved.getDateTimeEnd());
         assertEquals(AppointmentStatus.SCHEDULED, saved.getStatus());

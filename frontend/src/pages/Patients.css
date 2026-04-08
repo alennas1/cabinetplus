@@ -919,6 +919,18 @@
   color: #1e293b;                /* darker icon */
 }
 
+.action-btn.message {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.action-btn.message:hover {
+  background: #dbeafe;
+  border-color: #60a5fa;
+  color: #1e40af;
+}
+
 .action-btn.cancel {
   border-color: #f87171;
   background: #fef2f2;

@@ -11,7 +11,6 @@ import FieldError from "../components/FieldError";
 import { getAdminsPage, createAdmin, deleteAdmin } from "../services/userService";
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber, isValidDzMobilePhoneNumber, normalizePhoneInput } from "../utils/phone";
-import { isValidUsername } from "../utils/validation";
 import PhoneInput from "../components/PhoneInput";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import useDebouncedValue from "../hooks/useDebouncedValue";
@@ -34,7 +33,6 @@ const ManageAdmins = () => {
     id: null,
     firstname: "",
     lastname: "",
-    username: "",
     password: "",
     phoneNumber: "",
     canDeleteAdmin: false,
@@ -105,8 +103,6 @@ const ManageAdmins = () => {
           return a.firstname;
         case "lastname":
           return a.lastname;
-        case "username":
-          return a.username;
         case "phoneNumber":
           return a.phoneNumber;
         case "canDeleteAdmin":
@@ -131,12 +127,10 @@ const ManageAdmins = () => {
     const nextErrors = {};
     if (!String(formData.firstname || "").trim()) nextErrors.firstname = "Le prenom est obligatoire.";
     if (!String(formData.lastname || "").trim()) nextErrors.lastname = "Le nom est obligatoire.";
-    if (!String(formData.username || "").trim()) nextErrors.username = "Le nom d'utilisateur est obligatoire.";
-    else if (!isValidUsername(formData.username)) {
-      nextErrors.username = "Nom d'utilisateur invalide (3-20 caracteres, lettres/chiffres/._-).";
-    }
     if (!String(formData.password || "").trim()) nextErrors.password = "Le mot de passe est obligatoire.";
-    if ((formData.phoneNumber || "").trim() && !isValidDzMobilePhoneNumber(formData.phoneNumber)) {
+    if (!String(formData.phoneNumber || "").trim()) {
+      nextErrors.phoneNumber = "Le numero de telephone est obligatoire.";
+    } else if (!isValidDzMobilePhoneNumber(formData.phoneNumber)) {
       nextErrors.phoneNumber = "Telephone invalide (ex: 05 51 51 51 51).";
     }
     return nextErrors;
@@ -159,9 +153,8 @@ const ManageAdmins = () => {
       const payload = {
         firstname: formData.firstname,
         lastname: formData.lastname,
-        username: formData.username,
         password: formData.password,
-        phoneNumber: formData.phoneNumber ? normalizePhoneInput(formData.phoneNumber) : null,
+        phoneNumber: normalizePhoneInput(formData.phoneNumber),
         canDeleteAdmin: formData.canDeleteAdmin,
       };
 
@@ -205,7 +198,6 @@ const ManageAdmins = () => {
               id: null,
               firstname: "",
               lastname: "",
-              username: "",
               password: "",
               phoneNumber: "",
               canDeleteAdmin: false,
@@ -224,7 +216,6 @@ const ManageAdmins = () => {
           <tr>
             <SortableTh label="Prénom" sortKey="firstname" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Nom" sortKey="lastname" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Username" sortKey="username" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Phone" sortKey="phoneNumber" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Super Admin" sortKey="canDeleteAdmin" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
@@ -235,7 +226,14 @@ const ManageAdmins = () => {
             <tr
               key={admin.id}
               onClick={() => {
-                setFormData(admin);
+                setFormData({
+                  id: admin?.id ?? null,
+                  firstname: admin?.firstname || "",
+                  lastname: admin?.lastname || "",
+                  password: "",
+                  phoneNumber: admin?.phoneNumber || "",
+                  canDeleteAdmin: !!admin?.canDeleteAdmin,
+                });
                 setFieldErrors({});
                 setIsEditing(true);
                 setShowModal(true);
@@ -244,7 +242,6 @@ const ManageAdmins = () => {
             >
               <td>{admin.firstname || "—"}</td>
               <td>{admin.lastname || "—"}</td>
-              <td>{admin.username || "—"}</td>
               <td>{formatPhoneNumber(admin.phoneNumber) || "—"}</td>
               <td>{admin.canDeleteAdmin ? "Oui" : "Non"}</td>
               <td className="actions-cell">
@@ -252,7 +249,14 @@ const ManageAdmins = () => {
                   className="action-btn view"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setFormData(admin);
+                    setFormData({
+                      id: admin?.id ?? null,
+                      firstname: admin?.firstname || "",
+                      lastname: admin?.lastname || "",
+                      password: "",
+                      phoneNumber: admin?.phoneNumber || "",
+                      canDeleteAdmin: !!admin?.canDeleteAdmin,
+                    });
                     setFieldErrors({});
                     setIsEditing(true);
                     setShowModal(true);
@@ -322,19 +326,6 @@ const ManageAdmins = () => {
               />
               <FieldError message={fieldErrors.lastname} />
 
-              <span className="field-label">Username *</span>
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                placeholder="Ex: abenali"
-                required
-                disabled={isEditing}
-                className={fieldErrors.username ? "invalid" : ""}
-              />
-              <FieldError message={fieldErrors.username} />
-
               <span className="field-label">Mot de passe *</span>
               <PasswordInput
                 name="password"
@@ -348,7 +339,7 @@ const ManageAdmins = () => {
               />
               <FieldError message={fieldErrors.password} />
 
-              <span className="field-label">Téléphone</span>
+              <span className="field-label">Téléphone *</span>
               <PhoneInput
                 name="phoneNumber"
                 value={formData.phoneNumber}

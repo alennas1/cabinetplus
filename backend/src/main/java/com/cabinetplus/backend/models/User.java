@@ -71,6 +71,9 @@ public class User {
 
     private LocalDateTime createdAt;
 
+    // Messaging presence (used for "last seen" in the messaging center).
+    private LocalDateTime messagingLastSeenAt;
+
     private boolean canDeleteAdmin = false; // super-admin flag
 
     // --- OTP cooldown tracking (Twilio Verify) ---

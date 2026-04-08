@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { Plus, Eye, Search, X, Archive, RotateCcw, UserX, UserCheck } from "react-feather";
+import { Plus, Eye, Search, X, Archive, RotateCcw, UserX, UserCheck, MessageCircle } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PageHeader from "../components/PageHeader";
@@ -294,7 +294,7 @@ const Employees = ({ view = "active" }) => {
 
     try {
       setStatusChangingId(emp.id);
-      await updateEmployee(emp.publicId || emp.id, payload, token);
+      await updateEmployee(emp.publicId ? String(emp.publicId) : emp.id, payload, token);
       await fetchEmployees();
       toast.success(nextStatus === "ACTIVE" ? "Employé activé" : "Employé désactivé");
     } catch (err) {
@@ -417,7 +417,14 @@ const Employees = ({ view = "active" }) => {
         </thead>
         <tbody>
           {currentEmployees.map((emp) => (
-            <tr key={emp.id} onClick={() => navigate(`/gestion-cabinet/employees/${emp.publicId || emp.id}`)} style={{ cursor: "pointer" }}>
+            <tr
+              key={emp.id}
+              onClick={() => {
+                if (!emp?.publicId) return;
+                navigate(`/gestion-cabinet/employees/${String(emp.publicId)}`);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <td>{emp.firstName || "—"}</td>
               <td>{emp.lastName || "—"}</td>
               <td>{formatPhoneNumber(emp.phone) || "—"}</td>
@@ -438,9 +445,23 @@ const Employees = ({ view = "active" }) => {
               <td className="actions-cell">
                 <button className="action-btn view" onClick={(e) => {
                   e.stopPropagation();
-                  navigate(`/gestion-cabinet/employees/${emp.publicId || emp.id}`);
+                  if (!emp?.publicId) return;
+                  navigate(`/gestion-cabinet/employees/${String(emp.publicId)}`);
                 }} title={view === "archived" ? "Voir" : "Voir / Modifier"}>
                   <Eye size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="action-btn message"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!emp?.publicId) return;
+                    navigate(`/messagerie?role=EMPLOYEE&details=${encodeURIComponent(String(emp.publicId))}`);
+                  }}
+                  title="Message"
+                  aria-label="Message"
+                >
+                  <MessageCircle size={16} />
                 </button>
                 {view !== "archived" && (
                   <button

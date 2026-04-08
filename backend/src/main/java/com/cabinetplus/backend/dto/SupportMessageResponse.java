@@ -13,5 +13,6 @@ public record SupportMessageResponse(
         boolean readByOther,
         String attachmentUrl,
         String attachmentContentType,
-        String attachmentOriginalName
+        String attachmentOriginalName,
+        String kind
 ) {}

@@ -75,3 +75,13 @@ export const adminSendThreadImage = async (threadId, file) => {
   });
   return res.data;
 };
+
+export const adminFinishThread = async (threadId) => {
+  const res = await api.post(`${BASE_ADMIN}/threads/${threadId}/finish`);
+  return res.data;
+};
+
+export const adminTakeoverThread = async (threadId) => {
+  const res = await api.post(`${BASE_ADMIN}/threads/${threadId}/takeover`);
+  return res.data;
+};

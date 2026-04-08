@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp, MoreVertical, Search, Send, X } from "react-feather";
 import { toast } from "react-toastify";
 import PageHeader from "../components/PageHeader";
@@ -8,11 +8,16 @@ import DentistPageSkeleton from "../components/DentistPageSkeleton";
 import ModernDropdown from "../components/ModernDropdown";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
+import { ensureMessagingPushSubscription, isWebPushSupported } from "../pwa/pushMessaging";
 import {
   ensureMessagingThreadWith,
   getMessagingThreadMessages,
+  listAdminGroupMessages,
   listMessagingContacts,
   listMessagingThreads,
+  markMessagingThreadRead,
+  heartbeatMessagingPresence,
+  sendAdminGroupMessage,
   sendMessagingThreadMessage,
 } from "../services/messagingService";
 import "./Patients.css";
@@ -21,11 +26,26 @@ import "./Support.css";
 
 const POLL_SELECTED_MS = 5000;
 const POLL_IDLE_MS = 12000;
+const PRESENCE_TICK_MS = 30000;
+const LONGTIME_AFTER_DAYS = 7;
+const OFFLINE_GRACE_MS = 60000;
+const ADMIN_GROUP_PUBLIC_ID = "__ADMIN_GROUP__";
+const ADMIN_GROUP_THREAD_ID = "__ADMIN_GROUP_THREAD__";
 
-const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre équipe et vos partenaires" }) => {
-  const { user } = useSelector((state) => state.auth || {});
+const MessagingCenter = ({
+  title = "Messagerie",
+  subtitle = "Discutez avec votre équipe et vos partenaires",
+  forcedContactType = null, // e.g. "ADMIN" for internal admin messaging
+  hideContactTypeSelector = false,
+  enableAdminGroup = false,
+}) => {
+  const { user, token } = useSelector((state) => state.auth || {});
   const navigate = useNavigate();
+  const location = useLocation();
   const myPublicId = user?.publicId ? String(user.publicId) : null;
+  const viewerRole = String(user?.role || "").toUpperCase();
+  const isAdminViewer = viewerRole === "ADMIN";
+  const adminGroupEnabled = Boolean(enableAdminGroup && isAdminViewer);
 
   const [loading, setLoading] = useState(true);
   const [contacts, setContacts] = useState([]);
@@ -33,26 +53,146 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
   const [selectedThreadId, setSelectedThreadId] = useState(null);
   const [selectedOtherPublicId, setSelectedOtherPublicId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [adminGroupLastMessage, setAdminGroupLastMessage] = useState(null);
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
   const [conversationQuery, setConversationQuery] = useState("");
-  const [contactType, setContactType] = useState("ALL"); // ALL | EMPLOYEE | LAB | DENTIST
+  const [contactType, setContactType] = useState(forcedContactType ? String(forcedContactType).toUpperCase() : "ALL"); // ALL | EMPLOYEE | LAB | DENTIST | ADMIN
   const [messageQuery, setMessageQuery] = useState("");
   const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [threadMenuOpen, setThreadMenuOpen] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
 
   const pollRef = useRef(null);
+  const wsRef = useRef(null);
+  const wsReconnectRef = useRef(null);
   const chatEndRef = useRef(null);
   const messageRefs = useRef({});
   const threadMenuRef = useRef(null);
   const messageSearchInputRef = useRef(null);
+  const selectedThreadIdRef = useRef(null);
+  const myPublicIdRef = useRef(null);
+  const pushToastIdRef = useRef(null);
+
+  const isAdminGroupSelected = String(selectedThreadId || "") === ADMIN_GROUP_THREAD_ID;
 
   const formatDateTime = (value) => {
     if (!value) return "";
     const label = formatDateTimeByPreference(value);
     return label === "-" ? "" : label;
   };
+
+  const formatLastSeen = (lastSeenAt) => {
+    if (!lastSeenAt) return null;
+    const t = new Date(lastSeenAt).getTime();
+    if (!Number.isFinite(t)) return null;
+    const diffMs = Math.max(0, presenceNow - t);
+    const longtimeAfterMs = LONGTIME_AFTER_DAYS * 24 * 60 * 60 * 1000;
+    if (diffMs > longtimeAfterMs) return "longtemps";
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 60) return `${Math.max(1, diffMin)} min`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours} h`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${Math.max(1, diffDays)} j`;
+  };
+
+  const getPresenceText = ({ online, lastSeenAt }) => {
+    if (online) return "En ligne";
+    const label = formatLastSeen(lastSeenAt);
+    if (!label) return "Hors ligne · longtemps";
+    if (label === "longtemps") return "Hors ligne · longtemps";
+    return `Hors ligne · il y a ${label}`;
+  };
+
+  const isWithinOfflineGrace = (lastSeenAt) => {
+    if (!lastSeenAt) return false;
+    const t = new Date(lastSeenAt).getTime();
+    if (!Number.isFinite(t)) return false;
+    return presenceNow - t < OFFLINE_GRACE_MS;
+  };
+
+  const computeEffectiveOnline = ({ online, lastSeenAt }) => Boolean(online) || isWithinOfflineGrace(lastSeenAt);
+
+  useEffect(() => {
+    if (!forcedContactType) return;
+    setContactType(String(forcedContactType).toUpperCase());
+  }, [forcedContactType]);
+
+  useEffect(() => {
+    selectedThreadIdRef.current = selectedThreadId;
+    myPublicIdRef.current = myPublicId;
+  }, [selectedThreadId, myPublicId]);
+
+  useEffect(() => {
+    const id = setInterval(() => setPresenceNow(Date.now()), PRESENCE_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    const tick = async () => {
+      try {
+        await heartbeatMessagingPresence();
+      } catch {
+        // ignore
+      }
+    };
+    tick();
+    const id = setInterval(tick, PRESENCE_TICK_MS);
+    return () => clearInterval(id);
+  }, [token]);
+
+  useEffect(() => {
+    if (!isWebPushSupported()) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // If already granted, ensure we have a subscription saved server-side (silent).
+      if (Notification.permission === "granted") {
+        await ensureMessagingPushSubscription({ prompt: false }).catch(() => {});
+        return;
+      }
+
+      // Only show CTA if permission is still "default" AND server is configured with a VAPID public key.
+      if (Notification.permission !== "default") return;
+      const probe = await ensureMessagingPushSubscription({ prompt: false }).catch(() => ({ ok: false }));
+      if (cancelled) return;
+      if (probe?.reason === "missing_public_key") return;
+      if (pushToastIdRef.current != null && toast.isActive(pushToastIdRef.current)) return;
+
+      pushToastIdRef.current = toast.info(
+        (
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="font-semibold">Activer les notifications</div>
+              <div className="text-sm opacity-90">Recevez un rappel quand un nouveau message arrive.</div>
+            </div>
+            <button
+              type="button"
+              className="px-3 py-2 rounded bg-slate-900 text-white text-sm hover:bg-slate-800"
+              onClick={async () => {
+                if (pushToastIdRef.current != null) toast.dismiss(pushToastIdRef.current);
+                pushToastIdRef.current = null;
+                const res = await ensureMessagingPushSubscription({ prompt: true }).catch(() => ({ ok: false }));
+                if (res?.ok) toast.success("Notifications activees");
+              }}
+            >
+              Activer
+            </button>
+          </div>
+        ),
+        { autoClose: false, closeOnClick: false, closeButton: false, draggable: false }
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const threadsByOtherId = useMemo(() => {
     const map = {};
@@ -67,6 +207,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
   }, [threads, selectedThreadId]);
 
   const otherDetailsPath = useMemo(() => {
+    if (isAdminGroupSelected) return null;
     const viewerRole = String(user?.role || "").toUpperCase();
     const otherPublicId = selectedThread?.otherUserPublicId ? String(selectedThread.otherUserPublicId) : "";
     const contact = otherPublicId
@@ -74,32 +215,44 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
       : null;
 
     const role = String(selectedThread?.otherRole || contact?.role || "").toUpperCase();
-    const otherUserId = selectedThread?.otherUserId ?? contact?.userId ?? null;
     const otherOwnerDentistId = selectedThread?.otherOwnerDentistId ?? contact?.ownerDentistId ?? null;
+    const otherDetailsPublicId = contact?.detailsPublicId ? String(contact.detailsPublicId) : "";
 
     if (viewerRole === "DENTIST") {
-      if (role === "EMPLOYEE" && otherUserId) return `/gestion-cabinet/employees/${otherUserId}`;
-      if (role === "LAB" && otherUserId) return `/gestion-cabinet/laboratories/${otherUserId}`;
+      if (role === "EMPLOYEE" && otherDetailsPublicId) return `/gestion-cabinet/employees/${otherDetailsPublicId}`;
+      if (role === "LAB" && otherDetailsPublicId) return `/gestion-cabinet/laboratories/${otherDetailsPublicId}`;
       return null;
     }
 
     if (viewerRole === "EMPLOYEE") {
       if (role === "DENTIST") return null;
-      if (role === "LAB" && otherUserId) return `/gestion-cabinet/laboratories/${otherUserId}`;
+      if (role === "LAB" && otherDetailsPublicId) return `/gestion-cabinet/laboratories/${otherDetailsPublicId}`;
       return null;
     }
 
     if (viewerRole === "LAB") {
-      if (role === "DENTIST" && otherUserId) return `/lab/dentists/${otherUserId}`;
-      if (role === "EMPLOYEE" && otherOwnerDentistId) return `/lab/dentists/${otherOwnerDentistId}`;
+      // Lab portal routes use dentist publicId (UUID), not numeric userId.
+      if (role === "DENTIST" && otherPublicId) return `/lab/dentists/${otherPublicId}`;
+      if (role === "EMPLOYEE" && otherOwnerDentistId) {
+        const owner = (contacts || []).find(
+          (c) => String(c?.role || "").toUpperCase() === "DENTIST" && String(c?.userId || "") === String(otherOwnerDentistId)
+        );
+        const ownerPublicId = owner?.userPublicId ? String(owner.userPublicId) : "";
+        if (ownerPublicId) return `/lab/dentists/${ownerPublicId}`;
+      }
       return null;
     }
 
     return null;
-  }, [contacts, selectedThread, user?.role]);
+  }, [contacts, isAdminGroupSelected, selectedThread, user?.role]);
 
   const conversationNeedle = useMemo(() => String(conversationQuery || "").trim().toLowerCase(), [conversationQuery]);
   const messageNeedle = useMemo(() => String(messageQuery || "").trim().toLowerCase(), [messageQuery]);
+
+  const effectiveContactType = useMemo(() => {
+    if (forcedContactType) return String(forcedContactType).toUpperCase();
+    return String(contactType || "ALL").toUpperCase();
+  }, [contactType, forcedContactType]);
 
   const contactTypeOptions = useMemo(() => {
     const base = [
@@ -108,21 +261,26 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
       { value: "LAB", label: "Laboratoires" },
       { value: "DENTIST", label: "Dentistes" },
     ];
-    const role = String(user?.role || "").toUpperCase();
-    if (role === "LAB") return base.filter((o) => o.value !== "LAB");
+    const forced = forcedContactType ? String(forcedContactType).toUpperCase() : null;
+    const includeAdmin = viewerRole === "ADMIN" || forced === "ADMIN";
+    if (includeAdmin) {
+      base.push({ value: "ADMIN", label: "Admins" });
+    }
+    if (viewerRole === "LAB") return base.filter((o) => o.value !== "LAB");
     return base;
-  }, [user?.role]);
+  }, [forcedContactType, viewerRole]);
 
   useEffect(() => {
+    if (forcedContactType) return;
     const role = String(user?.role || "").toUpperCase();
     if (role === "LAB" && String(contactType || "").toUpperCase() === "LAB") {
       setContactType("ALL");
     }
-  }, [contactType, user?.role]);
+  }, [contactType, forcedContactType, user?.role]);
 
   const filteredContacts = useMemo(() => {
     const list = Array.isArray(contacts) ? contacts : [];
-    const type = String(contactType || "ALL").toUpperCase();
+    const type = effectiveContactType;
 
     return list.filter((c) => {
       if (!c?.userPublicId) return false;
@@ -133,6 +291,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
         if (type === "EMPLOYEE" && role !== "EMPLOYEE") return false;
         if (type === "LAB" && role !== "LAB") return false;
         if (type === "DENTIST" && role !== "DENTIST") return false;
+        if (type === "ADMIN" && role !== "ADMIN") return false;
       }
 
       if (!conversationNeedle) return true;
@@ -150,7 +309,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
         roleText.includes(conversationNeedle)
       );
     });
-  }, [contacts, contactType, conversationNeedle, threadsByOtherId]);
+  }, [contacts, conversationNeedle, effectiveContactType, threadsByOtherId]);
 
   const matchMessageIds = useMemo(() => {
     if (!messageNeedle) return [];
@@ -198,8 +357,43 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
     try {
       if (!silent) setLoading(true);
       const [c, t] = await Promise.all([listMessagingContacts(), listMessagingThreads()]);
-      const contactsList = Array.isArray(c) ? c : [];
-      const threadsList = Array.isArray(t) ? t : [];
+      let contactsList = Array.isArray(c) ? c : [];
+      let threadsList = Array.isArray(t) ? t : [];
+
+      const forced = forcedContactType ? String(forcedContactType).toUpperCase() : null;
+
+      // Messaging is business-to-business; support conversations live in the Support center.
+      // Hide ADMIN users for non-admin viewers (unless explicitly forced).
+      if (!isAdminViewer) {
+        if (forced === "ADMIN") {
+          contactsList = contactsList.filter((x) => String(x?.role || "").toUpperCase() === "ADMIN");
+          threadsList = threadsList.filter((x) => String(x?.otherRole || "").toUpperCase() === "ADMIN");
+        } else {
+          contactsList = contactsList.filter((x) => String(x?.role || "").toUpperCase() !== "ADMIN");
+          threadsList = threadsList.filter((x) => String(x?.otherRole || "").toUpperCase() !== "ADMIN");
+        }
+      }
+
+      if (adminGroupEnabled) {
+        const groupContact = {
+          userPublicId: ADMIN_GROUP_PUBLIC_ID,
+          userId: null,
+          name: "Tous les admins",
+          role: "ADMIN",
+          badge: "Groupe",
+          meta: null,
+          ownerDentistId: null,
+          online: true,
+          lastSeenAt: null,
+          detailsPublicId: null,
+          isAdminGroup: true,
+        };
+        contactsList = [
+          groupContact,
+          ...(contactsList || []).filter((x) => String(x?.userPublicId || "") !== ADMIN_GROUP_PUBLIC_ID),
+        ];
+      }
+
       setContacts(contactsList);
       setThreads(threadsList);
       return { contacts: contactsList, threads: threadsList };
@@ -215,6 +409,14 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
     const id = threadId ?? selectedThreadId;
     if (!id) return;
     try {
+      if (String(id) === ADMIN_GROUP_THREAD_ID) {
+        const data = await listAdminGroupMessages();
+        const list = Array.isArray(data) ? data : [];
+        setMessages(list);
+        setAdminGroupLastMessage(list.length > 0 ? list[list.length - 1] : null);
+        return;
+      }
+
       const data = await getMessagingThreadMessages(id);
       setMessages(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -224,6 +426,12 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
 
   const openThreadWith = async (otherPublicId) => {
     if (!otherPublicId) return;
+    if (adminGroupEnabled && String(otherPublicId) === ADMIN_GROUP_PUBLIC_ID) {
+      setSelectedThreadId(ADMIN_GROUP_THREAD_ID);
+      setSelectedOtherPublicId(ADMIN_GROUP_PUBLIC_ID);
+      await loadSelectedMessages(ADMIN_GROUP_THREAD_ID, { silent: true });
+      return;
+    }
     const created = await ensureMessagingThreadWith(otherPublicId);
     setThreads((prev) => {
       const list = Array.isArray(prev) ? prev : [];
@@ -236,6 +444,14 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
   };
 
   const handleSelectContact = async (contact) => {
+    if (adminGroupEnabled && (contact?.isAdminGroup || String(contact?.userPublicId || "") === ADMIN_GROUP_PUBLIC_ID)) {
+      try {
+        await openThreadWith(ADMIN_GROUP_PUBLIC_ID);
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Impossible d'ouvrir la conversation"));
+      }
+      return;
+    }
     const otherId = contact?.userPublicId;
     if (!otherId) return;
     const thread = threadsByOtherId[String(otherId)] || null;
@@ -255,6 +471,39 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
   useEffect(() => {
     (async () => {
       const { contacts: c, threads: t } = await loadContactsAndThreads({ silent: false });
+
+      const params = new URLSearchParams(location.search || "");
+      const requestedWith = String(params.get("with") || "").trim();
+      const requestedRole = String(params.get("role") || "").trim().toUpperCase();
+      const requestedDetails = String(params.get("details") || "").trim();
+      const stateWith = String(location?.state?.with || location?.state?.withPublicId || "").trim();
+
+      let initialOtherPublicId = requestedWith || stateWith;
+      if (!initialOtherPublicId && requestedRole && requestedDetails) {
+        const match = (c || []).find((contact) => {
+          const role = String(contact?.role || "").trim().toUpperCase();
+          const details = contact?.detailsPublicId != null ? String(contact.detailsPublicId) : "";
+          return role === requestedRole && details === requestedDetails;
+        });
+        if (match?.userPublicId) initialOtherPublicId = String(match.userPublicId);
+      }
+      if (!initialOtherPublicId && requestedDetails) {
+        const match = (c || []).find((contact) => {
+          const details = contact?.detailsPublicId != null ? String(contact.detailsPublicId) : "";
+          return details === requestedDetails;
+        });
+        if (match?.userPublicId) initialOtherPublicId = String(match.userPublicId);
+      }
+
+      if (initialOtherPublicId) {
+        try {
+          await openThreadWith(initialOtherPublicId);
+          return;
+        } catch (err) {
+          toast.error(getApiErrorMessage(err, "Impossible d'ouvrir la conversation"));
+        }
+      }
+
       const firstThread = (t || [])[0] || null;
       if (firstThread?.id) {
         setSelectedThreadId(firstThread.id);
@@ -275,6 +524,183 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
   }, []);
 
   useEffect(() => {
+    if (!adminGroupEnabled) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await listAdminGroupMessages();
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setAdminGroupLastMessage(list.length > 0 ? list[list.length - 1] : null);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminGroupEnabled]);
+
+  const buildMessagingWsUrl = () => {
+    const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/+$/, "");
+    const wsBase = apiBase.startsWith("https://")
+      ? apiBase.replace(/^https:\/\//, "wss://")
+      : apiBase.replace(/^http:\/\//, "ws://");
+    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(token || ""))}`;
+  };
+
+  const upsertThreadSummary = (prev, summary) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const id = String(summary?.id || "");
+    if (!id) return next;
+    const idx = next.findIndex((t) => String(t?.id || "") === id);
+    if (idx >= 0) {
+      next[idx] = { ...next[idx], ...summary };
+      const [item] = next.splice(idx, 1);
+      next.unshift(item);
+      return next;
+    }
+    return [summary, ...next];
+  };
+
+  const upsertMessage = (prev, msg) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const id = String(msg?.id || "");
+    if (!id) return next;
+    if (next.some((m) => String(m?.id || "") === id)) return next;
+    next.push(msg);
+    next.sort((a, b) => new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0));
+    return next;
+  };
+
+  useEffect(() => {
+    if (!token) return;
+
+    let disposed = false;
+
+    const cleanupSocket = () => {
+      if (wsReconnectRef.current) {
+        clearTimeout(wsReconnectRef.current);
+        wsReconnectRef.current = null;
+      }
+      try {
+        wsRef.current?.close?.(1000, "page_unload");
+      } catch {
+        // ignore
+      } finally {
+        wsRef.current = null;
+      }
+    };
+
+    const connect = () => {
+      cleanupSocket();
+      const url = buildMessagingWsUrl();
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (disposed) return;
+        setWsConnected(true);
+      };
+
+      ws.onclose = () => {
+        if (disposed) return;
+        setWsConnected(false);
+        wsReconnectRef.current = setTimeout(() => {
+          if (!disposed) connect();
+        }, 1500);
+      };
+
+      ws.onmessage = async (event) => {
+        if (disposed) return;
+        let data = null;
+        try {
+          data = JSON.parse(event?.data || "null");
+        } catch {
+          return;
+        }
+        if (!data || !data.type) return;
+
+        if (data.type === "PRESENCE_UPDATED") {
+          const presence = data.presence || null;
+          const publicId = presence?.userPublicId ? String(presence.userPublicId) : "";
+          if (!publicId) return;
+          const online = Boolean(presence?.online);
+          const incomingLastSeenAt = presence?.lastSeenAt || null;
+
+          setContacts((prev) => {
+            const list = Array.isArray(prev) ? prev : [];
+            return list.map((c) => {
+              if (String(c?.userPublicId || "") !== publicId) return c;
+              const lastSeenAt = incomingLastSeenAt ?? c?.lastSeenAt ?? null;
+              return { ...c, online, lastSeenAt };
+            });
+          });
+
+          setThreads((prev) => {
+            const list = Array.isArray(prev) ? prev : [];
+            return list.map((t) => {
+              if (String(t?.otherUserPublicId || "") !== publicId) return t;
+              const otherLastSeenAt = incomingLastSeenAt ?? t?.otherLastSeenAt ?? null;
+              return { ...t, otherOnline: online, otherLastSeenAt };
+            });
+          });
+          return;
+        }
+
+        if (data.type === "ADMIN_GROUP_MESSAGE_CREATED") {
+          const msg = data.message || null;
+          if (!msg?.id) return;
+          setAdminGroupLastMessage(msg);
+
+          const currentThreadId = selectedThreadIdRef.current;
+          if (String(currentThreadId || "") === ADMIN_GROUP_THREAD_ID) {
+            setMessages((prev) => upsertMessage(prev, msg));
+          }
+          return;
+        }
+
+        if (data.type !== "MESSAGE_CREATED") return;
+
+        const summary = data.thread || null;
+        const msg = data.message || null;
+
+        if (summary?.id) setThreads((prev) => upsertThreadSummary(prev, summary));
+
+        const currentThreadId = selectedThreadIdRef.current;
+        const currentMyPublicId = myPublicIdRef.current;
+
+        if (msg?.threadId && String(msg.threadId) === String(currentThreadId)) {
+          setMessages((prev) => upsertMessage(prev, msg));
+
+          const fromOther =
+            msg?.senderPublicId &&
+            currentMyPublicId &&
+            String(msg.senderPublicId) !== String(currentMyPublicId);
+          if (fromOther) {
+            try {
+              const updated = await markMessagingThreadRead(currentThreadId);
+              if (updated?.id) setThreads((prev) => upsertThreadSummary(prev, updated));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      cleanupSocket();
+      setWsConnected(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    if (wsConnected) return;
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       await loadContactsAndThreads({ silent: true });
@@ -286,7 +712,16 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
     };
-  }, [selectedThreadId]);
+  }, [selectedThreadId, wsConnected]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (!wsConnected) return;
+    const id = setInterval(async () => {
+      await loadContactsAndThreads({ silent: true });
+    }, 15000);
+    return () => clearInterval(id);
+  }, [token, wsConnected]);
 
   useEffect(() => {
     if (!selectedThreadId) return;
@@ -377,6 +812,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
     const content = String(chatText || "").trim();
     if (!content) return;
     if (!selectedThreadId) return;
+    const isAdminGroup = String(selectedThreadId || "") === ADMIN_GROUP_THREAD_ID;
 
     const tmpId = `tmp-${Date.now()}`;
     const nowIso = new Date().toISOString();
@@ -387,7 +823,7 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
         ...(Array.isArray(prev) ? prev : []),
         {
           id: tmpId,
-          threadId: selectedThreadId,
+          threadId: isAdminGroup ? null : selectedThreadId,
           senderPublicId: null,
           senderRole: "ME",
           senderName: "Moi",
@@ -400,11 +836,15 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
       ]);
       setChatText("");
 
-      const saved = await sendMessagingThreadMessage(selectedThreadId, content);
+      const saved = isAdminGroup ? await sendAdminGroupMessage(content) : await sendMessagingThreadMessage(selectedThreadId, content);
       setMessages((prev) =>
         (Array.isArray(prev) ? prev : []).map((m) => (String(m?.id) === String(tmpId) ? { ...saved, clientStatus: "SENT" } : m))
       );
-      await loadContactsAndThreads({ silent: true });
+      if (isAdminGroup) {
+        setAdminGroupLastMessage(saved);
+      } else {
+        await loadContactsAndThreads({ silent: true });
+      }
     } catch (err) {
       setMessages((prev) => (Array.isArray(prev) ? prev : []).filter((m) => String(m?.id) !== String(tmpId)));
       setChatText(content);
@@ -415,19 +855,51 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
   };
 
   const contactLabel = (c) => {
+    if (c?.isAdminGroup) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 1, lineHeight: 1.1 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, lineHeight: 1.1 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, lineHeight: 1.1, color: "#111827" }}>{c?.name || "-"}</div>
+            {c?.badge ? <span className="context-badge">{c.badge}</span> : null}
+          </div>
+          <div style={{ fontSize: 11, lineHeight: 1.1, color: "#64748b" }}>Groupe de discussion admins</div>
+        </div>
+      );
+    }
     const badge = c?.badge || "";
     const role = String(c?.role || "").toUpperCase();
-    const meta =
-      role === "EMPLOYEE"
-        ? (String(c?.meta || "").trim() || "Employé du dentiste")
-        : "";
+    const effectiveOnline = computeEffectiveOnline({ online: c?.online, lastSeenAt: c?.lastSeenAt });
+    const presenceText = getPresenceText({ online: effectiveOnline, lastSeenAt: c?.lastSeenAt });
+    const meta = role === "EMPLOYEE" ? (String(c?.meta || "").trim() || "Employé du dentiste") : "";
     return (
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>{c?.name || "-"}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 1, lineHeight: 1.1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, lineHeight: 1.1 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, lineHeight: 1.1, color: "#111827" }}>{c?.name || "-"}</div>
           {badge ? <span className="context-badge">{badge}</span> : null}
         </div>
-        {meta ? <div style={{ marginTop: 6, fontSize: 11, color: "#64748b" }}>{meta}</div> : null}
+        {meta ? <div style={{ fontSize: 11, lineHeight: 1.1, color: "#64748b" }}>{meta}</div> : null}
+        <div
+          style={{
+            fontSize: 11,
+            lineHeight: 1.1,
+            color: effectiveOnline ? "#16a34a" : "#64748b",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: effectiveOnline ? "#22c55e" : "#94a3b8",
+              flex: "0 0 auto",
+            }}
+          />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{presenceText}</span>
+        </div>
       </div>
     );
   };
@@ -445,47 +917,51 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
           <div className="cp-admin-support-panel-header">
             <div style={{ fontWeight: 800, marginBottom: 10 }}>Conversations</div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <div style={{ position: "relative", flex: 1 }}>
-                <Search
-                  size={16}
-                  style={{
-                    position: "absolute",
-                    left: 14,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#64748b",
-                    pointerEvents: "none",
-                  }}
-                />
+              <div className="search-group" style={{ flex: 1, maxWidth: "none" }}>
+                <Search className="search-icon" size={16} />
                 <input
+                  type="text"
                   value={conversationQuery}
                   onChange={(e) => setConversationQuery(e.target.value)}
-                  placeholder="Rechercher…"
-                  className="w-full pr-10 py-2 rounded-xl border border-gray-300"
-                  style={{ paddingLeft: 35 }}
+                  placeholder="Rechercher..."
+                  style={{ paddingRight: String(conversationQuery || "").trim() ? 36 : undefined }}
                 />
                 {String(conversationQuery || "").trim() ? (
                   <button
                     type="button"
                     onClick={() => setConversationQuery("")}
                     aria-label="Effacer"
-                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: "#64748b" }}
+                    style={{
+                      position: "absolute",
+                      right: 12,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      border: "none",
+                      background: "transparent",
+                      color: "#64748b",
+                      padding: 0,
+                      cursor: "pointer",
+                    }}
                   >
                     <X size={16} />
                   </button>
                 ) : null}
               </div>
 
-              <div style={{ minWidth: 180 }}>
-                <ModernDropdown
-                  value={contactType}
-                  options={contactTypeOptions}
-                  onChange={(v) => setContactType(v)}
-                  ariaLabel="Filtrer les conversations"
-                  fullWidth
-                  triggerClassName="px-3 py-2 rounded-xl border border-gray-300"
-                />
-              </div>
+              {!hideContactTypeSelector ? (
+                <div style={{ minWidth: 180 }}>
+                  <ModernDropdown
+                    value={effectiveContactType}
+                    options={contactTypeOptions}
+                    onChange={(v) => {
+                      if (forcedContactType) return;
+                      setContactType(v);
+                    }}
+                    ariaLabel="Filtrer les conversations"
+                    fullWidth
+                  />
+                </div>
+              ) : null}
             </div>
             <div style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>{filteredContacts.length} résultat(s)</div>
           </div>
@@ -496,12 +972,25 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
               </div>
             ) : (
               (filteredContacts || []).map((c) => {
-                const key = String(c?.userPublicId || "");
-                const thread = threadsByOtherId[key] || null;
-                const unread = Number(thread?.unreadCount || 0);
-                const isActive =
-                  (thread?.id && String(thread.id) === String(selectedThreadId)) ||
-                  (!thread?.id && String(selectedOtherPublicId || "") === key);
+                 const key = String(c?.userPublicId || "");
+                 const isAdminGroup = !!c?.isAdminGroup;
+                 const thread = isAdminGroup ? null : threadsByOtherId[key] || null;
+                 const unread = isAdminGroup ? 0 : Number(thread?.unreadCount || 0);
+                 const dt = isAdminGroup ? formatDateTime(adminGroupLastMessage?.createdAt) : formatDateTime(thread?.lastMessageAt);
+                 const senderLabel = isAdminGroup
+                   ? (adminGroupLastMessage?.senderName || "Quelqu'un")
+                   : thread?.lastMessageFromViewer
+                     ? "Vous"
+                     : (c?.name || thread?.otherName || "Quelqu'un");
+                 const preview = isAdminGroup
+                   ? (adminGroupLastMessage?.content ? `${senderLabel} : ${adminGroupLastMessage.content}` : "Nouvelle conversation")
+                   : thread?.lastMessagePreview
+                     ? `${senderLabel} : ${thread.lastMessagePreview}`
+                     : "Nouvelle conversation";
+                 const isActive = isAdminGroup
+                   ? isAdminGroupSelected
+                   : (thread?.id && String(thread.id) === String(selectedThreadId)) ||
+                     (!thread?.id && String(selectedOtherPublicId || "") === key);
 
                 return (
                   <button
@@ -520,12 +1009,14 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
                   >
                     {contactLabel(c)}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 6 }}>
-                      <div style={{ fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {thread?.lastMessagePreview || "Nouvelle conversation"}
+                      <div style={{ fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                        {preview}
                       </div>
-                      {unread > 0 ? <span className="cp-unread-pill">{unread > 99 ? "99+" : unread}</span> : null}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
+                        {dt ? <span style={{ fontSize: 11, color: "#94a3b8" }}>{dt}</span> : null}
+                        {unread > 0 ? <span className="cp-unread-pill">{unread > 99 ? "+99" : unread}</span> : null}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>{formatDateTime(thread?.lastMessageAt)}</div>
                   </button>
                 );
               })
@@ -552,21 +1043,24 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
                       }}
                       title="Ouvrir le profil"
                     >
-                      {selectedThread?.otherName || "Conversation"}
+                      {isAdminGroupSelected ? "Tous les admins" : selectedThread?.otherName || "Conversation"}
                     </button>
                   ) : (
-                    <div style={{ fontWeight: 800 }}>{selectedThread?.otherName || "Conversation"}</div>
+                    <div style={{ fontWeight: 800 }}>{isAdminGroupSelected ? "Tous les admins" : selectedThread?.otherName || "Conversation"}</div>
                   )}
-                  {selectedThread?.otherBadge ? <span className="context-badge">{selectedThread.otherBadge}</span> : null}
+                  {isAdminGroupSelected ? (
+                    <span className="context-badge">Groupe</span>
+                  ) : selectedThread?.otherBadge ? (
+                    <span className="context-badge">{selectedThread.otherBadge}</span>
+                  ) : null}
                 </div>
 
                 <div style={{ position: "relative" }} ref={threadMenuRef}>
                   <button
                     type="button"
-                    className="btn-secondary-app"
+                    className="cp-icon-btn cp-icon-btn--ghost"
                     aria-label="Options"
                     onClick={() => setThreadMenuOpen((v) => !v)}
-                    style={{ padding: "8px 10px" }}
                   >
                     <MoreVertical size={16} />
                   </button>
@@ -601,14 +1095,44 @@ const MessagingCenter = ({ title = "Messagerie", subtitle = "Discutez avec votre
                   ) : null}
                 </div>
               </div>
-            {(() => {
-              const otherId = selectedThread?.otherUserPublicId ? String(selectedThread.otherUserPublicId) : "";
-              const c = otherId ? (contacts || []).find((x) => String(x?.userPublicId || "") === otherId) : null;
-              const role = String(c?.role || "").toUpperCase();
-              if (role !== "EMPLOYEE") return null;
-              const meta = String(c?.meta || "").trim() || "Employé du dentiste";
-              return <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>{meta}</div>;
-            })()}
+              {(() => {
+                const otherId = selectedThread?.otherUserPublicId ? String(selectedThread.otherUserPublicId) : "";
+                if (!otherId) return null;
+                const c = (contacts || []).find((x) => String(x?.userPublicId || "") === otherId) || null;
+                const online = c?.online ?? selectedThread?.otherOnline ?? false;
+                const lastSeenAt = c?.lastSeenAt ?? selectedThread?.otherLastSeenAt ?? null;
+                const effectiveOnline = computeEffectiveOnline({ online, lastSeenAt });
+                const text = getPresenceText({ online: effectiveOnline, lastSeenAt });
+                const role = String(c?.role || "").toUpperCase();
+                const meta = role === "EMPLOYEE" ? (String(c?.meta || "").trim() || "Employé du dentiste") : "";
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, lineHeight: 1.1 }}>
+                    {meta ? <div style={{ fontSize: 12, lineHeight: 1.1, color: "#64748b" }}>{meta}</div> : null}
+                    <div
+                      style={{
+                        fontSize: 12,
+                        lineHeight: 1.1,
+                        color: effectiveOnline ? "#16a34a" : "#64748b",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: effectiveOnline ? "#22c55e" : "#94a3b8",
+                          flex: "0 0 auto",
+                        }}
+                      />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
             {messageSearchOpen ? (
               <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>

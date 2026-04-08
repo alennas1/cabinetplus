@@ -81,6 +81,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 1. PUBLIC ENDPOINTS
                 .requestMatchers("/auth/**").permitAll()
+                // WebSocket handshake endpoints are authenticated by the WebSocket handshake interceptor (JWT in query/header)
+                .requestMatchers("/ws/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/public/patients/*/fiche-pdf").permitAll()
                 .requestMatchers("/api/verify/**").permitAll() // KEPT FOR PHONE VERIFICATION
                 .requestMatchers("/error").permitAll()
@@ -107,8 +109,18 @@ public class SecurityConfig {
                 // 3b. LAB PORTAL ENDPOINTS
                 .requestMatchers("/api/lab/**").hasRole("LAB")
 
-                // Messaging (dentist + employees + labs)
-                .requestMatchers("/api/messaging/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")
+                // Admin internal group messaging
+                .requestMatchers("/api/messaging/admin-group/**").hasRole("ADMIN")
+
+                // Messaging (clinic + labs + admins internal)
+                .requestMatchers("/api/messaging/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB", "ADMIN")
+
+                // Web Push subscription management (dentist + employees + labs)
+                .requestMatchers("/api/push/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")
+
+                // Support & feedback (clinic + labs)
+                .requestMatchers("/api/support/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")
+                .requestMatchers("/api/feedback/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")
 
                 // Dentist-only operational endpoints
                 .requestMatchers("/api/employees/**").hasRole("DENTIST")

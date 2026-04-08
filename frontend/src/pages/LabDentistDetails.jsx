@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CreditCard, Layers, Phone, User } from "react-feather";
+import { ArrowLeft, CreditCard, Layers, MessageCircle, Phone, User } from "react-feather";
 
 import { getApiErrorMessage } from "../utils/error";
 import { formatPhoneNumber as formatPhoneNumberDisplay } from "../utils/phone";
@@ -26,16 +26,30 @@ const LabDentistDetails = () => {
   const [summary, setSummary] = useState({ totalOwed: 0, totalPaid: 0, remainingToPay: 0 });
   const statsRequestIdRef = useRef(0);
 
-  const formatPhoneNumber = (phone) => formatPhoneNumberDisplay(phone) || "Aucun téléphone";
+  const isUuidLike = (value) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+  const isValidDentistId = isUuidLike(dentistId);
+
+  const formatPhoneNumber = (phone) => formatPhoneNumberDisplay(phone) || "Aucun tÃ©lÃ©phone";
 
   const loadDentist = async () => {
+    if (!isValidDentistId) {
+      setDentist(null);
+      setError("Dentiste introuvable");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const data = await getLabDentists();
       const list = Array.isArray(data) ? data : [];
       const found = list.find((d) => String(d?.dentistPublicId || "") === dentistId);
-      setDentist(found || null);
+      if (!found) {
+        setDentist(null);
+        setError("Dentiste introuvable");
+        return;
+      }
+      setDentist(found);
     } catch (err) {
       setError(getApiErrorMessage(err, "Erreur lors du chargement."));
       setDentist(null);
@@ -45,7 +59,7 @@ const LabDentistDetails = () => {
   };
 
   const loadSummary = async () => {
-    if (!dentistId) return;
+    if (!dentistId || !isValidDentistId) return;
     const reqId = ++statsRequestIdRef.current;
     try {
       const data = await getLabDentistSummary(dentistId);
@@ -64,7 +78,7 @@ const LabDentistDetails = () => {
   useEffect(() => {
     loadDentist();
     loadSummary();
-  }, [dentistId]);
+  }, [dentistId, isValidDentistId]);
 
   const focusParams = useMemo(() => new URLSearchParams(location.search || ""), [location.search]);
   const focusTab = String(focusParams.get("tab") || "").trim().toLowerCase();
@@ -81,6 +95,7 @@ const LabDentistDetails = () => {
   const remainingToPayValue = Number(summary?.remainingToPay || 0);
   const hasCredit = remainingToPayValue < 0;
   const displayRemaining = Math.abs(remainingToPayValue);
+  const canRenderEmbeddedTabs = Boolean(!loading && !error && dentist && isValidDentistId);
 
   return (
     <div className="patient-container">
@@ -105,7 +120,7 @@ const LabDentistDetails = () => {
             </div>
           </div>
           <div className="patient-details">
-            <div>{dentist?.dentistName || "—"}</div>
+            <div>{dentist?.dentistName || "â€”"}</div>
             <div>{formatPhoneNumber(dentist?.phoneNumber)}</div>
           </div>
         </div>
@@ -113,10 +128,22 @@ const LabDentistDetails = () => {
         <div className="patient-right">
           <div className="patient-stats">
             <div className="stat-box stat-facture">Facture: {formatMoneyWithLabel(summary.totalOwed)}</div>
-            <div className="stat-box stat-paiement">Payé: {formatMoneyWithLabel(summary.totalPaid)}</div>
+            <div className="stat-box stat-paiement">PayÃ©: {formatMoneyWithLabel(summary.totalPaid)}</div>
             <div className="stat-box stat-reste">
-              {hasCredit ? "Crédit" : "Reste"}: {formatMoneyWithLabel(displayRemaining)}
+              {hasCredit ? "CrÃ©dit" : "Reste"}: {formatMoneyWithLabel(displayRemaining)}
             </div>
+          </div>
+          <div className="patient-actions">
+            <button
+              type="button"
+              className="btn-primary-app"
+              onClick={() => {
+                if (!isValidDentistId) return;
+                navigate(`/lab/messagerie?with=${encodeURIComponent(String(dentistId))}`);
+              }}
+            >
+              <MessageCircle size={16} /> Message
+            </button>
           </div>
         </div>
       </div>
@@ -141,7 +168,7 @@ const LabDentistDetails = () => {
           <User size={16} /> Profil
         </button>
         <button className={tab === "prosthetics" ? "tab-btn active" : "tab-btn"} onClick={() => setTab("prosthetics")}>
-          <Layers size={16} /> Prothèses
+          <Layers size={16} /> ProthÃ¨ses
         </button>
         <button className={tab === "payments" ? "tab-btn active" : "tab-btn"} onClick={() => setTab("payments")}>
           <CreditCard size={16} /> Paiements
@@ -150,36 +177,34 @@ const LabDentistDetails = () => {
 
       {loading ? <div style={{ marginTop: 12, color: "#64748b" }}>Chargement...</div> : null}
 
-      {!loading && tab === "info" ? (
+      {!loading && tab === "info" && !error ? (
         <div className="profile-content">
           <div className="profile-field">
             <div className="field-label">
               <User size={16} /> Cabinet
             </div>
-            <div className="field-value">{dentist?.clinicName || "—"}</div>
+            <div className="field-value">{dentist?.clinicName || "â€”"}</div>
           </div>
           <div className="profile-field">
             <div className="field-label">
               <User size={16} /> Dentiste
             </div>
-            <div className="field-value">{dentist?.dentistName || "—"}</div>
+            <div className="field-value">{dentist?.dentistName || "â€”"}</div>
           </div>
           <div className="profile-field">
             <div className="field-label">
-              <Phone size={16} /> Téléphone
+              <Phone size={16} /> TÃ©lÃ©phone
             </div>
             <div className="field-value">{formatPhoneNumber(dentist?.phoneNumber)}</div>
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: "#64748b" }}>
-            Les onglets Prothèses et Paiements affichent uniquement les éléments liés à ce dentiste.
+            Les onglets ProthÃ¨ses et Paiements affichent uniquement les Ã©lÃ©ments liÃ©s Ã  ce dentiste.
           </div>
         </div>
       ) : null}
 
-      {!loading && tab === "prosthetics" ? (
-        <LabProsthetics dentistId={dentistId} embedded focusId={focusProthesisId} />
-      ) : null}
-      {!loading && tab === "payments" ? <LabPayments dentistId={dentistId} embedded focusId={focusPaymentId} /> : null}
+      {canRenderEmbeddedTabs && tab === "prosthetics" ? <LabProsthetics dentistId={dentistId} embedded focusId={focusProthesisId} /> : null}
+      {canRenderEmbeddedTabs && tab === "payments" ? <LabPayments dentistId={dentistId} embedded focusId={focusPaymentId} /> : null}
     </div>
   );
 };

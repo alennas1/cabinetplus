@@ -3,10 +3,12 @@ package com.cabinetplus.backend.controllers;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.LaboratoryService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,8 @@ class AuthControllerTest {
         authenticationManager = mock(AuthenticationManager.class);
         jwtUtil = mock(JwtUtil.class);
         userRepository = mock(UserRepository.class);
+        LaboratoryRepository laboratoryRepository = mock(LaboratoryRepository.class);
+        LaboratoryService laboratoryService = mock(LaboratoryService.class);
         refreshTokenRepository = mock(RefreshTokenRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         AuditService auditService = mock(AuditService.class);
@@ -58,6 +62,8 @@ class AuthControllerTest {
                 authenticationManager,
                 jwtUtil,
                 userRepository,
+                laboratoryRepository,
+                laboratoryService,
                 refreshTokenRepository,
                 passwordEncoder,
                 auditService,
@@ -181,6 +187,8 @@ class AuthControllerTest {
         AuthenticationManager authenticationManager = mock(AuthenticationManager.class);
         JwtUtil jwtUtil = mock(JwtUtil.class);
         UserRepository userRepository = mock(UserRepository.class);
+        LaboratoryRepository laboratoryRepository = mock(LaboratoryRepository.class);
+        LaboratoryService laboratoryService = mock(LaboratoryService.class);
         RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         AuditService auditService = mock(AuditService.class);
@@ -192,6 +200,8 @@ class AuthControllerTest {
                 authenticationManager,
                 jwtUtil,
                 userRepository,
+                laboratoryRepository,
+                laboratoryService,
                 refreshTokenRepository,
                 passwordEncoder,
                 auditService,

@@ -6,6 +6,7 @@ import com.cabinetplus.backend.models.Plan;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.EmployeeService;
 import com.cabinetplus.backend.services.PlanLimitService;
 import com.cabinetplus.backend.services.PlanService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
@@ -49,6 +50,7 @@ class UserControllerTest {
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
         AuditService auditService = mock(AuditService.class);
+        EmployeeService employeeService = mock(EmployeeService.class);
         RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
 
         UserController controller = new UserController(
@@ -58,6 +60,7 @@ class UserControllerTest {
                 planLimitService,
                 subscriptionService,
                 auditService,
+                employeeService,
                 refreshTokenRepository,
                 publicIdResolutionService
         );

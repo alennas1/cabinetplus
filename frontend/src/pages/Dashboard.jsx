@@ -20,11 +20,13 @@ export default function DashboardUpdated() {
     if (patient?.firstname || patient?.lastname) {
       return {
         id: patient.id ?? appointment?.patientId ?? null,
+        publicId: patient.publicId ?? null,
         fullname: `${patient.firstname ?? ""} ${patient.lastname ?? ""}`.trim() || "Inconnu",
       };
     }
     return {
       id: patient?.id ?? appointment?.patientId ?? null,
+      publicId: patient?.publicId ?? null,
       fullname: "Inconnu",
     };
   };
@@ -306,12 +308,12 @@ export default function DashboardUpdated() {
                       </div>
                     </div>
 
-                    {patientInfo.id && (
+                    {patientInfo.publicId && (
                       <button
                         className="action-btn view"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/patients/${patientInfo.id}`);
+                          navigate(`/patients/${patientInfo.publicId}`);
                         }}
                         title="Voir le patient"
                       >

@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import com.cabinetplus.backend.enums.SupportMessageKind;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.models.SupportMessage;
 
@@ -13,7 +14,13 @@ public interface SupportMessageRepository extends JpaRepository<SupportMessage, 
 
     SupportMessage findFirstByThreadIdAndSender_RoleNotOrderByCreatedAtDesc(Long threadId, UserRole role);
 
-    long countByThreadIdAndSender_Role(Long threadId, UserRole role);
+    SupportMessage findFirstByThreadIdAndKindOrderByCreatedAtDescIdDesc(Long threadId, SupportMessageKind kind);
 
-    long countByThreadIdAndSender_RoleAndCreatedAtAfter(Long threadId, UserRole role, LocalDateTime createdAt);
+    long countByThreadIdAndSender_RoleAndKind(Long threadId, UserRole role, SupportMessageKind kind);
+
+    long countByThreadIdAndSender_RoleAndKindAndCreatedAtAfter(Long threadId, UserRole role, SupportMessageKind kind, LocalDateTime createdAt);
+
+    long countByThreadIdAndSender_RoleNotAndKind(Long threadId, UserRole role, SupportMessageKind kind);
+
+    long countByThreadIdAndSender_RoleNotAndKindAndCreatedAtAfter(Long threadId, UserRole role, SupportMessageKind kind, LocalDateTime createdAt);
 }

@@ -1,5 +1,6 @@
 package com.cabinetplus.backend.dto;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record MessagingContactResponse(
@@ -9,6 +10,9 @@ public record MessagingContactResponse(
         String role,
         String badge,
         String meta,
-        Long ownerDentistId
+        Long ownerDentistId,
+        boolean online,
+        LocalDateTime lastSeenAt,
+        UUID detailsPublicId
         ) {
 }

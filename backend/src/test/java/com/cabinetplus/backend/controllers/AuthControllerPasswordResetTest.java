@@ -18,14 +18,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import com.cabinetplus.backend.enums.ClinicAccessRole;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.models.User;
+import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.repositories.RefreshTokenRepository;
 import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.security.JwtUtil;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.LaboratoryService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 
 class AuthControllerPasswordResetTest {
@@ -38,6 +39,8 @@ class AuthControllerPasswordResetTest {
         AuthenticationManager authManager = mock(AuthenticationManager.class);
         JwtUtil jwtUtil = mock(JwtUtil.class);
         userRepo = mock(UserRepository.class);
+        LaboratoryRepository laboratoryRepository = mock(LaboratoryRepository.class);
+        LaboratoryService laboratoryService = mock(LaboratoryService.class);
         RefreshTokenRepository refreshRepo = mock(RefreshTokenRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         AuditService auditService = mock(AuditService.class);
@@ -49,6 +52,8 @@ class AuthControllerPasswordResetTest {
                 authManager,
                 jwtUtil,
                 userRepo,
+                laboratoryRepository,
+                laboratoryService,
                 refreshRepo,
                 passwordEncoder,
                 auditService,
@@ -67,8 +72,7 @@ class AuthControllerPasswordResetTest {
     void passwordResetSendIsForbiddenForEmployeeAccounts() throws Exception {
         User employee = new User();
         employee.setId(99L);
-        employee.setRole(UserRole.DENTIST);
-        employee.setClinicAccessRole(ClinicAccessRole.ASSISTANT);
+        employee.setRole(UserRole.EMPLOYEE);
         employee.setPhoneNumber("0550000000");
 
         when(userRepo.findFirstByPhoneNumberOrderByIdAsc("0550000000")).thenReturn(Optional.of(employee));
@@ -85,8 +89,7 @@ class AuthControllerPasswordResetTest {
     void passwordResetConfirmIsForbiddenForEmployeeAccounts() throws Exception {
         User employee = new User();
         employee.setId(99L);
-        employee.setRole(UserRole.DENTIST);
-        employee.setClinicAccessRole(ClinicAccessRole.RECEPTION);
+        employee.setRole(UserRole.EMPLOYEE);
         employee.setPhoneNumber("0550000000");
 
         when(userRepo.findFirstByPhoneNumberOrderByIdAsc("0550000000")).thenReturn(Optional.of(employee));

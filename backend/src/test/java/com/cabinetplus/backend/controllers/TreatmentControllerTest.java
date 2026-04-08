@@ -16,6 +16,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 import com.cabinetplus.backend.services.AuditService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.TreatmentService;
 import com.cabinetplus.backend.services.UserService;
@@ -32,12 +33,14 @@ class TreatmentControllerTest {
         UserService userService = mock(UserService.class);
         AuditService auditService = mock(AuditService.class);
         PublicIdResolutionService publicIdResolutionService = mock(PublicIdResolutionService.class);
+        CancellationSecurityService cancellationSecurityService = mock(CancellationSecurityService.class);
 
         TreatmentController controller = new TreatmentController(
                 treatmentService,
                 userService,
                 auditService,
-                publicIdResolutionService
+                publicIdResolutionService,
+                cancellationSecurityService
         );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();

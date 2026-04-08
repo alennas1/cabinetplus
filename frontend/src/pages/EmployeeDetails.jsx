@@ -9,6 +9,7 @@ import {
   X,
   ArrowLeft,
   Check,
+  MessageCircle,
 } from "react-feather";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -508,6 +509,18 @@ const EmployeeDetails = () => {
               Salaire: {employee.salary ? formatMoneyWithLabel(employee.salary) : "—"}
             </div>
             <div className={getStatusClass(employee.status)}>{translateStatus(employee.status)}</div>
+          </div>
+          <div className="patient-actions">
+            <button
+              type="button"
+              className="btn-primary-app"
+              onClick={() => {
+                if (!employee?.publicId) return;
+                navigate(`/messagerie?role=EMPLOYEE&details=${encodeURIComponent(String(employee.publicId))}`);
+              }}
+            >
+              <MessageCircle size={16} /> Message
+            </button>
           </div>
         </div>
       </div>

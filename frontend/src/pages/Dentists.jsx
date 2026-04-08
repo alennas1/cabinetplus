@@ -94,8 +94,12 @@ const Dentists = () => {
   }, [debouncedSearch, filterStatus]);
 
   const handleView = (dentist) => {
-    const urlId = dentist?.publicId || dentist?.id;
-    navigate(`/dentists/${urlId}`);
+    const publicId = dentist?.publicId ? String(dentist.publicId) : "";
+    if (!publicId) {
+      toast.error("Impossible d'ouvrir le dentiste (publicId manquant).");
+      return;
+    }
+    navigate(`/dentists/${publicId}`);
   };
 
   const filteredDentists = dentists;

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Send, Image as ImageIcon } from "react-feather";
 import { toast } from "react-toastify";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
@@ -27,21 +29,29 @@ const FEEDBACK_CATEGORIES = [
 ];
 
 const SupportCenter = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { token } = useSelector((state) => state.auth || {});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("support");
 
   // Support chat
   const [threads, setThreads] = useState([]);
   const [selectedThreadId, setSelectedThreadId] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
+  const [messageQuery, setMessageQuery] = useState("");
   const [imagePreview, setImagePreview] = useState(null); // { url, alt }
   const chatEndRef = useRef(null);
   const pollRef = useRef(null);
   const chatScrollRef = useRef(null);
   const stickToBottomRef = useRef(true);
   const forceScrollOnceRef = useRef(true);
+  const wsRef = useRef(null);
+  const wsReconnectRef = useRef(null);
+  const selectedThreadIdRef = useRef(null);
   const fileInputRef = useRef(null);
   const [attachmentUrlsByMessageId, setAttachmentUrlsByMessageId] = useState({});
   const attachmentUrlsRef = useRef({});
@@ -59,6 +69,55 @@ const SupportCenter = () => {
     list.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
     return list;
   }, [messages]);
+
+  const selectedThread = useMemo(() => {
+    const list = Array.isArray(threads) ? threads : [];
+    if (selectedThreadId) {
+      return list.find((t) => String(t?.id || "") === String(selectedThreadId)) || null;
+    }
+    return list[0] || null;
+  }, [threads, selectedThreadId]);
+
+  const filteredMessages = useMemo(() => {
+    const q = String(messageQuery || "").trim().toLowerCase();
+    const list = Array.isArray(sortedMessages) ? sortedMessages : [];
+    if (!q) return list;
+    return list.filter((m) => String(m?.content || "").toLowerCase().includes(q));
+  }, [sortedMessages, messageQuery]);
+
+  useEffect(() => {
+    selectedThreadIdRef.current = selectedThreadId;
+  }, [selectedThreadId]);
+
+  const buildMessagingWsUrl = () => {
+    const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/+$/, "");
+    const wsBase = apiBase.startsWith("https://")
+      ? apiBase.replace(/^https:\/\//, "wss://")
+      : apiBase.replace(/^http:\/\//, "ws://");
+    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(token || ""))}`;
+  };
+
+  const upsertThreadSummary = (prev, summary) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const id = String(summary?.id || "");
+    if (!id) return next;
+    const idx = next.findIndex((t) => String(t?.id || "") === id);
+    if (idx >= 0) {
+      next[idx] = { ...next[idx], ...summary };
+      return next;
+    }
+    return [summary, ...next];
+  };
+
+  const upsertMessage = (prev, msg) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const id = String(msg?.id || "");
+    if (!id) return next;
+    if (next.some((m) => String(m?.id || "") === id)) return next;
+    next.push(msg);
+    next.sort((a, b) => new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0));
+    return next;
+  };
 
   const loadThreads = async ({ silent = false } = {}) => {
     try {
@@ -130,6 +189,81 @@ const SupportCenter = () => {
       await ensureSingleThread();
     })();
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let disposed = false;
+
+    const cleanupSocket = () => {
+      if (wsReconnectRef.current) {
+        clearTimeout(wsReconnectRef.current);
+        wsReconnectRef.current = null;
+      }
+      try {
+        wsRef.current?.close?.(1000, "page_unload");
+      } catch {
+        // ignore
+      } finally {
+        wsRef.current = null;
+      }
+    };
+
+    const connect = () => {
+      cleanupSocket();
+      const url = buildMessagingWsUrl();
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (disposed) return;
+        setWsConnected(true);
+      };
+
+      ws.onclose = () => {
+        if (disposed) return;
+        setWsConnected(false);
+        wsReconnectRef.current = setTimeout(() => {
+          if (!disposed) connect();
+        }, 1500);
+      };
+
+      ws.onmessage = (event) => {
+        if (disposed) return;
+        let data = null;
+        try {
+          data = JSON.parse(event?.data || "null");
+        } catch {
+          return;
+        }
+        if (!data || !data.type) return;
+
+        if (data.type !== "SUPPORT_MESSAGE_CREATED" && data.type !== "SUPPORT_THREAD_UPDATED" && data.type !== "SUPPORT_CLAIM_UPDATED") {
+          return;
+        }
+
+        const summary = data.thread || null;
+        const msg = data.message || null;
+        const currentThreadId = selectedThreadIdRef.current;
+
+        if (summary?.id) {
+          setThreads((prev) => upsertThreadSummary(prev, summary));
+        }
+
+        if (msg?.threadId && currentThreadId && String(msg.threadId) === String(currentThreadId) && data.type !== "SUPPORT_THREAD_UPDATED") {
+          setMessages((prev) => upsertMessage(prev, msg));
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      cleanupSocket();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -399,21 +533,23 @@ const SupportCenter = () => {
       />
 
       <div className="cp-support-content">
-        <div className="tab-buttons" style={{ marginBottom: 14 }}>
-          <button
-            type="button"
-            className={activeTab === "support" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("support")}
-          >
-            Support
-          </button>
-          <button
-            type="button"
-            className={activeTab === "feedback" ? "tab-btn active" : "tab-btn"}
-            onClick={() => setActiveTab("feedback")}
-          >
-            Feedback
-          </button>
+        <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <div className="tab-buttons" style={{ marginBottom: 0 }}>
+            <button
+              type="button"
+              className={activeTab === "support" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setActiveTab("support")}
+            >
+              Support
+            </button>
+            <button
+              type="button"
+              className={activeTab === "feedback" ? "tab-btn active" : "tab-btn"}
+              onClick={() => setActiveTab("feedback")}
+            >
+              Feedback
+            </button>
+          </div>
         </div>
         {/* Support */}
         <div className="controls-card cp-support-panel" hidden={activeTab !== "support"}>
@@ -497,22 +633,46 @@ const SupportCenter = () => {
                 >
                   Retour
                 </button>
-              </div>
+               </div>
 
-              <div
-                ref={chatScrollRef}
-                onScroll={(e) => {
-                  const el = e.currentTarget;
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                 <div className="text-xs text-gray-600">
+                   {selectedThread?.claimedByAdminName
+                     ? `Agent: ${selectedThread.claimedByAdminName}`
+                      : "En attente d'un agent..."}
+                 </div>
+                 <div className="text-xs text-gray-400">{wsConnected ? "WS" : "offline"}</div>
+               </div>
+
+               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                 <input
+                   value={messageQuery}
+                   onChange={(e) => setMessageQuery(e.target.value)}
+                   placeholder="Search in conversation..."
+                   className="w-full px-3 py-2 rounded-xl border border-gray-300"
+                 />
+                 {messageQuery ? (
+                   <button type="button" className="btn-secondary-app" onClick={() => setMessageQuery("")}>
+                     Clear
+                   </button>
+                 ) : null}
+               </div>
+
+               <div
+                 ref={chatScrollRef}
+                 onScroll={(e) => {
+                   const el = e.currentTarget;
                   const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
                   stickToBottomRef.current = distance <= 80;
                   if (stickToBottomRef.current) setNewMsgCount(0);
                 }}
                 className="cp-chat-box"
               >
-                {sortedMessages.length === 0 ? (
+                {filteredMessages.length === 0 ? (
                   <div className="text-sm text-gray-600">Dites bonjour à l’admin.</div>
                 ) : (
-                  sortedMessages.map((m, idx) => {
+                  filteredMessages.map((m, idx) => {
+                    const isSystem = String(m?.kind || "").toUpperCase() === "SYSTEM";
                     const isAdmin = String(m.senderRole || "").toUpperCase() === "ADMIN";
                     const isMine = !isAdmin;
                     const isSending = String(m?.clientStatus || "").toUpperCase() === "SENDING";
@@ -521,9 +681,38 @@ const SupportCenter = () => {
                     const checkLabel = isSending ? "✓" : "✓✓";
                      const attachmentUrl = m?.attachmentLocalUrl || attachmentUrlsByMessageId[String(m?.id)];
                      const dayKey = getDayKey(m?.createdAt);
-                     const prevDayKey = getDayKey(sortedMessages?.[idx - 1]?.createdAt);
+                     const prevDayKey = getDayKey(filteredMessages?.[idx - 1]?.createdAt);
                      const showDay = !!dayKey && dayKey !== prevDayKey;
                      const timeLabel = formatTime(m?.createdAt);
+
+                     if (isSystem) {
+                       return (
+                         <div key={m.id}>
+                           {showDay ? (
+                             <div className="cp-day-sep cp-day-sep--sticky">
+                               <span>{formatDayLabel(m?.createdAt)}</span>
+                             </div>
+                           ) : null}
+                           <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+                             <div
+                               style={{
+                                 fontSize: 12,
+                                 color: "#475569",
+                                 background: "#f1f5f9",
+                                 border: "1px solid #e2e8f0",
+                                 padding: "6px 10px",
+                                 borderRadius: 999,
+                                 maxWidth: "92%",
+                                 textAlign: "center",
+                                 wordBreak: "break-word",
+                               }}
+                             >
+                               {String(m.content || "").trim()}
+                             </div>
+                           </div>
+                         </div>
+                       );
+                     }
                      return (
                        <div key={m.id}>
                          {showDay ? (

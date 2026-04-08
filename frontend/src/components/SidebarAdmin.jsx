@@ -13,6 +13,7 @@ import {
   Shield,
   Sliders,
   Headphones,
+  MessageSquare,
 } from "react-feather";
 
 import { logout as logoutRedux } from "../store/authSlice";
@@ -103,6 +104,14 @@ const SidebarAdmin = () => {
       </ul>
 
       <div className="sidebar-bottom">
+        <Link
+          to="/admin/messagerie"
+          className={`sidebar-bottom-link ${isActivePath("/admin/messagerie") ? "active" : ""}`.trim()}
+        >
+          <MessageSquare size={20} />
+          <span className="link-text">Messagerie</span>
+        </Link>
+
         <Link
           to="/admin/support"
           className={`sidebar-bottom-link ${isActivePath("/admin/support") ? "active" : ""}`.trim()}

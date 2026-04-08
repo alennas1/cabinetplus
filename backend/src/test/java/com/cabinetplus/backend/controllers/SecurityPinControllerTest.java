@@ -78,7 +78,7 @@ class SecurityPinControllerTest {
     @Test
     void statusWhenUserMissingThrowsNotFound() {
         when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.empty());
-        assertThrows(ResponseStatusException.class, () -> controller.status(userDetails));
+        assertThrows(ResponseStatusException.class, () -> controller.status(false, userDetails));
     }
 
     @Test

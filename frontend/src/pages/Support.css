@@ -114,6 +114,25 @@
   padding: 0;
 }
 
+.cp-icon-btn--ghost {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #334155;
+}
+
+.cp-icon-btn--ghost:hover {
+  background: transparent;
+  opacity: 0.85;
+}
+
+.cp-icon-btn--ghost:focus,
+.cp-icon-btn--ghost:focus-visible,
+.cp-icon-btn--ghost:active {
+  background: transparent;
+  box-shadow: none;
+}
+
 .cp-msg-checks {
   display: inline-block;
   font-weight: 800;

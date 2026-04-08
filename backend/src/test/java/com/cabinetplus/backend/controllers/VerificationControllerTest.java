@@ -5,6 +5,7 @@ import com.cabinetplus.backend.repositories.UserRepository;
 import com.cabinetplus.backend.exceptions.GlobalExceptionHandler;
 
 import com.cabinetplus.backend.repositories.EmployeeRepository;
+import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.PhoneVerificationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,7 @@ class VerificationControllerTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         employeeRepository = mock(EmployeeRepository.class);
+        LaboratoryRepository laboratoryRepository = mock(LaboratoryRepository.class);
         phoneVerificationService = mock(PhoneVerificationService.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         auditService = mock(AuditService.class);
@@ -48,6 +50,7 @@ class VerificationControllerTest {
         VerificationController controller = new VerificationController(
                 userRepository,
                 employeeRepository,
+                laboratoryRepository,
                 phoneVerificationService,
                 passwordEncoder,
                 auditService,

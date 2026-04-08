@@ -539,3 +539,48 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 060-web-push-subscriptions
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 060-web-push-subscriptions.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 061-messaging-last-seen
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 061-messaging-last-seen.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 062-messaging-last-message-sender
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 062-messaging-last-message-sender.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 063-support-thread-claims
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 063-support-thread-claims.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 064-admin-group-messages
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 064-admin-group-messages.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

@@ -329,7 +329,11 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
         });
         setIsEditing(false);
         setFieldErrors({});
-        navigate("/patients/" + newPatient.id);
+        if (newPatient?.publicId) {
+          navigate("/patients/" + String(newPatient.publicId));
+        } else {
+          toast.error("Impossible d'ouvrir la fiche patient (publicId manquant).");
+        }
         return;
       }
 
@@ -562,7 +566,14 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
         </thead>
        <tbody>
   {currentPatients.map((p) => (
-    <tr key={p.id} onClick={() => navigate(`/patients/${p.publicId || p.id}`)} style={{ cursor: "pointer" }}>
+    <tr
+      key={p.id}
+      onClick={() => {
+        if (!p?.publicId) return;
+        navigate(`/patients/${String(p.publicId)}`);
+      }}
+      style={{ cursor: "pointer" }}
+    >
       <td>
         <div className="patients-name-cell">
           <span>{p.firstname || "—"}</span>
@@ -611,7 +622,8 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
           className="action-btn view"
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/patients/${p.publicId || p.id}`);
+            if (!p?.publicId) return;
+            navigate(`/patients/${String(p.publicId)}`);
           }}
           title="Voir le patient"
         >

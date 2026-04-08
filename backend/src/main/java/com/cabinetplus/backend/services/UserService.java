@@ -39,6 +39,12 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    public void touchMessagingLastSeen(User user, LocalDateTime at) {
+        if (user == null || user.getId() == null) return;
+        user.setMessagingLastSeenAt(at != null ? at : LocalDateTime.now());
+        userRepository.save(user);
+    }
+
     public List<User> findAll() {
         return userRepository.findAll();
     }

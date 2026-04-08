@@ -11,7 +11,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -43,6 +42,13 @@ public class SupportThread {
 
     private LocalDateTime clinicLastReadAt;
     private LocalDateTime adminLastReadAt;
+
+    @ManyToOne
+    @JoinColumn(name = "claimed_by_admin_id")
+    private User claimedByAdmin;
+
+    private LocalDateTime claimedAt;
+    private LocalDateTime finishedAt;
 
     @Column(columnDefinition = "TEXT")
     private String lastMessagePreview;

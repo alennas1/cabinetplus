@@ -9,6 +9,7 @@ import com.cabinetplus.backend.models.Appointment;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.AuditService;
 import com.cabinetplus.backend.services.AppointmentService;
+import com.cabinetplus.backend.services.CancellationSecurityService;
 import com.cabinetplus.backend.services.PatientService;
 import com.cabinetplus.backend.services.PublicIdResolutionService;
 import com.cabinetplus.backend.services.UserService;
@@ -41,6 +42,7 @@ class AppointmentControllerTest {
     private PatientService patientService;
     private AuditService auditService;
     private PublicIdResolutionService publicIdResolutionService;
+    private CancellationSecurityService cancellationSecurityService;
 
     @BeforeEach
     void setUp() {
@@ -49,8 +51,16 @@ class AppointmentControllerTest {
         patientService = mock(PatientService.class);
         auditService = mock(AuditService.class);
         publicIdResolutionService = mock(PublicIdResolutionService.class);
+        cancellationSecurityService = mock(CancellationSecurityService.class);
 
-        AppointmentController controller = new AppointmentController(appointmentService, userService, patientService, auditService, publicIdResolutionService);
+        AppointmentController controller = new AppointmentController(
+                appointmentService,
+                userService,
+                patientService,
+                auditService,
+                publicIdResolutionService,
+                cancellationSecurityService
+        );
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -81,7 +91,7 @@ class AppointmentControllerTest {
         when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
 
-        when(appointmentService.createAppointment(any(), eq(current)))
+        when(appointmentService.createAppointment(any(), eq(current), eq(current)))
                 .thenThrow(new ConflictException("Ce rendez-vous chevauche un autre rendez-vous"));
 
         mockMvc.perform(post("/api/appointments")
@@ -108,7 +118,7 @@ class AppointmentControllerTest {
         current.setPhoneNumber("0551111111");
         when(userService.findByPhoneNumber("0551111111")).thenReturn(Optional.of(current));
         when(userService.resolveClinicOwner(current)).thenReturn(current);
-        when(appointmentService.createAppointment(any(), eq(current)))
+        when(appointmentService.createAppointment(any(), eq(current), eq(current)))
                 .thenThrow(new NotFoundException("Patient introuvable"));
 
         mockMvc.perform(post("/api/appointments")
@@ -162,7 +172,7 @@ class AppointmentControllerTest {
         saved.setDateTimeEnd(LocalDateTime.parse("2026-03-10T12:30:00"));
         saved.setStatus(AppointmentStatus.SCHEDULED);
         saved.setNotes("ok");
-        when(appointmentService.createAppointment(any(), eq(current))).thenReturn(saved);
+        when(appointmentService.createAppointment(any(), eq(current), eq(current))).thenReturn(saved);
 
         mockMvc.perform(post("/api/appointments")
                         .with(userPrincipal("0551111111"))

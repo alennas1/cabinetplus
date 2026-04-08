@@ -41,14 +41,26 @@ public class AdminSupportController {
     @GetMapping("/threads")
     public ResponseEntity<List<SupportThreadSummaryResponse>> listThreads(@RequestParam(name = "q", required = false) String q,
                                                                           Principal principal) {
-        requireAdmin(principal);
-        return ResponseEntity.ok(supportService.adminListThreads(q));
+        User admin = requireAdmin(principal);
+        return ResponseEntity.ok(supportService.adminListThreads(q, admin));
     }
 
     @GetMapping("/threads/{threadId}/messages")
     public ResponseEntity<List<SupportMessageResponse>> getThreadMessages(@PathVariable Long threadId, Principal principal) {
-        requireAdmin(principal);
-        return ResponseEntity.ok(supportService.adminGetThreadMessages(threadId));
+        User admin = requireAdmin(principal);
+        return ResponseEntity.ok(supportService.adminGetThreadMessages(threadId, admin));
+    }
+
+    @PostMapping("/threads/{threadId}/finish")
+    public ResponseEntity<SupportThreadSummaryResponse> finishThread(@PathVariable Long threadId, Principal principal) {
+        User admin = requireAdmin(principal);
+        return ResponseEntity.ok(supportService.adminFinishThread(threadId, admin));
+    }
+
+    @PostMapping("/threads/{threadId}/takeover")
+    public ResponseEntity<SupportThreadSummaryResponse> takeOverThread(@PathVariable Long threadId, Principal principal) {
+        User admin = requireAdmin(principal);
+        return ResponseEntity.ok(supportService.adminTakeoverThread(threadId, admin));
     }
 
     @PostMapping("/threads/{threadId}/messages")

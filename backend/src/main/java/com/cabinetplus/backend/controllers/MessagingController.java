@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cabinetplus.backend.dto.MessagingContactResponse;
+import com.cabinetplus.backend.dto.MessagingPresenceResponse;
 import com.cabinetplus.backend.dto.MessagingMessageCreateRequest;
 import com.cabinetplus.backend.dto.MessagingMessageResponse;
 import com.cabinetplus.backend.dto.MessagingThreadSummaryResponse;
@@ -20,9 +21,13 @@ import com.cabinetplus.backend.exceptions.NotFoundException;
 import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.services.MessagingService;
 import com.cabinetplus.backend.services.UserService;
+import com.cabinetplus.backend.websocket.MessagingRealtimeEvent;
+import com.cabinetplus.backend.websocket.MessagingWebSocketHandler;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/messaging")
@@ -31,6 +36,7 @@ public class MessagingController {
 
     private final MessagingService messagingService;
     private final UserService userService;
+    private final MessagingWebSocketHandler messagingWebSocketHandler;
 
     @GetMapping("/contacts")
     public ResponseEntity<List<MessagingContactResponse>> contacts(Principal principal) {
@@ -70,9 +76,49 @@ public class MessagingController {
         return ResponseEntity.ok(messagingService.sendMessage(threadId, request, user));
     }
 
+    @GetMapping("/admin-group/messages")
+    public ResponseEntity<List<MessagingMessageResponse>> adminGroupMessages(Principal principal) {
+        User user = getUser(principal);
+        return ResponseEntity.ok(messagingService.listAdminGroupMessages(user));
+    }
+
+    @PostMapping("/admin-group/messages")
+    public ResponseEntity<MessagingMessageResponse> sendAdminGroupMessage(@Valid @RequestBody MessagingMessageCreateRequest request,
+                                                                          Principal principal) {
+        User user = getUser(principal);
+        return ResponseEntity.ok(messagingService.sendAdminGroupMessage(request, user));
+    }
+
+    @PostMapping("/threads/{threadId}/read")
+    public ResponseEntity<MessagingThreadSummaryResponse> markRead(@PathVariable Long threadId, Principal principal) {
+        User user = getUser(principal);
+        return ResponseEntity.ok(messagingService.markThreadRead(threadId, user));
+    }
+
+    @PostMapping("/presence/heartbeat")
+    public ResponseEntity<Void> heartbeat(Principal principal) {
+        User user = getUser(principal);
+        if (user.getId() == null || user.getPublicId() == null) return ResponseEntity.ok().build();
+
+        LocalDateTime now = LocalDateTime.now();
+        userService.touchMessagingLastSeen(user, now);
+
+        try {
+            messagingWebSocketHandler.sendToAll(new MessagingRealtimeEvent(
+                    "PRESENCE_UPDATED",
+                    null,
+                    null,
+                    new MessagingPresenceResponse(user.getPublicId(), true, now)
+            ));
+        } catch (Exception ignored) {
+            // ignore realtime presence failures
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
     private User getUser(Principal principal) {
         return userService.findByPhoneNumber(principal.getName())
                 .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
     }
 }
-

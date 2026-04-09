@@ -9,6 +9,7 @@ import ModernDropdown from "../components/ModernDropdown";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { ensureMessagingPushSubscription, isWebPushSupported } from "../pwa/pushMessaging";
+import { getAccessToken } from "../services/authService";
 import {
   ensureMessagingThreadWith,
   getMessagingThreadMessages,
@@ -201,6 +202,65 @@ const MessagingCenter = ({
     });
     return map;
   }, [threads]);
+
+  const dentistNameByUserId = useMemo(() => {
+    const map = {};
+    (contacts || []).forEach((c) => {
+      const role = String(c?.role || "").toUpperCase();
+      const userId = c?.userId != null ? String(c.userId) : "";
+      const name = String(c?.name || "").trim();
+      if (role === "DENTIST" && userId && name) {
+        map[userId] = name;
+      }
+    });
+    return map;
+  }, [contacts]);
+
+  const myDisplayName = useMemo(() => {
+    const first = String(user?.firstname || "").trim();
+    const last = String(user?.lastname || "").trim();
+    const full = `${first} ${last}`.trim();
+    if (full) return full;
+    const clinicName = String(user?.clinicName || "").trim();
+    if (clinicName) return clinicName;
+    return "";
+  }, [user?.clinicName, user?.firstname, user?.lastname]);
+
+  const extractDentistNameFromEmployeeMeta = (rawMeta) => {
+    const metaRaw = String(rawMeta || "").trim();
+    if (!metaRaw) return "";
+    // Some legacy strings are mis-encoded as "EmployÃ© ..." in the DB/API response.
+    const meta = metaRaw.replace(/Ã©/g, "é").replace(/Ã‰/g, "É");
+
+    // Examples from backend: "Employé de Dr X", "Employé du dentiste"
+    let m = /^(?:employe|employé)\s+de\s+(.+)$/i.exec(meta);
+    if (m?.[1]) return String(m[1]).trim();
+
+    m = /^(?:employe|employé)\s+du\s+dentiste\s*[:\-]?\s*(.+)$/i.exec(meta);
+    if (m?.[1]) return String(m[1]).trim();
+
+    m = /^dentiste\s*[:\-]\s*(.+)$/i.exec(meta);
+    if (m?.[1]) return String(m[1]).trim();
+
+    return "";
+  };
+
+  const getEmployeeDentistName = (contact) => {
+    if (!contact) return "";
+    const fromMeta = extractDentistNameFromEmployeeMeta(contact?.meta);
+    if (fromMeta) return fromMeta;
+
+    const ownerDentistId = contact?.ownerDentistId != null ? String(contact.ownerDentistId) : "";
+    if (ownerDentistId) {
+      const fromContacts = dentistNameByUserId[ownerDentistId];
+      if (fromContacts) return String(fromContacts).trim();
+
+      const myId = user?.id != null ? String(user.id) : "";
+      if (myId && myId === ownerDentistId && myDisplayName) return myDisplayName;
+    }
+
+    return "";
+  };
 
   const selectedThread = useMemo(() => {
     return (threads || []).find((t) => String(t?.id) === String(selectedThreadId)) || null;
@@ -542,11 +602,13 @@ const MessagingCenter = ({
   }, [adminGroupEnabled]);
 
   const buildMessagingWsUrl = () => {
+    const accessToken = getAccessToken();
+    if (!accessToken) return null;
     const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/+$/, "");
     const wsBase = apiBase.startsWith("https://")
       ? apiBase.replace(/^https:\/\//, "wss://")
       : apiBase.replace(/^http:\/\//, "ws://");
-    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(token || ""))}`;
+    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(accessToken))}`;
   };
 
   const upsertThreadSummary = (prev, summary) => {
@@ -595,6 +657,7 @@ const MessagingCenter = ({
     const connect = () => {
       cleanupSocket();
       const url = buildMessagingWsUrl();
+      if (!url) return;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -870,7 +933,8 @@ const MessagingCenter = ({
     const role = String(c?.role || "").toUpperCase();
     const effectiveOnline = computeEffectiveOnline({ online: c?.online, lastSeenAt: c?.lastSeenAt });
     const presenceText = getPresenceText({ online: effectiveOnline, lastSeenAt: c?.lastSeenAt });
-    const meta = role === "EMPLOYEE" ? (String(c?.meta || "").trim() || "Employé du dentiste") : "";
+    const dentistName = role === "EMPLOYEE" ? getEmployeeDentistName(c) : "";
+    const meta = role === "EMPLOYEE" && dentistName ? `Dentiste : ${dentistName}` : "";
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 1, lineHeight: 1.1 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, lineHeight: 1.1 }}>
@@ -1055,45 +1119,46 @@ const MessagingCenter = ({
                   ) : null}
                 </div>
 
-                <div style={{ position: "relative" }} ref={threadMenuRef}>
-                  <button
-                    type="button"
-                    className="cp-icon-btn cp-icon-btn--ghost"
-                    aria-label="Options"
-                    onClick={() => setThreadMenuOpen((v) => !v)}
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-
-                  {threadMenuOpen ? (
-                    <ul
-                      className="dropdown-menu"
-                      role="menu"
-                      aria-label="Options messagerie"
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 6px)",
-                        right: 0,
-                        left: "auto",
-                        width: "auto",
-                        minWidth: 180,
-                        maxWidth: "calc(100vw - 24px)",
-                        zIndex: 50,
-                      }}
+                {selectedThreadId ? (
+                  <div style={{ position: "relative" }} ref={threadMenuRef}>
+                    <button
+                      type="button"
+                      className="cp-icon-btn cp-icon-btn--ghost"
+                      aria-label="Options"
+                      onClick={() => setThreadMenuOpen((v) => !v)}
                     >
-                      <li
-                        role="menuitem"
-                        onClick={() => {
-                          setThreadMenuOpen(false);
-                          openMessageSearch();
+                      <MoreVertical size={16} />
+                    </button>
+
+                    {threadMenuOpen ? (
+                      <ul
+                        className="dropdown-menu"
+                        role="menu"
+                        aria-label="Options messagerie"
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          right: 0,
+                          left: "auto",
+                          width: "auto",
+                          minWidth: 180,
+                          maxWidth: "calc(100vw - 24px)",
+                          zIndex: 50,
                         }}
-                        style={!selectedThreadId ? { opacity: 0.5, pointerEvents: "none" } : undefined}
                       >
-                        Rechercher
-                      </li>
-                    </ul>
-                  ) : null}
-                </div>
+                        <li
+                          role="menuitem"
+                          onClick={() => {
+                            setThreadMenuOpen(false);
+                            openMessageSearch();
+                          }}
+                        >
+                          Rechercher
+                        </li>
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               {(() => {
                 const otherId = selectedThread?.otherUserPublicId ? String(selectedThread.otherUserPublicId) : "";
@@ -1104,7 +1169,8 @@ const MessagingCenter = ({
                 const effectiveOnline = computeEffectiveOnline({ online, lastSeenAt });
                 const text = getPresenceText({ online: effectiveOnline, lastSeenAt });
                 const role = String(c?.role || "").toUpperCase();
-                const meta = role === "EMPLOYEE" ? (String(c?.meta || "").trim() || "Employé du dentiste") : "";
+                const dentistName = role === "EMPLOYEE" ? getEmployeeDentistName(c) : "";
+                const meta = role === "EMPLOYEE" && dentistName ? `Dentiste : ${dentistName}` : "";
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 1, lineHeight: 1.1 }}>
                     {meta ? <div style={{ fontSize: 12, lineHeight: 1.1, color: "#64748b" }}>{meta}</div> : null}
@@ -1224,7 +1290,7 @@ const MessagingCenter = ({
                   const isSending = String(m?.clientStatus || "").toUpperCase() === "SENDING";
                   const isRead = !!m.readByOther;
                   const checkColor = isRead ? "#3498db" : "#94a3b8";
-                  const checkLabel = isSending ? "✓" : "✓✓";
+                  const checkLabel = isSending ? "\u2713" : "\u2713\u2713";
                   const messageId = String(m?.id || "");
                   const isMatch = !!messageNeedle && String(m?.content || "").toLowerCase().includes(messageNeedle);
                   const isActiveMatch = isMatch && matchMessageIds[activeMatchIndex] && matchMessageIds[activeMatchIndex] === messageId;

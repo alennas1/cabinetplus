@@ -441,6 +441,7 @@ const Employees = ({ view = "active" }) => {
                         ? "En congé"
                         : "—"}
                 </span>
+                {!emp?.accountSetupCompleted ? (                   <div style={{ marginTop: 6 }}>                     <span className="context-badge pending" style={{ padding: "4px 8px", fontSize: 12 }}>                       {"Compte non configur\u00e9"}                     </span>                   </div>                 ) : null}
               </td>
               <td className="actions-cell">
                 <button className="action-btn view" onClick={(e) => {

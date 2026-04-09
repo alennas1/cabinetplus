@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Headphones, MessageSquare, Edit3, Send, Search, X, MoreVertical, Image as ImageIcon, Lock, CheckCircle, Shield, ChevronUp, ChevronDown } from "react-feather";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import SortableTh from "../components/SortableTh";
 import MetadataInfo from "../components/MetadataInfo";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
+import { getAccessToken } from "../services/authService";
 import { adminListFeedback } from "../services/feedbackService";
 import { adminFinishThread, adminGetThreadMessages, adminListSupportThreads, adminSendThreadImage, adminSendThreadMessage, adminTakeoverThread, getSupportAttachmentBlob } from "../services/supportService";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
@@ -19,6 +20,22 @@ import "./Support.css";
 const PRESENCE_TICK_MS = 30000;
 const LONGTIME_AFTER_DAYS = 7;
 const OFFLINE_GRACE_MS = 60000;
+const POLL_SELECTED_MS = 6000;
+const POLL_IDLE_MS = 15000;
+
+const getThreadPresence = (thread) => {
+  if (!thread) return { online: false, lastSeenAt: null };
+
+  const hasSender = thread?.lastClinicSenderId != null;
+  const senderOnline = thread?.lastClinicSenderOnline;
+  const senderLastSeenAt = thread?.lastClinicSenderLastSeenAt;
+
+  if (hasSender && (senderOnline != null || senderLastSeenAt != null)) {
+    return { online: senderOnline, lastSeenAt: senderLastSeenAt };
+  }
+
+  return { online: thread?.clinicOwnerOnline, lastSeenAt: thread?.clinicOwnerLastSeenAt };
+};
 
 const AdminSupportCenter = () => {
   const navigate = useNavigate();
@@ -41,6 +58,8 @@ const AdminSupportCenter = () => {
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
   const [threadMenuOpen, setThreadMenuOpen] = useState(false);
+  const [finishConfirm, setFinishConfirm] = useState({ open: false, threadId: null });
+  const [finishingThread, setFinishingThread] = useState(false);
   const [imagePreview, setImagePreview] = useState(null); // { url, alt }
   const chatEndRef = useRef(null);
   const chatScrollRef = useRef(null);
@@ -48,6 +67,7 @@ const AdminSupportCenter = () => {
   const forceScrollOnceRef = useRef(true);
   const wsRef = useRef(null);
   const wsReconnectRef = useRef(null);
+  const pollRef = useRef(null);
   const selectedThreadIdRef = useRef(null);
   const threadMenuRef = useRef(null);
   const messageSearchInputRef = useRef(null);
@@ -85,17 +105,42 @@ const AdminSupportCenter = () => {
     });
   };
 
-  const handleFinishSelectedThread = async () => {
-    if (!selectedThreadId) return;
+  const handleFinishSelectedThread = async (threadId) => {
+    const id = threadId ?? selectedThreadId;
+    if (!id) return;
     try {
-      const updated = await adminFinishThread(selectedThreadId);
+      const updated = await adminFinishThread(id);
       if (updated?.id) setThreads((prev) => upsertThreadSummary(prev, updated));
-      toast.success("Conversation terminÃ©e");
-      setSelectedThreadId(null);
-      setMessages([]);
+      toast.success("Conversation terminée");
+      if (String(selectedThreadIdRef.current || "") === String(id)) {
+        setSelectedThreadId(null);
+        setMessages([]);
+      }
       await loadThreads();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Impossible de terminer la conversation"));
+    }
+  };
+
+  const openFinishConfirm = () => {
+    if (!selectedThreadId) return;
+    setFinishConfirm({ open: true, threadId: selectedThreadId });
+  };
+
+  const closeFinishConfirm = () => {
+    if (finishingThread) return;
+    setFinishConfirm({ open: false, threadId: null });
+  };
+
+  const confirmFinishThread = async () => {
+    const id = finishConfirm?.threadId;
+    if (!id || finishingThread) return;
+    try {
+      setFinishingThread(true);
+      await handleFinishSelectedThread(id);
+      setFinishConfirm({ open: false, threadId: null });
+    } finally {
+      setFinishingThread(false);
     }
   };
 
@@ -129,11 +174,13 @@ const AdminSupportCenter = () => {
   };
 
   const buildMessagingWsUrl = () => {
+    const accessToken = getAccessToken();
+    if (!accessToken) return null;
     const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/+$/, "");
     const wsBase = apiBase.startsWith("https://")
       ? apiBase.replace(/^https:\/\//, "wss://")
       : apiBase.replace(/^http:\/\//, "ws://");
-    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(token || ""))}`;
+    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(accessToken))}`;
   };
 
   const upsertThreadSummary = (prev, summary) => {
@@ -181,12 +228,18 @@ const AdminSupportCenter = () => {
       const preview = String(t?.lastMessagePreview || "").toLowerCase();
       const senderName = String(t?.lastClinicSenderName || "").toLowerCase();
       const role = String(t?.clinicOwnerRole || t?.lastClinicSenderRole || "").toLowerCase();
+      const requesterName = String(t?.requesterName || "").toLowerCase();
+      const requesterRole = String(t?.requesterRole || "").toLowerCase();
+      const clinicOwnerName = String(t?.clinicOwnerName || "").toLowerCase();
       return (
         title.includes(conversationNeedle) ||
         phone.includes(conversationNeedle) ||
         preview.includes(conversationNeedle) ||
         senderName.includes(conversationNeedle) ||
-        role.includes(conversationNeedle)
+        role.includes(conversationNeedle) ||
+        requesterName.includes(conversationNeedle) ||
+        requesterRole.includes(conversationNeedle) ||
+        clinicOwnerName.includes(conversationNeedle)
       );
     });
   }, [threads, conversationNeedle]);
@@ -213,6 +266,7 @@ const AdminSupportCenter = () => {
     const connect = () => {
       cleanupSocket();
       const url = buildMessagingWsUrl();
+      if (!url) return;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -248,11 +302,17 @@ const AdminSupportCenter = () => {
         const currentThreadId = selectedThreadIdRef.current;
 
         if (summary?.id) {
-          const patched =
-            currentThreadId && String(summary.id) === String(currentThreadId) && data.type === "SUPPORT_MESSAGE_CREATED"
-              ? { ...summary, unreadCount: 0 }
-              : summary;
-          setThreads((prev) => upsertThreadSummary(prev, patched));
+          const claimedById = summary?.claimedByAdminId != null ? String(summary.claimedByAdminId) : null;
+          const lockedByOther = claimedById && myAdminId && claimedById !== myAdminId;
+          if (lockedByOther && !isSuperAdmin) {
+            setThreads((prev) => (Array.isArray(prev) ? prev.filter((t) => String(t?.id || "") !== String(summary.id)) : []));
+          } else {
+            const patched =
+              currentThreadId && String(summary.id) === String(currentThreadId) && data.type === "SUPPORT_MESSAGE_CREATED"
+                ? { ...summary, unreadCount: 0 }
+                : summary;
+            setThreads((prev) => upsertThreadSummary(prev, patched));
+          }
         }
 
         if (msg?.threadId && currentThreadId && String(msg.threadId) === String(currentThreadId) && data.type !== "SUPPORT_THREAD_UPDATED") {
@@ -282,6 +342,32 @@ const AdminSupportCenter = () => {
   }, [token]);
 
   useEffect(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (wsConnected) return;
+
+    pollRef.current = setInterval(async () => {
+      try {
+        await loadThreads();
+        const currentThreadId = selectedThreadIdRef.current;
+        if (currentThreadId) await loadThreadMessages(currentThreadId);
+      } catch {
+        // ignore
+      }
+    }, selectedThreadId ? POLL_SELECTED_MS : POLL_IDLE_MS);
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedThreadId, wsConnected]);
+
+  useEffect(() => {
     const shouldStick = stickToBottomRef.current || forceScrollOnceRef.current;
     if (!shouldStick) return;
     const forced = !!forceScrollOnceRef.current;
@@ -308,19 +394,7 @@ const AdminSupportCenter = () => {
     return `Pris en charge par: ${claimedByName || "Admin"}`;
   }, [selectedThread, myAdminId]);
 
-  const selectedPresence = useMemo(() => {
-    if (!selectedThread) return { online: false, lastSeenAt: null };
-
-    const hasSender = selectedThread?.lastClinicSenderId != null;
-    const senderOnline = selectedThread?.lastClinicSenderOnline;
-    const senderLastSeenAt = selectedThread?.lastClinicSenderLastSeenAt;
-
-    if (hasSender && (senderOnline != null || senderLastSeenAt != null)) {
-      return { online: senderOnline, lastSeenAt: senderLastSeenAt };
-    }
-
-    return { online: selectedThread?.clinicOwnerOnline, lastSeenAt: selectedThread?.clinicOwnerLastSeenAt };
-  }, [selectedThread]);
+  const selectedPresence = useMemo(() => getThreadPresence(selectedThread), [selectedThread]);
 
   const selectedLockedByOther = useMemo(() => {
     const claimedById = selectedThread?.claimedByAdminId != null ? String(selectedThread.claimedByAdminId) : null;
@@ -480,9 +554,9 @@ const AdminSupportCenter = () => {
   const getPresenceText = ({ online, lastSeenAt }) => {
     if (online) return "En ligne";
     const label = formatLastSeen(lastSeenAt);
-    if (!label) return "Hors ligne · longtemps";
-    if (label === "longtemps") return "Hors ligne · longtemps";
-    return `Hors ligne · il y a ${label}`;
+    if (!label) return "Hors ligne Â· longtemps";
+    if (label === "longtemps") return "Hors ligne Â· longtemps";
+    return `Hors ligne Â· il y a ${label}`;
   };
 
   const isWithinOfflineGrace = (lastSeenAt) => {
@@ -716,6 +790,24 @@ const AdminSupportCenter = () => {
         icon={<Headphones size={22} />}
       />
 
+      {finishConfirm?.open ? (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="flex justify-between items-center mb-2">
+              <h2>Terminer la conversation ?</h2>
+              <X className="cursor-pointer" onClick={closeFinishConfirm} />
+            </div>
+            <p>Êtes-vous sûr de vouloir terminer cette conversation ?</p>
+            <div className="modal-actions">
+              <button onClick={closeFinishConfirm} className="btn-cancel" disabled={finishingThread}>Annuler</button>
+              <button onClick={confirmFinishThread} disabled={finishingThread} className="btn-primary2">
+                {finishingThread ? "Confirmation..." : "Confirmer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <div className="tab-buttons" style={{ marginBottom: 0 }}>
           <button className={activeTab === "support" ? "tab-btn active" : "tab-btn"} onClick={() => setActiveTab("support")}>
@@ -748,7 +840,7 @@ const AdminSupportCenter = () => {
                   <input
                     value={threadQuery}
                     onChange={(e) => setThreadQuery(e.target.value)}
-                    placeholder="Rechercher (nom, clinique, téléphone)…"
+                    placeholder="Rechercher…"
                     className="w-full pr-10 py-2 rounded-xl border border-gray-300"
                     style={{ paddingLeft: 35 }}
                   />
@@ -787,18 +879,26 @@ const AdminSupportCenter = () => {
               ) : (
                 filteredThreads.map((t) => {
                   const active = String(t.id) === String(selectedThreadId);
-                  const title = t.clinicName || t.clinicOwnerName || `Thread #${t.id}`;
+                  const requesterRole = String(t?.requesterRole || t?.lastClinicSenderRole || t?.clinicOwnerRole || "").toUpperCase();
+                  const isEmployeeThread = requesterRole === "EMPLOYEE";
+                  const requesterName = String(t?.requesterName || t?.lastClinicSenderName || "").trim();
+                  const clinicOwnerName = String(t?.clinicOwnerName || "").trim();
+                  const title = (isEmployeeThread ? requesterName : "") || t.clinicName || t.clinicOwnerName || `Thread #${t.id}`;
                   const preview = t.lastMessagePreview || "";
                   const senderPrefix = roleBadgeLabel(t?.lastMessageSenderRole) || "Utilisateur";
                   const previewText = preview ? `${senderPrefix}: ${preview}` : "Nouvelle conversation";
                   const dt = formatDateTime(t.lastMessageAt);
                   const claimedById = t?.claimedByAdminId != null ? String(t.claimedByAdminId) : null;
                   const claimedByName = t?.claimedByAdminName || "";
+                  const claimedByFirstName = (String(claimedByName || "").trim().split(/\s+/)[0] || "").trim();
                   const lockedByOther = claimedById && myAdminId && claimedById !== myAdminId;
                   const lockedByMe = claimedById && myAdminId && claimedById === myAdminId;
                   const canOpen = !lockedByOther || isSuperAdmin;
-                  const actorRole = String(t?.clinicOwnerRole || t?.lastClinicSenderRole || "").toUpperCase();
+                  const actorRole = requesterRole;
                   const roleLabel = roleBadgeLabel(actorRole) || (actorRole || "Utilisateur");
+                  const presence = getThreadPresence(t);
+                  const effectiveOnline = computeEffectiveOnline({ online: presence?.online, lastSeenAt: presence?.lastSeenAt });
+                  const presenceText = getPresenceText({ online: effectiveOnline, lastSeenAt: presence?.lastSeenAt });
                   return (
                     <button
                       key={t.id}
@@ -832,21 +932,59 @@ const AdminSupportCenter = () => {
                           {title}
                           {roleLabel ? <span className="context-badge">{roleLabel}</span> : null}
                           {lockedByMe ? <span title="Pris en charge par vous"><CheckCircle size={14} color="#16a34a" /></span> : null}
-                          {lockedByOther ? <span title={`Pris en charge par ${claimedByName || "un autre admin"}`}><Lock size={14} color="#ef4444" /></span> : null}
+                          {lockedByOther ? <span title={`Pris en charge par ${claimedByFirstName || "un autre admin"}`}><Lock size={14} color="#ef4444" /></span> : null}
+                          {lockedByOther ? (
+                            <span style={{ fontSize: 12, color: "#ef4444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              par {claimedByFirstName || "un autre admin"}
+                            </span>
+                          ) : null}
                           {isSuperAdmin && lockedByOther ? <span title="Super admin"><Shield size={14} color="#0ea5e9" /></span> : null}
                         </div>
                         {Number(t?.unreadCount || 0) > 0 ? (
                           <span className="cp-unread-pill">{Number(t.unreadCount) > 99 ? "99+" : Number(t.unreadCount)}</span>
                         ) : null}
                       </div>
-                      {claimedById ? (
-                        <div style={{ fontSize: 11, color: lockedByOther ? "#ef4444" : "#16a34a", marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                          {lockedByOther ? <Lock size={12} /> : <CheckCircle size={12} />}
-                          <span>Pris en charge</span>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          marginTop: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          color: "#64748b",
+                        }}
+                      >
+                        <span
+                          title={presenceText}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            color: effectiveOnline ? "#16a34a" : "#64748b",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            minWidth: 0,
+                          }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: effectiveOnline ? "#22c55e" : "#94a3b8",
+                              flex: "0 0 auto",
+                            }}
+                          />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{presenceText}</span>
+                        </span>
+                      </div>
+                      {isEmployeeThread && clinicOwnerName ? (
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          Dentiste: {clinicOwnerName}
                         </div>
-                      ) : (
-                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Disponible</div>
-                      )}
+                      ) : null}
                       <div style={{ marginTop: 6, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
                         <div style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                           {previewText}
@@ -865,10 +1003,15 @@ const AdminSupportCenter = () => {
             <div className="cp-admin-support-panel-header" style={{ position: "relative" }}>
               <div style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                 <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {selectedThread ? (selectedThread.clinicName || selectedThread.clinicOwnerName || `Thread #${selectedThread.id}`) : "Sélectionnez une conversation"}
+                  {selectedThread ? (() => {
+                    const requesterRole = String(selectedThread?.requesterRole || selectedThread?.lastClinicSenderRole || selectedThread?.clinicOwnerRole || "").toUpperCase();
+                    const isEmployeeThread = requesterRole === "EMPLOYEE";
+                    const requesterName = String(selectedThread?.requesterName || selectedThread?.lastClinicSenderName || "").trim();
+                    return (isEmployeeThread ? requesterName : "") || selectedThread.clinicName || selectedThread.clinicOwnerName || `Thread #${selectedThread.id}`;
+                  })() : "Sélectionnez une conversation"}
                 </div>
                 {selectedThread ? (() => {
-                  const actorRole = String(selectedThread?.clinicOwnerRole || selectedThread?.lastClinicSenderRole || "").toUpperCase();
+                  const actorRole = String(selectedThread?.requesterRole || selectedThread?.lastClinicSenderRole || selectedThread?.clinicOwnerRole || "").toUpperCase();
                   const roleLabel =
                     actorRole === "EMPLOYEE" ? "Employé" :
                     actorRole === "DENTIST" ? "Dentiste" :
@@ -876,83 +1019,100 @@ const AdminSupportCenter = () => {
                     actorRole || "Utilisateur";
                   return roleLabel ? <span className="context-badge">{roleLabel}</span> : null;
                 })() : null}
-              </div>
-              <div
-                style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 8, alignItems: "center" }}
-                ref={threadMenuRef}
-              >
                 {selectedThread ? (() => {
                   const claimedById = selectedThread?.claimedByAdminId != null ? String(selectedThread.claimedByAdminId) : null;
+                  const claimedByName = selectedThread?.claimedByAdminName || "";
+                  const lockedByOther = claimedById && myAdminId && claimedById !== myAdminId;
                   const lockedByMe = claimedById && myAdminId && claimedById === myAdminId;
-                  return lockedByMe ? (
-                    <button
-                      type="button"
-                      className="btn-secondary-app"
-                      onClick={() => {
-                        setThreadMenuOpen(false);
-                        handleFinishSelectedThread();
-                      }}
-                    >
-                      Finish
-                    </button>
-                  ) : null;
+                  return (
+                    <>
+                      {lockedByMe ? <span title="Pris en charge par vous"><CheckCircle size={14} color="#16a34a" /></span> : null}
+                      {lockedByOther ? <span title={`Pris en charge par ${claimedByName || "un autre admin"}`}><Lock size={14} color="#ef4444" /></span> : null}
+                      {isSuperAdmin && lockedByOther ? <span title="Super admin"><Shield size={14} color="#0ea5e9" /></span> : null}
+                    </>
+                  );
                 })() : null}
-
-                <div style={{ position: "relative" }}>
-                  <button
-                    type="button"
-                    className="cp-icon-btn cp-icon-btn--ghost"
-                    aria-label="Options"
-                    onClick={() => setThreadMenuOpen((v) => !v)}
-                    disabled={!selectedThreadId}
-                  >
-                    <MoreVertical size={18} />
-                  </button>
-
-                  {threadMenuOpen ? (
-                    <ul
-                      className="dropdown-menu"
-                      role="menu"
-                      aria-label="Options support"
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 6px)",
-                        right: 0,
-                        left: "auto",
-                        width: "auto",
-                        minWidth: 180,
-                        maxWidth: "calc(100vw - 24px)",
-                        zIndex: 50,
-                      }}
-                    >
-                      <li
-                        role="menuitem"
-                        onClick={() => {
-                          setThreadMenuOpen(false);
-                          openMessageSearch();
-                        }}
-                        style={!selectedThreadId ? { opacity: 0.5, pointerEvents: "none" } : undefined}
-                      >
-                        Rechercher
-                      </li>
-                    </ul>
-                  ) : null}
-                </div>
               </div>
               {selectedThread ? (() => {
+                const requesterRole = String(selectedThread?.requesterRole || selectedThread?.lastClinicSenderRole || selectedThread?.clinicOwnerRole || "").toUpperCase();
+                const clinicOwnerName = String(selectedThread?.clinicOwnerName || "").trim();
+                if (requesterRole !== "EMPLOYEE" || !clinicOwnerName) return null;
+                return (
+                  <div style={{ marginTop: 4, fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Dentiste: {clinicOwnerName}
+                  </div>
+                );
+              })() : null}
+              {selectedThreadId ? (
+                <div
+                  style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 8, alignItems: "center" }}
+                  ref={threadMenuRef}
+                >
+                  {selectedThread ? (() => {
+                    const claimedById = selectedThread?.claimedByAdminId != null ? String(selectedThread.claimedByAdminId) : null;
+                    const lockedByMe = claimedById && myAdminId && claimedById === myAdminId;
+                    return lockedByMe ? (
+                      <button
+                        type="button"
+                        className="btn-secondary-app"
+                        onClick={() => {
+                          setThreadMenuOpen(false);
+                          openFinishConfirm();
+                        }}
+                        disabled={finishingThread}
+                      >
+                        Terminer
+                      </button>
+                    ) : null;
+                  })() : null}
+
+                  <div style={{ position: "relative" }}>
+                    <button
+                      type="button"
+                      className="cp-icon-btn cp-icon-btn--ghost"
+                      aria-label="Options"
+                      onClick={() => setThreadMenuOpen((v) => !v)}
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+
+                    {threadMenuOpen ? (
+                      <ul
+                        className="dropdown-menu"
+                        role="menu"
+                        aria-label="Options support"
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          right: 0,
+                          left: "auto",
+                          width: "auto",
+                          minWidth: 180,
+                          maxWidth: "calc(100vw - 24px)",
+                          zIndex: 50,
+                        }}
+                      >
+                        <li
+                          role="menuitem"
+                          onClick={() => {
+                            setThreadMenuOpen(false);
+                            openMessageSearch();
+                          }}
+                        >
+                          Rechercher
+                        </li>
+                      </ul>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              {selectedThread ? (() => {
                 const claimedById = selectedThread?.claimedByAdminId != null ? String(selectedThread.claimedByAdminId) : null;
-                const claimedByName = selectedThread?.claimedByAdminName || "";
                 const lockedByOther = claimedById && myAdminId && claimedById !== myAdminId;
-                const lockedByMe = claimedById && myAdminId && claimedById === myAdminId;
-                const statusColor = lockedByOther ? "#ef4444" : lockedByMe ? "#16a34a" : "#64748b";
-                const statusText = claimedById ? "Pris en charge" : "Non assignée";
 
                 return (
                   <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 12, color: statusColor, display: "flex", alignItems: "center", gap: 6 }}>
-                      {lockedByOther ? <Lock size={14} /> : lockedByMe ? <CheckCircle size={14} /> : null}
-                      <span>{statusText}</span>
-                      <span style={{ color: "#94a3b8" }}>{wsConnected ? "• WS" : "• WS off"}</span>
+                    <div style={{ fontSize: 12, color: "#64748b", display: "flex", alignItems: "center", gap: 6 }}>
                       {(() => {
                         const effectiveOnline = computeEffectiveOnline({
                           online: selectedPresence?.online,
@@ -1015,7 +1175,7 @@ const AdminSupportCenter = () => {
                     ref={messageSearchInputRef}
                     value={messageQuery}
                     onChange={(e) => setMessageQuery(e.target.value)}
-                    placeholder="Rechercherâ€¦"
+                    placeholder="Rechercher…"
                     className="w-full pr-10 py-2 rounded-xl border border-gray-300"
                     style={{ paddingLeft: 35 }}
                     disabled={!selectedThreadId}
@@ -1058,7 +1218,7 @@ const AdminSupportCenter = () => {
                       className="btn-secondary-app"
                       onClick={() => jumpMatch(-1)}
                       disabled={matchMessageIds.length === 0}
-                      aria-label="RÃ©sultat prÃ©cÃ©dent"
+                      aria-label="Résultat précédent"
                       style={{ padding: "8px 10px" }}
                     >
                       <ChevronUp size={16} />
@@ -1068,7 +1228,7 @@ const AdminSupportCenter = () => {
                       className="btn-secondary-app"
                       onClick={() => jumpMatch(1)}
                       disabled={matchMessageIds.length === 0}
-                      aria-label="RÃ©sultat suivant"
+                      aria-label="Résultat suivant"
                       style={{ padding: "8px 10px" }}
                     >
                       <ChevronDown size={16} />
@@ -1093,7 +1253,7 @@ const AdminSupportCenter = () => {
               {!selectedThreadId ? (
                 <div className="text-sm text-gray-600">Cliquez une conversation à gauche.</div>
               ) : displayMessages.length === 0 ? (
-                <div className="text-sm text-gray-600">{(messages || []).length === 0 ? "Aucun message." : messageQuery ? "Aucun rÃ©sultat." : "Aucun message."}</div>
+                <div className="text-sm text-gray-600">{(messages || []).length === 0 ? "Aucun message." : messageQuery ? "Aucun résultat." : "Aucun message."}</div>
               ) : (
                 displayMessages.map((m, idx) => {
                   const isSystem = String(m?.kind || "").toUpperCase() === "SYSTEM";
@@ -1102,7 +1262,7 @@ const AdminSupportCenter = () => {
                   const isSending = String(m?.clientStatus || "").toUpperCase() === "SENDING";
                   const isRead = !!m.readByOther;
                   const checkColor = isRead ? "#3498db" : "#94a3b8"; // app blue / grey
-                  const checkLabel = isSending ? "✓" : "✓✓"; // sent (single) / received+read (double)
+                  const checkLabel = isSending ? "\u2713" : "\u2713\u2713"; // sent (single) / received+read (double)
                   const attachmentUrl = m?.attachmentLocalUrl || attachmentUrlsByMessageId[String(m?.id)];
                   const dayKey = getDayKey(m?.createdAt);
                   const prevDayKey = getDayKey(displayMessages?.[idx - 1]?.createdAt);
@@ -1328,3 +1488,11 @@ const AdminSupportCenter = () => {
 };
 
 export default AdminSupportCenter;
+
+
+
+
+
+
+
+

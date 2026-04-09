@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Send, Image as ImageIcon } from "react-feather";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Send, Image as ImageIcon, MoreVertical, Search, X, ChevronUp, ChevronDown } from "react-feather";
 import { toast } from "react-toastify";
-import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
@@ -10,6 +9,7 @@ import ModernDropdown from "../components/ModernDropdown";
 import { getApiErrorMessage } from "../utils/error";
 import { formatDateTimeByPreference } from "../utils/dateFormat";
 import { createFeedback } from "../services/feedbackService";
+import { getAccessToken } from "../services/authService";
 import { createMySupportThread, getMyThreadMessages, listMySupportThreads, markMySupportThreadsRead, sendMyThreadImage, sendMyThreadMessage, getSupportAttachmentBlob } from "../services/supportService";
 import "./Patients.css";
 import "./Patient.css";
@@ -29,8 +29,6 @@ const FEEDBACK_CATEGORIES = [
 ];
 
 const SupportCenter = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { token } = useSelector((state) => state.auth || {});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("support");
@@ -38,11 +36,13 @@ const SupportCenter = () => {
   // Support chat
   const [threads, setThreads] = useState([]);
   const [selectedThreadId, setSelectedThreadId] = useState(null);
-  const [wsConnected, setWsConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
   const [messageQuery, setMessageQuery] = useState("");
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
+  const [threadMenuOpen, setThreadMenuOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState(null); // { url, alt }
   const chatEndRef = useRef(null);
   const pollRef = useRef(null);
@@ -52,6 +52,9 @@ const SupportCenter = () => {
   const wsRef = useRef(null);
   const wsReconnectRef = useRef(null);
   const selectedThreadIdRef = useRef(null);
+  const threadMenuRef = useRef(null);
+  const messageSearchInputRef = useRef(null);
+  const messageRefs = useRef({});
   const fileInputRef = useRef(null);
   const [attachmentUrlsByMessageId, setAttachmentUrlsByMessageId] = useState({});
   const attachmentUrlsRef = useRef({});
@@ -78,35 +81,162 @@ const SupportCenter = () => {
     return list[0] || null;
   }, [threads, selectedThreadId]);
 
-  const filteredMessages = useMemo(() => {
-    const q = String(messageQuery || "").trim().toLowerCase();
-    const list = Array.isArray(sortedMessages) ? sortedMessages : [];
-    if (!q) return list;
-    return list.filter((m) => String(m?.content || "").toLowerCase().includes(q));
-  }, [sortedMessages, messageQuery]);
+  const claimedByFirstName = useMemo(() => {
+    const raw = String(selectedThread?.claimedByAdminName || "").trim();
+    if (!raw) return "";
+    return raw.split(/\s+/)[0] || "";
+  }, [selectedThread?.claimedByAdminName]);
+
+  const messageNeedle = useMemo(() => String(messageQuery || "").trim().toLowerCase(), [messageQuery]);
+
+  const matchMessageIds = useMemo(() => {
+    if (!messageNeedle) return [];
+    return (Array.isArray(sortedMessages) ? sortedMessages : [])
+      .filter((m) => String(m?.content || "").toLowerCase().includes(messageNeedle))
+      .map((m) => String(m?.id || ""))
+      .filter(Boolean);
+  }, [sortedMessages, messageNeedle]);
+
+  const renderHighlighted = (text, needle) => {
+    const raw = String(text || "");
+    const q = String(needle || "").trim();
+    if (!q) return raw;
+    const lower = raw.toLowerCase();
+    const lowerQ = q.toLowerCase();
+
+    const parts = [];
+    let i = 0;
+    while (i < raw.length) {
+      const idx = lower.indexOf(lowerQ, i);
+      if (idx < 0) {
+        parts.push({ t: raw.slice(i), hit: false });
+        break;
+      }
+      if (idx > i) parts.push({ t: raw.slice(i, idx), hit: false });
+      parts.push({ t: raw.slice(idx, idx + q.length), hit: true });
+      i = idx + q.length;
+    }
+
+    return (
+      <>
+        {parts.map((p, idx) =>
+          p.hit ? (
+            <span key={idx} style={{ background: "#fde68a", borderRadius: 6, padding: "0 4px" }}>
+              {p.t}
+            </span>
+          ) : (
+            <React.Fragment key={idx}>{p.t}</React.Fragment>
+          )
+        )}
+      </>
+    );
+  };
 
   useEffect(() => {
     selectedThreadIdRef.current = selectedThreadId;
   }, [selectedThreadId]);
 
+  useEffect(() => {
+    if (!threadMenuOpen) return;
+    const onMouseDown = (event) => {
+      if (!threadMenuRef.current) return;
+      if (!threadMenuRef.current.contains(event.target)) setThreadMenuOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setThreadMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [threadMenuOpen]);
+
+  useEffect(() => {
+    if (!messageSearchOpen) return;
+    try {
+      setTimeout(() => messageSearchInputRef.current?.focus?.(), 0);
+    } catch {
+      // ignore
+    }
+  }, [messageSearchOpen, selectedThreadId]);
+
+  useEffect(() => {
+    if (selectedThreadId) return;
+    setThreadMenuOpen(false);
+  }, [selectedThreadId]);
+
+  useEffect(() => {
+    if (!messageNeedle) {
+      setActiveMatchIndex(-1);
+      return;
+    }
+    // Reset to first match whenever query changes.
+    setActiveMatchIndex(matchMessageIds.length > 0 ? 0 : -1);
+  }, [messageNeedle, matchMessageIds.length]);
+
+  useEffect(() => {
+    if (activeMatchIndex < 0) return;
+    const id = matchMessageIds[activeMatchIndex];
+    if (!id) return;
+    const el = messageRefs.current[id];
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+      // ignore
+    }
+  }, [activeMatchIndex, matchMessageIds]);
+
+  const openMessageSearch = () => {
+    if (!selectedThreadId) {
+      toast.info("Choisissez une conversation");
+      return;
+    }
+    setThreadMenuOpen(false);
+    setMessageSearchOpen(true);
+  };
+
+  const closeMessageSearch = () => {
+    setMessageSearchOpen(false);
+    setMessageQuery("");
+    setActiveMatchIndex(-1);
+  };
+
+  const jumpMatch = (delta) => {
+    if (!messageNeedle) return;
+    const total = matchMessageIds.length;
+    if (total <= 0) return;
+    setActiveMatchIndex((prev) => {
+      const current = prev < 0 ? 0 : prev;
+      const next = (current + delta + total) % total;
+      return next;
+    });
+  };
+
   const buildMessagingWsUrl = () => {
+    const accessToken = getAccessToken();
+    if (!accessToken) return null;
     const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:8080").replace(/\/+$/, "");
     const wsBase = apiBase.startsWith("https://")
       ? apiBase.replace(/^https:\/\//, "wss://")
       : apiBase.replace(/^http:\/\//, "ws://");
-    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(token || ""))}`;
+    return `${wsBase}/ws/messaging?token=${encodeURIComponent(String(accessToken))}`;
   };
 
   const upsertThreadSummary = (prev, summary) => {
-    const next = Array.isArray(prev) ? [...prev] : [];
     const id = String(summary?.id || "");
-    if (!id) return next;
-    const idx = next.findIndex((t) => String(t?.id || "") === id);
-    if (idx >= 0) {
-      next[idx] = { ...next[idx], ...summary };
-      return next;
-    }
-    return [summary, ...next];
+    const next = Array.isArray(prev) ? [...prev] : [];
+    if (!id) return next.slice(0, 1);
+
+    // Support center for users exposes a single thread.
+    if (next.length === 0) return [summary];
+    const currentId = String(next?.[0]?.id || "");
+    if (currentId && currentId !== id) return next.slice(0, 1);
+
+    next[0] = { ...(next[0] || {}), ...summary };
+    return next.slice(0, 1);
   };
 
   const upsertMessage = (prev, msg) => {
@@ -119,26 +249,11 @@ const SupportCenter = () => {
     return next;
   };
 
-  const loadThreads = async ({ silent = false } = {}) => {
-    try {
-      if (!silent) setLoading(true);
-      const data = await listMySupportThreads();
-      const list = Array.isArray(data) ? data : [];
-      setThreads(list);
-      return list;
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Impossible de charger la conversation"));
-      return [];
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
   const ensureSingleThread = async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
       let list = await listMySupportThreads();
-      list = Array.isArray(list) ? list : [];
+      list = Array.isArray(list) ? list.slice(0, 1) : [];
       let thread = list?.[0] || null;
       if (!thread) {
         thread = await createMySupportThread();
@@ -212,17 +327,16 @@ const SupportCenter = () => {
     const connect = () => {
       cleanupSocket();
       const url = buildMessagingWsUrl();
+      if (!url) return;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {
         if (disposed) return;
-        setWsConnected(true);
       };
 
       ws.onclose = () => {
         if (disposed) return;
-        setWsConnected(false);
         wsReconnectRef.current = setTimeout(() => {
           if (!disposed) connect();
         }, 1500);
@@ -529,7 +643,7 @@ const SupportCenter = () => {
       <BackButton fallbackTo="/dashboard" />
       <PageHeader
         title="Support & Feedback"
-        subtitle="Contactez l’admin et envoyez vos suggestions"
+        subtitle="Contactez le support et envoyez vos suggestions"
       />
 
       <div className="cp-support-content">
@@ -552,112 +666,203 @@ const SupportCenter = () => {
           </div>
         </div>
         {/* Support */}
-        <div className="controls-card cp-support-panel" hidden={activeTab !== "support"}>
-          <div className="cp-support-panel-body">
-            {!selectedThreadId ? (
-              <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div className="text-sm text-gray-600">Choisissez une conversation ou créez-en une nouvelle.</div>
-                <button
-                  type="button"
-                  className="btn-primary2"
-                  style={{ display: "none" }}
-                  onClick={async () => {
-                    try {
-                      const created = await createMySupportThread();
-                      await loadThreads({ silent: true });
-                      setSelectedThreadId(created?.id || null);
-                      forceScrollOnceRef.current = true;
-                      await loadSelectedMessages(created?.id || null, { silent: true });
-                    } catch (err) {
-                      toast.error(getApiErrorMessage(err, "Impossible de créer la conversation"));
-                    }
-                  }}
-                >
-                  + Nouvelle conversation
-                </button>
+        <div hidden={activeTab !== "support"}>
+          <div className="cp-admin-support-grid cp-admin-support-grid--messaging" style={{ height: "calc(100vh - 300px)", minHeight: 520 }}>
+            <div className="cp-admin-support-panel">
+              <div className="cp-admin-support-panel-header">
+                <div style={{ fontWeight: 800, marginBottom: 10 }}>Conversations</div>
               </div>
-
-              <div className="cp-chat-box" style={{ padding: 0 }}>
-                {(threads || []).length === 0 ? (
-                  <div style={{ padding: 12 }} className="text-sm text-gray-600">Aucune conversation.</div>
+              <div className="cp-admin-support-panel-body">
+                {selectedThread?.id ? (
+                  (() => {
+                    const preview = selectedThread?.lastMessagePreview || selectedThread?.firstMessagePreview || "Nouvelle conversation";
+                    const dt = formatDateTime(selectedThread?.lastMessageAt || selectedThread?.createdAt);
+                    const unread = Number(selectedThread?.unreadCount || 0);
+                    const isActive = selectedThreadId && String(selectedThreadId) === String(selectedThread.id);
+                    return (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setSelectedThreadId(selectedThread.id);
+                          setThreadMenuOpen(false);
+                          setMessageSearchOpen(false);
+                          setMessageQuery("");
+                          forceScrollOnceRef.current = true;
+                          await loadSelectedMessages(selectedThread.id, { silent: false });
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: 12,
+                          border: "none",
+                          borderBottom: "1px solid #e5e7eb",
+                          background: isActive ? "#f1f5f9" : "#fff",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                          <div style={{ fontWeight: 800, fontSize: 13, lineHeight: 1.1, color: "#111827" }}>Support</div>
+                          {unread > 0 ? <span className="cp-unread-pill">{unread > 99 ? "99+" : unread}</span> : null}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {preview}
+                        </div>
+                        {dt ? <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>{dt}</div> : null}
+                      </button>
+                    );
+                  })()
                 ) : (
-                  <div>
-                    {(threads || []).map((t) => {
-                      const title = t.firstMessagePreview || t.lastMessagePreview || "Conversation";
-                      const date = t.lastMessageAt || t.createdAt;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={async () => {
-                            setSelectedThreadId(t.id);
-                            forceScrollOnceRef.current = true;
-                            await loadSelectedMessages(t.id, { silent: false });
-                          }}
-                          style={{
-                            width: "100%",
-                            textAlign: "left",
-                            padding: 12,
-                            border: "none",
-                            borderBottom: "1px solid #e5e7eb",
-                            background: "#fff",
-                            cursor: "pointer",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                            <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>{title}</div>
-                            {Number(t?.unreadCount || 0) > 0 ? (
-                              <span className="cp-unread-pill">{Number(t.unreadCount) > 99 ? "99+" : Number(t.unreadCount)}</span>
-                            ) : null}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>{formatDateTime(date)}</div>
-                        </button>
-                      );
-                    })}
+                  <div style={{ padding: 12 }} className="text-sm text-gray-600">
+                    Chargement…
                   </div>
                 )}
               </div>
-              </>
-            ) : (
-              <>
-              <div style={{ display: "none", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <button
-                  type="button"
-                  className="btn-secondary-app"
-                  onClick={() => {
-                    setSelectedThreadId(null);
-                    setMessages([]);
-                    setChatText("");
-                  }}
-                >
-                  Retour
-                </button>
-               </div>
+            </div>
 
-               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                 <div className="text-xs text-gray-600">
-                   {selectedThread?.claimedByAdminName
-                     ? `Agent: ${selectedThread.claimedByAdminName}`
-                      : "En attente d'un agent..."}
-                 </div>
-                 <div className="text-xs text-gray-400">{wsConnected ? "WS" : "offline"}</div>
-               </div>
+            <div className="cp-admin-support-panel">
+              <div className="cp-admin-support-panel-header">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, color: "#111827" }}>Support</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                      {selectedThread?.claimedByAdminName
+                        ? `Agent : ${claimedByFirstName || selectedThread.claimedByAdminName}`
+                        : "En attente d'un agent…"}
+                    </div>
+                  </div>
 
-               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                 <input
-                   value={messageQuery}
-                   onChange={(e) => setMessageQuery(e.target.value)}
-                   placeholder="Search in conversation..."
-                   className="w-full px-3 py-2 rounded-xl border border-gray-300"
-                 />
-                 {messageQuery ? (
-                   <button type="button" className="btn-secondary-app" onClick={() => setMessageQuery("")}>
-                     Clear
-                   </button>
-                 ) : null}
-               </div>
+                  {selectedThreadId ? (
+                    <div style={{ position: "relative" }} ref={threadMenuRef}>
+                      <button
+                        type="button"
+                        className="cp-icon-btn cp-icon-btn--ghost"
+                        aria-label="Options"
+                        onClick={() => setThreadMenuOpen((v) => !v)}
+                      >
+                        <MoreVertical size={18} />
+                      </button>
 
+                      {threadMenuOpen ? (
+                        <ul
+                          className="dropdown-menu"
+                          role="menu"
+                          aria-label="Options support"
+                          style={{
+                            position: "absolute",
+                            top: "calc(100% + 6px)",
+                            right: 0,
+                            left: "auto",
+                            width: "auto",
+                            minWidth: 180,
+                            maxWidth: "calc(100vw - 24px)",
+                            zIndex: 50,
+                          }}
+                        >
+                          <li
+                            role="menuitem"
+                            onClick={() => {
+                              openMessageSearch();
+                            }}
+                          >
+                            Rechercher
+                          </li>
+                        </ul>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                {messageSearchOpen ? (
+                  <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
+                    <div style={{ position: "relative", flex: 1 }}>
+                      <Search
+                        size={16}
+                        style={{
+                          position: "absolute",
+                          left: 14,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          color: "#64748b",
+                          pointerEvents: "none",
+                        }}
+                      />
+                      <input
+                        ref={messageSearchInputRef}
+                        value={messageQuery}
+                        onChange={(e) => setMessageQuery(e.target.value)}
+                        placeholder="Rechercher"
+                        className="w-full pr-10 py-2 rounded-xl border border-gray-300"
+                        style={{ paddingLeft: 35 }}
+                        disabled={!selectedThreadId}
+                      />
+                      {String(messageQuery || "").trim() ? (
+                        <button
+                          type="button"
+                          onClick={() => setMessageQuery("")}
+                          aria-label="Effacer"
+                          style={{
+                            position: "absolute",
+                            right: 10,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            border: "none",
+                            background: "transparent",
+                            color: "#64748b",
+                          }}
+                          disabled={!selectedThreadId}
+                        >
+                          <X size={16} />
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-secondary-app"
+                      onClick={closeMessageSearch}
+                      aria-label="Fermer"
+                      style={{ padding: "8px 10px" }}
+                      disabled={!selectedThreadId}
+                    >
+                      <X size={16} />
+                    </button>
+
+                    {messageNeedle ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <button
+                              type="button"
+                              className="btn-secondary-app"
+                              onClick={() => jumpMatch(-1)}
+                              disabled={matchMessageIds.length === 0}
+                              aria-label="Résultat précédent"
+                              style={{ padding: "8px 10px" }}
+                            >
+                              <ChevronUp size={16} />
+                            </button>
+                        <button
+                          type="button"
+                              className="btn-secondary-app"
+                              onClick={() => jumpMatch(1)}
+                              disabled={matchMessageIds.length === 0}
+                              aria-label="Résultat suivant"
+                              style={{ padding: "8px 10px" }}
+                            >
+                              <ChevronDown size={16} />
+                            </button>
+                        <div style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
+                          {matchMessageIds.length === 0 ? "0" : activeMatchIndex + 1}/{matchMessageIds.length}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="cp-support-panel-body" style={{ padding: 12 }}>
+                {!selectedThreadId ? (
+                  <div className="text-sm text-gray-600">Chargement…</div>
+                ) : (
+                  <>
                <div
                  ref={chatScrollRef}
                  onScroll={(e) => {
@@ -666,24 +871,28 @@ const SupportCenter = () => {
                   stickToBottomRef.current = distance <= 80;
                   if (stickToBottomRef.current) setNewMsgCount(0);
                 }}
-                className="cp-chat-box"
-              >
-                {filteredMessages.length === 0 ? (
-                  <div className="text-sm text-gray-600">Dites bonjour à l’admin.</div>
-                ) : (
-                  filteredMessages.map((m, idx) => {
+                 className="cp-chat-box"
+               >
+                 {sortedMessages.length === 0 ? (
+                   <div className="text-sm text-gray-600">Écrivez votre premier message.</div>
+                 ) : (
+                   sortedMessages.map((m, idx) => {
                     const isSystem = String(m?.kind || "").toUpperCase() === "SYSTEM";
                     const isAdmin = String(m.senderRole || "").toUpperCase() === "ADMIN";
                     const isMine = !isAdmin;
                     const isSending = String(m?.clientStatus || "").toUpperCase() === "SENDING";
-                    const isRead = !!m.readByOther;
-                    const checkColor = isRead ? "#3498db" : "#94a3b8";
-                    const checkLabel = isSending ? "✓" : "✓✓";
+                     const isRead = !!m.readByOther;
+                     const checkColor = isRead ? "#3498db" : "#94a3b8";
+                      const checkLabel = isSending ? "\u2713" : "\u2713\u2713";
+                     const messageId = String(m?.id || "");
+                     const isMatch = !!messageNeedle && String(m?.content || "").toLowerCase().includes(messageNeedle);
+                     const isActiveMatch =
+                       isMatch && matchMessageIds[activeMatchIndex] && matchMessageIds[activeMatchIndex] === messageId;
                      const attachmentUrl = m?.attachmentLocalUrl || attachmentUrlsByMessageId[String(m?.id)];
-                     const dayKey = getDayKey(m?.createdAt);
-                     const prevDayKey = getDayKey(filteredMessages?.[idx - 1]?.createdAt);
-                     const showDay = !!dayKey && dayKey !== prevDayKey;
-                     const timeLabel = formatTime(m?.createdAt);
+                      const dayKey = getDayKey(m?.createdAt);
+                      const prevDayKey = getDayKey(sortedMessages?.[idx - 1]?.createdAt);
+                      const showDay = !!dayKey && dayKey !== prevDayKey;
+                      const timeLabel = formatTime(m?.createdAt);
 
                      if (isSystem) {
                        return (
@@ -692,22 +901,26 @@ const SupportCenter = () => {
                              <div className="cp-day-sep cp-day-sep--sticky">
                                <span>{formatDayLabel(m?.createdAt)}</span>
                              </div>
-                           ) : null}
-                           <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-                             <div
-                               style={{
-                                 fontSize: 12,
-                                 color: "#475569",
-                                 background: "#f1f5f9",
-                                 border: "1px solid #e2e8f0",
+                            ) : null}
+                            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+                              <div
+                                ref={(el) => {
+                                  if (!messageId) return;
+                                  if (el) messageRefs.current[messageId] = el;
+                                }}
+                                style={{
+                                  fontSize: 12,
+                                  color: "#475569",
+                                  background: "#f1f5f9",
+                                  border: "1px solid " + (isActiveMatch ? "#f59e0b" : isMatch ? "#fbbf24" : "#e2e8f0"),
                                  padding: "6px 10px",
                                  borderRadius: 999,
-                                 maxWidth: "92%",
-                                 textAlign: "center",
-                                 wordBreak: "break-word",
-                               }}
-                             >
-                               {String(m.content || "").trim()}
+                                  maxWidth: "80%",
+                                  textAlign: "center",
+                                  wordBreak: "break-word",
+                                }}
+                              >
+                               {messageNeedle ? renderHighlighted(String(m.content || "").trim(), messageNeedle) : String(m.content || "").trim()}
                              </div>
                            </div>
                          </div>
@@ -726,17 +939,21 @@ const SupportCenter = () => {
                              justifyContent: isAdmin ? "flex-start" : "flex-end",
                              marginBottom: 10,
                            }}
-                         >
-                           <div
-                             style={{
-                             maxWidth: "78%",
-                             padding: "10px 12px",
-                             borderRadius: 14,
-                               background: isMine ? "#dcf8c6" : "#f3f4f6",
-                               border: "1px solid " + (isMine ? "#b7e4a8" : "#e5e7eb"),
-                              color: "#111827",
+                          >
+                            <div
+                              ref={(el) => {
+                                if (!messageId) return;
+                                if (el) messageRefs.current[messageId] = el;
                               }}
-                            >
+                              style={{
+                               maxWidth: "66%",
+                               padding: "10px 12px",
+                               borderRadius: 14,
+                                 background: isMine ? "#dcf8c6" : "#f3f4f6",
+                                border: "1px solid " + (isActiveMatch ? "#f59e0b" : isMatch ? "#fbbf24" : isMine ? "#b7e4a8" : "#e5e7eb"),
+                               color: "#111827",
+                               }}
+                             >
                            {attachmentUrl ? (
                              <button
                                type="button"
@@ -754,7 +971,7 @@ const SupportCenter = () => {
                            ) : null}
                            {String(m.content || "").trim() ? (
                              <div style={{ fontSize: 13, lineHeight: 1.35, wordBreak: "break-word", whiteSpace: "pre-wrap", marginTop: attachmentUrl ? 8 : 0 }}>
-                               {m.content}
+                               {messageNeedle ? renderHighlighted(String(m.content || ""), messageNeedle) : m.content}
                              </div>
                            ) : null}
                           <div style={{ marginTop: 6, fontSize: 11, color: "#6b7280", display: "flex", justifyContent: "flex-end", gap: 6, alignItems: "center" }}>
@@ -805,7 +1022,7 @@ const SupportCenter = () => {
                 <input
                   value={chatText}
                   onChange={(e) => setChatText(e.target.value)}
-                  placeholder="Écrire un message…"
+                  placeholder="Écrire un message..."
                   className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   maxLength={2000}
                 />
@@ -813,8 +1030,10 @@ const SupportCenter = () => {
                   <Send size={16} />
                 </button>
               </form>
-              </>
-            )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -911,3 +1130,4 @@ const SupportCenter = () => {
 };
 
 export default SupportCenter;
+

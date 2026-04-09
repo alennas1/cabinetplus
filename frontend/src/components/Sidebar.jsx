@@ -31,6 +31,8 @@ const Sidebar = () => {
   const { user } = useSelector((state) => state.auth);
   const userKey = user?.id ?? user?.phoneNumber;
   const isStaffAccount = isClinicEmployeeAccount(user);
+  const viewerRole = String(user?.role || "").toUpperCase();
+  const isDentistViewer = viewerRole === "DENTIST";
   const canAccessDashboard = userHasPermission(user, PERMISSIONS.DASHBOARD);
   const canAccessAppointments = userHasPermission(user, PERMISSIONS.APPOINTMENTS);
   const canAccessPatients = userHasPermission(user, PERMISSIONS.PATIENTS);
@@ -54,7 +56,7 @@ const Sidebar = () => {
   const showAdminGroup =
     canAccessGestionCabinetHub ||
     showStaffCabinetLinks ||
-    canAccessProstheses;
+    canAccessProstheses || (isDentistViewer && canAccessMessaging);
   const isInSupport = useMemo(() => location.pathname.startsWith("/support"), [location.pathname]);
   const isInMessaging = useMemo(() => location.pathname.startsWith("/messagerie"), [location.pathname]);
 
@@ -218,7 +220,7 @@ const Sidebar = () => {
           </Link>
         </li>}
 
-        {canAccessMessaging && <li>
+        {canAccessMessaging && !isDentistViewer && <li>
           <Link to="/messagerie" className={isActivePath("/messagerie") ? "active" : ""}>
             <span className="cp-sidebar-icon">
               <MessageSquare size={20} />
@@ -289,6 +291,19 @@ const Sidebar = () => {
           >
             <Layers size={20} />
             <span className="link-text">Prothèses</span>
+          </Link>
+        </li>}
+        {isDentistViewer && canAccessMessaging && <li className="admin-link">
+          <Link to="/messagerie" className={isActivePath("/messagerie") ? "active" : ""}>
+            <span className="cp-sidebar-icon">
+              <MessageSquare size={20} />
+              {messagingUnreadCount > 0 ? (
+                <span className="cp-sidebar-badge" aria-label={`${messagingUnreadCount} message(s) non lu(s)`}>
+                  {messagingUnreadCount > 99 ? "+99" : messagingUnreadCount}
+                </span>
+              ) : null}
+            </span>
+            <span className="link-text">Messagerie</span>
           </Link>
         </li>}
 
@@ -537,6 +552,11 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
+
+
+
+
 
 
 

@@ -16,6 +16,8 @@ import jakarta.persistence.LockModeType;
 public interface SupportThreadRepository extends JpaRepository<SupportThread, Long> {
     Optional<SupportThread> findFirstByClinicOwnerOrderByLastMessageAtDescUpdatedAtDescIdDesc(User clinicOwner);
     List<SupportThread> findByClinicOwnerOrderByLastMessageAtDescUpdatedAtDescIdDesc(User clinicOwner);
+    Optional<SupportThread> findFirstByClinicOwnerAndRequesterOrderByLastMessageAtDescUpdatedAtDescIdDesc(User clinicOwner, User requester);
+    List<SupportThread> findByClinicOwnerAndRequesterOrderByLastMessageAtDescUpdatedAtDescIdDesc(User clinicOwner, User requester);
     List<SupportThread> findAllByOrderByLastMessageAtDescUpdatedAtDescIdDesc();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

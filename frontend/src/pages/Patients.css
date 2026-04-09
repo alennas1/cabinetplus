@@ -993,6 +993,12 @@
   color: #b91c1c;
 }
 
+.context-badge.pending {
+  border-color: #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .prothesis-select-checkbox {
   appearance: none;
   -webkit-appearance: none;

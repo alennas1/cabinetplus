@@ -493,6 +493,7 @@ const EmployeeDetails = () => {
               </span>
               <span className="context-badge">Employé</span>
               {isArchived && <span className="context-badge">Archivé</span>}
+              {!employee?.accountSetupCompleted && <span className="context-badge pending">{"Compte non configur\u00e9"}</span>}
             </div>
           </div>
           <div className="patient-details">

@@ -94,6 +94,8 @@ export const clearAccessToken = () => {
   delete api.defaults.headers.common["Authorization"];
 };
 
+export const getAccessToken = () => accessToken;
+
 api.interceptors.request.use(config => {
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
   return config;

@@ -1,17 +1,13 @@
-import React from "react";
+﻿import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import {
   User,
-  Clock,
   List,
   Settings,
   LogOut,
   PlusSquare,
   BarChart2,
-  PieChart,
-  Shield,
-  Sliders,
   Headphones,
   MessageSquare,
 } from "react-feather";
@@ -54,9 +50,9 @@ const SidebarAdmin = () => {
           </Link>
         </li>
 
-        <li className="sidebar-group-title">General</li>
+        <li className="sidebar-group-title">Général</li>
         <li>
-          <Link to="/dentists">
+          <Link to="/admin/dentists" className={isActivePath("/admin/dentists") ? "active" : ""}>
             <User size={20} />
             <span className="link-text">Dentistes</span>
           </Link>
@@ -64,62 +60,33 @@ const SidebarAdmin = () => {
 
         <li className="sidebar-group-title">Facturation</li>
         <li>
-          <Link to="/pending-payments">
-            <Clock size={20} />
-            <span className="link-text">Paiements en attente</span>
-          </Link>
-        </li>
-        <li>
-          <Link to="/payment-history">
+          <Link to="/payment-history" className={isActivePath("/payment-history") ? "active" : ""}>
             <List size={20} />
             <span className="link-text">Paiements</span>
           </Link>
         </li>
         <li>
-          <Link to="/expiring-plans">
-            <PieChart size={20} />
-            <span className="link-text">Plans expirants</span>
-          </Link>
-        </li>
-        <li>
-          <Link to="/finance-admin">
+          <Link to="/finance-admin" className={isActivePath("/finance-admin") ? "active" : ""}>
             <BarChart2 size={20} />
             <span className="link-text">Finance</span>
           </Link>
         </li>
 
-        <li className="sidebar-group-title">Systeme</li>
+        <li className="sidebar-group-title">Communication</li>
         <li>
-          <Link to="/admin/preferences">
-            <Sliders size={20} />
-            <span className="link-text">Preferences</span>
+          <Link to="/admin/messagerie" className={isActivePath("/admin/messagerie") ? "active" : ""}>
+            <MessageSquare size={20} />
+            <span className="link-text">Messagerie</span>
           </Link>
         </li>
         <li>
-          <Link to="/admin/audit-logs">
-            <Shield size={20} />
-            <span className="link-text">Journal admin</span>
+          <Link to="/admin/support" className={isActivePath("/admin/support") ? "active" : ""}>
+            <Headphones size={20} />
+            <span className="link-text">Support & Feedback</span>
           </Link>
         </li>
       </ul>
-
       <div className="sidebar-bottom">
-        <Link
-          to="/admin/messagerie"
-          className={`sidebar-bottom-link ${isActivePath("/admin/messagerie") ? "active" : ""}`.trim()}
-        >
-          <MessageSquare size={20} />
-          <span className="link-text">Messagerie</span>
-        </Link>
-
-        <Link
-          to="/admin/support"
-          className={`sidebar-bottom-link ${isActivePath("/admin/support") ? "active" : ""}`.trim()}
-        >
-          <Headphones size={20} />
-          <span className="link-text">Support & Feedback</span>
-        </Link>
-
         <Link
           to="/settings-admin"
           className={`sidebar-bottom-link ${isActivePath("/settings-admin") ? "active" : ""}`.trim()}
@@ -138,3 +105,7 @@ const SidebarAdmin = () => {
 };
 
 export default SidebarAdmin;
+
+
+
+

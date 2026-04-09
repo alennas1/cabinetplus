@@ -48,7 +48,8 @@ import Catalogue from "./pages/Catalogue";
 import DiseaseCatalog from "./pages/DiseaseCatalog";
 import AllergyCatalog from "./pages/AllergyCatalog";
 // --- Admin Pages ---
-import DentistsPage from "./pages/Dentists"; 
+import DentistsPage from "./pages/Dentists";
+import AdminDentistsHub from "./pages/AdminDentistsHub";
 import DentistDetails from "./pages/DentistDetails";
 import PendingPaymentsPage from "./pages/PendingPayments"; 
 import PaymentHistoryPage from "./pages/PaymentHistory"; 
@@ -453,7 +454,8 @@ const AppContent = () => {
         {/* Admin Protected Routes */}
         <Route element={<RequireAuth allowedRoles={["ADMIN"]} />}>
           <Route element={<AdminLayout />}>
-            <Route path="/admin-dashboard" element={<DentistsPage />} />
+            <Route path="/admin-dashboard" element={<AdminDentistsHub />} />
+            <Route path="/admin/dentists" element={<AdminDentistsHub />} />
             <Route path="/dentists" element={<DentistsPage />} />
             <Route path="/dentists/:id" element={<DentistDetails />} />
             <Route path="/pending-payments" element={<PendingPaymentsPage />} />
@@ -488,4 +490,6 @@ export default function App() {
     </Router>
   );
 }
+
+
 

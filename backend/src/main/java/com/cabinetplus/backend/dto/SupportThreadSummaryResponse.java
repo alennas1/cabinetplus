@@ -28,5 +28,8 @@ public record SupportThreadSummaryResponse(
         Boolean clinicOwnerOnline,
         LocalDateTime clinicOwnerLastSeenAt,
         Boolean lastClinicSenderOnline,
-        LocalDateTime lastClinicSenderLastSeenAt
+        LocalDateTime lastClinicSenderLastSeenAt,
+        Long requesterId,
+        String requesterName,
+        String requesterRole
 ) {}

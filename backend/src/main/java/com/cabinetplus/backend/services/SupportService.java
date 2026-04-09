@@ -50,7 +50,7 @@ public class SupportService {
     @Transactional
     public List<SupportThreadSummaryResponse> listMyThreads(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
-        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        SupportThread kept = keepOnlyLatestThreadForRequester(clinicOwner, actor);
         if (kept == null) return List.of();
         return List.of(toSummary(kept, false));
     }
@@ -58,11 +58,12 @@ public class SupportService {
     @Transactional
     public SupportThreadSummaryResponse createMyThread(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
-        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        SupportThread kept = keepOnlyLatestThreadForRequester(clinicOwner, actor);
         if (kept != null) return toSummary(kept, false);
 
         SupportThread thread = new SupportThread();
         thread.setClinicOwner(clinicOwner);
+        thread.setRequester(actor);
         thread.setCreatedAt(LocalDateTime.now());
         thread.setUpdatedAt(LocalDateTime.now());
         SupportThread saved = threadRepository.save(thread);
@@ -73,7 +74,7 @@ public class SupportService {
     public void markAllMyThreadsRead(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
         LocalDateTime now = LocalDateTime.now();
-        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        SupportThread kept = keepOnlyLatestThreadForRequester(clinicOwner, actor);
         if (kept == null) return;
         kept.setClinicLastReadAt(now);
         kept.setUpdatedAt(now);
@@ -87,6 +88,10 @@ public class SupportService {
                 .orElseThrow(() -> new NotFoundException("Conversation introuvable"));
         if (thread.getClinicOwner() == null || thread.getClinicOwner().getId() == null
                 || clinicOwner.getId() == null || !thread.getClinicOwner().getId().equals(clinicOwner.getId())) {
+            throw new NotFoundException("Conversation introuvable");
+        }
+        if (thread.getRequester() == null || thread.getRequester().getId() == null
+                || actor == null || actor.getId() == null || !thread.getRequester().getId().equals(actor.getId())) {
             throw new NotFoundException("Conversation introuvable");
         }
 
@@ -103,7 +108,7 @@ public class SupportService {
     @Transactional
     public List<SupportMessageResponse> getMyMessages(User actor) {
         User clinicOwner = userService.resolveClinicOwner(actor);
-        SupportThread kept = keepOnlyLatestThread(clinicOwner);
+        SupportThread kept = keepOnlyLatestThreadForRequester(clinicOwner, actor);
         if (kept == null) return List.of();
         return getMyThreadMessages(kept.getId(), actor);
     }
@@ -119,10 +124,11 @@ public class SupportService {
         User clinicOwner = userService.resolveClinicOwner(actor);
         SupportThread thread;
         if (threadId == null) {
-            thread = keepOnlyLatestThread(clinicOwner);
+            thread = keepOnlyLatestThreadForRequester(clinicOwner, actor);
             if (thread == null) {
                 thread = new SupportThread();
                 thread.setClinicOwner(clinicOwner);
+                thread.setRequester(actor);
                 thread.setCreatedAt(LocalDateTime.now());
                 thread.setUpdatedAt(LocalDateTime.now());
                 thread = threadRepository.save(thread);
@@ -132,6 +138,10 @@ public class SupportService {
                     .orElseThrow(() -> new NotFoundException("Conversation introuvable"));
             if (thread.getClinicOwner() == null || thread.getClinicOwner().getId() == null
                     || clinicOwner.getId() == null || !thread.getClinicOwner().getId().equals(clinicOwner.getId())) {
+                throw new NotFoundException("Conversation introuvable");
+            }
+            if (thread.getRequester() == null || thread.getRequester().getId() == null
+                    || actor == null || actor.getId() == null || !thread.getRequester().getId().equals(actor.getId())) {
                 throw new NotFoundException("Conversation introuvable");
             }
         }
@@ -162,10 +172,11 @@ public class SupportService {
         return out;
     }
 
-    private SupportThread keepOnlyLatestThread(User clinicOwner) {
+    private SupportThread keepOnlyLatestThreadForRequester(User clinicOwner, User requester) {
         if (clinicOwner == null || clinicOwner.getId() == null) return null;
+        if (requester == null || requester.getId() == null) return null;
 
-        List<SupportThread> threads = threadRepository.findByClinicOwnerOrderByLastMessageAtDescUpdatedAtDescIdDesc(clinicOwner);
+        List<SupportThread> threads = threadRepository.findByClinicOwnerAndRequesterOrderByLastMessageAtDescUpdatedAtDescIdDesc(clinicOwner, requester);
         if (threads == null || threads.isEmpty()) return null;
 
         SupportThread kept = threads.get(0);
@@ -194,6 +205,10 @@ public class SupportService {
                 .orElseThrow(() -> new NotFoundException("Conversation introuvable"));
         if (thread.getClinicOwner() == null || thread.getClinicOwner().getId() == null
                 || clinicOwner.getId() == null || !thread.getClinicOwner().getId().equals(clinicOwner.getId())) {
+            throw new NotFoundException("Conversation introuvable");
+        }
+        if (thread.getRequester() == null || thread.getRequester().getId() == null
+                || actor == null || actor.getId() == null || !thread.getRequester().getId().equals(actor.getId())) {
             throw new NotFoundException("Conversation introuvable");
         }
 
@@ -328,6 +343,10 @@ public class SupportService {
                 || clinicOwner.getId() == null || !thread.getClinicOwner().getId().equals(clinicOwner.getId())) {
             throw new NotFoundException("Message introuvable");
         }
+        if (thread.getRequester() == null || thread.getRequester().getId() == null
+                || actor == null || actor.getId() == null || !thread.getRequester().getId().equals(actor.getId())) {
+            throw new NotFoundException("Message introuvable");
+        }
         return message;
     }
 
@@ -350,18 +369,33 @@ public class SupportService {
     }
 
     public List<SupportThreadSummaryResponse> adminListThreads(String query, User admin) {
+        requireAdminUser(admin);
         String q = query != null ? query.trim().toLowerCase() : "";
         List<SupportThread> threads = threadRepository.findAllByOrderByLastMessageAtDescUpdatedAtDescIdDesc();
         return threads.stream()
                 .filter(t -> {
+                    if (isSuperAdmin(admin)) return true;
+                    User claimed = t != null ? t.getClaimedByAdmin() : null;
+                    if (claimed == null) return true;
+                    if (claimed.getId() == null || admin.getId() == null) return false;
+                    return claimed.getId().equals(admin.getId());
+                })
+                .filter(t -> {
                     if (q.isEmpty()) return true;
                     User owner = t.getClinicOwner();
+                    User requester = t.getRequester();
                     String phone = owner != null ? String.valueOf(owner.getPhoneNumber()) : "";
                     String clinicName = owner != null ? nullToEmpty(owner.getClinicName()) : "";
                     String name = owner != null ? (nullToEmpty(owner.getFirstname()) + " " + nullToEmpty(owner.getLastname())).trim() : "";
+                    String requesterPhone = requester != null ? String.valueOf(requester.getPhoneNumber()) : "";
+                    String requesterName = requester != null ? (nullToEmpty(requester.getFirstname()) + " " + nullToEmpty(requester.getLastname())).trim() : "";
+                    String requesterRole = requester != null && requester.getRole() != null ? requester.getRole().name() : "";
                     return phone.toLowerCase().contains(q)
                              || clinicName.toLowerCase().contains(q)
-                             || name.toLowerCase().contains(q);
+                             || name.toLowerCase().contains(q)
+                             || requesterPhone.toLowerCase().contains(q)
+                             || requesterName.toLowerCase().contains(q)
+                             || requesterRole.toLowerCase().contains(q);
                 })
                 .map(t -> toSummary(t, true))
                 .toList();
@@ -400,7 +434,7 @@ public class SupportService {
 
         boolean same = claimedBy.getId() != null && admin.getId() != null && claimedBy.getId().equals(admin.getId());
         if (!same && !isSuperAdmin(admin)) {
-            throw new BadRequestException("Cette conversation est dÃ©jÃ  prise en charge par un autre admin");
+            throw new BadRequestException("Cette conversation est d\u00e9j\u00e0 prise en charge par un autre admin");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -458,12 +492,12 @@ public class SupportService {
         if (same) return;
 
         if (isSuperAdmin(admin)) {
-            throw new BadRequestException("Conversation dÃ©jÃ  prise en charge. Utilisez Â« Take over Â» pour rÃ©pondre.");
+            throw new BadRequestException("Conversation d\u00e9j\u00e0 prise en charge. Utilisez \u00ab Take over \u00bb pour r\u00e9pondre.");
         }
         String byName = (nullToEmpty(claimed.getFirstname()) + " " + nullToEmpty(claimed.getLastname())).trim();
         throw new BadRequestException(byName.isBlank()
-                ? "Conversation dÃ©jÃ  prise en charge par un autre admin"
-                : ("Conversation dÃ©jÃ  prise en charge par " + byName));
+                ? "Conversation d\u00e9j\u00e0 prise en charge par un autre admin"
+                : ("Conversation d\u00e9j\u00e0 prise en charge par " + byName));
     }
 
     private void maybeClaimThread(SupportThread thread, User admin) {
@@ -482,8 +516,8 @@ public class SupportService {
 
         String byName = (nullToEmpty(claimed.getFirstname()) + " " + nullToEmpty(claimed.getLastname())).trim();
         throw new BadRequestException(byName.isBlank()
-                ? "Conversation dÃ©jÃ  prise en charge par un autre admin"
-                : ("Conversation dÃ©jÃ  prise en charge par " + byName));
+                ? "Conversation d\u00e9j\u00e0 prise en charge par un autre admin"
+                : ("Conversation d\u00e9j\u00e0 prise en charge par " + byName));
     }
 
     private void claimThread(SupportThread thread, User admin, LocalDateTime now, boolean addSystemMessage) {
@@ -620,6 +654,16 @@ public class SupportService {
         String phone = owner != null ? owner.getPhoneNumber() : null;
         String ownerRole = owner != null && owner.getRole() != null ? owner.getRole().name() : null;
 
+        User requester = thread.getRequester();
+        String requesterName = requester != null
+                ? (nullToEmpty(requester.getFirstname()) + " " + nullToEmpty(requester.getLastname())).trim()
+                : "";
+        if (requesterName.isBlank()) {
+            String requesterLabName = resolveLabName(requester);
+            if (requesterLabName != null && !requesterLabName.isBlank()) requesterName = requesterLabName;
+        }
+        String requesterRole = requester != null && requester.getRole() != null ? requester.getRole().name() : null;
+
         SupportMessage lastClinicMessage = thread != null && thread.getId() != null
                 ? messageRepository.findFirstByThreadIdAndSender_RoleNotOrderByCreatedAtDesc(thread.getId(), UserRole.ADMIN)
                 : null;
@@ -678,7 +722,10 @@ public class SupportService {
                 ownerOnline,
                 ownerLastSeenAt,
                 lastClinicSenderOnline,
-                lastClinicSenderLastSeenAt
+                lastClinicSenderLastSeenAt,
+                requester != null ? requester.getId() : null,
+                requesterName.isBlank() ? null : requesterName,
+                requesterRole
         );
     }
 

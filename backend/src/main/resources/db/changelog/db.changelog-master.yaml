@@ -584,3 +584,12 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 065-support-thread-requester
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 065-support-thread-requester.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

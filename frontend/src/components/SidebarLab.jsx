@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { Clipboard, Clock, CreditCard, Headphones, Layers, LogOut, MessageSquare, PlusSquare, Settings, Users } from "react-feather";
@@ -104,14 +104,21 @@ const SidebarLab = () => {
           </Link>
         </li>
 
-        <li className="sidebar-group-title admin">Laboratoire</li>
+        <li className="sidebar-group-title admin">Prothèses</li>
 
         <li>
           <Link to="/lab/prosthetics" className={isActivePath("/lab/prosthetics") ? "active" : ""}>
             <Layers size={20} />
-            <span className="link-text">Prothèses</span>
+            <span className="link-text">ProthÃ¨ses</span>
+          </Link>
+        </li><li>
+          <Link to="/lab/payments" className={isActivePath("/lab/payments") ? "active" : ""}>
+            <CreditCard size={20} />
+            <span className="link-text">Paiements</span>
           </Link>
         </li>
+
+        
 
         <li>
           <Link to="/lab/pending" className={isActivePath("/lab/pending") ? "active" : ""}>
@@ -119,13 +126,8 @@ const SidebarLab = () => {
             <span className="link-text">En attente</span>
           </Link>
         </li>
+        <li className="sidebar-group-title admin">Partenaires</li>
 
-        <li>
-          <Link to="/lab/payments" className={isActivePath("/lab/payments") ? "active" : ""}>
-            <CreditCard size={20} />
-            <span className="link-text">Paiements</span>
-          </Link>
-        </li>
 
         <li>
           <Link to="/lab/dentists" className={isActivePath("/lab/dentists") ? "active" : ""}>
@@ -177,12 +179,12 @@ const SidebarLab = () => {
           className={`sidebar-bottom-link ${isActivePath("/lab/settings") ? "active" : ""}`.trim()}
         >
           <Settings size={20} />
-          <span className="link-text">Paramètres</span>
+          <span className="link-text">ParamÃ¨tres</span>
         </Link>
 
         <button type="button" className="logout-btn" onClick={handleLogout}>
           <LogOut size={20} />
-          <span className="link-text">Se déconnecter</span>
+          <span className="link-text">Se dÃ©connecter</span>
         </button>
       </div>
     </div>
@@ -190,3 +192,6 @@ const SidebarLab = () => {
 };
 
 export default SidebarLab;
+
+
+

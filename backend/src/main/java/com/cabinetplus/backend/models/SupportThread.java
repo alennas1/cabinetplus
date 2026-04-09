@@ -30,6 +30,10 @@ public class SupportThread {
     @JoinColumn(name = "clinic_owner_id", nullable = false)
     private User clinicOwner;
 
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "requester_id", nullable = false)
+    private User requester;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

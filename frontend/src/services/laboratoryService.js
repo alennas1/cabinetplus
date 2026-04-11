@@ -81,6 +81,11 @@ export const cancelLaboratoryPayment = async (labId, paymentId, { pin, reason } 
   return response.data;
 };
 
+export const revokeCancelLaboratoryPayment = async (labId, paymentId) => {
+  const response = await api.put(`${BASE_URL}/${labId}/payments/${paymentId}/cancel/revoke`);
+  return response.data;
+};
+
 export const getLaboratoryPaymentsPage = async (id, { page = 0, size = 20, from, to, sortKey, direction } = {}) => {
   const response = await api.get(`${BASE_URL}/${id}/payments/paged`, {
     params: { page, size, from, to, sortKey, direction },

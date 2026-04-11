@@ -1,26 +1,26 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import {
-  Home,
-  Users,
-  Calendar,
-  LogOut,
+  import {
+    Home,
+    Users,
+    Calendar,
+    LogOut,
   PlusSquare,
   FileText,
   Settings,
   Briefcase,
   Layers,
-  Headphones,
-  MessageSquare,
-  CreditCard,
-} from "react-feather";
+    Headphones,
+    MessageSquare,
+    CreditCard,
+  } from "react-feather";
 import { PERMISSIONS, isClinicEmployeeAccount, userHasPermission } from "../utils/permissions";
 
 import { logout as logoutRedux } from "../store/authSlice";
 import { logout as logoutApi } from "../services/authService";
-import { listMySupportThreads } from "../services/supportService";
-import { listMessagingThreads } from "../services/messagingService";
+  import { listMySupportThreads } from "../services/supportService";
+  import { listMessagingThreads } from "../services/messagingService";
 
 import "./Sidebar.css";
 

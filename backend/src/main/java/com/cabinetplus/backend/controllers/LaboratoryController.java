@@ -493,7 +493,7 @@ public class LaboratoryController {
 
         double totalOwed = service.getTotalOwed(l, viewerDentist);
         double totalPaid = service.getTotalPaid(l, viewerDentist);
-        double remainingToPay = Math.max(totalOwed - totalPaid, 0.0);
+        double remainingToPay = totalOwed - totalPaid;
         List<LaboratoryPaymentResponse> payments = service.getPaymentsForLaboratory(l, viewerDentist).stream()
                 .map(payment -> new LaboratoryPaymentResponse(
                         payment.getId(),

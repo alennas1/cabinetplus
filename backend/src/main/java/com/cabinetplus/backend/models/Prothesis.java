@@ -161,3 +161,8 @@ public class Prothesis {
         updatedAt = LocalDateTime.now();
     }
 }
+    @PreUpdate
+    private void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+}

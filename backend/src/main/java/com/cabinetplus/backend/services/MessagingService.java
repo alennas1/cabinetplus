@@ -19,6 +19,7 @@ import com.cabinetplus.backend.dto.MessagingMessageCreateRequest;
 import com.cabinetplus.backend.dto.MessagingMessageResponse;
 import com.cabinetplus.backend.dto.MessagingPresenceResponse;
 import com.cabinetplus.backend.dto.MessagingThreadSummaryResponse;
+import com.cabinetplus.backend.events.AdminGroupMessageCreatedEvent;
 import com.cabinetplus.backend.events.MessagingMessageCreatedEvent;
 import com.cabinetplus.backend.enums.LaboratoryConnectionStatus;
 import com.cabinetplus.backend.enums.RecordStatus;
@@ -121,6 +122,22 @@ public class MessagingService {
             String phone = admin.getPhoneNumber();
             if (phone == null || phone.isBlank()) continue;
             messagingWebSocketHandler.sendToUser(phone, event);
+        }
+
+        try {
+            List<Long> recipientIds = admins.stream()
+                    .filter(u -> u != null && u.getId() != null)
+                    .map(User::getId)
+                    .toList();
+            String senderName = (actor != null ? (nullToEmpty(actor.getFirstname()) + " " + nullToEmpty(actor.getLastname())).trim() : "");
+            eventPublisher.publishEvent(new AdminGroupMessageCreatedEvent(
+                    actor != null ? actor.getId() : null,
+                    senderName.isBlank() ? null : senderName,
+                    content.trim(),
+                    recipientIds
+            ));
+        } catch (Exception ignored) {
+            // ignore in-app notification failures
         }
 
         return res;

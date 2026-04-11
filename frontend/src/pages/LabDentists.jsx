@@ -16,7 +16,7 @@ import "./Patients.css";
 const SEARCH_BY_OPTIONS = [
   { value: "dentist", label: "Dentiste" },
   { value: "clinic", label: "Cabinet" },
-  { value: "phone", label: "TÃ©lÃ©phone" },
+  { value: "phone", label: "Téléphone" },
   { value: "id", label: "ID" },
 ];
 
@@ -66,14 +66,14 @@ const LabDentists = () => {
   }, [items, debouncedQ, searchBy]);
 
   return (
-    <div className="patients-container">
-      <BackButton fallbackTo="/lab" />
-      <PageHeader title="Dentistes" subtitle="Liste des dentistes connectÃ©s Ã  votre laboratoire." align="left" />
+      <div className="patients-container">
+        <BackButton fallbackTo="/lab" />
+        <PageHeader title="Dentistes" subtitle="Liste des dentistes connectés à votre laboratoire." align="left" />
 
-      <div className="patients-controls">
-        <div className="controls-left">
-          <div className="search-group">
-            <Search className="search-icon" size={16} />
+        <div className="patients-controls">
+          <div className="controls-left">
+            <div className="search-group">
+              <Search className="search-icon" size={16} />
             <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher..." />
           </div>
           <ModernDropdown value={searchBy} onChange={setSearchBy} options={SEARCH_BY_OPTIONS} ariaLabel="Filtrer la recherche" />
@@ -91,7 +91,7 @@ const LabDentists = () => {
           <tr>
             <th>Cabinet</th>
             <th>Dentiste</th>
-            <th>TÃ©lÃ©phone</th>
+            <th>Téléphone</th>
             <th style={{ width: 130 }}>Actions</th>
           </tr>
         </thead>
@@ -135,8 +135,8 @@ const LabDentists = () => {
                   <Link
                     to={`/lab/dentists/${d.dentistPublicId}`}
                     className="action-btn view"
-                    title="DÃ©tails"
-                    aria-label="DÃ©tails"
+                    title="Détails"
+                    aria-label="Détails"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ArrowUpRight size={16} />

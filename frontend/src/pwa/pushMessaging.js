@@ -18,7 +18,7 @@ export const isWebPushSupported = () => {
   );
 };
 
-export const ensureMessagingPushSubscription = async ({ prompt = false } = {}) => {
+export const ensureWebPushSubscription = async ({ prompt = false } = {}) => {
   if (!isWebPushSupported()) return { ok: false, reason: "unsupported" };
 
   const perm = Notification.permission;
@@ -50,3 +50,5 @@ export const ensureMessagingPushSubscription = async ({ prompt = false } = {}) =
   return { ok: true };
 };
 
+// Backward-compatible alias (previously messaging-only).
+export const ensureMessagingPushSubscription = ensureWebPushSubscription;

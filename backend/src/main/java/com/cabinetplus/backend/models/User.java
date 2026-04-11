@@ -263,15 +263,20 @@ public class User {
         return role == UserRole.EMPLOYEE || ownerDentist != null;
     }
 
+    @Transient
+    public boolean usesUserPreferencesDirectly() {
+        return role == UserRole.EMPLOYEE || role == UserRole.LAB || ownerDentist != null;
+    }
+
     public String getWorkingHoursMode() {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             return userPreferences != null ? userPreferences.getWorkingHoursMode() : "standard";
         }
         return dentistProfile != null ? dentistProfile.getWorkingHoursMode() : "standard";
     }
 
     public void setWorkingHoursMode(String mode) {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             ensureUserPreferences().setWorkingHoursMode(mode);
             return;
         }
@@ -280,14 +285,14 @@ public class User {
     }
 
     public String getWorkingHoursStart() {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             return userPreferences != null ? userPreferences.getWorkingHoursStart() : "08:00";
         }
         return dentistProfile != null ? dentistProfile.getWorkingHoursStart() : "08:00";
     }
 
     public void setWorkingHoursStart(String start) {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             ensureUserPreferences().setWorkingHoursStart(start);
             return;
         }
@@ -296,14 +301,14 @@ public class User {
     }
 
     public String getWorkingHoursEnd() {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             return userPreferences != null ? userPreferences.getWorkingHoursEnd() : "17:00";
         }
         return dentistProfile != null ? dentistProfile.getWorkingHoursEnd() : "17:00";
     }
 
     public void setWorkingHoursEnd(String end) {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             ensureUserPreferences().setWorkingHoursEnd(end);
             return;
         }
@@ -312,14 +317,14 @@ public class User {
     }
 
     public String getTimeFormat() {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             return userPreferences != null ? userPreferences.getTimeFormat() : "24h";
         }
         return dentistProfile != null ? dentistProfile.getTimeFormat() : "24h";
     }
 
     public void setTimeFormat(String format) {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             ensureUserPreferences().setTimeFormat(format);
             return;
         }
@@ -328,14 +333,14 @@ public class User {
     }
 
     public String getDateFormat() {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             return userPreferences != null ? userPreferences.getDateFormat() : "dd/mm/yyyy";
         }
         return dentistProfile != null ? dentistProfile.getDateFormat() : "dd/mm/yyyy";
     }
 
     public void setDateFormat(String format) {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             ensureUserPreferences().setDateFormat(format);
             return;
         }
@@ -344,14 +349,14 @@ public class User {
     }
 
     public String getMoneyFormat() {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             return userPreferences != null ? userPreferences.getMoneyFormat() : "space";
         }
         return dentistProfile != null ? dentistProfile.getMoneyFormat() : "space";
     }
 
     public void setMoneyFormat(String format) {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             ensureUserPreferences().setMoneyFormat(format);
             return;
         }
@@ -360,14 +365,14 @@ public class User {
     }
 
     public String getCurrencyLabel() {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             return userPreferences != null ? userPreferences.getCurrencyLabel() : "DA";
         }
         return dentistProfile != null ? dentistProfile.getCurrencyLabel() : "DA";
     }
 
     public void setCurrencyLabel(String label) {
-        if (isEmployee()) {
+        if (usesUserPreferencesDirectly()) {
             ensureUserPreferences().setCurrencyLabel(label);
             return;
         }

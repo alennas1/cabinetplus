@@ -407,8 +407,7 @@ const Employees = ({ view = "active" }) => {
       <table className="patients-table">
         <thead>
           <tr>
-            <SortableTh label="Prénom" sortKey="firstName" sortConfig={sortConfig} onSort={handleSort} />
-            <SortableTh label="Nom" sortKey="lastName" sortConfig={sortConfig} onSort={handleSort} />
+            <SortableTh label="Employé" sortKey="lastName" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Téléphone" sortKey="phone" sortConfig={sortConfig} onSort={handleSort} />
             <th>Rôle</th>
             <SortableTh label="Statut" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
@@ -425,8 +424,18 @@ const Employees = ({ view = "active" }) => {
               }}
               style={{ cursor: "pointer" }}
             >
-              <td>{emp.firstName || "—"}</td>
-              <td>{emp.lastName || "—"}</td>
+              <td>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span>
+                    {`${String(emp?.firstName || "").trim()} ${String(emp?.lastName || "").trim()}`.trim() || "—"}
+                  </span>
+                  {!emp?.accountSetupCompleted ? (
+                    <span className="context-badge pending" style={{ padding: "4px 8px", fontSize: 12 }}>
+                      {"Compte non configur\u00e9"}
+                    </span>
+                  ) : null}
+                </div>
+              </td>
               <td>{formatPhoneNumber(emp.phone) || "—"}</td>
 	              <td>
 	                <span className="employee-role-card-access">Employe</span>
@@ -441,7 +450,6 @@ const Employees = ({ view = "active" }) => {
                         ? "En congé"
                         : "—"}
                 </span>
-                {!emp?.accountSetupCompleted ? (                   <div style={{ marginTop: 6 }}>                     <span className="context-badge pending" style={{ padding: "4px 8px", fontSize: 12 }}>                       {"Compte non configur\u00e9"}                     </span>                   </div>                 ) : null}
               </td>
               <td className="actions-cell">
                 <button className="action-btn view" onClick={(e) => {
@@ -509,7 +517,7 @@ const Employees = ({ view = "active" }) => {
 
           {currentEmployees.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ textAlign: "center", color: "#888" }}>
+              <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
                 {view === "archived" ? "Aucun employé archivé" : "Aucun employé trouvé"}
               </td>
             </tr>

@@ -593,3 +593,12 @@ databaseChangeLog:
             relativeToChangelogFile: true
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 066-notifications
+      author: cabinetplus
+      changes:
+        - sqlFile:
+            path: 066-notifications.sql
+            relativeToChangelogFile: true
+            splitStatements: true
+            stripComments: true

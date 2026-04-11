@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { ArrowUpRight, CheckCircle, ChevronDown, Search, X } from "react-feather";
@@ -23,9 +24,11 @@ import {
   rejectLabProthesisCancel,
   updateLabProthesesStatus,
 } from "../services/labPortalService";
+import useRealtimeMessagingSocket from "../hooks/useRealtimeMessagingSocket";
 
 import "./Patients.css";
 import "./Patient.css";
+import "../components/NotificationBell.css";
 
 const prothesisStatusLabels = {
   PENDING: "En attente",
@@ -53,6 +56,7 @@ const DATE_TYPE_OPTIONS = [
 
 const LabProsthetics = ({ dentistId: dentistIdProp, embedded = false, focusId } = {}) => {
   const navigate = useNavigate();
+  const token = useSelector((state) => state.auth.token);
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 250);
   const [filterBy, setFilterBy] = useState("");
@@ -174,6 +178,35 @@ const LabProsthetics = ({ dentistId: dentistIdProp, embedded = false, focusId } 
   useEffect(() => {
     load();
   }, [params]);
+
+  const wsReloadTimerRef = useRef(null);
+  useEffect(() => {
+    return () => {
+      if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+      wsReloadTimerRef.current = null;
+    };
+  }, []);
+
+  const scheduleRealtimeReload = () => {
+    if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+    wsReloadTimerRef.current = setTimeout(() => {
+      load();
+    }, 350);
+  };
+
+  useRealtimeMessagingSocket({
+    token,
+    enabled: !!token,
+    onMessage: (data) => {
+      if (data?.type !== "PROTHESIS_UPDATED") return;
+      const scopeDentist = String(dentistIdProp || "").trim().toLowerCase();
+      if (scopeDentist) {
+        const eventDentist = String(data?.dentistPublicId || "").trim().toLowerCase();
+        if (eventDentist && eventDentist !== scopeDentist) return;
+      }
+      scheduleRealtimeReload();
+    },
+  });
 
   const focusAppliedRef = useRef(null);
   useEffect(() => {
@@ -737,10 +770,10 @@ const LabProsthetics = ({ dentistId: dentistIdProp, embedded = false, focusId } 
                        </button>
                      ) : null}
                      {canDecideCancel ? (
-                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                       <div style={{ display: "inline-flex", gap: 8 }}>
                          <button
                           type="button"
-                          className="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors text-xs font-semibold"
+                          className="cp-notif-actionBtn primary"
                           onClick={() => openConfirmCancel(p, true)}
                           disabled={isDecidingCancel}
                         >
@@ -748,7 +781,7 @@ const LabProsthetics = ({ dentistId: dentistIdProp, embedded = false, focusId } 
                         </button>
                         <button
                           type="button"
-                          className="px-3 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors text-xs font-semibold"
+                          className="cp-notif-actionBtn danger"
                           onClick={() => openConfirmCancel(p, false)}
                           disabled={isDecidingCancel}
                         >

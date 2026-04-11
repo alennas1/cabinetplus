@@ -25,7 +25,7 @@ public interface FournisseurPaymentRepository extends JpaRepository<FournisseurP
 
     List<FournisseurPayment> findByFournisseurIdAndCreatedByOrderByPaymentDateDesc(Long fournisseurId, User createdBy);
 
-    @EntityGraph(attributePaths = {"createdBy.firstname", "createdBy.lastname"})
+    @EntityGraph(attributePaths = {"createdBy"})
     @Query("""
         select fp
         from FournisseurPayment fp

@@ -34,7 +34,9 @@ const Justification = () => {
 
   const navigateBackSafely = () => {
     const fallback = `/patients/${patientId}`;
-    if (window.history.length > 1) navigate(-1);
+    const idx = window?.history?.state?.idx;
+    const canGoBack = typeof idx === "number" ? idx > 0 : window.history.length > 1;
+    if (canGoBack) navigate(-1);
     else navigate(fallback, { replace: true });
   };
 

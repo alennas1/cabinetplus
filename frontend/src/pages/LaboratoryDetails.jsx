@@ -32,6 +32,7 @@ import {
   getLaboratoryBillingEntriesSummary,
   getLaboratoryById,
   updateLaboratory,
+  revokeCancelLaboratoryPayment,
 } from "../services/laboratoryService";
 import { inviteLaboratoryConnection } from "../services/laboratoryConnectionService";
 import { getApiErrorMessage } from "../utils/error";
@@ -769,6 +770,23 @@ const LaboratoryDetails = () => {
     }
   };
 
+  const handleRevokePaymentCancel = async (paymentId) => {
+    try {
+      if (isArchived) {
+        toast.info("Laboratoire archivé : lecture seule.");
+        return;
+      }
+      if (paymentId === null || paymentId === undefined) return;
+      await revokeCancelLaboratoryPayment(id, paymentId);
+      toast.success("Demande d'annulation retirée");
+      setPaymentPage(1);
+      setPaymentsRefreshKey((v) => v + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error(getApiErrorMessage(err, "Erreur lors du retrait"));
+    }
+  };
+
   if (loading) {
     return (
       <DentistPageSkeleton
@@ -915,7 +933,21 @@ const LaboratoryDetails = () => {
                       {isPaymentCancelled(payment) ? (
                         <span className="context-badge cancelled">Annulé</span>
                       ) : isCancelRequestPending(payment) ? (
-                        <span className="context-badge pending">Annulation en attente</span>
+                        <div className="flex items-center gap-2">
+                          <span className="context-badge pending">Annulation en attente</span>
+                          <button
+                            type="button"
+                            className="action-btn cancel"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRevokePaymentCancel(payment.id);
+                            }}
+                            title="Retirer la demande d'annulation"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       ) : (
                         !isArchived && (
                           <button

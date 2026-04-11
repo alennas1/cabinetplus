@@ -104,17 +104,18 @@ const SidebarLab = () => {
           </Link>
         </li>
 
+
         <li className="sidebar-group-title admin">Prothèses</li>
 
         <li>
           <Link to="/lab/prosthetics" className={isActivePath("/lab/prosthetics") ? "active" : ""}>
             <Layers size={20} />
-            <span className="link-text">ProthÃ¨ses</span>
+            <span className="link-text">Prothèses</span>
           </Link>
         </li><li>
           <Link to="/lab/payments" className={isActivePath("/lab/payments") ? "active" : ""}>
             <CreditCard size={20} />
-            <span className="link-text">Paiements</span>
+            <span className="link-text">Paiements reçus</span>
           </Link>
         </li>
 
@@ -179,12 +180,12 @@ const SidebarLab = () => {
           className={`sidebar-bottom-link ${isActivePath("/lab/settings") ? "active" : ""}`.trim()}
         >
           <Settings size={20} />
-          <span className="link-text">ParamÃ¨tres</span>
+          <span className="link-text">Paramètres</span>
         </Link>
 
         <button type="button" className="logout-btn" onClick={handleLogout}>
           <LogOut size={20} />
-          <span className="link-text">Se dÃ©connecter</span>
+          <span className="link-text">Se déconnecter</span>
         </button>
       </div>
     </div>

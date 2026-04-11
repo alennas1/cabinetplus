@@ -715,6 +715,11 @@ const MessagingCenter = ({
           const msg = data.message || null;
           if (!msg?.id) return;
           setAdminGroupLastMessage(msg);
+          try {
+            window.dispatchEvent(new Event("CP_NOTIFICATIONS_PING"));
+          } catch {
+            // ignore
+          }
 
           const currentThreadId = selectedThreadIdRef.current;
           if (String(currentThreadId || "") === ADMIN_GROUP_THREAD_ID) {
@@ -729,6 +734,11 @@ const MessagingCenter = ({
         const msg = data.message || null;
 
         if (summary?.id) setThreads((prev) => upsertThreadSummary(prev, summary));
+        try {
+          window.dispatchEvent(new Event("CP_NOTIFICATIONS_PING"));
+        } catch {
+          // ignore
+        }
 
         const currentThreadId = selectedThreadIdRef.current;
         const currentMyPublicId = myPublicIdRef.current;
@@ -900,9 +910,14 @@ const MessagingCenter = ({
       setChatText("");
 
       const saved = isAdminGroup ? await sendAdminGroupMessage(content) : await sendMessagingThreadMessage(selectedThreadId, content);
-      setMessages((prev) =>
-        (Array.isArray(prev) ? prev : []).map((m) => (String(m?.id) === String(tmpId) ? { ...saved, clientStatus: "SENT" } : m))
-      );
+      setMessages((prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        const alreadyHasReal = list.some((m) => String(m?.id) === String(saved?.id));
+        if (alreadyHasReal) {
+          return list.filter((m) => String(m?.id) !== String(tmpId));
+        }
+        return list.map((m) => (String(m?.id) === String(tmpId) ? { ...saved, clientStatus: "SENT" } : m));
+      });
       if (isAdminGroup) {
         setAdminGroupLastMessage(saved);
       } else {

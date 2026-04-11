@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Plus, Filter, X } from "react-feather";
 import { Edit2, Eye, Search, Archive, RotateCcw } from "react-feather";
@@ -9,19 +9,19 @@ import SortableTh from "../components/SortableTh";
 import Pagination from "../components/Pagination";
 import MetadataInfo from "../components/MetadataInfo";
 
-  import { ChevronDown } from "react-feather"; // ⬅️ at the top with imports
+import { ChevronDown } from "react-feather"; // ⬅️ at the top with imports
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-	import PageHeader from "../components/PageHeader";
-	import DentistPageSkeleton from "../components/DentistPageSkeleton";
-	import BackButton from "../components/BackButton";
-	import { SORT_DIRECTIONS } from "../utils/tableSort";
-	import useDebouncedValue from "../hooks/useDebouncedValue";
-	import {
-	  getPatients,
-	  getArchivedPatients,
-	  getPatientsPage,
-	  getArchivedPatientsPage,
+import PageHeader from "../components/PageHeader";
+import DentistPageSkeleton from "../components/DentistPageSkeleton";
+import BackButton from "../components/BackButton";
+import { SORT_DIRECTIONS } from "../utils/tableSort";
+import useDebouncedValue from "../hooks/useDebouncedValue";
+import {
+  getPatients,
+  getArchivedPatients,
+  getPatientsPage,
+  getArchivedPatientsPage,
   createPatient,
   updatePatient,
   archivePatient,
@@ -33,33 +33,33 @@ import { formatPhoneNumber, isValidPhoneNumber, normalizePhoneInput } from "../u
 import PhoneInput from "../components/PhoneInput";
 import FieldError from "../components/FieldError";
 import { FIELD_LIMITS, validateAge, validateText } from "../utils/validation";
-	import "./Patients.css";
-	
-	const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/dashboard" }) => {
-	  const token = useSelector((state) => state.auth.token);
-	  const [sortConfig, setSortConfig] = useState({ key: null, direction: SORT_DIRECTIONS.ASC });
+import "./Patients.css";
 
-	  const [patients, setPatients] = useState([]);
-	  const [loading, setLoading] = useState(true);
-	  const [isFetching, setIsFetching] = useState(false);
-	  const hasLoadedRef = useRef(false);
+const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/dashboard" }) => {
+  const token = useSelector((state) => state.auth.token);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: SORT_DIRECTIONS.ASC });
+
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const hasLoadedRef = useRef(false);
 
 
   // Pagination
-const [currentPage, setCurrentPage] = useState(1);
-const pageSize = 20;
-const [totalPages, setTotalPages] = useState(1);
-const [totalElements, setTotalElements] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
 
-// inside Patients component:
-const [filterBy, setFilterBy] = useState("firstname");
-const [dropdownOpen, setDropdownOpen] = useState(false);
-const dropdownRef = useRef();
-const navigate = useNavigate();
+  // inside Patients component:
+  const [filterBy, setFilterBy] = useState("firstname");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef();
+  const navigate = useNavigate();
 
-	  // Search + field filter
-	  const [search, setSearch] = useState("");
-	  const debouncedSearch = useDebouncedValue(search, 300);
+  // Search + field filter
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   // Advanced filters
   const [showFilter, setShowFilter] = useState(false);
@@ -119,36 +119,36 @@ const navigate = useNavigate();
   const [confirmButtonClassName, setConfirmButtonClassName] = useState("bg-[#0f172a] hover:bg-black");
   const [isConfirmingAction, setIsConfirmingAction] = useState(false);
   const [onConfirmAction, setOnConfirmAction] = useState(null);
-const formatDate = (dateStr) => {
-  if (!dateStr) return "";
-  const label = formatDateTimeByPreference(dateStr);
-  return label === "-" ? "" : label;
-};
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const label = formatDateTimeByPreference(dateStr);
+    return label === "-" ? "" : label;
+  };
 
-const formatPhone = (phone) => formatPhoneNumber(phone) || "";
+  const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
-	  const fetchPatients = async () => {
-	    try {
-	      const isInitial = !hasLoadedRef.current;
-	      if (isInitial) setLoading(true);
-	      else setIsFetching(true);
-	      const params = {
-	        page: Math.max((currentPage || 1) - 1, 0),
-	        size: pageSize,
-	        q: debouncedSearch?.trim() || undefined,
-	        field: filterBy || undefined,
-	        sex: sexFilter || undefined,
-	        ageFrom: ageRange?.from ? Number(ageRange.from) : undefined,
-	        ageTo: ageRange?.to ? Number(ageRange.to) : undefined,
-	        from: dateRange?.from || undefined,
-	        to: dateRange?.to || undefined,
-	        sortKey: sortConfig.key || undefined,
-	        sortDirection: sortConfig.direction || undefined,
-	      };
-	
-	      const data = view === "archived"
-	        ? await getArchivedPatientsPage(params)
-	        : await getPatientsPage(params);
+  const fetchPatients = async () => {
+    try {
+      const isInitial = !hasLoadedRef.current;
+      if (isInitial) setLoading(true);
+      else setIsFetching(true);
+      const params = {
+        page: Math.max((currentPage || 1) - 1, 0),
+        size: pageSize,
+        q: debouncedSearch?.trim() || undefined,
+        field: filterBy || undefined,
+        sex: sexFilter || undefined,
+        ageFrom: ageRange?.from ? Number(ageRange.from) : undefined,
+        ageTo: ageRange?.to ? Number(ageRange.to) : undefined,
+        from: dateRange?.from || undefined,
+        to: dateRange?.to || undefined,
+        sortKey: sortConfig.key || undefined,
+        sortDirection: sortConfig.direction || undefined,
+      };
+
+      const data = view === "archived"
+        ? await getArchivedPatientsPage(params)
+        : await getPatientsPage(params);
 
       const nextItems = Array.isArray(data?.items)
         ? data.items
@@ -187,15 +187,15 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
     }
   };
 
-	  // Load patients (server-side pagination / search / filters)
-	  useEffect(() => {
-	    fetchPatients();
-	    // eslint-disable-next-line react-hooks/exhaustive-deps
-	  }, [token, view, currentPage, debouncedSearch, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to, sortConfig.key, sortConfig.direction]);
-	
-	  useEffect(() => {
-	    setCurrentPage(1);
-	  }, [view, search, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to, sortConfig.key, sortConfig.direction]);
+  // Load patients (server-side pagination / search / filters)
+  useEffect(() => {
+    fetchPatients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, view, currentPage, debouncedSearch, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to, sortConfig.key, sortConfig.direction]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [view, search, filterBy, sexFilter, ageRange.from, ageRange.to, dateRange.from, dateRange.to, sortConfig.key, sortConfig.direction]);
 
   const handleArchiveToggle = (patientId, action) => {
     const patient = patients.find((p) => p.id === patientId);
@@ -237,21 +237,21 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
     setShowConfirm(true);
   };
 
-	  const handleSort = (key, explicitDirection) => {
-	    if (!key) return;
-	    setSortConfig((prev) => {
-	      const nextDirection =
-	        explicitDirection ||
+  const handleSort = (key, explicitDirection) => {
+    if (!key) return;
+    setSortConfig((prev) => {
+      const nextDirection =
+        explicitDirection ||
         (prev.key === key
           ? prev.direction === SORT_DIRECTIONS.ASC
             ? SORT_DIRECTIONS.DESC
             : SORT_DIRECTIONS.ASC
           : SORT_DIRECTIONS.ASC);
-	
-	      return { key, direction: nextDirection };
-	    });
-	    setCurrentPage(1);
-	  };
+
+      return { key, direction: nextDirection };
+    });
+    setCurrentPage(1);
+  };
 
   // Handle form input
   const handleChange = (e) => {
@@ -365,36 +365,36 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
 
 
- 
-	// Pagination logic
- 	const currentPatients = useMemo(() => patients || [], [patients]);
-	
-	  // Only show full-page skeleton on the first load.
-	  if (loading && !hasLoadedRef.current) {
-	    return (
-	      <DentistPageSkeleton
-	        title={view === "archived" ? "Patients archivés" : "Patients"}
-	        subtitle={view === "archived" ? "Chargement de la liste des patients archivés" : "Chargement de la liste des patients"}
+
+  // Pagination logic
+  const currentPatients = useMemo(() => patients || [], [patients]);
+
+  // Only show full-page skeleton on the first load.
+  if (loading && !hasLoadedRef.current) {
+    return (
+      <DentistPageSkeleton
+        title={view === "archived" ? "Patients archivés" : "Patients"}
+        subtitle={view === "archived" ? "Chargement de la liste des patients archivés" : "Chargement de la liste des patients"}
         variant="table"
       />
     );
   }
 
   return (
-  <div className="patients-container">
-{showBackButton && <BackButton fallbackTo={backFallbackTo} />}
-<PageHeader 
-  title={view === "archived" ? "Patients archivés" : "Patients"} 
-  subtitle={view === "archived" ? "Liste des patients archivés" : "Liste des patients enregistrés"} 
-  align="left" 
-/>
+    <div className="patients-container">
+      {showBackButton && <BackButton fallbackTo={backFallbackTo} />}
+      <PageHeader
+        title={view === "archived" ? "Patients archivés" : "Patients"}
+        subtitle={view === "archived" ? "Liste des patients archivés" : "Liste des patients enregistrés"}
+        align="left"
+      />
 
       {/* Controls */}
       <div className="patients-controls">
         <div className="controls-left">
           {/* Search */}
           <div className="search-group">
-<Search className="search-icon" size={16}/>
+            <Search className="search-icon" size={16} />
             <input
               type="text"
               placeholder="Rechercher..."
@@ -402,113 +402,113 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-<div className="modern-dropdown" ref={dropdownRef}>
-  <button
-    className={`dropdown-trigger ${dropdownOpen ? "open" : ""}`}
-    onClick={() => setDropdownOpen(!dropdownOpen)}
-  >
-    <span>
-      {filterBy === "firstname"
-        ? "Par Prénom"
-        : filterBy === "lastname"
-        ? "Par Nom"
-        : filterBy === "phone"
-        ? "Par Téléphone"
-        : "Par Âge"}
-    </span>
-    <ChevronDown
-      size={18}
-      className={`chevron ${dropdownOpen ? "rotated" : ""}`}
-    />
-  </button>
+          <div className="modern-dropdown" ref={dropdownRef}>
+            <button
+              className={`dropdown-trigger ${dropdownOpen ? "open" : ""}`}
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+            >
+              <span>
+                {filterBy === "firstname"
+                  ? "Par Prénom"
+                  : filterBy === "lastname"
+                    ? "Par Nom"
+                    : filterBy === "phone"
+                      ? "Par Téléphone"
+                      : "Par Âge"}
+              </span>
+              <ChevronDown
+                size={18}
+                className={`chevron ${dropdownOpen ? "rotated" : ""}`}
+              />
+            </button>
 
-  {dropdownOpen && (
-    <ul className="dropdown-menu">
-      <li onClick={() => { setFilterBy("firstname"); setDropdownOpen(false); }}>
-        Par Prénom
-      </li>
-      <li onClick={() => { setFilterBy("lastname"); setDropdownOpen(false); }}>
-        Par Nom
-      </li>
-      <li onClick={() => { setFilterBy("phone"); setDropdownOpen(false); }}>
-        Par Téléphone
-      </li>
-      <li onClick={() => { setFilterBy("age"); setDropdownOpen(false); }}>
-        Par Âge
-      </li>
-    </ul>
-  )}
-</div>
+            {dropdownOpen && (
+              <ul className="dropdown-menu">
+                <li onClick={() => { setFilterBy("firstname"); setDropdownOpen(false); }}>
+                  Par Prénom
+                </li>
+                <li onClick={() => { setFilterBy("lastname"); setDropdownOpen(false); }}>
+                  Par Nom
+                </li>
+                <li onClick={() => { setFilterBy("phone"); setDropdownOpen(false); }}>
+                  Par Téléphone
+                </li>
+                <li onClick={() => { setFilterBy("age"); setDropdownOpen(false); }}>
+                  Par Âge
+                </li>
+              </ul>
+            )}
+          </div>
 
 
           {/* Filter dropdown */}
           {/* Filter panel (advanced filters) */}
-<div className="filter-wrapper" ref={filterRef}>
-  
-  {showFilter && (
-    <div className="filter-panel">
-      <h3>Filtres</h3>
+          <div className="filter-wrapper" ref={filterRef}>
 
-      {/* Category */}
-      <div className="filter-group">
-        <strong>Catégorie</strong>
-        {Object.entries(ITEM_CATEGORIES).map(([key, label]) => (
-          <label key={key}>
-            <input
-              type="checkbox"
-              value={key}
-              checked={selectedCategories.includes(key)}
-              onChange={(e) => handleCategoryChange(e)}
-            />
-            {label}
-          </label>
-        ))}
-      </div>
+            {showFilter && (
+              <div className="filter-panel">
+                <h3>Filtres</h3>
 
-      {/* Price */}
-      <div className="filter-group">
-        <strong>Prix</strong>
-        <div style={{ display: "flex", gap: "6px" }}>
-          <input
-            type="number"
-            placeholder="Min"
-            value={tempPriceRange.from}
-            onChange={(e) =>
-              setTempPriceRange({ ...tempPriceRange, from: e.target.value })
-            }
-          />
-          <input
-            type="number"
-            placeholder="Max"
-            value={tempPriceRange.to}
-            onChange={(e) =>
-              setTempPriceRange({ ...tempPriceRange, to: e.target.value })
-            }
-          />
-        </div>
-      </div>
+                {/* Category */}
+                <div className="filter-group">
+                  <strong>Catégorie</strong>
+                  {Object.entries(ITEM_CATEGORIES).map(([key, label]) => (
+                    <label key={key}>
+                      <input
+                        type="checkbox"
+                        value={key}
+                        checked={selectedCategories.includes(key)}
+                        onChange={(e) => handleCategoryChange(e)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
 
-      <div className="filter-actions">
-        <button
-          className="filter-cancel"
-          onClick={() => setShowFilter(false)}
-        >
-          Annuler
-        </button>
-        <button
-          className="filter-btn"
-          onClick={() => {
-            setCategoryFilter(selectedCategories);
-            setPriceRange(tempPriceRange);
-            setShowFilter(false);
-          }}
-        >
-          Enregistrer
-        </button>
-      </div>
-    </div>
-  )}
-</div>
+                {/* Price */}
+                <div className="filter-group">
+                  <strong>Prix</strong>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      type="number"
+                      placeholder="Min"
+                      value={tempPriceRange.from}
+                      onChange={(e) =>
+                        setTempPriceRange({ ...tempPriceRange, from: e.target.value })
+                      }
+                    />
+                    <input
+                      type="number"
+                      placeholder="Max"
+                      value={tempPriceRange.to}
+                      onChange={(e) =>
+                        setTempPriceRange({ ...tempPriceRange, to: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-actions">
+                  <button
+                    className="filter-cancel"
+                    onClick={() => setShowFilter(false)}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    className="filter-btn"
+                    onClick={() => {
+                      setCategoryFilter(selectedCategories);
+                      setPriceRange(tempPriceRange);
+                      setShowFilter(false);
+                    }}
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
 
 
@@ -564,120 +564,120 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
             <th>Actions</th>
           </tr>
         </thead>
-       <tbody>
-  {currentPatients.map((p) => (
-    <tr
-      key={p.id}
-      onClick={() => {
-        if (!p?.publicId) return;
-        navigate(`/patients/${String(p.publicId)}`);
-      }}
-      style={{ cursor: "pointer" }}
-    >
-      <td>
-        <div className="patients-name-cell">
-          <span>{p.firstname || "—"}</span>
-          <PatientDangerIcon
-            show={!!p.danger}
-            compact
-            dangerCancelled={p.dangerCancelled}
-            dangerOwed={p.dangerOwed}
-          />
-        </div>
-      </td>
-      <td>{p.lastname || "—"}</td>
-      <td>{p.age ?? "N/A"} ans</td>
-<td>
-  {p.sex === "Homme" ? (
-    <span
-      className="sex-icon-square male"
-      title="Homme"
-      aria-label="Homme"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <FaMale aria-hidden="true" focusable="false" />
-    </span>
-  ) : p.sex === "Femme" ? (
-    <span
-      className="sex-icon-square female"
-      title="Femme"
-      aria-label="Femme"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <FaFemale aria-hidden="true" focusable="false" />
-    </span>
-  ) : (
-    "—"
-  )}
-</td>
-      <td>{formatPhone(p.phone)}</td>
-      <td>
-        <div className="flex items-center gap-2">
-          <span>{formatDate(p.createdAt)}</span>
-          <MetadataInfo entity={p} />
-        </div>
-      </td>
-      <td className="actions-cell">
-        <button
-          className="action-btn view"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!p?.publicId) return;
-            navigate(`/patients/${String(p.publicId)}`);
-          }}
-          title="Voir le patient"
-        >
-          <Eye size={16} />
-        </button>
+        <tbody>
+          {currentPatients.map((p) => (
+            <tr
+              key={p.id}
+              onClick={() => {
+                if (!p?.publicId) return;
+                navigate(`/patients/${String(p.publicId)}`);
+              }}
+              style={{ cursor: "pointer" }}
+            >
+              <td>
+                <div className="patients-name-cell">
+                  <span>{p.firstname || "—"}</span>
+                  <PatientDangerIcon
+                    show={!!p.danger}
+                    compact
+                    dangerCancelled={p.dangerCancelled}
+                    dangerOwed={p.dangerOwed}
+                  />
+                </div>
+              </td>
+              <td>{p.lastname || "—"}</td>
+              <td>{p.age ?? "N/A"} ans</td>
+              <td>
+                {p.sex === "Homme" ? (
+                  <span
+                    className="sex-icon-square male"
+                    title="Homme"
+                    aria-label="Homme"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <FaMale aria-hidden="true" focusable="false" />
+                  </span>
+                ) : p.sex === "Femme" ? (
+                  <span
+                    className="sex-icon-square female"
+                    title="Femme"
+                    aria-label="Femme"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <FaFemale aria-hidden="true" focusable="false" />
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </td>
+              <td>{formatPhone(p.phone)}</td>
+              <td>
+                <div className="flex items-center gap-2">
+                  <span>{formatDate(p.createdAt)}</span>
+                  <MetadataInfo entity={p} />
+                </div>
+              </td>
+              <td className="actions-cell">
+                <button
+                  className="action-btn view"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!p?.publicId) return;
+                    navigate(`/patients/${String(p.publicId)}`);
+                  }}
+                  title="Voir le patient"
+                >
+                  <Eye size={16} />
+                </button>
 
-        {view !== "archived" && (
-          <button
-            className="action-btn edit"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(p);
-            }}
-            title="Modifier"
-          >
-            <Edit2 size={16} />
-          </button>
-        )}
+                {view !== "archived" && (
+                  <button
+                    className="action-btn edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(p);
+                    }}
+                    title="Modifier"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                )}
 
-        {view !== "archived" && (<button
-            className="action-btn delete"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleArchiveToggle(p.id, "archive");
-            }}
-            title="Archiver"
-          >
-            <Archive size={16} />
-          </button>)}
+                {view !== "archived" && (<button
+                  className="action-btn delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleArchiveToggle(p.id, "archive");
+                  }}
+                  title="Archiver"
+                >
+                  <Archive size={16} />
+                </button>)}
 
-        {view === "archived" && (
-          <button
-            className="action-btn edit"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleArchiveToggle(p.id, "unarchive");
-            }}
-            title="Restaurer"
-          >
-            <RotateCcw size={16} />
-          </button>
-        )}
-      </td>
-    </tr>
-  ))}
+                {view === "archived" && (
+                  <button
+                    className="action-btn edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleArchiveToggle(p.id, "unarchive");
+                    }}
+                    title="Restaurer"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
 
-	  {currentPatients.length === 0 && (
-	    <tr>
-	      <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
-	        {view === "archived" ? "Aucun patient archivé" : "Aucun patient trouvé"}
-	      </td>
-	    </tr>
-	  )}
-</tbody>
+          {currentPatients.length === 0 && (
+            <tr>
+              <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
+                {view === "archived" ? "Aucun patient archivé" : "Aucun patient trouvé"}
+              </td>
+            </tr>
+          )}
+        </tbody>
       </table>
 
       {showConfirm && (
@@ -724,20 +724,20 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
           </div>
         </div>
       )}
-{/* Pagination controls */}
-{totalPages > 1 && (
-  <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-)}
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+      )}
       {/* Modal */}
       {showModal && (
-      <div
-    className="modal-overlay"
-    onClick={() => setShowModal(false)} // closes if you click outside
-  >
-    <div
-      className="modal-content"
-      onClick={(e) => e.stopPropagation()} // prevents closing when clicking inside
-    >
+        <div
+          className="modal-overlay"
+          onClick={() => setShowModal(false)} // closes if you click outside
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()} // prevents closing when clicking inside
+          >
             <div className="flex justify-between items-center mb-2">
               <h2>{isEditing ? "Modifier Patient" : "Ajouter Patient"}</h2>
               <X className="cursor-pointer" onClick={() => setShowModal(false)} />
@@ -816,11 +816,10 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
                 <span className="field-label">Sexe</span>
                 <div className="flex flex-wrap gap-2">
                   <label
-                    className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
-                      formData.sex === "Homme"
+                    className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${formData.sex === "Homme"
                         ? "bg-blue-50 border-blue-200 text-blue-700"
                         : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
                     <input
                       type="radio"
@@ -835,11 +834,10 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
                   </label>
 
                   <label
-                    className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${
-                      formData.sex === "Femme"
+                    className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-semibold cursor-pointer select-none transition-colors ${formData.sex === "Femme"
                         ? "bg-rose-50 border-rose-200 text-rose-700"
                         : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
                     <input
                       type="radio"
@@ -858,73 +856,73 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
               {false && (
                 <>
-                                                          <span className="field-label">Prénom</span>
+                  <span className="field-label">Prénom</span>
 
-              <input
-                type="text"
-                name="firstname"
-                placeholder="Entrez le prénom..."
-                value={formData.firstname}
-                onChange={handleChange}
-                required
-              />
-                                            <span className="field-label">Nom</span>
+                  <input
+                    type="text"
+                    name="firstname"
+                    placeholder="Entrez le prénom..."
+                    value={formData.firstname}
+                    onChange={handleChange}
+                    required
+                  />
+                  <span className="field-label">Nom</span>
 
-              <input
-                type="text"
-                name="lastname"
-                placeholder="Entrez le nom..."
-                value={formData.lastname}
-                onChange={handleChange}
-                required
-              />
-                              <span className="field-label">Âge</span>
+                  <input
+                    type="text"
+                    name="lastname"
+                    placeholder="Entrez le nom..."
+                    value={formData.lastname}
+                    onChange={handleChange}
+                    required
+                  />
+                  <span className="field-label">Âge</span>
 
-              <input
-                type="number"
-                name="age"
-                placeholder="Entrez l'age..."
-                value={formData.age}
-                onChange={handleChange}
-              />
+                  <input
+                    type="number"
+                    name="age"
+                    placeholder="Entrez l'age..."
+                    value={formData.age}
+                    onChange={handleChange}
+                  />
 
-              {/* Sex radio buttons */}
-              <div className="form-field">
-                <span className="field-label">Sexe</span>
-                <div className="radio-group">
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="sex"
-                      value="Homme"
-                      checked={formData.sex === "Homme"}
-                      onChange={handleChange}
-                      required
-                    />
-                    <span>Homme</span>
-                  </label>
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="sex"
-                      value="Femme"
-                      checked={formData.sex === "Femme"}
-                      onChange={handleChange}
-                      required
-                    />
-                    <span>Femme</span>
-                  </label>
-                </div>
-              </div>
-                              <span className="field-label">Téléphone</span>
+                  {/* Sex radio buttons */}
+                  <div className="form-field">
+                    <span className="field-label">Sexe</span>
+                    <div className="radio-group">
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="sex"
+                          value="Homme"
+                          checked={formData.sex === "Homme"}
+                          onChange={handleChange}
+                          required
+                        />
+                        <span>Homme</span>
+                      </label>
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="sex"
+                          value="Femme"
+                          checked={formData.sex === "Femme"}
+                          onChange={handleChange}
+                          required
+                        />
+                        <span>Femme</span>
+                      </label>
+                    </div>
+                  </div>
+                  <span className="field-label">Téléphone</span>
 
-              <PhoneInput
-                name="phone"
-                placeholder="Ex: 05 51 51 51 51"
-                value={formData.phone}
-                onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
-                required
-              />
+                  <PhoneInput
+                    name="phone"
+                    placeholder="Ex: 05 51 51 51 51"
+                    value={formData.phone}
+                    onChangeValue={(v) => setFormData((s) => ({ ...s, phone: v }))}
+                    required
+                  />
 
                 </>
               )}
@@ -947,20 +945,20 @@ const formatPhone = (phone) => formatPhoneNumber(phone) || "";
 
       )}
 
-<ToastContainer 
-  position="bottom-right" 
-  autoClose={3000} 
-  hideProgressBar={false} 
-  newestOnTop={false} 
-  closeOnClick 
-  pauseOnHover 
-  draggable 
-  theme="light" 
-/>
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        pauseOnHover
+        draggable
+        theme="light"
+      />
 
 
     </div>
-    
+
   );
 };
 

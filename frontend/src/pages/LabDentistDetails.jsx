@@ -30,7 +30,7 @@ const LabDentistDetails = () => {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
   const isValidDentistId = isUuidLike(dentistId);
 
-  const formatPhoneNumber = (phone) => formatPhoneNumberDisplay(phone) || "Aucun tÃ©lÃ©phone";
+  const formatPhoneNumber = (phone) => formatPhoneNumberDisplay(phone) || "Aucun téléphone";
 
   const loadDentist = async () => {
     if (!isValidDentistId) {
@@ -101,9 +101,12 @@ const LabDentistDetails = () => {
     <div className="patient-container">
       <div style={{ marginBottom: "16px" }}>
         <button
+          type="button"
           className="btn-secondary-app"
           onClick={() => {
-            if (window.history.length > 1) navigate(-1);
+            const idx = window?.history?.state?.idx;
+            const canGoBack = typeof idx === "number" ? idx > 0 : window.history.length > 1;
+            if (canGoBack) navigate(-1);
             else navigate("/lab/dentists", { replace: true });
           }}
         >
@@ -120,7 +123,7 @@ const LabDentistDetails = () => {
             </div>
           </div>
           <div className="patient-details">
-            <div>{dentist?.dentistName || "â€”"}</div>
+            <div>{dentist?.dentistName || "—"}</div>
             <div>{formatPhoneNumber(dentist?.phoneNumber)}</div>
           </div>
         </div>
@@ -128,9 +131,9 @@ const LabDentistDetails = () => {
         <div className="patient-right">
           <div className="patient-stats">
             <div className="stat-box stat-facture">Facture: {formatMoneyWithLabel(summary.totalOwed)}</div>
-            <div className="stat-box stat-paiement">PayÃ©: {formatMoneyWithLabel(summary.totalPaid)}</div>
+            <div className="stat-box stat-paiement">Payé: {formatMoneyWithLabel(summary.totalPaid)}</div>
             <div className="stat-box stat-reste">
-              {hasCredit ? "CrÃ©dit" : "Reste"}: {formatMoneyWithLabel(displayRemaining)}
+              {hasCredit ? "Crédit" : "Reste"}: {formatMoneyWithLabel(displayRemaining)}
             </div>
           </div>
           <div className="patient-actions">
@@ -168,7 +171,7 @@ const LabDentistDetails = () => {
           <User size={16} /> Profil
         </button>
         <button className={tab === "prosthetics" ? "tab-btn active" : "tab-btn"} onClick={() => setTab("prosthetics")}>
-          <Layers size={16} /> ProthÃ¨ses
+          <Layers size={16} /> Prothèses
         </button>
         <button className={tab === "payments" ? "tab-btn active" : "tab-btn"} onClick={() => setTab("payments")}>
           <CreditCard size={16} /> Paiements
@@ -183,22 +186,22 @@ const LabDentistDetails = () => {
             <div className="field-label">
               <User size={16} /> Cabinet
             </div>
-            <div className="field-value">{dentist?.clinicName || "â€”"}</div>
+            <div className="field-value">{dentist?.clinicName || "—"}</div>
           </div>
           <div className="profile-field">
             <div className="field-label">
               <User size={16} /> Dentiste
             </div>
-            <div className="field-value">{dentist?.dentistName || "â€”"}</div>
+            <div className="field-value">{dentist?.dentistName || "—"}</div>
           </div>
           <div className="profile-field">
             <div className="field-label">
-              <Phone size={16} /> TÃ©lÃ©phone
+              <Phone size={16} /> Téléphone
             </div>
             <div className="field-value">{formatPhoneNumber(dentist?.phoneNumber)}</div>
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: "#64748b" }}>
-            Les onglets ProthÃ¨ses et Paiements affichent uniquement les Ã©lÃ©ments liÃ©s Ã  ce dentiste.
+            Les onglets Prothèses et Paiements affichent uniquement les éléments liés à ce dentiste.
           </div>
         </div>
       ) : null}

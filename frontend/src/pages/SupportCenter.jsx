@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Send, Image as ImageIcon, MoreVertical, Search, X, ChevronUp, ChevronDown } from "react-feather";
 import { toast } from "react-toastify";
+import { useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
 import BackButton from "../components/BackButton";
@@ -30,6 +31,7 @@ const FEEDBACK_CATEGORIES = [
 
 const SupportCenter = () => {
   const { token } = useSelector((state) => state.auth || {});
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("support");
 
@@ -88,6 +90,11 @@ const SupportCenter = () => {
   }, [selectedThread?.claimedByAdminName]);
 
   const messageNeedle = useMemo(() => String(messageQuery || "").trim().toLowerCase(), [messageQuery]);
+  const requestedThreadIdFromQuery = useMemo(() => {
+    const params = new URLSearchParams(location.search || "");
+    const raw = String(params.get("thread") || "").trim();
+    return raw || null;
+  }, [location.search]);
 
   const matchMessageIds = useMemo(() => {
     if (!messageNeedle) return [];
@@ -253,14 +260,18 @@ const SupportCenter = () => {
     try {
       if (!silent) setLoading(true);
       let list = await listMySupportThreads();
-      list = Array.isArray(list) ? list.slice(0, 1) : [];
-      let thread = list?.[0] || null;
+      list = Array.isArray(list) ? list : [];
+
+      let thread = null;
+      if (requestedThreadIdFromQuery) {
+        thread = list.find((t) => String(t?.id || "") === String(requestedThreadIdFromQuery)) || null;
+      }
+      if (!thread) thread = list?.[0] || null;
       if (!thread) {
         thread = await createMySupportThread();
-        list = thread ? [thread] : [];
       }
 
-      setThreads(list);
+      setThreads(thread ? [thread] : []);
 
       const nextId = thread?.id || null;
       if (nextId) {
@@ -276,6 +287,30 @@ const SupportCenter = () => {
       if (!silent) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const requested = requestedThreadIdFromQuery;
+    if (!token) return;
+    if (!requested) return;
+    const current = selectedThreadIdRef.current;
+    if (current && String(current) === String(requested)) return;
+
+    (async () => {
+      try {
+        const data = await listMySupportThreads();
+        const list = Array.isArray(data) ? data : [];
+        const thread = list.find((t) => String(t?.id || "") === String(requested)) || null;
+        if (!thread?.id) return;
+        setThreads([thread]);
+        setSelectedThreadId(thread.id);
+        forceScrollOnceRef.current = true;
+        await loadSelectedMessages(thread.id, { silent: true });
+      } catch {
+        // ignore
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedThreadIdFromQuery, token]);
 
   const loadSelectedMessages = async (threadId, { silent = false } = {}) => {
     const idToUse = threadId ?? selectedThreadId;
@@ -354,6 +389,14 @@ const SupportCenter = () => {
 
         if (data.type !== "SUPPORT_MESSAGE_CREATED" && data.type !== "SUPPORT_THREAD_UPDATED" && data.type !== "SUPPORT_CLAIM_UPDATED") {
           return;
+        }
+
+        if (data.type === "SUPPORT_MESSAGE_CREATED") {
+          try {
+            window.dispatchEvent(new Event("CP_NOTIFICATIONS_PING"));
+          } catch {
+            // ignore
+          }
         }
 
         const summary = data.thread || null;
@@ -518,8 +561,11 @@ const SupportCenter = () => {
       const saved = await sendMyThreadMessage(selectedThreadId, content);
       setMessages((prev) => {
         const list = Array.isArray(prev) ? prev : [];
-        const replaced = list.map((m) => (String(m?.id) === String(tmpId) ? { ...saved, clientStatus: "SENT" } : m));
-        return replaced;
+        const alreadyHasReal = list.some((m) => String(m?.id) === String(saved?.id));
+        if (alreadyHasReal) {
+          return list.filter((m) => String(m?.id) !== String(tmpId));
+        }
+        return list.map((m) => (String(m?.id) === String(tmpId) ? { ...saved, clientStatus: "SENT" } : m));
       });
     } catch (err) {
       setMessages((prev) => (Array.isArray(prev) ? prev : []).filter((m) => String(m?.id) !== String(tmpId)));
@@ -573,6 +619,13 @@ const SupportCenter = () => {
       const saved = await sendMyThreadImage(selectedThreadId, file);
       setMessages((prev) => {
         const list = Array.isArray(prev) ? prev : [];
+        const alreadyHasReal = list.some((m) => String(m?.id) === String(saved?.id));
+        if (alreadyHasReal) {
+          return list.map((m) => {
+            if (String(m?.id) === String(saved?.id)) return { ...m, attachmentLocalUrl: localUrl };
+            return m;
+          }).filter((m) => String(m?.id) !== String(tmpId));
+        }
         return list.map((m) => {
           if (String(m?.id) !== String(tmpId)) return m;
           return { ...saved, clientStatus: "SENT", attachmentLocalUrl: localUrl };

@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Headphones, MessageSquare, Edit3, Send, Search, X, MoreVertical, Image as ImageIcon, Lock, CheckCircle, Shield, ChevronUp, ChevronDown } from "react-feather";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import PageHeader from "../components/PageHeader";
 import DentistPageSkeleton from "../components/DentistPageSkeleton";
@@ -39,6 +39,7 @@ const getThreadPresence = (thread) => {
 
 const AdminSupportCenter = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, token } = useSelector((state) => state.auth || {});
   const myAdminId = user?.id != null ? String(user.id) : null;
   const isSuperAdmin = Boolean(user?.canDeleteAdmin);
@@ -69,6 +70,7 @@ const AdminSupportCenter = () => {
   const wsReconnectRef = useRef(null);
   const pollRef = useRef(null);
   const selectedThreadIdRef = useRef(null);
+  const lastQuerySelectedThreadRef = useRef(null);
   const threadMenuRef = useRef(null);
   const messageSearchInputRef = useRef(null);
   const messageRefs = useRef({});
@@ -104,6 +106,12 @@ const AdminSupportCenter = () => {
       return merged;
     });
   };
+
+  const requestedThreadIdFromQuery = useMemo(() => {
+    const params = new URLSearchParams(location.search || "");
+    const raw = String(params.get("thread") || "").trim();
+    return raw || null;
+  }, [location.search]);
 
   const handleFinishSelectedThread = async (threadId) => {
     const id = threadId ?? selectedThreadId;
@@ -212,6 +220,21 @@ const AdminSupportCenter = () => {
   }, []);
 
   useEffect(() => {
+    const requested = requestedThreadIdFromQuery;
+    if (!requested) return;
+    if (String(lastQuerySelectedThreadRef.current || "") === String(requested)) return;
+
+    const match = (Array.isArray(threads) ? threads : []).find((t) => String(t?.id || "") === String(requested));
+    if (!match?.id) return;
+
+    lastQuerySelectedThreadRef.current = String(requested);
+    setSelectedThreadId(match.id);
+    forceScrollOnceRef.current = true;
+    loadThreadMessages(match.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedThreadIdFromQuery, threads]);
+
+  useEffect(() => {
     const id = setInterval(() => setPresenceNow(Date.now()), PRESENCE_TICK_MS);
     return () => clearInterval(id);
   }, []);
@@ -295,6 +318,14 @@ const AdminSupportCenter = () => {
 
         if (data.type !== "SUPPORT_MESSAGE_CREATED" && data.type !== "SUPPORT_THREAD_UPDATED" && data.type !== "SUPPORT_CLAIM_UPDATED") {
           return;
+        }
+
+        if (data.type === "SUPPORT_MESSAGE_CREATED") {
+          try {
+            window.dispatchEvent(new Event("CP_NOTIFICATIONS_PING"));
+          } catch {
+            // ignore
+          }
         }
 
         const summary = data.thread || null;
@@ -554,9 +585,9 @@ const AdminSupportCenter = () => {
   const getPresenceText = ({ online, lastSeenAt }) => {
     if (online) return "En ligne";
     const label = formatLastSeen(lastSeenAt);
-    if (!label) return "Hors ligne Â· longtemps";
-    if (label === "longtemps") return "Hors ligne Â· longtemps";
-    return `Hors ligne Â· il y a ${label}`;
+    if (!label) return "Hors ligne · longtemps";
+    if (label === "longtemps") return "Hors ligne · longtemps";
+    return `Hors ligne · il y a ${label}`;
   };
 
   const isWithinOfflineGrace = (lastSeenAt) => {

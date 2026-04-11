@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight, ChevronDown, Search, X } from "react-feather";
 import { toast } from "react-toastify";
@@ -22,9 +23,11 @@ import {
   getLabPaymentsSummary,
   rejectLabPaymentCancel,
 } from "../services/labPortalService";
+import useRealtimeMessagingSocket from "../hooks/useRealtimeMessagingSocket";
 
 import "./Patients.css";
 import "./Patient.css";
+import "../components/NotificationBell.css";
 
 const createFilterState = () => ({
   selectedFilter: "all",
@@ -35,6 +38,7 @@ const createFilterState = () => ({
 
 const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {}) => {
   const navigate = useNavigate();
+  const token = useSelector((state) => state.auth.token);
 
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 250);
@@ -49,9 +53,12 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [summary, setSummary] = useState({ count: 0, total: 0 });
   const requestIdRef = useRef(0);
   const [highlightedId, setHighlightedId] = useState(null);
+  const [clientSummary, setClientSummary] = useState(null);
+  const clientSummaryReqIdRef = useRef(0);
 
   const [sortConfig, setSortConfig] = useState({
     key: "paymentDate",
@@ -136,6 +143,7 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
       if (reqId !== requestIdRef.current) return;
       setItems(Array.isArray(pageData?.items) ? pageData.items : []);
       setTotalPages(Number(pageData?.totalPages || 1));
+      setTotalElements(Number(pageData?.totalElements || 0));
       setSummary({
         count: Number(summaryData?.count || 0),
         total: Number(summaryData?.total || 0),
@@ -145,6 +153,7 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
       setError(getApiErrorMessage(err, "Erreur lors du chargement."));
       setItems([]);
       setTotalPages(1);
+      setTotalElements(0);
       setSummary({ count: 0, total: 0 });
     } finally {
       if (reqId === requestIdRef.current) setLoading(false);
@@ -154,6 +163,138 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
   useEffect(() => {
     load();
   }, [params.page, params.q, params.dentistId, params.from, params.to]);
+
+  useEffect(() => {
+    setClientSummary(null);
+    clientSummaryReqIdRef.current += 1;
+  }, [params.q, params.dentistId, params.from, params.to]);
+
+  const pageItemsTotal = useMemo(() => {
+    return (Array.isArray(items) ? items : []).reduce((acc, p) => {
+      const isCancelled = p.cancelledAt || String(p.recordStatus || "").toUpperCase() === "CANCELLED";
+      if (isCancelled) return acc;
+      const v = Number(p?.amount ?? 0);
+      return Number.isFinite(v) ? acc + v : acc;
+    }, 0);
+  }, [items]);
+
+  const displayTotal = useMemo(() => {
+    if (clientSummary && Number.isFinite(Number(clientSummary.total))) return Number(clientSummary.total);
+    const serverTotal = Number(summary?.total);
+    const serverCount = Number(summary?.count ?? 0);
+    if (!Number.isFinite(serverTotal)) return pageItemsTotal;
+    if ((serverCount <= 0 || serverTotal === 0) && pageItemsTotal > 0) return pageItemsTotal;
+    return serverTotal;
+  }, [clientSummary, pageItemsTotal, summary?.count, summary?.total]);
+
+  useEffect(() => {
+    const serverTotal = Number(summary?.total);
+    const serverCount = Number(summary?.count ?? 0);
+    const countMismatch = totalElements > 0 && serverCount > 0 && serverCount !== totalElements;
+    const totalMismatch = totalElements > 0 && Number.isFinite(serverTotal) && serverTotal < pageItemsTotal;
+    const needsFallback =
+      totalElements > 0 &&
+      (countMismatch || totalMismatch || serverCount <= 0 || !Number.isFinite(serverTotal) || (serverTotal === 0 && pageItemsTotal > 0));
+
+    if (!needsFallback) return;
+
+    const reqId = ++clientSummaryReqIdRef.current;
+    let cancelled = false;
+
+    const compute = async () => {
+      try {
+        const pageSize = 100;
+        const first = await getLabPaymentsPage({
+          page: 0,
+          size: pageSize,
+          q: params.q,
+          dentistId: params.dentistId,
+          from: params.from,
+          to: params.to,
+        });
+        if (cancelled || reqId !== clientSummaryReqIdRef.current) return;
+
+        const totalPagesFromApi = Math.max(1, Number(first?.totalPages || 1));
+        const totalElementsFromApi = Number(first?.totalElements || 0);
+
+        // Safety cap: avoid hammering the API for extremely large datasets.
+        if (totalPagesFromApi > 50 || totalElementsFromApi > 5000) return;
+
+        const sumItems = (list) =>
+          (Array.isArray(list) ? list : []).reduce((acc, p) => {
+            const isCancelled = p.cancelledAt || String(p.recordStatus || "").toUpperCase() === "CANCELLED";
+            if (isCancelled) return acc;
+            const v = Number(p?.amount ?? 0);
+            return Number.isFinite(v) ? acc + v : acc;
+          }, 0);
+
+        let total = sumItems(first?.items);
+        const pages = [];
+        for (let pi = 1; pi < totalPagesFromApi; pi += 1) pages.push(pi);
+
+        const concurrency = 4;
+        for (let i = 0; i < pages.length; i += concurrency) {
+          const batch = pages.slice(i, i + concurrency);
+          const batchData = await Promise.all(
+            batch.map((pi) =>
+              getLabPaymentsPage({
+                page: pi,
+                size: pageSize,
+                q: params.q,
+                dentistId: params.dentistId,
+                from: params.from,
+                to: params.to,
+              })
+            )
+          );
+          if (cancelled || reqId !== clientSummaryReqIdRef.current) return;
+          for (const d of batchData) {
+            total += sumItems(d?.items);
+          }
+        }
+
+        if (cancelled || reqId !== clientSummaryReqIdRef.current) return;
+        setClientSummary({ count: totalElementsFromApi, total });
+      } catch {
+        // ignore (fallback is best-effort)
+      }
+    };
+
+    compute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pageItemsTotal, params.dentistId, params.from, params.q, params.to, summary?.count, summary?.total, totalElements]);
+
+  const wsReloadTimerRef = useRef(null);
+  useEffect(() => {
+    return () => {
+      if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+      wsReloadTimerRef.current = null;
+    };
+  }, []);
+
+  const scheduleRealtimeReload = () => {
+    if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+    wsReloadTimerRef.current = setTimeout(() => {
+      load();
+    }, 350);
+  };
+
+  useRealtimeMessagingSocket({
+    token,
+    enabled: !!token,
+    onMessage: (data) => {
+      if (data?.type !== "LAB_PAYMENT_UPDATED") return;
+      const scopeDentist = String(dentistIdProp || "").trim().toLowerCase();
+      if (scopeDentist) {
+        const eventDentist = String(data?.dentistPublicId || "").trim().toLowerCase();
+        if (eventDentist && eventDentist !== scopeDentist) return;
+      }
+      scheduleRealtimeReload();
+    },
+  });
 
   const focusAppliedRef = useRef(null);
   useEffect(() => {
@@ -301,7 +442,7 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
   return (
     <div className={embedded ? "" : "patients-container"}>
       {!embedded ? <BackButton fallbackTo="/lab" /> : null}
-      {!embedded ? <PageHeader title="Paiements" subtitle="Consultez les paiements et gérez les annulations." align="left" /> : null}
+      {!embedded ? <PageHeader title="Paiements reçus" subtitle="Paiements reçus de vos dentistes partenaires (gestion des annulations)." align="left" /> : null}
 
       <div className="patients-controls">
         <div className="controls-left" style={{ flexWrap: "wrap" }}>
@@ -415,7 +556,7 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
       ) : null}
 
       <div className="patient-stats" style={{ marginBottom: "16px" }}>
-        <div className="stat-box stat-paiement">Total filtré: {formatMoneyWithLabel(summary.total || 0)}</div>
+        <div className="stat-box stat-paiement">Total filtré: {formatMoneyWithLabel(displayTotal)}</div>
       </div>
 
       <table className="treatment-table" style={embedded ? { marginTop: 12 } : undefined}>
@@ -423,9 +564,7 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
           <tr>
             <SortableTh label="Montant" sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="created_at" sortKey="paymentDate" sortConfig={sortConfig} onSort={handleSort} />
-            {showDentistColumn ? (
-              <SortableTh label="Dentiste" sortKey="dentistName" sortConfig={sortConfig} onSort={handleSort} />
-            ) : null}
+            {showDentistColumn ? <SortableTh label="Payé par" sortKey="dentistName" sortConfig={sortConfig} onSort={handleSort} /> : null}
             <SortableTh label="Note" sortKey="notes" sortConfig={sortConfig} onSort={handleSort} />
             <th>Actions</th>
           </tr>
@@ -497,10 +636,10 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
                 </td>
                 <td className="actions-cell">
                   {isCancelRequestPending(p) ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "inline-flex", gap: 8 }}>
                       <button
                         type="button"
-                        className="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors text-xs font-semibold"
+                        className="cp-notif-actionBtn primary"
                         onClick={() => openConfirmCancel(p, true)}
                         disabled={isDecidingCancel}
                       >
@@ -508,7 +647,7 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
                       </button>
                       <button
                         type="button"
-                        className="px-3 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors text-xs font-semibold"
+                        className="cp-notif-actionBtn danger"
                         onClick={() => openConfirmCancel(p, false)}
                         disabled={isDecidingCancel}
                       >
@@ -550,7 +689,7 @@ const LabPayments = ({ dentistId: dentistIdProp, embedded = false, focusId } = {
             <div className="text-sm text-gray-700 mb-6" style={{ display: "grid", gap: 6 }}>
               {showDentistColumn && confirmCancelTarget?.dentistName ? (
                 <div>
-                  <span className="text-gray-500">Dentiste:</span> <span className="font-semibold">{confirmCancelTarget.dentistName}</span>
+                  <span className="text-gray-500">Payé par:</span> <span className="font-semibold">{confirmCancelTarget.dentistName}</span>
                 </div>
               ) : null}
               {confirmCancelTarget?.amount != null ? (

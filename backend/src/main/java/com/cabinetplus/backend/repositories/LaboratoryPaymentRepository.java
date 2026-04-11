@@ -26,12 +26,12 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
 
     List<LaboratoryPayment> findByLaboratoryIdAndCreatedByOrderByPaymentDateDesc(Long laboratoryId, User createdBy);
 
-    @EntityGraph(attributePaths = {"createdBy.firstname", "createdBy.lastname"})
+    @EntityGraph(attributePaths = {"createdBy", "cancelRequestedBy", "cancelRequestDecidedBy"})
     @Query("""
         select lp
         from LaboratoryPayment lp
         where lp.laboratory.id = :laboratoryId
-          and lp.createdBy = :createdBy
+          and (lp.createdBy = :createdBy or lp.createdBy.ownerDentist = :createdBy)
           and lp.recordStatus <> :archivedStatus
           and (:fromEnabled = false or lp.paymentDate >= :fromDt)
           and (:toEnabled = false or lp.paymentDate <= :toDt)
@@ -52,7 +52,7 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
                coalesce(sum(case when lp.recordStatus <> :cancelledStatus then lp.amount else 0 end), 0)
         from LaboratoryPayment lp
         where lp.laboratory.id = :laboratoryId
-          and lp.createdBy = :createdBy
+          and (lp.createdBy = :createdBy or lp.createdBy.ownerDentist = :createdBy)
           and lp.recordStatus <> :archivedStatus
           and (:fromEnabled = false or lp.paymentDate >= :fromDt)
           and (:toEnabled = false or lp.paymentDate <= :toDt)
@@ -74,7 +74,7 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
         select coalesce(sum(lp.amount), 0)
         from LaboratoryPayment lp
         where lp.laboratory.id = :laboratoryId
-          and lp.createdBy = :createdBy
+          and (lp.createdBy = :createdBy or lp.createdBy.ownerDentist = :createdBy)
           and lp.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE
     """)
     Double sumAmountByLaboratoryIdAndCreatedBy(@Param("laboratoryId") Long laboratoryId,
@@ -91,15 +91,40 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
                                                      @Param("start") LocalDateTime start,
                                                      @Param("end") LocalDateTime end);
 
-    java.util.Optional<LaboratoryPayment> findByIdAndLaboratoryIdAndCreatedBy(Long id, Long laboratoryId, User createdBy);
+    @Query("""
+        select lp
+        from LaboratoryPayment lp
+        where lp.id = :id
+          and lp.laboratory.id = :laboratoryId
+          and (lp.createdBy = :createdBy or lp.createdBy.ownerDentist = :createdBy)
+    """)
+    java.util.Optional<LaboratoryPayment> findByIdAndLaboratoryIdAndCreatedBy(@Param("id") Long id,
+                                                                             @Param("laboratoryId") Long laboratoryId,
+                                                                             @Param("createdBy") User createdBy);
 
     @EntityGraph(attributePaths = {
-            "createdBy.firstname",
-            "createdBy.lastname",
-            "cancelRequestedBy.firstname",
-            "cancelRequestedBy.lastname",
-            "cancelRequestDecidedBy.firstname",
-            "cancelRequestDecidedBy.lastname"
+            "createdBy",
+            "cancelRequestedBy",
+            "cancelRequestDecidedBy"
+    })
+    @Query("""
+        select lp
+        from LaboratoryPayment lp
+        where lp.laboratory.id = :laboratoryId
+          and (lp.createdBy = :createdBy or lp.createdBy.ownerDentist = :createdBy)
+          and lp.recordStatus <> :archivedStatus
+        order by lp.paymentDate desc nulls last, lp.id desc
+    """)
+    List<LaboratoryPayment> findHistoryByLaboratoryIdForClinic(
+            @Param("laboratoryId") Long laboratoryId,
+            @Param("createdBy") User createdBy,
+            @Param("archivedStatus") RecordStatus archivedStatus
+    );
+
+    @EntityGraph(attributePaths = {
+            "createdBy",
+            "cancelRequestedBy",
+            "cancelRequestDecidedBy"
     })
     @Query("""
         select lp
@@ -128,7 +153,7 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"createdBy.publicId", "createdBy.firstname", "createdBy.lastname"})
+    @EntityGraph(attributePaths = {"createdBy"})
     @Query("""
             select lp
             from LaboratoryPayment lp
@@ -145,7 +170,7 @@ public interface LaboratoryPaymentRepository extends JpaRepository<LaboratoryPay
 
     @Query("""
         select count(lp),
-               coalesce(sum(lp.amount), 0)
+               coalesce(sum(case when (lp.recordStatus = com.cabinetplus.backend.enums.RecordStatus.ACTIVE and lp.cancelledAt is null) then lp.amount else 0 end), 0)
         from LaboratoryPayment lp
         left join lp.createdBy dentist
         where lp.laboratory = :laboratory

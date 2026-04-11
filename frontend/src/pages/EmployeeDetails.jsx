@@ -474,9 +474,12 @@ const EmployeeDetails = () => {
     <div className="patient-container">
       <div style={{ marginBottom: "16px" }}>
         <button
+          type="button"
           className="btn-secondary-app"
           onClick={() => {
-            if (window.history.length > 1) navigate(-1);
+            const idx = window?.history?.state?.idx;
+            const canGoBack = typeof idx === "number" ? idx > 0 : window.history.length > 1;
+            if (canGoBack) navigate(-1);
             else navigate("/gestion-cabinet/employees", { replace: true });
           }}
         >

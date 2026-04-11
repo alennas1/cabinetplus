@@ -736,7 +736,11 @@ const FournisseurDetails = () => {
   if (!fournisseur) {
     return (
       <div className="patients-container">
-        <button className="btn-secondary-app" onClick={() => navigate("/gestion-cabinet/fournisseurs", { replace: true })}>
+        <button
+          type="button"
+          className="btn-secondary-app"
+          onClick={() => navigate("/gestion-cabinet/fournisseurs", { replace: true })}
+        >
           <ArrowLeft size={16} /> Retour
         </button>
       </div>
@@ -747,9 +751,12 @@ const FournisseurDetails = () => {
     <div className="patients-container">
       <div className="flex justify-between items-center mb-4">
         <button
+          type="button"
           className="btn-secondary-app"
           onClick={() => {
-            if (window.history.length > 1) navigate(-1);
+            const idx = window?.history?.state?.idx;
+            const canGoBack = typeof idx === "number" ? idx > 0 : window.history.length > 1;
+            if (canGoBack) navigate(-1);
             else navigate("/gestion-cabinet/fournisseurs", { replace: true });
           }}
         >

@@ -17,6 +17,7 @@ import { getApiErrorMessage } from "../utils/error";
 import { SORT_DIRECTIONS, sortRowsBy } from "../utils/tableSort";
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import "./Patients.css";
+import "../components/NotificationBell.css";
 
 const WaitingPage = () => {
   const [payments, setPayments] = useState([]);
@@ -215,20 +216,20 @@ const WaitingPage = () => {
                   
                   
                   <button
-                    className="action-btn complete"
+                    className="cp-notif-actionBtn primary"
                     title="Confirmer"
                     onClick={() => handleConfirm(p.paymentId)}
                     disabled={busyPaymentAction.id === p.paymentId}
                   >
-                    <Check size={16} />
+                    Confirmer
                   </button>
                   <button
-                    className="action-btn delete"
+                    className="cp-notif-actionBtn danger"
                     title="Rejeter"
                     onClick={() => handleReject(p.paymentId)}
                     disabled={busyPaymentAction.id === p.paymentId}
                   >
-                    <X size={16} />
+                    Rejeter
                   </button>
                 </td>
               </tr>

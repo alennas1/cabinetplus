@@ -17,6 +17,7 @@
 }
 
 @layer base {
+
   input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
   select,
   textarea {
@@ -365,6 +366,7 @@ textarea.invalid:focus {
   cursor: pointer;
   transition: background 0.2s;
 }
+
 .btn-primary2:hover {
   background: #2563eb;
 }
@@ -379,9 +381,11 @@ textarea.invalid:focus {
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
 }
+
 .btn-cancel:hover {
   background: #f9fafb;
 }
+
 .footer {
   text-align: center;
   font-size: 13px;
@@ -611,6 +615,7 @@ textarea.invalid:focus {
   0% {
     background-position: 200% 0;
   }
+
   100% {
     background-position: -200% 0;
   }

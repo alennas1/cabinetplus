@@ -6,8 +6,11 @@ import com.cabinetplus.backend.dto.LaboratoryBillingEntryResponse;
 import com.cabinetplus.backend.dto.LaboratoryBillingSummaryResponse;
 import com.cabinetplus.backend.dto.CountTotalResponseDTO;
 import com.cabinetplus.backend.enums.CancellationRequestDecision;
+import com.cabinetplus.backend.enums.NotificationType;
 import com.cabinetplus.backend.enums.RecordStatus;
+import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
+import com.cabinetplus.backend.events.LabOpsChangedEvent;
 import com.cabinetplus.backend.models.LaboratoryPayment;
 import com.cabinetplus.backend.models.Laboratory;
 import com.cabinetplus.backend.models.Prothesis;
@@ -15,6 +18,7 @@ import com.cabinetplus.backend.models.User;
 import com.cabinetplus.backend.repositories.LaboratoryPaymentRepository;
 import com.cabinetplus.backend.repositories.LaboratoryRepository;
 import com.cabinetplus.backend.repositories.ProthesisRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
@@ -23,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 public class LaboratoryService {
@@ -30,17 +35,26 @@ public class LaboratoryService {
     private final ProthesisRepository prothesisRepository;
     private final LaboratoryPaymentRepository laboratoryPaymentRepository;
     private final LaboratoryInviteCodeService laboratoryInviteCodeService;
+    private final RealtimeRecipientsService realtimeRecipientsService;
+    private final NotificationService notificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public LaboratoryService(
             LaboratoryRepository repository,
             ProthesisRepository prothesisRepository,
             LaboratoryPaymentRepository laboratoryPaymentRepository,
-            LaboratoryInviteCodeService laboratoryInviteCodeService
+            LaboratoryInviteCodeService laboratoryInviteCodeService,
+            RealtimeRecipientsService realtimeRecipientsService,
+            NotificationService notificationService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.prothesisRepository = prothesisRepository;
         this.laboratoryPaymentRepository = laboratoryPaymentRepository;
         this.laboratoryInviteCodeService = laboratoryInviteCodeService;
+        this.realtimeRecipientsService = realtimeRecipientsService;
+        this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
     }
 
     public List<Laboratory> findAllByUser(User user) {
@@ -155,12 +169,13 @@ public class LaboratoryService {
     }
 
     public List<LaboratoryPayment> getPaymentsForLaboratory(Laboratory laboratory, User user) {
-        return laboratoryPaymentRepository.findByLaboratoryIdAndCreatedByOrderByPaymentDateDesc(laboratory.getId(), user)
-                .stream()
-                .filter(p -> p != null && p.getRecordStatus() != RecordStatus.ARCHIVED)
-                .toList();
+        if (laboratory == null || laboratory.getId() == null || user == null) {
+            return List.of();
+        }
+        return laboratoryPaymentRepository.findHistoryByLaboratoryIdForClinic(laboratory.getId(), user, RecordStatus.ARCHIVED);
     }
 
+    @Transactional(readOnly = true)
     public Page<LaboratoryPaymentResponse> getPaymentsPagedForLaboratory(
             Laboratory laboratory,
             User user,
@@ -222,7 +237,7 @@ public class LaboratoryService {
 
         boolean fromEnabled = from != null;
         boolean toEnabled = to != null;
-        Object[] row = laboratoryPaymentRepository.getPaymentsSummary(
+        return parseCountTotal(laboratoryPaymentRepository.getPaymentsSummary(
                 laboratory.getId(),
                 user,
                 RecordStatus.ARCHIVED,
@@ -231,16 +246,7 @@ public class LaboratoryService {
                 from,
                 toEnabled,
                 to
-        );
-
-        long count = 0L;
-        double total = 0.0;
-        if (row != null) {
-            if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
-            if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
-        }
-
-        return new CountTotalResponseDTO(count, total);
+        ));
     }
 
     public List<LaboratoryBillingSummaryResponse> getBillingHistoryForLaboratory(Laboratory laboratory, User user) {
@@ -378,25 +384,32 @@ public class LaboratoryService {
             return new CountTotalResponseDTO(0, 0.0);
         }
 
-        Object[] row = prothesisRepository.getBillingEntriesSummaryByPractitionerAndLaboratory(
+        return parseCountTotal(prothesisRepository.getBillingEntriesSummaryByPractitionerAndLaboratory(
                 user,
                 laboratory.getId(),
                 from != null,
                 from,
                 to != null,
                 to
-        );
+        ));
+    }
 
+    private CountTotalResponseDTO parseCountTotal(Object result) {
         long count = 0L;
         double total = 0.0;
-        if (row != null) {
-            if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
-            if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
+        if (result instanceof Object[] row) {
+            if (row.length > 0 && row[0] instanceof Object[] arr) {
+                if (arr.length > 0 && arr[0] instanceof Number n) count = n.longValue();
+                if (arr.length > 1 && arr[1] instanceof Number n) total = n.doubleValue();
+            } else {
+                if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
+                if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
+            }
         }
-
         return new CountTotalResponseDTO(count, total);
     }
 
+    @Transactional
     public LaboratoryPayment addPayment(Long laboratoryId, LaboratoryPaymentRequest request, User user) {
         Laboratory laboratory = findByIdAndUser(laboratoryId, user)
             .orElseThrow(() -> new RuntimeException("Laboratoire introuvable"));
@@ -416,9 +429,13 @@ public class LaboratoryService {
         payment.setPaymentDate(LocalDateTime.now());
         payment.setNotes(request.notes());
 
-        return laboratoryPaymentRepository.save(payment);
+        LaboratoryPayment saved = laboratoryPaymentRepository.save(payment);
+
+        publishPaymentRealtime(saved, "CREATED", null);
+        return saved;
     }
 
+    @Transactional
     public LaboratoryPayment addPaymentForLaboratory(Laboratory laboratory, LaboratoryPaymentRequest request, User user) {
         if (laboratory == null || user == null) {
             throw new BadRequestException(java.util.Map.of("_", "Laboratoire introuvable"));
@@ -439,7 +456,9 @@ public class LaboratoryService {
         payment.setPaymentDate(LocalDateTime.now());
         payment.setNotes(request.notes());
 
-        return laboratoryPaymentRepository.save(payment);
+        LaboratoryPayment saved = laboratoryPaymentRepository.save(payment);
+        publishPaymentRealtime(saved, "CREATED", null);
+        return saved;
     }
 
     @Transactional
@@ -449,7 +468,8 @@ public class LaboratoryService {
                 if (payment.getRecordStatus() != RecordStatus.CANCELLED) {
                     payment.setRecordStatus(RecordStatus.CANCELLED);
                     payment.setCancelledAt(LocalDateTime.now());
-                    laboratoryPaymentRepository.save(payment);
+                    LaboratoryPayment saved = laboratoryPaymentRepository.save(payment);
+                    publishPaymentRealtime(saved, "CANCELLED", null);
                 }
                 return true;
             })
@@ -482,20 +502,46 @@ public class LaboratoryService {
                         payment.setCancelRequestDecision(CancellationRequestDecision.PENDING);
                         payment.setCancelRequestDecidedAt(null);
                         payment.setCancelRequestDecidedBy(null);
-                        return laboratoryPaymentRepository.save(payment);
+                        LaboratoryPayment saved = laboratoryPaymentRepository.save(payment);
+                        publishPaymentRealtime(saved, "CANCEL_REQUESTED", "PENDING");
+                        return saved;
                     }
 
                     if (payment.getRecordStatus() != RecordStatus.CANCELLED) {
                         payment.setRecordStatus(RecordStatus.CANCELLED);
                         payment.setCancelledAt(LocalDateTime.now());
-                        return laboratoryPaymentRepository.save(payment);
+                        LaboratoryPayment saved = laboratoryPaymentRepository.save(payment);
+                        publishPaymentRealtime(saved, "CANCELLED", null);
+                        return saved;
                     }
                     if (payment.getCancelledAt() == null) {
                         payment.setCancelledAt(LocalDateTime.now());
-                        return laboratoryPaymentRepository.save(payment);
+                        LaboratoryPayment saved = laboratoryPaymentRepository.save(payment);
+                        publishPaymentRealtime(saved, "CANCELLED", null);
+                        return saved;
                     }
                     return payment;
                 });
+    }
+
+    private void publishPaymentRealtime(LaboratoryPayment payment, String action, String decision) {
+        if (payment == null || payment.getId() == null) return;
+        User dentist = payment.getCreatedBy();
+        UUID dentistPublicId = dentist != null ? dentist.getPublicId() : null;
+        Laboratory lab = payment.getLaboratory();
+        UUID labPublicId = lab != null ? lab.getPublicId() : null;
+
+        eventPublisher.publishEvent(new LabOpsChangedEvent(
+                realtimeRecipientsService.clinicPhones(dentist),
+                realtimeRecipientsService.labPhones(lab),
+                "LAB_PAYMENT_UPDATED",
+                action != null ? action : "UPDATED",
+                java.util.Collections.singletonList(payment.getId()),
+                decision,
+                dentistPublicId,
+                labPublicId,
+                payment.getAmount()
+        ));
     }
 }
 

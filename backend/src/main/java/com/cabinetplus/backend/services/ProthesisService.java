@@ -9,7 +9,9 @@ import com.cabinetplus.backend.enums.RecordStatus;
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
 import com.cabinetplus.backend.exceptions.NotFoundException;
+import com.cabinetplus.backend.events.LabOpsChangedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,10 +20,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +37,8 @@ public class ProthesisService {
     private final PatientRepository patientRepository;
     private final LaboratoryRepository labRepository;
     private final LaboratoryConnectionRepository laboratoryConnectionRepository;
+    private final RealtimeRecipientsService realtimeRecipientsService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<Prothesis> findAllByUser(User user) {
         if (user.getRole() == UserRole.ADMIN) {
@@ -462,7 +468,9 @@ public class ProthesisService {
         p.setUpdatedBy(actor != null ? actor : user);
 
         assertAmounts(p.getFinalPrice(), p.getLabCost());
-        return repository.save(p);
+        Prothesis saved = repository.save(p);
+        publishProthesisRealtime(saved, "STATUS_CHANGED_BY_DENTIST", saved.getStatus());
+        return saved;
     }
 
     @Transactional
@@ -511,10 +519,12 @@ public class ProthesisService {
                  p.setPosedBy(actor != null ? actor : user);
              }
          }
-
-         p.setUpdatedBy(actor != null ? actor : user);
-         return repository.save(p);
-     }
+         
+          p.setUpdatedBy(actor != null ? actor : user);
+          Prothesis saved = repository.save(p);
+          publishProthesisRealtime(saved, "STATUS_CHANGED_BY_DENTIST", saved.getStatus());
+          return saved;
+      }
 
     public List<Prothesis> findByPractitionerAndStatus(User user, String status) {
         if (user.getRole() == UserRole.ADMIN) {
@@ -659,13 +669,14 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
                 String normalizedReason = reason != null ? reason.trim() : "";
                 p.setCancelRequestReason(normalizedReason.isBlank() ? null : normalizedReason);
                 p.setCancelRequestDecision(CancellationRequestDecision.PENDING);
-                p.setCancelRequestDecidedAt(null);
-                p.setCancelRequestDecidedBy(null);
-                p.setUpdatedBy(actor != null ? actor : user);
-                repository.save(p);
-                return;
-            }
-        }
+                 p.setCancelRequestDecidedAt(null);
+                 p.setCancelRequestDecidedBy(null);
+                 p.setUpdatedBy(actor != null ? actor : user);
+                 Prothesis saved = repository.save(p);
+                 publishProthesisRealtime(saved, "CANCEL_REQUESTED", "PENDING");
+                 return;
+             }
+         }
 
         boolean changed = false;
         if (p.getRecordStatus() != RecordStatus.CANCELLED) {
@@ -688,10 +699,31 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
             changed = true;
         }
 
-        if (changed) {
-            p.setUpdatedBy(actor != null ? actor : user);
-            repository.save(p);
-        }
+         if (changed) {
+             p.setUpdatedBy(actor != null ? actor : user);
+             Prothesis saved = repository.save(p);
+             publishProthesisRealtime(saved, "CANCELLED", null);
+         }
+     }
+
+    private void publishProthesisRealtime(Prothesis prothesis, String action, String decision) {
+        if (prothesis == null || prothesis.getId() == null) return;
+
+        User clinicOwner = prothesis.getPractitioner();
+        UUID dentistPublicId = clinicOwner != null ? clinicOwner.getPublicId() : null;
+        Laboratory lab = prothesis.getLaboratory();
+        UUID labPublicId = lab != null ? lab.getPublicId() : null;
+
+        eventPublisher.publishEvent(new LabOpsChangedEvent(
+                realtimeRecipientsService.clinicPhones(clinicOwner),
+                realtimeRecipientsService.labPhones(lab),
+                "PROTHESIS_UPDATED",
+                action != null ? action : "UPDATED",
+                Collections.singletonList(prothesis.getId()),
+                decision,
+                dentistPublicId,
+                labPublicId
+        ));
     }
 
     private Double resolveCatalogAmount(Double defaultAmount, boolean isFlatFee, List<Integer> teeth) {

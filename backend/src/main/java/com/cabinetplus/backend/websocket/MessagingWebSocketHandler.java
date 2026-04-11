@@ -112,7 +112,7 @@ public class MessagingWebSocketHandler extends TextWebSocketHandler {
         return pendingOfflineByPhone.containsKey(key);
     }
 
-    public void sendToUser(String phone, MessagingRealtimeEvent event) {
+    public void sendToUser(String phone, Object event) {
         if (phone == null || phone.isBlank() || event == null) return;
         String key = resolveCanonicalPhone(phone);
         Set<WebSocketSession> sessions = sessionRegistry.getSessions(key);
@@ -122,29 +122,6 @@ public class MessagingWebSocketHandler extends TextWebSocketHandler {
         if (sessions.isEmpty()) return;
         try {
             byte[] bytes = objectMapper.writeValueAsBytes(event);
-            TextMessage msg = new TextMessage(new String(bytes, StandardCharsets.UTF_8));
-            for (WebSocketSession s : sessions) {
-                try {
-                    if (s != null && s.isOpen()) s.sendMessage(msg);
-                } catch (Exception ignored) {
-                    // ignore individual socket failures
-                }
-            }
-        } catch (Exception ignored) {
-            // ignore serialization failures
-        }
-    }
-
-    public void sendToUser(String phone, Object payload) {
-        if (phone == null || phone.isBlank() || payload == null) return;
-        String key = resolveCanonicalPhone(phone);
-        Set<WebSocketSession> sessions = sessionRegistry.getSessions(key);
-        if (sessions.isEmpty() && !key.equals(phone)) {
-            sessions = sessionRegistry.getSessions(phone);
-        }
-        if (sessions.isEmpty()) return;
-        try {
-            byte[] bytes = objectMapper.writeValueAsBytes(payload);
             TextMessage msg = new TextMessage(new String(bytes, StandardCharsets.UTF_8));
             for (WebSocketSession s : sessions) {
                 try {

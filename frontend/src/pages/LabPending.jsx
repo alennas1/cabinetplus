@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
 import { ArrowUpRight } from "react-feather";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -14,17 +15,21 @@ import {
   rejectLabPaymentCancel,
   rejectLabProthesisCancel,
 } from "../services/labPortalService";
+import useRealtimeMessagingSocket from "../hooks/useRealtimeMessagingSocket";
 
 import "./Patient.css";
 import "./Patients.css";
+import "../components/NotificationBell.css";
 
 const LabPending = () => {
   const navigate = useNavigate();
+  const token = useSelector((state) => state.auth.token);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pendingProtheses, setPendingProtheses] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);
   const [busyKey, setBusyKey] = useState(null);
+  const [revokedKeys, setRevokedKeys] = useState(new Set());
 
   const load = async () => {
     setLoading(true);
@@ -45,6 +50,46 @@ const LabPending = () => {
   useEffect(() => {
     load();
   }, []);
+
+  const wsReloadTimerRef = React.useRef(null);
+  useEffect(() => {
+    return () => {
+      if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+      wsReloadTimerRef.current = null;
+    };
+  }, []);
+
+  const scheduleRealtimeReload = () => {
+    if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+    wsReloadTimerRef.current = setTimeout(() => {
+      load();
+    }, 350);
+  };
+
+  useRealtimeMessagingSocket({
+    token,
+    enabled: !!token,
+    onMessage: (data) => {
+      const t = String(data?.type || "").trim();
+      if (t !== "PROTHESIS_UPDATED" && t !== "LAB_PAYMENT_UPDATED") return;
+      const action = String(data?.action || "").trim().toUpperCase();
+      if (!action.includes("CANCEL")) return;
+
+      if (action === "CANCEL_REVOKED") {
+        const ids = Array.isArray(data?.ids) ? data.ids : [];
+        if (ids.length > 0) {
+          setRevokedKeys((prev) => {
+            const next = new Set(prev);
+            const kind = t === "PROTHESIS_UPDATED" ? "PROTHESIS" : "PAYMENT";
+            ids.forEach((id) => next.add(`${kind}:${id}`));
+            return next;
+          });
+        }
+      } else {
+        scheduleRealtimeReload();
+      }
+    },
+  });
 
   const counts = useMemo(
     () => ({
@@ -198,8 +243,10 @@ const LabPending = () => {
                   title="Ouvrir chez le dentiste"
                 >
                   <td style={{ fontWeight: 600 }}>
-                    <span>{row.dentistName || "-"}</span>
-                    {row?.dentistPublicId ? <ArrowUpRight size={14} style={{ marginLeft: 6 }} /> : null}
+                    <span style={{ display: "inline-flex", alignItems: "center" }}>
+                      {row.dentistName || "-"}
+                      {row?.dentistPublicId ? <ArrowUpRight size={14} style={{ marginLeft: 6, flexShrink: 0 }} /> : null}
+                    </span>
                   </td>
                   <td>
                     <span
@@ -231,34 +278,40 @@ const LabPending = () => {
                     )}
                   </td>
                   <td style={{ textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", gap: 8 }}>
-                      <button
-                        type="button"
-                        className="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors text-xs font-semibold"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (row.kind === "PAYMENT") decidePayment({ id: row.id, approve: true });
-                          else decideProthesis({ id: row.id, approve: true });
-                        }}
-                        disabled={!!busyKey}
-                      >
-                        Approuver
-                      </button>
-                      <button
-                        type="button"
-                        className="px-3 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors text-xs font-semibold"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (row.kind === "PAYMENT") decidePayment({ id: row.id, approve: false });
-                          else decideProthesis({ id: row.id, approve: false });
-                        }}
-                        disabled={!!busyKey}
-                      >
-                        Rejeter
-                      </button>
-                    </div>
+                    {revokedKeys.has(`${row.kind}:${row.id}`) ? (
+                      <span className="context-badge canceled" style={{ color: "#4b5563", background: "#f3f4f6", border: "1px solid #d1d5db" }}>
+                        Demande retirée par le praticien
+                      </span>
+                    ) : (
+                      <div style={{ display: "inline-flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          className="cp-notif-actionBtn primary"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (row.kind === "PAYMENT") decidePayment({ id: row.id, approve: true });
+                            else decideProthesis({ id: row.id, approve: true });
+                          }}
+                          disabled={!!busyKey}
+                        >
+                          Approuver
+                        </button>
+                        <button
+                          type="button"
+                          className="cp-notif-actionBtn danger"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (row.kind === "PAYMENT") decidePayment({ id: row.id, approve: false });
+                            else decideProthesis({ id: row.id, approve: false });
+                          }}
+                          disabled={!!busyKey}
+                        >
+                          Rejeter
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))

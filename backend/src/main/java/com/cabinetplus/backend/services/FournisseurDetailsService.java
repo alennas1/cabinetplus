@@ -114,7 +114,7 @@ public class FournisseurDetailsService {
 
         boolean fromEnabled = from != null;
         boolean toEnabled = to != null;
-        Object[] row = fournisseurPaymentRepository.getPaymentsSummary(
+        return parseCountTotal(fournisseurPaymentRepository.getPaymentsSummary(
                 fournisseur.getId(),
                 user,
                 RecordStatus.ARCHIVED,
@@ -123,16 +123,7 @@ public class FournisseurDetailsService {
                 from,
                 toEnabled,
                 to
-        );
-
-        long count = 0L;
-        double total = 0.0;
-        if (row != null) {
-            if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
-            if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
-        }
-
-        return new CountTotalResponseDTO(count, total);
+        ));
     }
 
     public List<FournisseurBillingEntryResponse> getBillingEntriesForFournisseur(Fournisseur fournisseur, User user) {
@@ -234,28 +225,33 @@ public class FournisseurDetailsService {
 
         boolean fromEnabled = from != null;
         boolean toEnabled = to != null;
-        Object[] row = itemRepository.getFournisseurBillingEntriesSummary(
+        return parseCountTotal(itemRepository.getFournisseurBillingEntriesSummary(
                 fournisseur.getId(),
                 user.getId(),
                 fromEnabled,
                 from,
                 toEnabled,
                 to
-        );
+        ));
+    }
 
+    private CountTotalResponseDTO parseCountTotal(Object result) {
         long count = 0L;
         double total = 0.0;
-        if (row != null) {
-            if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
-            if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
+        if (result instanceof Object[] row) {
+            if (row.length > 0 && row[0] instanceof Object[] arr) {
+                if (arr.length > 0 && arr[0] instanceof Number n) count = n.longValue();
+                if (arr.length > 1 && arr[1] instanceof Number n) total = n.doubleValue();
+            } else {
+                if (row.length > 0 && row[0] instanceof Number n) count = n.longValue();
+                if (row.length > 1 && row[1] instanceof Number n) total = n.doubleValue();
+            }
         }
-
         return new CountTotalResponseDTO(count, total);
     }
 
     public List<FournisseurBillingSummaryResponse> getBillingHistoryForFournisseur(Fournisseur fournisseur, User user) {
         Map<String, Double> grouped = getBillingEntriesForFournisseur(fournisseur, user).stream()
-                .filter(e -> e.billingDate() != null)
                 .collect(Collectors.groupingBy(
                         e -> e.billingDate().getYear() + "-" + e.billingDate().getMonthValue(),
                         Collectors.summingDouble(e -> e.amount() != null ? e.amount() : 0.0)

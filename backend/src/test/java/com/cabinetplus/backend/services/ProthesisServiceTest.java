@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.cabinetplus.backend.enums.UserRole;
 import com.cabinetplus.backend.exceptions.BadRequestException;
@@ -27,6 +28,8 @@ class ProthesisServiceTest {
     private PatientRepository patientRepository;
     private LaboratoryRepository laboratoryRepository;
     private LaboratoryConnectionRepository laboratoryConnectionRepository;
+    private RealtimeRecipientsService realtimeRecipientsService;
+    private ApplicationEventPublisher eventPublisher;
     private ProthesisService prothesisService;
 
     @BeforeEach
@@ -36,12 +39,16 @@ class ProthesisServiceTest {
         patientRepository = mock(PatientRepository.class);
         laboratoryRepository = mock(LaboratoryRepository.class);
         laboratoryConnectionRepository = mock(LaboratoryConnectionRepository.class);
+        realtimeRecipientsService = mock(RealtimeRecipientsService.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         prothesisService = new ProthesisService(
                 prothesisRepository,
                 prothesisCatalogRepository,
                 patientRepository,
                 laboratoryRepository,
-                laboratoryConnectionRepository
+                laboratoryConnectionRepository,
+                realtimeRecipientsService,
+                eventPublisher
         );
     }
 
@@ -55,7 +62,7 @@ class ProthesisServiceTest {
         existing.setId(10L);
         existing.setPractitioner(practitioner);
 
-        when(prothesisRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(prothesisRepository.findForResponseById(10L)).thenReturn(Optional.of(existing));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
                 () -> prothesisService.updateStatus(10L, "INVALID_STATUS", practitioner, practitioner));

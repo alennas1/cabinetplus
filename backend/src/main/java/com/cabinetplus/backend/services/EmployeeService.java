@@ -420,7 +420,8 @@ public class EmployeeService {
                  "STATUS",
                  "ARCHIVE",
                  "DELETE",
-                 "MESSAGE"
+                 "MESSAGE",
+                 "NOTIFICATIONS"
          );
 
         java.util.Set<String> next = new java.util.HashSet<>();

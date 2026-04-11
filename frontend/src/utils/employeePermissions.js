@@ -6,6 +6,7 @@ export const EMPLOYEE_PERMISSION_ACTIONS = {
   ARCHIVE: "ARCHIVE",
   DELETE: "DELETE",
   MESSAGE: "MESSAGE",
+  NOTIFICATIONS: "NOTIFICATIONS",
 };
 
 export const buildEmployeeActionKey = (moduleKey, action) => `${moduleKey}_${action}`;
@@ -83,6 +84,7 @@ export const EMPLOYEE_PERMISSION_GROUPS = [
           EMPLOYEE_PERMISSION_ACTIONS.ARCHIVE,
           EMPLOYEE_PERMISSION_ACTIONS.CANCEL,
           EMPLOYEE_PERMISSION_ACTIONS.DELETE,
+          EMPLOYEE_PERMISSION_ACTIONS.NOTIFICATIONS,
         ],
       },
       {

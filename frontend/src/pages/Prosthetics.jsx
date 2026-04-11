@@ -22,8 +22,10 @@ import {
   assignProtheticsToLab,
   cancelProthetics,
   updateProthetics,
+  uploadProthesisStl,
   uploadProthesisFiles,
   downloadProthesisFilesZip,
+  revokeCancelProthetics,
 } from "../services/prostheticsService";
 import { getAllProstheticsCatalogue } from "../services/prostheticsCatalogueService";
 import { getAllLaboratories } from "../services/laboratoryService";
@@ -36,6 +38,7 @@ import { SORT_DIRECTIONS } from "../utils/tableSort";
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import DownloadIcon from "../components/DownloadIcon";
 import ProthesisFilesUploadModal from "../components/ProthesisFilesUploadModal";
+import useRealtimeMessagingSocket from "../hooks/useRealtimeMessagingSocket";
 
 import "./Patients.css";
 import "./Patient.css";
@@ -91,6 +94,18 @@ const Prosthetics = () => {
   const [sortConfig, setSortConfig] = useState({ key: "dates", direction: SORT_DIRECTIONS.DESC });
   const [currentPage, setCurrentPage] = useState(1);
   const prothesesPerPage = 10;
+  const currentPageRef = useRef(currentPage);
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
+  const wsReloadTimerRef = useRef(null);
+  useEffect(() => {
+    return () => {
+      if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+      wsReloadTimerRef.current = null;
+    };
+  }, []);
 
   const dropdownRef = useRef();
   const statusRef = useRef();
@@ -108,6 +123,8 @@ const Prosthetics = () => {
   const [assignErrors, setAssignErrors] = useState({});
   const [editingProthesis, setEditingProthesis] = useState(null);
   const [editErrors, setEditErrors] = useState({});
+  const [editStlFile, setEditStlFile] = useState(null);
+  const [editStlInputKey, setEditStlInputKey] = useState(0);
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [filesTargetId, setFilesTargetId] = useState(null);
   const [prothesisToCancel, setProthesisToCancel] = useState(null);
@@ -366,6 +383,22 @@ const Prosthetics = () => {
     }
   };
 
+  const scheduleRealtimeReload = () => {
+    if (wsReloadTimerRef.current) clearTimeout(wsReloadTimerRef.current);
+    wsReloadTimerRef.current = setTimeout(() => {
+      loadProthesesPage({ page: currentPageRef.current });
+    }, 350);
+  };
+
+  useRealtimeMessagingSocket({
+    token,
+    enabled: !!token,
+    onMessage: (data) => {
+      if (data?.type !== "PROTHESIS_UPDATED") return;
+      scheduleRealtimeReload();
+    },
+  });
+
   const getNextDentistProthesisStatus = (currentStatus) => {
     const normalized = String(currentStatus || "PENDING").toUpperCase();
     if (normalized === "PENDING") return "SENT_TO_LAB";
@@ -442,6 +475,8 @@ const Prosthetics = () => {
   };
 
   const handleEditClick = (p) => {
+    setEditStlFile(null);
+    setEditStlInputKey((k) => k + 1);
     setEditingProthesis({
       id: p.id,
       patientId: p.patientId,
@@ -484,6 +519,19 @@ const Prosthetics = () => {
       setIsCancellingProthesis(false);
       setShowConfirmCancel(false);
       setProthesisToCancel(null);
+    }
+  };
+
+  const handleRevokeCancel = async (p) => {
+    try {
+      setBusyStatusId(p.id);
+      await revokeCancelProthetics(p.id);
+      toast.success("Demande d'annulation retirée");
+      await loadProthesesPage();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Erreur lors du retrait"));
+    } finally {
+      setBusyStatusId(null);
     }
   };
 
@@ -945,14 +993,35 @@ const Prosthetics = () => {
                   <div className="flex items-center justify-between gap-2"><div style={{ fontWeight: "600" }}>{formatDateLabel(p.dateCreated)}</div><MetadataInfo entity={p} /></div>
                   </td>
                 <td>
-                  <span className={`status-chip ${p.status?.toLowerCase()}`} style={{ cursor: "default" }}>
+                  <span className={`status-chip ${p.cancelRequestDecision === "PENDING" ? "cancelled" : (p.status?.toLowerCase() || "")}`} style={{ cursor: "default" }}>
                     {busyStatusId === p.id
                       ? "Mise a jour..."
-                      : prothesisStatusLabels[p.status] || p.status || "-"}
+                      : p.cancelRequestDecision === "PENDING"
+                        ? "Annulation en attente"
+                        : prothesisStatusLabels[p.status] || p.status || "-"}
                   </span>
                 </td>
                 <td className="actions-cell">
-                  {(() => {
+                  {p.status === "CANCELLED" || p.cancelRequestDecision === "PENDING" ? (
+                    <div className="flex items-center gap-2">
+                      <span className="context-badge cancelled">
+                        {p.cancelRequestDecision === "PENDING" ? "En attente" : "Annulé"}
+                      </span>
+                      {p.cancelRequestDecision === "PENDING" && (
+                        <button
+                          type="button"
+                          className="action-btn cancel"
+                          onClick={() => handleRevokeCancel(p)}
+                          disabled={busyStatusId === p.id}
+                          title="Retirer la demande d'annulation"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {(() => {
                     const currentStatus = p.status || "PENDING";
                     const nextStatus = getNextDentistProthesisStatus(currentStatus);
                     if (!nextStatus) return null;
@@ -1064,6 +1133,8 @@ const Prosthetics = () => {
                   >
                     <X size={16} />
                   </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))
@@ -1106,6 +1177,8 @@ const Prosthetics = () => {
           className="modal-overlay treatment-modal"
           onClick={() => {
             setEditErrors({});
+            setEditStlFile(null);
+            setEditStlInputKey((k) => k + 1);
             setShowEditModal(false);
           }}
         >
@@ -1116,6 +1189,8 @@ const Prosthetics = () => {
                 className="cursor-pointer"
                 onClick={() => {
                   setEditErrors({});
+                  setEditStlFile(null);
+                  setEditStlInputKey((k) => k + 1);
                   setShowEditModal(false);
                 }}
               />
@@ -1170,7 +1245,12 @@ const Prosthetics = () => {
                     notes: (editingProthesis.notes || "").trim() || null,
                   };
                   await updateProthetics(editingProthesis.id, dataToSend);
+                  if (editStlFile) {
+                    await uploadProthesisStl(editingProthesis.id, editStlFile);
+                  }
                   toast.success("Mise a jour reussie");
+                  setEditStlFile(null);
+                  setEditStlInputKey((k) => k + 1);
                   setShowEditModal(false);
                   await loadProthesesPage();
                 } catch (err) {
@@ -1284,6 +1364,8 @@ const Prosthetics = () => {
                     className="btn-cancel"
                     onClick={() => {
                       setEditErrors({});
+                      setEditStlFile(null);
+                      setEditStlInputKey((k) => k + 1);
                       setShowEditModal(false);
                     }}
                     disabled={isSavingEdit}

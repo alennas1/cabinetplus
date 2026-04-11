@@ -39,6 +39,7 @@ const ACTION_LABELS = {
   [EMPLOYEE_PERMISSION_ACTIONS.STATUS]: "Statut",
   [EMPLOYEE_PERMISSION_ACTIONS.ARCHIVE]: "Archiver",
   [EMPLOYEE_PERMISSION_ACTIONS.DELETE]: "Supprimer",
+  [EMPLOYEE_PERMISSION_ACTIONS.NOTIFICATIONS]: "Notifications",
 };
 
 const EmployeePermissionPicker = ({ value, onChange, disabled = false }) => {

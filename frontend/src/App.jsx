@@ -7,6 +7,8 @@ import { initializeSession, getCurrentUser } from "./services/authService";
 import { setCredentials, sessionExpired, setLoading } from "./store/authSlice";
 import LoadingLogo from "./components/LoadingLogo"; // <-- adjust the path if needed
 import { initPwaUpdatePrompt } from "./pwa/registerPwaUpdate";
+import useRealtimeMessagingSocket from "./hooks/useRealtimeMessagingSocket";
+import { ensureWebPushSubscription, isWebPushSupported } from "./pwa/pushMessaging";
 // --- Pages ---
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -111,9 +113,53 @@ const AppContent = () => {
   const navigate = useNavigate();
   const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
 
+  useRealtimeMessagingSocket({
+    token,
+    enabled: !!isAuthenticated && !!token,
+    onMessage: (data) => {
+      if (data?.type === "NOTIFICATION_CREATED" && data?.notification) {
+        try {
+          window.dispatchEvent(new CustomEvent("CP_NOTIFICATION_CREATED", { detail: data.notification }));
+        } catch {
+          // ignore
+        }
+        window.dispatchEvent(new Event("CP_NOTIFICATIONS_PING"));
+      }
+    },
+  });
+
   useEffect(() => {
     initPwaUpdatePrompt();
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    if (!isWebPushSupported()) return;
+    if (Notification.permission !== "granted") return;
+    ensureWebPushSubscription({ prompt: false }).catch(() => {});
+  }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+
+    const onMessage = (event) => {
+      const data = event?.data;
+      if (!data || data.type !== "PUSH_OPEN") return;
+      const url = String(data.url || "/").trim() || "/";
+      try {
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+          window.location.href = url;
+          return;
+        }
+        navigate(url);
+      } catch {
+        // ignore
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [navigate]);
 
   useEffect(() => {
     if (!isAuthenticated || !token) return;

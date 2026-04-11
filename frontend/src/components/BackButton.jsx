@@ -12,8 +12,10 @@ export default function BackButton({
 
   const handleClick = () => {
     if (typeof onClick === "function") return onClick();
-    if (window.history.length > 1) return navigate(-1);
-    return navigate(fallbackTo);
+    const idx = window?.history?.state?.idx;
+    const canGoBack = typeof idx === "number" ? idx > 0 : window.history.length > 1;
+    if (canGoBack) return navigate(-1);
+    return navigate(fallbackTo, { replace: true });
   };
 
   return (
@@ -26,4 +28,3 @@ export default function BackButton({
     </button>
   );
 }
-

@@ -112,11 +112,14 @@ public class SecurityConfig {
                 // Admin internal group messaging
                 .requestMatchers("/api/messaging/admin-group/**").hasRole("ADMIN")
 
-                // Messaging (clinic + labs + admins internal)
-                .requestMatchers("/api/messaging/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB", "ADMIN")
+                 // Messaging (clinic + labs + admins internal)
+                 .requestMatchers("/api/messaging/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB", "ADMIN")
 
-                // Web Push subscription management (dentist + employees + labs)
-                .requestMatchers("/api/push/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")
+                 // In-app notifications (all authenticated roles)
+                 .requestMatchers("/api/notifications/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB", "ADMIN")
+
+                 // Web Push subscription management (dentist + employees + labs)
+                 .requestMatchers("/api/push/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")
 
                 // Support & feedback (clinic + labs)
                 .requestMatchers("/api/support/**").hasAnyRole("DENTIST", "EMPLOYEE", "LAB")

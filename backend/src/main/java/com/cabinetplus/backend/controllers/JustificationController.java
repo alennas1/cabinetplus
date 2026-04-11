@@ -71,6 +71,7 @@ public class JustificationController {
     private static JustificationDTO mapToDTO(Justification j) {
         return JustificationDTO.builder()
                 .id(j.getId())
+                .code(j.getCode())
                 .title(j.getTitle())
                 .finalContent(j.getFinalContent())
                 .date(j.getDate() != null ? j.getDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : null)

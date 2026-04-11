@@ -30,6 +30,12 @@ public class Payment {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 32)
+    private String code;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
     @NotNull @Min(0)
     private Double amount;
 
@@ -71,6 +77,9 @@ public class Payment {
     private void ensureRecordStatus() {
         if (recordStatus == null) {
             recordStatus = RecordStatus.ACTIVE;
+        }
+        if (createdAt == null) {
+            createdAt = date != null ? date : LocalDateTime.now();
         }
     }
 }

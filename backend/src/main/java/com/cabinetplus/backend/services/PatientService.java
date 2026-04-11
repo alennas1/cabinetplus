@@ -17,10 +17,12 @@ public class PatientService {
 
     private final PatientRepository patientRepository;
     private final PlanLimitService planLimitService;
+    private final ReferenceCodeGeneratorService referenceCodeGeneratorService;
 
-    public PatientService(PatientRepository patientRepository, PlanLimitService planLimitService) {
+    public PatientService(PatientRepository patientRepository, PlanLimitService planLimitService, ReferenceCodeGeneratorService referenceCodeGeneratorService) {
         this.patientRepository = patientRepository;
         this.planLimitService = planLimitService;
+        this.referenceCodeGeneratorService = referenceCodeGeneratorService;
     }
 
     // Save + return DTO
@@ -33,6 +35,16 @@ public class PatientService {
         }
         if (patient.getUpdatedBy() == null) {
             patient.setUpdatedBy(patient.getCreatedBy());
+        }
+        if (patient.getCode() == null || patient.getCode().isBlank()) {
+            LocalDateTime createdAt = patient.getCreatedAt() != null ? patient.getCreatedAt() : LocalDateTime.now();
+            patient.setCreatedAt(createdAt);
+            long count = patientRepository.countByCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                    patient.getCreatedBy(),
+                    referenceCodeGeneratorService.dayStart(createdAt),
+                    referenceCodeGeneratorService.nextDayStart(createdAt)
+            );
+            patient.setCode(referenceCodeGeneratorService.generate("P", createdAt, count));
         }
 
         planLimitService.assertPatientLimitNotReached(patient.getCreatedBy());
@@ -92,6 +104,7 @@ public class PatientService {
         return new PatientDto(
                 patient.getId(),
                 patient.getPublicId(),
+                patient.getCode(),
                 patient.getFirstname(),
                 patient.getLastname(),
                 patient.getAge(),
@@ -124,5 +137,3 @@ public class PatientService {
     return toDto(patient);  // use your existing mapping method
 }
 }
-
-

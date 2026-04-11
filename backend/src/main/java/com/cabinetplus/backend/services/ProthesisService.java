@@ -39,6 +39,7 @@ public class ProthesisService {
     private final LaboratoryConnectionRepository laboratoryConnectionRepository;
     private final RealtimeRecipientsService realtimeRecipientsService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReferenceCodeGeneratorService referenceCodeGeneratorService;
 
     public List<Prothesis> findAllByUser(User user) {
         if (user.getRole() == UserRole.ADMIN) {
@@ -360,7 +361,7 @@ public class ProthesisService {
         p.setTeeth(teeth);
         p.setFinalPrice(dto.finalPrice());
         p.setLabCost(dto.labCost());
-        p.setCode(trimToNull(dto.code()));
+        p.setLabCode(trimToNull(dto.labCode()));
         p.setNotes(trimToNull(dto.notes()));
         p.setStatus("PENDING");
         p.setDateCreated(LocalDateTime.now());
@@ -377,7 +378,14 @@ public class ProthesisService {
             p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), teeth));
         }
 
-        assertUniqueCode(p.getCode(), p.getPractitioner(), null);
+        long count = repository.countByPractitionerAndDateCreatedGreaterThanEqualAndDateCreatedLessThan(
+                user,
+                referenceCodeGeneratorService.dayStart(p.getDateCreated()),
+                referenceCodeGeneratorService.nextDayStart(p.getDateCreated())
+        );
+        p.setCode(referenceCodeGeneratorService.generate("PR", p.getDateCreated(), count));
+
+        assertUniqueLabCode(p.getLabCode(), p.getPractitioner(), null);
         assertAmounts(p.getFinalPrice(), p.getLabCost());
         return repository.save(p);
     }
@@ -400,7 +408,9 @@ public class ProthesisService {
         p.setPatient(patient);
         p.setProthesisCatalog(catalog);
         p.setTeeth(teeth);
-        p.setCode(trimToNull(dto.code()));
+        if (dto.labCode() != null) {
+            p.setLabCode(trimToNull(dto.labCode()));
+        }
         p.setNotes(trimToNull(dto.notes()));
         p.setUpdatedBy(actor != null ? actor : user);
 
@@ -416,7 +426,7 @@ public class ProthesisService {
             p.setLabCost(resolveCatalogAmount(catalog.getDefaultLabCost(), catalog.isFlatFee(), teeth));
         }
 
-        assertUniqueCode(p.getCode(), p.getPractitioner(), p.getId());
+        assertUniqueLabCode(p.getLabCode(), p.getPractitioner(), p.getId());
         assertAmounts(p.getFinalPrice(), p.getLabCost());
         return repository.save(p);
     }
@@ -802,16 +812,16 @@ public List<Prothesis> findByPatientAndPractitionerIncludingCancelled(Long patie
     }
 
 
-    private void assertUniqueCode(String code, User practitioner, Long excludeProthesisId) {
-        String normalized = trimToNull(code);
+    private void assertUniqueLabCode(String labCode, User practitioner, Long excludeProthesisId) {
+        String normalized = trimToNull(labCode);
         if (normalized == null) return;
 
         boolean exists = excludeProthesisId == null
-                ? repository.existsByPractitionerAndCodeIgnoreCase(practitioner, normalized)
-                : repository.existsByPractitionerAndCodeIgnoreCaseAndIdNot(practitioner, normalized, excludeProthesisId);
+                ? repository.existsByPractitionerAndLabCodeIgnoreCase(practitioner, normalized)
+                : repository.existsByPractitionerAndLabCodeIgnoreCaseAndIdNot(practitioner, normalized, excludeProthesisId);
 
         if (exists) {
-            throw new BadRequestException(java.util.Map.of("code", "Ce code est deja utilise"));
+            throw new BadRequestException(java.util.Map.of("labCode", "Ce code est deja utilise"));
         }
     }
 

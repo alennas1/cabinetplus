@@ -29,15 +29,18 @@ public class TreatmentService {
     private final TreatmentRepository treatmentRepository;
     private final PatientRepository patientRepository;
     private final TreatmentCatalogRepository treatmentCatalogRepository;
+    private final ReferenceCodeGeneratorService referenceCodeGeneratorService;
 
     public TreatmentService(
             TreatmentRepository treatmentRepository,
             PatientRepository patientRepository,
-            TreatmentCatalogRepository treatmentCatalogRepository
+            TreatmentCatalogRepository treatmentCatalogRepository,
+            ReferenceCodeGeneratorService referenceCodeGeneratorService
     ) {
         this.treatmentRepository = treatmentRepository;
         this.patientRepository = patientRepository;
         this.treatmentCatalogRepository = treatmentCatalogRepository;
+        this.referenceCodeGeneratorService = referenceCodeGeneratorService;
     }
 
     // All treatments of a practitioner
@@ -79,7 +82,9 @@ public class TreatmentService {
         treatment.setPatient(patient);
         treatment.setTreatmentCatalog(catalog);
         // Force server-side timestamp for traceability (ignore any client-provided date).
-        treatment.setDate(LocalDateTime.now());
+        LocalDateTime createdAt = LocalDateTime.now();
+        treatment.setDate(createdAt);
+        treatment.setUpdatedAt(createdAt);
         treatment.setPrice(request.getPrice());
         treatment.setNotes(trimToNull(request.getNotes()));
         String status = defaultStatus(request.getStatus());
@@ -87,6 +92,13 @@ public class TreatmentService {
         treatment.setStatus("CANCELLED".equalsIgnoreCase(status) ? "PLANNED" : status);
         List<Integer> teeth = normalizeTeeth(request.getTeeth());
         treatment.setTeeth(teeth);
+
+        long count = treatmentRepository.countByPractitionerAndDateGreaterThanEqualAndDateLessThan(
+                practitioner,
+                referenceCodeGeneratorService.dayStart(createdAt),
+                referenceCodeGeneratorService.nextDayStart(createdAt)
+        );
+        treatment.setCode(referenceCodeGeneratorService.generate("T", createdAt, count));
 
         assertCatalogRules(treatment);
         return treatmentRepository.save(treatment);

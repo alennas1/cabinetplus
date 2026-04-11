@@ -14,6 +14,7 @@ public record ProthesisResponse(
         Double finalPrice,
         Double labCost,
         String code,
+        String labCode,
         String notes,
         String status,
         String labName,

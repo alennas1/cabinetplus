@@ -41,6 +41,8 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
 
     List<Prothesis> findByPatientId(Long patientId);
 
+    long countByPractitionerAndDateCreatedGreaterThanEqualAndDateCreatedLessThan(User practitioner, LocalDateTime fromInclusive, LocalDateTime toExclusive);
+
     // Avoid Hibernate eager-join explosion (open-in-view=false). This graph fetches only what ProtheticsController
     // needs to build ProthesisResponse, while keeping nested User/DentistProfile/Subscription graphs lazy.
     @EntityGraph(attributePaths = {
@@ -119,13 +121,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and :qTooth member of p.teeth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and :qTooth member of p.teeth)
                 ))
           )
     """)
@@ -174,13 +177,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and :qTooth member of p.teeth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and :qTooth member of p.teeth)
                 ))
           )
     """)
@@ -260,13 +264,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
         group by p
@@ -305,13 +310,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
       """
@@ -363,13 +369,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
         group by p
@@ -408,13 +415,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
       """
@@ -486,13 +494,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
         group by p
@@ -531,13 +540,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
       """
@@ -589,13 +599,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
         group by p
@@ -634,13 +645,14 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
                 or (:filterKey = '' and (
                         lower(coalesce(patient.firstname, '')) like :qLike
                         or lower(coalesce(patient.lastname, '')) like :qLike
-                        or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
-                        or lower(coalesce(pc.name, '')) like :qLike
-                        or lower(coalesce(material.name, '')) like :qLike
-                        or lower(coalesce(p.code, '')) like :qLike
-                        or lower(coalesce(lab.name, '')) like :qLike
-                        or lower(coalesce(p.status, '')) like :qLike
-                        or (:qToothEnabled = true and tt = :qTooth)
+                         or lower(concat(coalesce(patient.firstname, ''), ' ', coalesce(patient.lastname, ''))) like :qLike
+                         or lower(coalesce(pc.name, '')) like :qLike
+                         or lower(coalesce(material.name, '')) like :qLike
+                         or lower(coalesce(p.code, '')) like :qLike
+                         or lower(coalesce(p.labCode, '')) like :qLike
+                         or lower(coalesce(lab.name, '')) like :qLike
+                         or lower(coalesce(p.status, '')) like :qLike
+                         or (:qToothEnabled = true and tt = :qTooth)
                 ))
           )
       """
@@ -778,9 +790,9 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
             Pageable pageable
     );
 
-    boolean existsByPractitionerAndCodeIgnoreCase(User practitioner, String code);
+    boolean existsByPractitionerAndLabCodeIgnoreCase(User practitioner, String labCode);
 
-    boolean existsByPractitionerAndCodeIgnoreCaseAndIdNot(User practitioner, String code, Long id);
+    boolean existsByPractitionerAndLabCodeIgnoreCaseAndIdNot(User practitioner, String labCode, Long id);
 
     @Query("""
         SELECT p.patient.id, COALESCE(SUM(p.finalPrice), 0)
@@ -1011,11 +1023,12 @@ public interface ProthesisRepository extends JpaRepository<Prothesis, Long> {
            and (
              :qLike = ''
              or (:filterKey = 'work' and lower(coalesce(catalog.name, '')) like :qLike)
-            or (:filterKey = 'code' and lower(coalesce(p.code, '')) like :qLike)
+            or (:filterKey = 'code' and (lower(coalesce(p.code, '')) like :qLike or lower(coalesce(p.labCode, '')) like :qLike))
             or (:filterKey = 'dentist' and lower(concat(coalesce(pract.firstname, ''), ' ', coalesce(pract.lastname, ''))) like :qLike)
             or (:filterKey = '' and (
                     lower(coalesce(catalog.name, '')) like :qLike
                     or lower(coalesce(p.code, '')) like :qLike
+                    or lower(coalesce(p.labCode, '')) like :qLike
                     or lower(concat(coalesce(pract.firstname, ''), ' ', coalesce(pract.lastname, ''))) like :qLike
             ))
           )

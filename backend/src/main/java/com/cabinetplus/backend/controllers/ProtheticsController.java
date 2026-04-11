@@ -465,13 +465,14 @@ public class ProtheticsController {
         p.getProthesisCatalog().getName(),
         (p.getProthesisCatalog().getMaterial() != null) ? p.getProthesisCatalog().getMaterial().getName() : "N/A",
         safeTeeth,
-        p.getFinalPrice(),
-        p.getLabCost(),
-        p.getCode(),
-        p.getNotes(),
-        safeStatus,
-        p.getLaboratory() != null ? p.getLaboratory().getName() : "Not Sent",
-        p.getDateCreated(),
+         p.getFinalPrice(),
+         p.getLabCost(),
+         p.getCode(),
+         p.getLabCode(),
+         p.getNotes(),
+         safeStatus,
+         p.getLaboratory() != null ? p.getLaboratory().getName() : "Not Sent",
+         p.getDateCreated(),
         p.getSentToLabDate(),
         sentToLabByName,
         p.getActualReturnDate(),
@@ -678,4 +679,3 @@ public ResponseEntity<List<ProthesisResponse>> getByPatient(
 
 
 }
-

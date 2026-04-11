@@ -35,6 +35,9 @@ public class Treatment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 32)
+    private String code;
+
     @ManyToOne
     @JoinColumn(name = "treatment_catalog_id")
     private TreatmentCatalog treatmentCatalog;

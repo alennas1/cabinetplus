@@ -233,6 +233,8 @@ public interface TreatmentRepository extends JpaRepository<Treatment, Long> {
 
     long countByTreatmentCatalogIdAndPractitioner(Long treatmentCatalogId, User practitioner);
 
+    long countByPractitionerAndDateGreaterThanEqualAndDateLessThan(User practitioner, LocalDateTime fromInclusive, LocalDateTime toExclusive);
+
     @Query("""
         SELECT t.patient.id, COALESCE(SUM(t.price), 0)
         FROM Treatment t

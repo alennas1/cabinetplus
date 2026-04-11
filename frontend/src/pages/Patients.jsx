@@ -557,6 +557,7 @@ const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/
           <tr>
             <SortableTh label="Prénom" sortKey="firstname" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Nom" sortKey="lastname" sortConfig={sortConfig} onSort={handleSort} />
+            <th>Code</th>
             <SortableTh label="Âge" sortKey="age" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Sexe" sortKey="sex" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Téléphone" sortKey="phone" sortConfig={sortConfig} onSort={handleSort} />
@@ -586,6 +587,7 @@ const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/
                 </div>
               </td>
               <td>{p.lastname || "—"}</td>
+              <td>{p.code || "-"}</td>
               <td>{p.age ?? "N/A"} ans</td>
               <td>
                 {p.sex === "Homme" ? (
@@ -672,7 +674,7 @@ const Patients = ({ view = "active", showBackButton = false, backFallbackTo = "/
 
           {currentPatients.length === 0 && (
             <tr>
-              <td colSpan="7" style={{ textAlign: "center", color: "#888" }}>
+              <td colSpan="8" style={{ textAlign: "center", color: "#888" }}>
                 {view === "archived" ? "Aucun patient archivé" : "Aucun patient trouvé"}
               </td>
             </tr>

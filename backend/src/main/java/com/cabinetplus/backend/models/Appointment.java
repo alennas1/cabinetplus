@@ -31,6 +31,9 @@ public class Appointment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 32)
+    private String code;
+
     private LocalDateTime dateTimeStart;
     private LocalDateTime dateTimeEnd;
 

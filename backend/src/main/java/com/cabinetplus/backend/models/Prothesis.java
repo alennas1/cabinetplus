@@ -42,7 +42,10 @@ public class Prothesis {
     private Laboratory laboratory; // Assigned when sent to lab
 
     private Double labCost; // Expense paid to the lab (DZD)
-    
+
+    @Column(name = "lab_code")
+    private String labCode;
+     
     // Status e.g., "PENDING", "SENT_TO_LAB", "RECEIVED", "FITTED"
     private String status = "PENDING"; 
     
@@ -77,6 +80,8 @@ public class Prothesis {
 
     // --- Pricing & Details ---
     private Double finalPrice; // Calculated: (catalog.price * teeth.size()) or flat fee
+
+    // Internal identification code (e.g. PR11042601)
     private String code;
 
     @Column(columnDefinition = "TEXT")
@@ -156,11 +161,6 @@ public class Prothesis {
         }
     }
 
-    @PreUpdate
-    private void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-}
     @PreUpdate
     private void onUpdate() {
         updatedAt = LocalDateTime.now();

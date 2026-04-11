@@ -31,6 +31,12 @@ public class Justification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 32)
+    private String code;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String title;
 
@@ -56,6 +62,11 @@ public class Justification {
 
     @PrePersist
     protected void onCreate() {
-        this.date = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (date == null) {
+            date = createdAt;
+        }
     }
 }

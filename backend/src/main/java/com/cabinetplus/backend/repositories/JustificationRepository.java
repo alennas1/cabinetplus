@@ -19,6 +19,8 @@ public interface JustificationRepository extends JpaRepository<Justification, Lo
     List<Justification> findByPractitioner(User practitioner);
     List<Justification> findByPractitionerAndRecordStatus(User practitioner, RecordStatus recordStatus);
 
+    long countByPractitionerAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(User practitioner, LocalDateTime fromInclusive, LocalDateTime toExclusive);
+
     Optional<Justification> findByIdAndPractitioner(Long id, User practitioner);
 
     List<Justification> findByPatientAndPractitioner(Patient patient, User practitioner);

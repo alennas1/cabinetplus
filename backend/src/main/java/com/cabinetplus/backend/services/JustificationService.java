@@ -29,20 +29,39 @@ public class JustificationService {
     private final JustificationRepository justificationRepository;
     private final PatientRepository patientRepository;
     private final JustificationContentRepository contentRepository;
+    private final ReferenceCodeGeneratorService referenceCodeGeneratorService;
 
     public JustificationService(
             JustificationRepository justificationRepository,
             PatientRepository patientRepository,
-            JustificationContentRepository contentRepository) {
+            JustificationContentRepository contentRepository,
+            ReferenceCodeGeneratorService referenceCodeGeneratorService) {
         this.justificationRepository = justificationRepository;
         this.patientRepository = patientRepository;
         this.contentRepository = contentRepository;
+        this.referenceCodeGeneratorService = referenceCodeGeneratorService;
     }
 
     @Transactional
     public Justification save(Justification justification) {
         assertPatientOwnedByClinic(justification != null ? justification.getPatient() : null,
                 justification != null ? justification.getPractitioner() : null);
+        if (justification != null
+                && justification.getId() == null
+                && (justification.getCode() == null || justification.getCode().isBlank())
+                && justification.getPractitioner() != null) {
+            LocalDateTime createdAt = justification.getCreatedAt() != null ? justification.getCreatedAt() : LocalDateTime.now();
+            justification.setCreatedAt(createdAt);
+            if (justification.getDate() == null) {
+                justification.setDate(createdAt);
+            }
+            long count = justificationRepository.countByPractitionerAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                    justification.getPractitioner(),
+                    referenceCodeGeneratorService.dayStart(createdAt),
+                    referenceCodeGeneratorService.nextDayStart(createdAt)
+            );
+            justification.setCode(referenceCodeGeneratorService.generate("J", createdAt, count));
+        }
         return justificationRepository.save(justification);
     }
 

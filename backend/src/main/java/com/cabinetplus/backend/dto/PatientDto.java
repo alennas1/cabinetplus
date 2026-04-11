@@ -6,6 +6,7 @@ import java.util.UUID;
 public record PatientDto(
     Long id,
     UUID publicId,
+    String code,
     String firstname,
     String lastname,
     Integer age,
@@ -44,6 +45,7 @@ public record PatientDto(
     ) {
         this(
                 id,
+                null,
                 null,
                 firstname,
                 lastname,

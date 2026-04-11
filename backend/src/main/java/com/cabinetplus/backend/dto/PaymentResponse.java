@@ -6,6 +6,7 @@ import com.cabinetplus.backend.models.Payment.Method;
 
 public record PaymentResponse(
         Long id,
+        String code,
         Long patientId,
         Double amount,
         Method method,

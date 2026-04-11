@@ -25,10 +25,12 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
+    private final ReferenceCodeGeneratorService referenceCodeGeneratorService;
 
-    public AppointmentService(AppointmentRepository appointmentRepository, PatientRepository patientRepository) {
+    public AppointmentService(AppointmentRepository appointmentRepository, PatientRepository patientRepository, ReferenceCodeGeneratorService referenceCodeGeneratorService) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
+        this.referenceCodeGeneratorService = referenceCodeGeneratorService;
     }
 
     public List<Appointment> findAll() {
@@ -111,6 +113,16 @@ public class AppointmentService {
         appointment.setPractitioner(practitioner);
         appointment.setCreatedBy(actor != null ? actor : practitioner);
         appointment.setUpdatedBy(actor != null ? actor : practitioner);
+        LocalDateTime createdAt = LocalDateTime.now();
+        appointment.setCreatedAt(createdAt);
+        appointment.setUpdatedAt(createdAt);
+
+        long count = appointmentRepository.countByPractitionerAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                practitioner,
+                referenceCodeGeneratorService.dayStart(createdAt),
+                referenceCodeGeneratorService.nextDayStart(createdAt)
+        );
+        appointment.setCode(referenceCodeGeneratorService.generate("RV", createdAt, count));
 
         return appointmentRepository.save(appointment);
     }

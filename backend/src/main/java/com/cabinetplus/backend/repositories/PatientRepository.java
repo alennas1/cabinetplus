@@ -29,6 +29,7 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     Optional<Patient> findByPublicId(UUID publicId);
     long countByCreatedBy(User user);
     long countByCreatedByAndArchivedAtIsNull(User user);
+    long countByCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(User user, LocalDateTime fromInclusive, LocalDateTime toExclusive);
 
     @Query("""
             select p
@@ -167,4 +168,3 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     @Query("update Patient p set p.age = p.age + 1 where p.age is not null")
     int incrementAllAges();
 }
-

@@ -619,6 +619,7 @@ public class PatientController {
         return new PatientDto(
                 patient.getId(),
                 patient.getPublicId(),
+                patient.getCode(),
                 patient.getFirstname(),
                 patient.getLastname(),
                 patient.getAge(),

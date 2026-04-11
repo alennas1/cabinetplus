@@ -33,6 +33,9 @@ public class Patient {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
+    @Column(length = 32)
+    private String code;
+
     @Column(columnDefinition = "TEXT")
     private String firstname;
 

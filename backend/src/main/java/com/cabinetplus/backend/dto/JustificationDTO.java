@@ -8,6 +8,7 @@ import lombok.Data;
 @Builder
 public class JustificationDTO {
     private Long id;
+    private String code;
     private String title;
     private String finalContent;
     private String date; // formatted as yyyy-MM-dd

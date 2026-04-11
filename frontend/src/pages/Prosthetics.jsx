@@ -483,7 +483,7 @@ const Prosthetics = () => {
       catalogId: p.catalogId,
       labCost: p.labCost || 0,
       finalPrice: p.finalPrice || 0,
-      code: p.code || "",
+      labCode: p.labCode || "",
       notes: p.notes || "",
       teeth: p.teeth || [],
       stlFilename: p.stlFilename || null,
@@ -886,6 +886,7 @@ const Prosthetics = () => {
             </th>
             <SortableTh label="Travail / Matériau" sortKey="work" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Code" sortKey="code" sortConfig={sortConfig} onSort={handleSort} />
+            <th>Code labo</th>
             <SortableTh label="Dents" sortKey="teeth" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Laboratoire" sortKey="lab" sortConfig={sortConfig} onSort={handleSort} />
             <SortableTh label="Coût labo" sortKey="labCost" sortConfig={sortConfig} onSort={handleSort} />
@@ -897,13 +898,13 @@ const Prosthetics = () => {
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={9} style={{ textAlign: "center", padding: "40px" }}>
+              <td colSpan={10} style={{ textAlign: "center", padding: "40px" }}>
                 Chargement...
               </td>
             </tr>
           ) : protheses.length === 0 ? (
             <tr>
-              <td colSpan={9} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
+              <td colSpan={10} style={{ textAlign: "center", color: "#888", padding: "40px" }}>
                 Aucun travail trouve
               </td>
             </tr>
@@ -933,6 +934,7 @@ const Prosthetics = () => {
                   </div>
                 </td>
                 <td style={{ fontWeight: "600" }}>{p.code || "-"}</td>
+                <td>{p.labCode || "-"}</td>
                 <td style={{ textAlign: "center" }}>
                   {p.teeth?.length ? (
                     <button
@@ -1217,8 +1219,8 @@ const Prosthetics = () => {
                   required: true,
                   min: 0.01,
                 });
-                nextErrors.code = validateText(editingProthesis.code, {
-                  label: "Code",
+                nextErrors.labCode = validateText(editingProthesis.labCode, {
+                  label: "Code labo",
                   required: false,
                   maxLength: FIELD_LIMITS.PLAN_CODE_MAX,
                 });
@@ -1241,7 +1243,7 @@ const Prosthetics = () => {
                     teeth: editingProthesis.teeth || [],
                     labCost: parseFloat(editingProthesis.labCost),
                     finalPrice: parseFloat(editingProthesis.finalPrice),
-                    code: (editingProthesis.code || "").trim() || null,
+                    labCode: (editingProthesis.labCode || "").trim() || null,
                     notes: (editingProthesis.notes || "").trim() || null,
                   };
                   await updateProthetics(editingProthesis.id, dataToSend);
@@ -1307,18 +1309,18 @@ const Prosthetics = () => {
                   </div>
                 </div>
 
-                <label className="field-label">Code</label>
+                <label className="field-label">Code labo</label>
                 <input
                   type="text"
-                  value={editingProthesis.code || ""}
+                  value={editingProthesis.labCode || ""}
                   onChange={(e) => {
-                    setEditingProthesis({ ...editingProthesis, code: e.target.value });
-                    if (editErrors.code) setEditErrors((prev) => ({ ...prev, code: "" }));
+                    setEditingProthesis({ ...editingProthesis, labCode: e.target.value });
+                    if (editErrors.labCode) setEditErrors((prev) => ({ ...prev, labCode: "" }));
                   }}
                   placeholder="Ex: P001"
-                  className={editErrors.code ? "invalid" : ""}
+                  className={editErrors.labCode ? "invalid" : ""}
                 />
-                <FieldError message={editErrors.code} />
+                <FieldError message={editErrors.labCode} />
 
                 <label className="field-label">Notes</label>
                 <textarea

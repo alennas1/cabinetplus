@@ -62,4 +62,6 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
             where d.id = :documentId
             """)
     Optional<Long> findFileSizeBytesById(@Param("documentId") Long documentId);
+
+    long countByPatientCreatedByAndUploadedAtGreaterThanEqualAndUploadedAtLessThan(User owner, LocalDateTime fromInclusive, LocalDateTime toExclusive);
 }

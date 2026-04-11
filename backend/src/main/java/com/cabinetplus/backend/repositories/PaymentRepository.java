@@ -74,7 +74,8 @@ List<Payment> findByPatientId(Long patientId);
     """)
     List<Object[]> sumAmountByPatientIds(@Param("patientIds") List<Long> patientIds);
 
+    long countByPatientCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(User owner, LocalDateTime fromInclusive, LocalDateTime toExclusive);
+
 
 }
-
 

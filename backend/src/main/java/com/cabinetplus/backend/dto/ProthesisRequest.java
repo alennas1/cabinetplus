@@ -3,6 +3,7 @@ package com.cabinetplus.backend.dto;
 import java.util.List;
 
 import com.cabinetplus.backend.validation.UniqueIntegers;
+import com.fasterxml.jackson.annotation.JsonAlias;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -36,7 +37,8 @@ public record ProthesisRequest(
         Double labCost,
 
         @Size(max = 255, message = "Code invalide")
-        String code,
+        @JsonAlias("code")
+        String labCode,
 
         @Size(max = 500, message = "Les notes ne doivent pas depasser 500 caracteres")
         String notes

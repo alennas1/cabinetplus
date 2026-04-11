@@ -29,6 +29,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository; // assume exists
+    private final ReferenceCodeGeneratorService referenceCodeGeneratorService;
 
     @Transactional
     public PaymentResponse create(PaymentRequest request, User actor) {
@@ -44,12 +45,21 @@ public class PaymentService {
         // Force server-side timestamp for traceability (ignore any client-provided date).
         LocalDateTime when = LocalDateTime.now();
 
+        long count = paymentRepository.countByPatientCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                clinicOwner,
+                referenceCodeGeneratorService.dayStart(when),
+                referenceCodeGeneratorService.nextDayStart(when)
+        );
+        String code = referenceCodeGeneratorService.generate("V", when, count);
+
         Payment saved = paymentRepository.save(
                 Payment.builder()
                         .patient(patient)
+                        .code(code)
                         .amount(request.amount())
                         .method(request.method())
                         .date(when)
+                        .createdAt(when)
                         .receivedBy(receivedBy)
                         .recordStatus(RecordStatus.ACTIVE)
                         .build()
@@ -65,6 +75,7 @@ public class PaymentService {
 
         return new PaymentResponse(
                 saved.getId(),
+                saved.getCode(),
                 patient.getId(),
                 saved.getAmount(),
                 saved.getMethod(),
@@ -183,5 +194,3 @@ public class PaymentService {
                 && user.getOwnerDentist().getId().equals(clinicOwner.getId());
     }
 }
-
-

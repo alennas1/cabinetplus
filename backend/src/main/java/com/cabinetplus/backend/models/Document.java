@@ -26,6 +26,9 @@ public class Document {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 32)
+    private String code;
+
     @Column(columnDefinition = "TEXT")
     private String title;
 

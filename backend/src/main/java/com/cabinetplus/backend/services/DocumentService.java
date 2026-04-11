@@ -50,17 +50,20 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final PatientRepository patientRepository;
     private final PlanLimitService planLimitService;
+    private final ReferenceCodeGeneratorService referenceCodeGeneratorService;
     private final Path uploadRoot;
 
     public DocumentService(
             DocumentRepository documentRepository,
             PatientRepository patientRepository,
             PlanLimitService planLimitService,
+            ReferenceCodeGeneratorService referenceCodeGeneratorService,
             @Value("${app.documents.upload-dir:uploads/documents}") String uploadDir
     ) {
         this.documentRepository = documentRepository;
         this.patientRepository = patientRepository;
         this.planLimitService = planLimitService;
+        this.referenceCodeGeneratorService = referenceCodeGeneratorService;
         this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
     }
 
@@ -158,10 +161,18 @@ public class DocumentService {
             document.setFilename(sanitizeFilename(originalFilename, storedFilename));
             document.setFileType(resolveFileType(file, extension));
             document.setFileSizeBytes(storedBytes);
-            document.setUploadedAt(LocalDateTime.now());
+            LocalDateTime uploadedAt = LocalDateTime.now();
+            document.setUploadedAt(uploadedAt);
             document.setPathOrUrl(destination.toString());
             document.setPatient(patient);
             document.setUploadedBy(uploadedBy);
+
+            long count = documentRepository.countByPatientCreatedByAndUploadedAtGreaterThanEqualAndUploadedAtLessThan(
+                    ownerDentist,
+                    referenceCodeGeneratorService.dayStart(uploadedAt),
+                    referenceCodeGeneratorService.nextDayStart(uploadedAt)
+            );
+            document.setCode(referenceCodeGeneratorService.generate("PJ", uploadedAt, count));
 
             return toDto(documentRepository.save(document));
         } catch (IOException ex) {
@@ -289,6 +300,7 @@ public class DocumentService {
     private DocumentResponseDTO toDto(Document document) {
         return new DocumentResponseDTO(
                 document.getId(),
+                document.getCode(),
                 document.getTitle(),
                 document.getFilename(),
                 document.getFileType(),
@@ -296,5 +308,4 @@ public class DocumentService {
                 document.getUploadedAt()
         );
     }
-}
 }
